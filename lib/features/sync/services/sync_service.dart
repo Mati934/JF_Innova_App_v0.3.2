@@ -91,7 +91,7 @@ class SyncService {
         count++; // Contamos éxito
       } catch (e) {
         debugPrint("⚠️ Error subiendo actividad ${row['id']}: $e");
-        throw Exception("Falló subida de actividad padre. Cancelando resto.");
+        throw Exception("Falló subida de actividad. Cancelando resto.");
       }
     }
     return count;

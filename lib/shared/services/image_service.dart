@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
-import '../widget/camera/multi_camera_screen.dart';
+import '../widgets/camera/multi_camera_screen.dart';
 import '../../core/config/spanish_delegates.dart';
 
 class ImageService {
