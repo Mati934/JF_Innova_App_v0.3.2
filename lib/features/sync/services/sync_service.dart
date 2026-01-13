@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'database_helper.dart';
+import '../../../core/database/database_helper.dart';
 
 class SyncService {
   final _supabase = Supabase.instance.client;

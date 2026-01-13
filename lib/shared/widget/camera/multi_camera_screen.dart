@@ -4,8 +4,6 @@ import 'package:flutter/services.dart';
 import 'dart:io';
 
 class MultiCameraScreen extends StatefulWidget {
-  // Si es true, toma una foto y se cierra sola.
-  // Si es false, deja tomar varias y hay que darle al check.
   final bool modoUnica;
 
   const MultiCameraScreen({super.key, this.modoUnica = false});
@@ -18,7 +16,9 @@ class _MultiCameraScreenState extends State<MultiCameraScreen> {
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
 
-  // Lista temporal de fotos en esta sesión
+  // Estado del flash
+  FlashMode _currentFlashMode = FlashMode.off;
+
   final List<XFile> _fotosTomadas = [];
   bool _isTakingPicture = false;
 
@@ -33,16 +33,47 @@ class _MultiCameraScreenState extends State<MultiCameraScreen> {
     if (cameras.isEmpty) return;
 
     _controller = CameraController(
-      cameras.first, // Usa la trasera por defecto
-      ResolutionPreset.medium, // Calidad media para no llenar la memoria
+      cameras.first,
+      ResolutionPreset.medium, // Calidad media para velocidad
       enableAudio: false,
       imageFormatGroup: Platform.isAndroid
           ? ImageFormatGroup.jpeg
           : ImageFormatGroup.bgra8888,
     );
 
-    _initializeControllerFuture = _controller!.initialize();
-    if (mounted) setState(() {});
+    _initializeControllerFuture = _controller!.initialize().then((_) {
+      if (!mounted) return;
+      // 1. IMPORTANTE: Forzamos el flash apagado al iniciar
+      _controller!.setFlashMode(FlashMode.off);
+      setState(() {});
+    });
+  }
+
+  // Nuevo método para cambiar el flash
+  Future<void> _toggleFlash() async {
+    if (_controller == null) return;
+
+    FlashMode newMode;
+    if (_currentFlashMode == FlashMode.off) {
+      newMode = FlashMode.auto; // O FlashMode.torch si quieres linterna fija
+    } else {
+      newMode = FlashMode.off;
+    }
+
+    await _controller!.setFlashMode(newMode);
+    setState(() => _currentFlashMode = newMode);
+  }
+
+  IconData _getFlashIcon() {
+    switch (_currentFlashMode) {
+      case FlashMode.off:
+        return Icons.flash_off;
+      case FlashMode.auto:
+        return Icons.flash_auto;
+      case FlashMode.always:
+      case FlashMode.torch:
+        return Icons.flash_on;
+    }
   }
 
   @override
@@ -60,24 +91,20 @@ class _MultiCameraScreenState extends State<MultiCameraScreen> {
     setState(() => _isTakingPicture = true);
 
     try {
-      HapticFeedback.mediumImpact(); // Vibración
+      HapticFeedback.mediumImpact();
+      // Al estar el flash en OFF, esto debería ser mucho más rápido
       final image = await _controller!.takePicture();
 
       _fotosTomadas.add(image);
 
-      // --- LÓGICA DE MODO ÚNICA ---
       if (widget.modoUnica) {
-        // Si solo pedimos una, cerramos inmediato devolviendo la foto en una lista
         if (mounted) {
           Navigator.pop(context, _fotosTomadas);
         }
         return;
       }
-      // ----------------------------
 
-      setState(() {
-        _isTakingPicture = false;
-      });
+      setState(() => _isTakingPicture = false);
 
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
@@ -85,7 +112,7 @@ class _MultiCameraScreenState extends State<MultiCameraScreen> {
           SnackBar(
             content: Text('Foto #${_fotosTomadas.length} capturada'),
             duration: const Duration(milliseconds: 600),
-            backgroundColor: Colors.green.withOpacity(0.8),
+            backgroundColor: Colors.green.withValues(alpha: 0.8),
           ),
         );
       }
@@ -106,17 +133,40 @@ class _MultiCameraScreenState extends State<MultiCameraScreen> {
               _controller != null) {
             return Stack(
               children: [
-                // 1. Vista Previa de la Cámara
-                Center(child: CameraPreview(_controller!)),
+                // 1. Vista Previa (Ocupa toda la pantalla)
+                SizedBox.expand(child: CameraPreview(_controller!)),
 
-                // 2. Controles (Botones)
+                // 2. Botón de Flash (Arriba a la derecha)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: IconButton(
+                        onPressed: _toggleFlash,
+                        icon: Icon(
+                          _getFlashIcon(),
+                          color: _currentFlashMode == FlashMode.off
+                              ? Colors.white
+                              : Colors.yellow,
+                          size: 30,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.black45,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 3. Controles Inferiores
                 Positioned(
                   bottom: 0,
                   left: 0,
                   right: 0,
                   child: Container(
                     color: Colors.black45,
-                    // EL SAFE AREA ES CLAVE AQUÍ PARA QUE NO TE TAPE LOS BOTONES
                     child: SafeArea(
                       top: false,
                       child: Padding(
@@ -127,7 +177,6 @@ class _MultiCameraScreenState extends State<MultiCameraScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            // Botón Salir / Cancelar
                             IconButton(
                               icon: const Icon(
                                 Icons.close,
@@ -164,7 +213,7 @@ class _MultiCameraScreenState extends State<MultiCameraScreen> {
                               ),
                             ),
 
-                            // Botón Finalizar (Solo visible en modo múltiple)
+                            // Botón Check (Confirmar)
                             if (!widget.modoUnica)
                               Stack(
                                 clipBehavior: Clip.none,
@@ -205,7 +254,6 @@ class _MultiCameraScreenState extends State<MultiCameraScreen> {
                                 ],
                               )
                             else
-                              // Espacio vacío para equilibrar visualmente en modo única
                               const SizedBox(width: 40),
                           ],
                         ),
@@ -214,7 +262,6 @@ class _MultiCameraScreenState extends State<MultiCameraScreen> {
                   ),
                 ),
 
-                // Indicador de carga si está procesando la foto
                 if (_isTakingPicture)
                   const Center(
                     child: CircularProgressIndicator(color: Colors.white),

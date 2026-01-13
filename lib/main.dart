@@ -1,11 +1,13 @@
+// main.dart (Refactorizado)
 import 'package:flutter/material.dart';
-// 1. IMPORTANTE: Agregar esta librería para el idioma
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'config/supabase_config.dart';
-import 'screens/home_screen.dart';
-import 'screens/login_screen.dart';
+// Imports actualizados según la nueva estructura
+import 'core/config/supabase_config.dart';
+import 'core/theme/app_theme.dart'; // <--- Importamos el tema
+import 'features/home/presentation/screens/home_screen.dart';
+import 'features/auth/presentation/screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,24 +29,17 @@ class MyApp extends StatelessWidget {
       title: 'JF Innova',
       debugShowCheckedModeBanner: false,
 
-      // 2. CONFIGURACIÓN DE IDIOMA (Aquí ocurre la magia)
-      // Esto hace que los calendarios, la cámara y los diálogos salgan en español
+      // Configuración de Idioma
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('es', 'ES'), // Definimos Español como único idioma soportado
-      ],
+      supportedLocales: const [Locale('es', 'ES')],
 
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF003366),
-          primary: const Color(0xFF003366),
-        ),
-        useMaterial3: true,
-      ),
+      // APLICAMOS EL NUEVO TEMA AQUÍ
+      theme: AppTheme.lightTheme,
+
       home: const AuthGate(),
     );
   }
@@ -56,7 +51,6 @@ class AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = Supabase.instance.client.auth.currentSession;
-
     if (session != null) {
       return const HomeScreen();
     } else {

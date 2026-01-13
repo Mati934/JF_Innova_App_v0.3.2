@@ -1,5 +1,5 @@
 import 'package:image_picker/image_picker.dart';
-import '../models/formulario_item.dart';
+import '../../domain/models/formulario_item.dart';
 
 abstract class InspectionRepository {
   // Obtener las preguntas

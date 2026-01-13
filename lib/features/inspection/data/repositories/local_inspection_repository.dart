@@ -1,7 +1,13 @@
 import 'package:image_picker/image_picker.dart';
-import '../services/database_helper.dart';
-import '../models/formulario_item.dart';
-import 'inspection_repository.dart';
+// import 'package:sqflite/sqflite.dart'; // Si lo usas
+
+// --- AQUÍ ESTÁ LA CLAVE ---
+// Borra el import que decía 'inspection_repository.dart' a secas.
+// Mantén SOLO este que apunta a DOMAIN:
+import '../../domain/repositories/inspection_repository.dart';
+
+import '../../domain/models/formulario_item.dart';
+import '../../../../core/database/database_helper.dart';
 
 class LocalInspectionRepository implements InspectionRepository {
   final dbHelper = DatabaseHelper.instance;

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
-import '../services/database_helper.dart';
-import '../services/sync_service.dart';
+import '../../../../core/database/database_helper.dart';
+import '../../../sync/services/sync_service.dart';
 import 'inspection_form_screen.dart';
 
 class InspectionSetupScreen extends StatefulWidget {
@@ -123,9 +123,19 @@ class _InspectionSetupScreenState extends State<InspectionSetupScreen> {
 
       await _dbHelper.saveActividadOffline(datosActividad);
 
-      _syncService.sincronizarTodo().catchError(
-        (e) => debugPrint("Sync background error: $e"),
-      );
+      // En inspection_setup_screen.dart (~línea 135)
+
+      _syncService
+          .sincronizarTodo()
+          .then((cantidad) {
+            debugPrint(
+              "Sincronización en 2do plano completada: $cantidad subidos",
+            );
+          })
+          .catchError((e) {
+            debugPrint("Sync background error: $e");
+            // ¡Borramos el return -1! No es necesario devolver nada aquí.
+          });
 
       if (mounted) {
         if (esInspeccionCompleta) {

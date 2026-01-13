@@ -2,8 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
-import '../screens/multi_camera_screen.dart';
-import '../config/spanish_delegates.dart';
+import '../widget/camera/multi_camera_screen.dart';
+import '../../core/config/spanish_delegates.dart';
 
 class ImageService {
   static const Color _brandColor = Color(0xFF003366);

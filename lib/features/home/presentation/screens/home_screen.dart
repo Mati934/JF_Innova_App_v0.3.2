@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:sqflite/sqflite.dart';
 
-import '../services/database_helper.dart';
-import '../services/sync_service.dart';
-import 'login_screen.dart';
-import 'inspection_setup_screen.dart';
+import '../../../../core/database/database_helper.dart';
+import '../../../auth/presentation/screens/login_screen.dart';
+import '../../../inspection/presentation/screens/inspection_setup_screen.dart';
+import '../../../sync/services/sync_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,19 +28,16 @@ class _HomeScreenState extends State<HomeScreen> {
     _sincronizarDatosSilencioso();
   }
 
-  // Descarga datos maestros si hay internet, si no, no molesta.
+  // Carga inicial sin molestar al usuario
   Future<void> _sincronizarDatosSilencioso() async {
+    if (!mounted) return;
     setState(() => _actualizandoDatos = true);
-    // Llamamos al método nuevo que baja TODO (Areas, Centros, Preguntas, etc)
     await _syncService.descargarDatosMaestros();
     if (mounted) setState(() => _actualizandoDatos = false);
   }
 
   Future<void> _cargarPerfil() async {
     if (user == null) return;
-    // Intentamos leer el perfil localmente o de memoria si falla la red
-    // Nota: Para una app offline real, deberíamos guardar el nombre en SQLite también.
-    // Por ahora, si falla, mostramos el email que viene en la sesión local.
     try {
       final data = await Supabase.instance.client
           .from('usuarios')
@@ -60,7 +57,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _cerrarSesion() async {
-    // Advertencia al usuario antes de salir
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -87,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       await Supabase.instance.client.auth.signOut();
     } catch (e) {
-      // Ignoramos error de red al salir, forzamos salida local
+      // Ignorar error de red
     }
 
     if (!mounted) return;
@@ -97,54 +93,79 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Lógica para disparar la sincronización
-  // Busca la función _ejecutarSincronizacion dentro de _HomeScreenState
-  // y reemplázala con esta:
+  // --- LÓGICA DE SINCRONIZACIÓN ROBUSTA ---
+  // El parámetro 'silencioso' permite reusar la función sin mostrar SnackBar (ej: al volver de inspección)
+  Future<void> _ejecutarSincronizacion({bool silencioso = false}) async {
+    if (_actualizandoDatos) return;
 
-  Future<void> _ejecutarSincronizacion() async {
     setState(() => _actualizandoDatos = true);
 
-    // Feedback inicial
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Sincronizando inspecciones... ☁️'),
-        duration: Duration(seconds: 1),
-      ),
-    );
+    if (!silencioso) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              ),
+              SizedBox(width: 15),
+              Text('Conectando con la nube...'),
+            ],
+          ),
+          duration: const Duration(seconds: 4),
+          backgroundColor: Theme.of(context).primaryColor,
+        ),
+      );
+    }
 
     try {
-      // Ahora 'subidos' es SOLO el número de inspecciones (actividades)
       final subidos = await _syncService.sincronizarTodo();
 
-      if (mounted) {
-        // Borramos SnackBar anterior
+      // CORRECCIÓN AQUÍ: Quitamos el 'await'
+      if (mounted) setState(() {});
+
+      if (!mounted) return;
+
+      if (!silencioso) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
         if (subidos > 0) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('✅ Éxito. Se subieron $subidos inspecciones.'),
-              backgroundColor: Colors.green,
+              content: Text('✅ ¡Listo! Se subieron $subidos inspecciones.'),
+              backgroundColor: Colors.green.shade700,
             ),
           );
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                '👍 Todo actualizado. No había inspecciones nuevas.',
+          final pendientes = await _contarInspeccionesPendientes();
+          if (pendientes == 0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('👍 Todo sincronizado. No hay datos pendientes.'),
+                backgroundColor: Colors.blueGrey,
               ),
-              backgroundColor: Colors.blueGrey,
-            ),
-          );
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('⚠️ No se pudo subir. Revisa tu conexión.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
         }
-        setState(() {}); // Refresca el contador visual
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && !silencioso) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('⚠️ Error de conexión: $e'),
+            content: Text('Error de conexión: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -154,19 +175,26 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<int> _contarInspeccionesPendientes() async {
+    final db = await DatabaseHelper.instance.database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM actividades_pendientes WHERE subido = 0',
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      // AppBar toma el color del AppTheme automáticamente
       appBar: AppBar(
         title: const Text('Panel de Control'),
-        backgroundColor: const Color(0xFF003366),
-        foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.sync),
             tooltip: 'Sincronizar ahora',
-            onPressed: _ejecutarSincronizacion,
+            // Llamada explícita indicando que NO es silenciosa
+            onPressed: () => _ejecutarSincronizacion(silencioso: false),
           ),
           IconButton(
             onPressed: _cerrarSesion,
@@ -212,11 +240,23 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
-              const Icon(
-                Icons.verified_user,
-                size: 64,
-                color: Color(0xFF003366),
+              // --- LOGO CORPORATIVO (HERO) ---
+              Hero(
+                tag: 'logo_app',
+                child: Image.asset(
+                  'assets/images/logo_jfinnova.png',
+                  height: 120, // Tamaño ajustado
+                  errorBuilder: (context, error, stackTrace) {
+                    // Fallback por si la imagen no carga
+                    return Icon(
+                      Icons.verified_user,
+                      size: 80,
+                      color: Theme.of(context).primaryColor,
+                    );
+                  },
+                ),
               ),
+
               const SizedBox(height: 20),
               Text(
                 'Hola, $_nombreUsuario',
@@ -240,28 +280,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     MaterialPageRoute(
                       builder: (_) => const InspectionSetupScreen(),
                     ),
-                  ).then((_) => setState(() {}));
+                  ).then((_) {
+                    // AL VOLVER:
+                    // 1. Refrescamos para que salga el aviso de "Pendiente"
+                    setState(() {});
+                    // 2. Intentamos subir silenciosamente
+                    _ejecutarSincronizacion(silencioso: true);
+                  });
                 },
                 icon: const Icon(Icons.add_circle),
                 label: const Text("Nueva Inspección"),
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 16,
-                  ),
-                  textStyle: const TextStyle(fontSize: 18),
-                  backgroundColor: const Color(0xFF003366),
-                  foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 55),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  textStyle: const TextStyle(fontSize: 18),
                 ),
               ),
 
               const SizedBox(height: 15),
 
-              // INFORMACIÓN DE PENDIENTES (CORREGIDA)
               FutureBuilder<int>(
                 future: _contarInspeccionesPendientes(),
                 builder: (context, snapshot) {
@@ -280,7 +316,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              // AQUÍ ESTÁ EL CAMBIO DE TEXTO
                               "Tienes $conteo inspección(es) pendiente(s) de subir.\nPresiona sincronizar ↗️ cuando tengas señal.",
                               style: TextStyle(
                                 color: Colors.red.shade900,
@@ -300,21 +335,5 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-  }
-
-  // --- LÓGICA CORREGIDA PARA CONTAR INSPECCIONES (NO RESPUESTAS) ---
-  Future<int> _contarInspeccionesPendientes() async {
-    final db = await DatabaseHelper.instance.database;
-
-    // Contamos IDs de actividad únicos en la tabla de respuestas pendientes
-    // Usamos 'DISTINCT' para que si una inspección tiene 50 respuestas, cuente como 1.
-    final result = await db.rawQuery(
-      'SELECT COUNT(DISTINCT actividad_id) as count FROM inspeccion_respuestas_pendientes WHERE subido = 0',
-    );
-
-    // También podríamos chequear fotos, pero generalmente van juntas.
-    // Si quieres ser muy estricto, podrías hacer un UNION, pero esto suele bastar.
-
-    return Sqflite.firstIntValue(result) ?? 0;
   }
 }
