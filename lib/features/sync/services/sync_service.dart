@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/database/database_helper.dart';
 
@@ -7,7 +8,7 @@ class SyncService {
   final _supabase = Supabase.instance.client;
   final _dbHelper = DatabaseHelper.instance;
 
-  // --- 1. DESCARGAR DATOS MAESTROS (Para que el Setup funcione Offline) ---
+  // --- 1. DESCARGAR DATOS MAESTROS (Down-Sync) ---
   Future<void> descargarDatosMaestros() async {
     try {
       final results = await Future.wait([
@@ -16,6 +17,8 @@ class SyncService {
         _supabase.from('contratistas').select('id, nombre'),
         _supabase.from('embarcaciones').select('id, nombre, contratista_id'),
         _supabase.from('formulario_items').select().eq('activo', true),
+        // IMPORTANTE: También descargamos el personal externo existente para tener el dropdown lleno
+        _supabase.from('personal_externo').select(),
       ]);
 
       await _dbHelper.guardarMaestros(
@@ -38,6 +41,12 @@ class SyncService {
         List<Map<String, dynamic>>.from(results[4]),
       );
 
+      // Guardamos el personal externo en SQLite para tenerlo offline
+      await _dbHelper.guardarMaestros(
+        'personal_externo',
+        List<Map<String, dynamic>>.from(results[5]),
+      );
+
       debugPrint("✅ Datos maestros actualizados offline.");
     } catch (e) {
       debugPrint("⚠️ No se pudieron actualizar maestros (Sin internet): $e");
@@ -45,14 +54,12 @@ class SyncService {
   }
 
   // --- 2. SUBIDA DE DATOS (Up-Sync) ---
-  // Modificamos para devolver cantidad de INSPECCIONES (Actividades), no items sueltos
   Future<int> sincronizarTodo() async {
     try {
-      // 1. Subir Actividades y GUARDAR CUANTAS SUBIMOS
+      // 1. Subir Actividades (Y ahora sus datos hijos: Verificaciones y Participantes)
       int inspeccionesSubidas = await _sincronizarActividades();
 
-      // 2. Subir el resto (Respuestas y Fotos)
-      // Ya no sumamos esto al contador final para no confundir al usuario
+      // 2. Subir el resto
       await _sincronizarRespuestas();
       await _sincronizarFotos();
 
@@ -63,7 +70,6 @@ class SyncService {
     }
   }
 
-  // Ahora devuelve int (cantidad)
   Future<int> _sincronizarActividades() async {
     final db = await _dbHelper.database;
     final pendientes = await db.query(
@@ -75,27 +81,95 @@ class SyncService {
 
     int count = 0;
     for (var row in pendientes) {
+      final activityId = row['id'] as String;
+      final tipoActividad = row['tipo_actividad'] as String;
+
       try {
+        // A) Subir la Cabecera de la Actividad
         final datosParaNube = Map<String, dynamic>.from(row);
         datosParaNube.remove('subido');
         datosParaNube['puerto_abierto'] = (row['puerto_abierto'] == 1);
-
         await _supabase.from('actividades').upsert(datosParaNube);
 
+        // B) NUEVO: Subir Datos Específicos si es BUCEO
+        if (tipoActividad == 'INSPECCION_BUCEO') {
+          await _sincronizarVerificaciones(db, activityId);
+          await _sincronizarParticipantes(db, activityId);
+        }
+
+        // C) Borrar de pendientes locales solo si todo lo anterior funcionó
         await db.delete(
           'actividades_pendientes',
           where: 'id = ?',
-          whereArgs: [row['id']],
+          whereArgs: [activityId],
         );
-        debugPrint("✅ Actividad ${row['id']} sincronizada.");
-        count++; // Contamos éxito
+
+        debugPrint("✅ Actividad $activityId sincronizada completa.");
+        count++;
       } catch (e) {
-        debugPrint("⚠️ Error subiendo actividad ${row['id']}: $e");
-        throw Exception("Falló subida de actividad. Cancelando resto.");
+        debugPrint("⚠️ Error subiendo actividad $activityId: $e");
+        // No borramos de pendientes para que reintente luego
       }
     }
     return count;
   }
+
+  // --- MÉTODOS AUXILIARES NUEVOS ---
+
+  Future<void> _sincronizarVerificaciones(
+    DatabaseExecutor db,
+    String activityId,
+  ) async {
+    final results = await db.query(
+      'verificaciones_buceo',
+      where: 'actividad_id = ?',
+      whereArgs: [activityId],
+    );
+
+    if (results.isNotEmpty) {
+      // Upsert directo a Supabase
+      await _supabase.from('verificaciones_buceo').upsert(results.first);
+    }
+  }
+
+  Future<void> _sincronizarParticipantes(
+    DatabaseExecutor db,
+    String activityId,
+  ) async {
+    // 1. Obtenemos la relación local
+    final relaciones = await db.query(
+      'actividad_participantes',
+      where: 'actividad_id = ?',
+      whereArgs: [activityId],
+    );
+
+    if (relaciones.isEmpty) return;
+
+    for (var rel in relaciones) {
+      final personalId = rel['personal_id'] as String;
+
+      // 2. Buscamos los datos de la persona en SQLite para asegurarnos de subirla primero
+      // (Por si creaste un buzo nuevo offline que no existe en la nube)
+      final personaData = await db.query(
+        'personal_externo',
+        where: 'id = ?',
+        whereArgs: [personalId],
+      );
+
+      if (personaData.isNotEmpty) {
+        // Upsert de la Persona (Tabla Maestra)
+        await _supabase.from('personal_externo').upsert(personaData.first);
+      }
+
+      // 3. Upsert de la Relación (Tabla Intermedia)
+      final datosRelacion = Map<String, dynamic>.from(rel);
+      datosRelacion['condiciones_optimas'] = (rel['condiciones_optimas'] == 1);
+
+      await _supabase.from('actividad_participantes').upsert(datosRelacion);
+    }
+  }
+
+  // --- MÉTODOS EXISTENTES (Sin cambios mayores) ---
 
   Future<int> _sincronizarRespuestas() async {
     final db = await _dbHelper.database;
@@ -103,7 +177,6 @@ class SyncService {
       'inspeccion_respuestas_pendientes',
       where: 'subido = 0',
     );
-
     if (pendientes.isEmpty) return 0;
 
     List<Map<String, dynamic>> batchParaNube = [];
@@ -120,10 +193,8 @@ class SyncService {
       });
     }
 
-    // Insertar lote
     await _supabase.from('inspeccion_respuestas').insert(batchParaNube);
 
-    // Borrar locales
     for (var id in idsLocales) {
       await db.delete(
         'inspeccion_respuestas_pendientes',
@@ -131,7 +202,6 @@ class SyncService {
         whereArgs: [id],
       );
     }
-
     return batchParaNube.length;
   }
 
@@ -141,7 +211,6 @@ class SyncService {
       'fotos_pendientes',
       where: 'subido = 0',
     );
-
     if (fotosPendientes.isEmpty) return 0;
 
     int fotosSubidas = 0;
