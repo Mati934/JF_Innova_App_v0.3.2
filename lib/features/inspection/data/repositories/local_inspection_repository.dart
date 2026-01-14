@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:jf_innova_app/features/inspection/domain/models/buceo_verificacion_model.dart';
+import 'package:jf_innova_app/features/inspection/domain/models/participante_model.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../domain/models/formulario_item.dart';
 import '../../domain/repositories/inspection_repository.dart';
@@ -188,5 +190,92 @@ class LocalInspectionRepository implements InspectionRepository {
       where: 'actividad_id = ?',
       whereArgs: [activityId],
     );
+  }
+  // --- MÉTODOS PARA BUCEO (AGREGAR ESTO A TU REPOSITORIO EXISTENTE) ---
+
+  @override
+  Future<void> guardarVerificacionesBuceo(BuceoVerificacionModel data) async {
+    final db = await DatabaseHelper.instance.database; // O como accedas a tu DB
+    await db.insert(
+      'verificaciones_buceo',
+      data.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  @override
+  Future<BuceoVerificacionModel?> getVerificacionesBuceo(
+    String activityId,
+  ) async {
+    final db = await DatabaseHelper.instance.database;
+    final res = await db.query(
+      'verificaciones_buceo',
+      where: 'actividad_id = ?',
+      whereArgs: [activityId],
+    );
+
+    if (res.isNotEmpty) {
+      return BuceoVerificacionModel.fromMap(res.first);
+    }
+    return null;
+  }
+
+  @override
+  Future<void> guardarParticipantes(
+    String activityId,
+    List<ParticipanteModel> participantes,
+  ) async {
+    final db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      // 1. Limpiar lista anterior
+      await txn.delete(
+        'actividad_participantes',
+        where: 'actividad_id = ?',
+        whereArgs: [activityId],
+      );
+
+      // 2. Insertar nueva lista
+      for (var p in participantes) {
+        // Asegurar que el personal exista (si es temporal/nuevo)
+        await txn.insert('personal_externo', {
+          'id': p.personalId,
+          'nombre_completo': p.nombreCompleto,
+          'rut': p.rut,
+          'cargo': p.cargo, // Guardamos el cargo por defecto
+          'activo': 1,
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+        // Crear la relación
+        await txn.insert('actividad_participantes', {
+          'actividad_id': activityId,
+          'personal_id': p.personalId,
+          'rol_en_faena': p.cargo,
+          'condiciones_optimas': p.condicionesOptimas ? 1 : 0,
+        });
+      }
+    });
+  }
+
+  @override
+  Future<List<ParticipanteModel>> getParticipantes(String activityId) async {
+    final db = await DatabaseHelper.instance.database;
+
+    // Hacemos un JOIN manual o consulta anidada
+    final res = await db.rawQuery(
+      '''
+      SELECT 
+        ap.personal_id, 
+        p.nombre_completo, 
+        p.rut, 
+        ap.rol_en_faena, 
+        ap.condiciones_optimas
+      FROM actividad_participantes ap
+      INNER JOIN personal_externo p ON ap.personal_id = p.id
+      WHERE ap.actividad_id = ?
+    ''',
+      [activityId],
+    );
+
+    return res.map((row) => ParticipanteModel.fromMap(row)).toList();
   }
 }

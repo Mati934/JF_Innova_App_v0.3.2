@@ -10,8 +10,8 @@ class DatabaseHelper {
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDB(
-      'jfinnova_local_v2.db',
-    ); // Cambié el nombre para forzar creación nueva
+      'jfinnova_local_v3.db',
+    ); // Nombre nuevo para asegurar limpieza
     return _database!;
   }
 
@@ -61,41 +61,77 @@ class DatabaseHelper {
       )
     ''');
 
-    // --- NUEVAS TABLAS DE DATOS MAESTROS (PARA EL SETUP OFFLINE) ---
-
+    // --- TABLAS DE DATOS MAESTROS (OFFLINE) ---
     await db.execute('CREATE TABLE areas (id TEXT PRIMARY KEY, nombre TEXT)');
-
     await db.execute(
       'CREATE TABLE centros (id TEXT PRIMARY KEY, nombre TEXT, area_id TEXT)',
     );
-
     await db.execute(
       'CREATE TABLE contratistas (id TEXT PRIMARY KEY, nombre TEXT)',
     );
-
     await db.execute(
       'CREATE TABLE embarcaciones (id TEXT PRIMARY KEY, nombre TEXT, contratista_id TEXT)',
     );
-    // 4. ACTIVIDADES PENDIENTES (NUEVA TABLA IMPORTANTE)
-    // Aquí guardamos la "carpeta" si no hay internet al crearla.
+
+    // 4. ACTIVIDADES PENDIENTES
     await db.execute('''
       CREATE TABLE actividades_pendientes (
-        id TEXT PRIMARY KEY, -- Usaremos el UUID que generamos
+        id TEXT PRIMARY KEY,
         usuario_id TEXT,
         centro_id TEXT,
         contratista_id TEXT,
         embarcacion_id TEXT,
         tipo_actividad TEXT,
         fecha_realizacion TEXT,
-        puerto_abierto INTEGER, -- 0 o 1
+        puerto_abierto INTEGER, 
         observaciones_generales TEXT,
         estado_final TEXT,
         subido INTEGER DEFAULT 0
       )
     ''');
+
+    // --- 5. TABLAS ESPECÍFICAS DE BUCEO (DPR24) ---
+
+    // Verificaciones Críticas
+    await db.execute('''
+      CREATE TABLE verificaciones_buceo (
+        actividad_id TEXT PRIMARY KEY,
+        autorizacion_autoridad_maritima INTEGER DEFAULT 0,
+        induccion_centro_cultivo INTEGER DEFAULT 0,
+        permiso_buceo_centro_correcto INTEGER DEFAULT 0,
+        plan_contingencias_centro_ok INTEGER DEFAULT 0,
+        examenes_ocupacionales_vigentes INTEGER DEFAULT 0,
+        observacion_general TEXT,
+        estado_manual TEXT
+      )
+    ''');
+
+    // Tabla Maestra de Personal Externo
+    await db.execute('''
+      CREATE TABLE personal_externo (
+        id TEXT PRIMARY KEY,
+        rut TEXT,
+        nombre_completo TEXT NOT NULL,
+        cargo TEXT,
+        activo INTEGER DEFAULT 1
+      )
+    ''');
+
+    // Tabla Intermedia (Relación M:N Inspección <-> Personal)
+    await db.execute('''
+      CREATE TABLE actividad_participantes (
+        actividad_id TEXT,
+        personal_id TEXT,
+        rol_en_faena TEXT,
+        condiciones_optimas INTEGER DEFAULT 1,
+        PRIMARY KEY (actividad_id, personal_id)
+      )
+    ''');
+
+    print("✅ Base de datos inicializada correctamente con tablas de buceo.");
   }
 
-  // --- MÉTODOS CRUD GENÉRICOS PARA MAESTROS ---
+  // --- MÉTODOS CRUD GENÉRICOS ---
 
   Future<void> guardarMaestros(
     String tabla,
@@ -104,13 +140,10 @@ class DatabaseHelper {
     final db = await instance.database;
     final batch = db.batch();
 
-    // Borramos lo viejo y ponemos lo nuevo
     batch.delete(tabla);
 
     for (var item in datos) {
-      // Filtramos solo los campos que nos interesan para evitar errores si la API manda más cosas
       Map<String, dynamic> row = {'id': item['id'], 'nombre': item['nombre']};
-      // Agregamos claves foráneas si existen
       if (item.containsKey('area_id')) row['area_id'] = item['area_id'];
       if (item.containsKey('contratista_id'))
         row['contratista_id'] = item['contratista_id'];
@@ -120,7 +153,6 @@ class DatabaseHelper {
     await batch.commit(noResult: true);
   }
 
-  // Métodos de lectura para la UI
   Future<List<Map<String, dynamic>>> getAreas() async {
     final db = await instance.database;
     return await db.query('areas', orderBy: 'nombre');
@@ -153,7 +185,6 @@ class DatabaseHelper {
     );
   }
 
-  // Formulario Items (Ya lo tenías)
   Future<void> guardarItemsOffline(List<Map<String, dynamic>> items) async {
     final db = await instance.database;
     final batch = db.batch();
@@ -172,14 +203,12 @@ class DatabaseHelper {
     await batch.commit(noResult: true);
   }
 
-  // Guardar actividad creada offline
-  // Asegúrate de que este método esté así:
   Future<void> saveActividadOffline(Map<String, dynamic> actividad) async {
     final db = await instance.database;
     await db.insert(
       'actividades_pendientes',
       actividad,
-      conflictAlgorithm: ConflictAlgorithm.replace, // <--- IMPORTANTE
+      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 }

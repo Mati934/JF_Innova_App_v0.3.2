@@ -1,6 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+// Asegúrate de que las rutas sean correctas en tu proyecto
+import '../../domain/models/buceo_verificacion_model.dart';
+import '../../domain/models/participante_model.dart';
 import '../../domain/models/formulario_item.dart';
 import '../../domain/repositories/inspection_repository.dart';
 import '../../data/repositories/local_inspection_repository.dart';
@@ -22,12 +25,15 @@ class InspectionFormController extends ChangeNotifier {
   final Map<String, File> fotosPorPregunta = {};
   List<File> fotosGenerales = [];
 
+  // --- VARIABLES ESPECÍFICAS DE BUCEO ---
+  BuceoVerificacionModel? verificacionesBuceo;
+  List<ParticipanteModel> participantes = [];
+
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
   String? get errorMessage => _errorMessage;
   List<FormularioItem> get items => _items;
 
-  // --- SEGURIDAD ANTI-CRASH (CRUCIAL) ---
   bool _disposed = false;
 
   @override
@@ -40,7 +46,6 @@ class InspectionFormController extends ChangeNotifier {
   void notifyListeners() {
     if (!_disposed) super.notifyListeners();
   }
-  // --------------------------------------
 
   InspectionFormController({
     required this.activityId,
@@ -55,6 +60,7 @@ class InspectionFormController extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
+      // 1. Cargar Centro si falta
       if (centroId == null && _repo is LocalInspectionRepository) {
         final data = await (_repo as LocalInspectionRepository).getActividad(
           activityId,
@@ -64,8 +70,10 @@ class InspectionFormController extends ChangeNotifier {
         }
       }
 
+      // 2. Cargar Items del Formulario
       _items = await _repo.getItems(tipoActividad);
 
+      // 3. Cargar Respuestas Previas
       final datos = await _repo.cargarRespuestasGuardadas(activityId);
       datos.forEach((id, val) {
         if (val['estado'] != null) respuestas[id] = val['estado'];
@@ -73,6 +81,7 @@ class InspectionFormController extends ChangeNotifier {
         if (val['criticidad'] != null) criticidades[id] = val['criticidad'];
       });
 
+      // 4. Cargar Fotos Previas (Solo local)
       if (_repo is LocalInspectionRepository) {
         final fotos = await (_repo as LocalInspectionRepository)
             .getFotosPendientes(activityId);
@@ -87,6 +96,9 @@ class InspectionFormController extends ChangeNotifier {
           }
         }
       }
+
+      // 5. CARGAR DATOS ESPECÍFICOS (BUCEO)
+      await cargarDatosEspecificos();
     } catch (e) {
       _errorMessage = "Error cargando: $e";
     } finally {
@@ -94,6 +106,48 @@ class InspectionFormController extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  // --- MÉTODOS DE BUCEO ---
+  Future<void> cargarDatosEspecificos() async {
+    if (tipoActividad == 'INSPECCION_BUCEO') {
+      try {
+        // Cargar Verificaciones
+        final datosBuceo = await _repo.getVerificacionesBuceo(activityId);
+        if (datosBuceo != null) {
+          verificacionesBuceo = datosBuceo;
+        } else {
+          verificacionesBuceo = BuceoVerificacionModel(actividadId: activityId);
+        }
+
+        // Cargar Participantes
+        participantes = await _repo.getParticipantes(activityId);
+
+        // No llamamos notifyListeners aquí porque _init ya lo hará al final
+      } catch (e) {
+        print("Error cargando datos buceo: $e");
+      }
+    }
+  }
+
+  void updateVerificacion(Function(BuceoVerificacionModel) updates) {
+    if (verificacionesBuceo != null) {
+      updates(verificacionesBuceo!);
+      notifyListeners();
+    }
+  }
+
+  void agregarParticipante(ParticipanteModel participante) {
+    if (!participantes.any((p) => p.personalId == participante.personalId)) {
+      participantes.add(participante);
+      notifyListeners();
+    }
+  }
+
+  void removerParticipante(String personalId) {
+    participantes.removeWhere((p) => p.personalId == personalId);
+    notifyListeners();
+  }
+  // -------------------------
 
   void setRespuesta(String id, String val) {
     respuestas[id] = val;
@@ -145,15 +199,20 @@ class InspectionFormController extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+
+    // Validación de respuestas completas
     if (respuestas.length < _items.length) {
-      _errorMessage = "Faltan respuestas.";
+      // Opcional: podrías permitir finalizar incompleto si es borrador, pero aquí pedimos todo
+      _errorMessage = "Faltan respuestas en el checklist.";
       notifyListeners();
       return false;
     }
+
     _isSaving = true;
     notifyListeners();
     try {
       await _persistirDatos();
+      // Aquí podrías agregar lógica para marcar la inspección como 'FINALIZADA' en BD
       return true;
     } catch (e) {
       _errorMessage = "Error finalizando: $e";
@@ -165,6 +224,7 @@ class InspectionFormController extends ChangeNotifier {
   }
 
   Future<void> _persistirDatos() async {
+    // 1. Guardar Cabecera General
     if (_repo is LocalInspectionRepository) {
       await (_repo as LocalInspectionRepository).saveActividad(
         id: activityId,
@@ -173,6 +233,8 @@ class InspectionFormController extends ChangeNotifier {
         fecha: DateTime.now(),
       );
     }
+
+    // 2. Guardar Respuestas del Checklist
     List<Map<String, dynamic>> lote = [];
     respuestas.forEach((key, val) {
       if (fotosPorPregunta.containsKey(key)) {
@@ -192,6 +254,8 @@ class InspectionFormController extends ChangeNotifier {
       });
     });
     await _repo.saveRespuestasBatch(lote);
+
+    // 3. Guardar Fotos Generales
     for (var f in fotosGenerales) {
       await _repo.saveFoto(
         activityId: activityId,
@@ -199,6 +263,15 @@ class InspectionFormController extends ChangeNotifier {
         file: XFile(f.path),
         descripcion: 'General',
       );
+    }
+
+    // 4. GUARDAR DATOS ESPECÍFICOS DE BUCEO (NUEVO)
+    if (tipoActividad == 'INSPECCION_BUCEO') {
+      if (verificacionesBuceo != null) {
+        await _repo.guardarVerificacionesBuceo(verificacionesBuceo!);
+      }
+      // Guardamos la lista SIEMPRE, para reflejar adiciones y borrados
+      await _repo.guardarParticipantes(activityId, participantes);
     }
   }
 

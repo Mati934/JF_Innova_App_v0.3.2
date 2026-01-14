@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:jf_innova_app/features/inspection/presentation/widgets/headers/buceo_header_widget.dart';
 import '../../../../shared/services/image_service.dart';
 import '../../../../shared/widgets/form_inputs/gallery_input.dart';
 import '../controllers/inspection_form_controller.dart';
 import '../widgets/question_card.dart';
 import '../widgets/category_header.dart';
+// IMPORTANTE: Asegúrate que esta ruta coincida con donde creaste el factory
+import '../widgets/headers/inspection_header_factory.dart';
 
 class InspectionFormScreen extends StatefulWidget {
   final String activityId;
@@ -30,21 +33,18 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
   @override
   void initState() {
     super.initState();
-    // 1. Inicializamos el controlador
     _controller = InspectionFormController(
       activityId: widget.activityId,
       tipoActividad: widget.tipoActividad,
       centroId: widget.centroId,
     );
+    // IMPORTANTE: Cargamos los datos específicos (Buzos, verificaciones)
+    _controller.cargarDatosEspecificos();
 
-    // 2. Listener Manual para redibujar (Reemplaza al ListenableBuilder)
-    // Esto es más seguro porque controlamos exactamente cuándo empieza y termina
     _controller.addListener(_onControllerUpdate);
   }
 
   void _onControllerUpdate() {
-    // Escuchamos cambios del controlador.
-    // Si hay mensaje de error, lo mostramos y limpiamos.
     if (_controller.errorMessage != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -54,22 +54,16 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
       );
       _controller.clearError();
     }
-
-    // Forzamos el redibujado de la pantalla
     if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    // 3. ORDEN CRÍTICO DE LIMPIEZA
-    // Primero dejamos de escuchar (evita el crash _dependents.isEmpty)
     _controller.removeListener(_onControllerUpdate);
-    // Luego matamos el controlador
     _controller.dispose();
     super.dispose();
   }
 
-  // Lógica de Finalizar
   void _finalizar() async {
     final exito = await _controller.finalizarInspeccion();
     if (exito && mounted) {
@@ -101,7 +95,6 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
       canPop: _canPop,
       onPopInvoked: (didPop) async {
         if (didPop) return;
-
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Guardando borrador...'),
@@ -109,15 +102,12 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
             backgroundColor: Colors.grey,
           ),
         );
-
         await _controller.guardarBorrador(silent: true);
-
         if (mounted) {
           setState(() => _canPop = true);
           Navigator.of(context).pop();
         }
       },
-      // YA NO USAMOS ListenableBuilder AQUÍ
       child: Scaffold(
         appBar: AppBar(
           title: Column(
@@ -142,56 +132,69 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
 
   Widget _buildListaPreguntas() {
     if (_controller.isSaving) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text("Guardando cambios..."),
-          ],
-        ),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     final grupos = _controller.agruparPorCategoria();
     final categorias = grupos.keys.toList();
 
+    // TOTAL ITEMS = Header + Categorias + Verificaciones + Footer = N + 3
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 30),
-      itemCount: categorias.length + 1,
+      itemCount: categorias.length + 3,
       itemBuilder: (context, index) {
-        if (index == categorias.length) {
-          return _buildFooter();
+        // 1. HEADER (POSICIÓN 0): CUADRILLA
+        if (index == 0) {
+          return InspectionHeaderFactory.create(
+            widget.tipoActividad,
+            _controller,
+          );
         }
 
-        final catNombre = categorias[index];
-        final items = grupos[catNombre]!;
+        // Ajustamos índice
+        final adjustedIndex = index - 1;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CategoryHeader(nombre: catNombre),
-            ...items.map(
-              (item) => QuestionCard(
-                key: ValueKey(item.id),
-                item: item,
-                respuestaInicial: _controller.respuestas[item.id],
-                observacionInicial: _controller.observaciones[item.id],
-                criticidadInicial:
-                    _controller.criticidades[item.id] ?? item.criticidad,
-                fotoInicial: _controller.fotosPorPregunta[item.id],
-                onRespuestaChanged: (val) =>
-                    _controller.setRespuesta(item.id, val),
-                onObservacionChanged: (val) =>
-                    _controller.setObservacion(item.id, val),
-                onCriticidadChanged: (val) =>
-                    _controller.setCriticidad(item.id, val),
-                onTomarFotoTap: () => _tomarFoto(item.id),
+        // 2. ITEMS DEL FORMULARIO (POSICIONES INTERMEDIAS)
+        if (adjustedIndex < categorias.length) {
+          final catNombre = categorias[adjustedIndex];
+          final items = grupos[catNombre]!;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CategoryHeader(nombre: catNombre),
+              ...items.map(
+                (item) => QuestionCard(
+                  key: ValueKey(item.id),
+                  item: item,
+                  respuestaInicial: _controller.respuestas[item.id],
+                  observacionInicial: _controller.observaciones[item.id],
+                  criticidadInicial:
+                      _controller.criticidades[item.id] ?? item.criticidad,
+                  fotoInicial: _controller.fotosPorPregunta[item.id],
+                  onRespuestaChanged: (val) =>
+                      _controller.setRespuesta(item.id, val),
+                  onObservacionChanged: (val) =>
+                      _controller.setObservacion(item.id, val),
+                  onCriticidadChanged: (val) =>
+                      _controller.setCriticidad(item.id, val),
+                  onTomarFotoTap: () => _tomarFoto(item.id),
+                ),
               ),
-            ),
-          ],
-        );
+            ],
+          );
+        }
+
+        // 3. VERIFICACIONES CRÍTICAS (ANTE-PENÚLTIMO: Despues de las categorias)
+        if (adjustedIndex == categorias.length) {
+          if (widget.tipoActividad == 'INSPECCION_BUCEO') {
+            // IMPORTANTE: Aquí llamamos al segundo widget manualmente
+            return BuceoVerificacionesWidget(controller: _controller);
+          }
+          return const SizedBox.shrink();
+        }
+
+        // 4. FOOTER (ÚLTIMO: Fotos Generales y Botón Guardar)
+        return _buildFooter();
       },
     );
   }
@@ -203,7 +206,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
         const Padding(
           padding: EdgeInsets.only(left: 16, bottom: 8),
           child: Text(
-            "Fotos Generales (Opcional)",
+            "Fotos Generales",
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
