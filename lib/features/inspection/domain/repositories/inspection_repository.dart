@@ -12,4 +12,11 @@ abstract class InspectionRepository {
     required XFile file,
     required String descripcion,
   });
+  // --- NUEVOS MÉTODOS PARA BORRADORES ---
+
+  // 1. Obtener lista de inspecciones que no se han terminado/subido
+  Future<List<Map<String, dynamic>>> getBorradores();
+
+  // 2. Recuperar las respuestas que ya guardamos de una inspección específica
+  Future<Map<String, dynamic>> cargarRespuestasGuardadas(String activityId);
 }

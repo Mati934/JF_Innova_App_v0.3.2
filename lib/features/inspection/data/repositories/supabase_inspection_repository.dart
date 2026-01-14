@@ -2,7 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../domain/models/formulario_item.dart';
-import '../../domain/repositories/inspection_repository.dart'; // Importa el contrato
+import '../../domain/repositories/inspection_repository.dart';
 
 class SupabaseInspectionRepository implements InspectionRepository {
   final SupabaseClient _client = Supabase.instance.client;
@@ -33,10 +33,28 @@ class SupabaseInspectionRepository implements InspectionRepository {
     required XFile file,
     required String descripcion,
   }) async {
-    // Lógica de subida a Storage de Supabase
     final String path =
         '$activityId/${DateTime.now().millisecondsSinceEpoch}.jpg';
     await _client.storage.from('evidencias').upload(path, File(file.path));
-    // ... guardar referencia en BD ...
+    // Nota: Aquí faltaría guardar la referencia en la tabla registro_fotografico en la nube,
+    // pero eso lo maneja tu SyncService por ahora.
+  }
+
+  // --- MÉTODOS "VACÍOS" PARA CUMPLIR EL CONTRATO ---
+  // Como los borradores son locales, aquí devolvemos vacío para que no rompa el código.
+
+  @override
+  Future<List<Map<String, dynamic>>> getBorradores() async {
+    // La nube no gestiona "borradores locales", así que devuelve lista vacía.
+    return [];
+  }
+
+  @override
+  Future<Map<String, dynamic>> cargarRespuestasGuardadas(
+    String activityId,
+  ) async {
+    // Si quisieras cargar datos desde la nube para editar, aquí iría la lógica.
+    // Por ahora, devolvemos mapa vacío.
+    return {};
   }
 }
