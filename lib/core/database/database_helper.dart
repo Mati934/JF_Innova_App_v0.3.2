@@ -102,7 +102,18 @@ class DatabaseHelper {
         plan_contingencias_centro_ok INTEGER DEFAULT 0,
         examenes_ocupacionales_vigentes INTEGER DEFAULT 0,
         observacion_general TEXT,
-        estado_manual TEXT
+        estado_manual TEXT,
+        -- NUEVAS COLUMNAS --
+        supervisor_nombre TEXT,
+        supervisor_rut TEXT,
+        compresor_1_matricula TEXT,
+        compresor_1_vigencia TEXT,
+        compresor_1_buzos_cargo INTEGER,
+        compresor_2_matricula TEXT,
+        compresor_2_vigencia TEXT,
+        compresor_2_buzos_cargo INTEGER,
+        certificado_equipos_ok INTEGER DEFAULT 0,
+        certificado_equipos_vigencia TEXT
       )
     ''');
 
@@ -113,6 +124,7 @@ class DatabaseHelper {
         rut TEXT,
         nombre_completo TEXT NOT NULL,
         cargo TEXT,
+        matricula TEXT, -- <--- NUEVA COLUMNA
         activo INTEGER DEFAULT 1
       )
     ''');
@@ -137,7 +149,8 @@ class DatabaseHelper {
     String tabla,
     List<Map<String, dynamic>> datos,
   ) async {
-    final db = await instance.database;
+    // CAMBIO AQUÍ: Usamos 'await database' en vez de 'await instance.database'
+    final db = await database;
     final batch = db.batch();
 
     batch.delete(tabla);

@@ -184,10 +184,11 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
           );
         }
 
-        // 3. VERIFICACIONES CRÍTICAS (ANTE-PENÚLTIMO: Despues de las categorias)
+        // 3. VERIFICACIONES CRÍTICAS Y DATOS TÉCNICOS
         if (adjustedIndex == categorias.length) {
           if (widget.tipoActividad == 'INSPECCION_BUCEO') {
-            // IMPORTANTE: Aquí llamamos al segundo widget manualmente
+            // Como movimos los Datos Técnicos al Header (arriba),
+            // aquí abajo SOLO dejamos las Verificaciones Críticas (Estado Faena)
             return BuceoVerificacionesWidget(controller: _controller);
           }
           return const SizedBox.shrink();

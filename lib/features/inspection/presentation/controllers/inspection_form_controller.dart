@@ -283,4 +283,21 @@ class InspectionFormController extends ChangeNotifier {
     }
     return map;
   }
+
+  void toggleCondicionesBuzo(String personalId, bool valor) {
+    final index = participantes.indexWhere((p) => p.personalId == personalId);
+    if (index != -1) {
+      // Como el modelo suele ser inmutable (final), creamos una copia con el dato cambiado
+      // Si tu modelo no tiene copyWith, lo hacemos manual:
+      final p = participantes[index];
+      participantes[index] = ParticipanteModel(
+        personalId: p.personalId,
+        nombreCompleto: p.nombreCompleto,
+        rut: p.rut,
+        cargo: p.cargo,
+        condicionesOptimas: valor, // <--- CAMBIO AQUÍ
+      );
+      notifyListeners();
+    }
+  }
 }

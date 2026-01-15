@@ -3,6 +3,7 @@ class ParticipanteModel {
   final String nombreCompleto;
   final String rut;
   final String cargo; // S.B.M, B.M.B, etc.
+  final String matricula; // <--- NUEVO CAMPO
   bool condicionesOptimas;
 
   ParticipanteModel({
@@ -10,6 +11,7 @@ class ParticipanteModel {
     required this.nombreCompleto,
     required this.rut,
     required this.cargo,
+    this.matricula = '', // <--- Por defecto vacío para no romper nada
     this.condicionesOptimas = true,
   });
 
@@ -21,6 +23,7 @@ class ParticipanteModel {
           map['nombre_completo'] ?? '', // Viene del JOIN con personal_externo
       rut: map['rut'] ?? '',
       cargo: map['rol_en_faena'] ?? 'Buzo',
+      matricula: map['matricula'] ?? '',
       condicionesOptimas: map['condiciones_optimas'] == 1,
     );
   }
