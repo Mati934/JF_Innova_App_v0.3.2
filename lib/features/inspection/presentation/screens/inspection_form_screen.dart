@@ -120,6 +120,20 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
               ),
             ],
           ),
+          // --- AQUÍ COMIENZA LO NUEVO: EL BOTÓN PDF ---
+          actions: [
+            // Solo mostramos el botón si el controlador ya cargó y no está guardando
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+              tooltip: 'Previsualizar PDF',
+              onPressed: () {
+                // Llamamos a la función que creamos en el controlador
+                _controller.previsualizarReporte(context);
+              },
+            ),
+            const SizedBox(width: 8), // Un pequeño espacio al final
+          ],
+          // --- AQUÍ TERMINA LO NUEVO ---
         ),
         body: SafeArea(
           child: _controller.isLoading
@@ -138,12 +152,12 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
     final grupos = _controller.agruparPorCategoria();
     final categorias = grupos.keys.toList();
 
-    // TOTAL ITEMS = Header + Categorias + Verificaciones + Footer = N + 3
+    // CAMBIO 1: Aumentamos el total a +4 (Header + Profundidad + Categorías + Verif + Footer)
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 30),
-      itemCount: categorias.length + 3,
+      itemCount: categorias.length + 4,
       itemBuilder: (context, index) {
-        // 1. HEADER (POSICIÓN 0): CUADRILLA
+        // 1. HEADER (POSICIÓN 0) - SE QUEDA IGUAL
         if (index == 0) {
           return InspectionHeaderFactory.create(
             widget.tipoActividad,
@@ -151,10 +165,21 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
           );
         }
 
-        // Ajustamos índice
-        final adjustedIndex = index - 1;
+        // CAMBIO 2: NUEVO BLOQUE PARA LA PROFUNDIDAD (POSICIÓN 1)
+        // Esto hace que aparezca justo debajo del Header
+        if (index == 1) {
+          if (widget.tipoActividad == 'INSPECCION_BUCEO') {
+            return _buildSeccionProfundidad(_controller);
+          }
+          // Si no es buceo, devolvemos un espacio vacío para no romper el índice
+          return const SizedBox.shrink();
+        }
 
-        // 2. ITEMS DEL FORMULARIO (POSICIONES INTERMEDIAS)
+        // CAMBIO 3: AJUSTE MATEMÁTICO
+        // Antes restabas 1. Ahora restas 2 porque tienes 2 elementos arriba (Header y Profundidad)
+        final adjustedIndex = index - 2;
+
+        // 2. ITEMS DEL FORMULARIO (CATEGORÍAS)
         if (adjustedIndex < categorias.length) {
           final catNombre = categorias[adjustedIndex];
           final items = grupos[catNombre]!;
@@ -184,17 +209,17 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
           );
         }
 
-        // 3. VERIFICACIONES CRÍTICAS Y DATOS TÉCNICOS
+        // 3. VERIFICACIONES CRÍTICAS (AL FINAL DE LAS CATEGORÍAS)
         if (adjustedIndex == categorias.length) {
           if (widget.tipoActividad == 'INSPECCION_BUCEO') {
-            // Como movimos los Datos Técnicos al Header (arriba),
-            // aquí abajo SOLO dejamos las Verificaciones Críticas (Estado Faena)
+            // CAMBIO 4: AQUÍ LO QUITAMOS
+            // Ya no llamamos a _buildSeccionProfundidad aquí, solo dejamos las verificaciones
             return BuceoVerificacionesWidget(controller: _controller);
           }
           return const SizedBox.shrink();
         }
 
-        // 4. FOOTER (ÚLTIMO: Fotos Generales y Botón Guardar)
+        // 4. FOOTER (FOTOS GENERALES Y BOTÓN)
         return _buildFooter();
       },
     );
@@ -235,6 +260,79 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
         ),
         const SizedBox(height: 100),
       ],
+    );
+  }
+
+  Widget _buildSeccionProfundidad(InspectionFormController controller) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.waves, color: Colors.blue),
+                SizedBox(width: 8),
+                Text(
+                  "Parámetros de la Faena",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ],
+            ),
+            const Divider(),
+            const SizedBox(height: 8),
+
+            DropdownButtonFormField<String>(
+              decoration: const InputDecoration(
+                labelText: 'Nivel de Buceo / Faena',
+                border: OutlineInputBorder(),
+              ),
+              value: controller.verificacionesBuceo?.nivelBuceo,
+              items: [
+                'Superficie',
+                'Básico (20m)',
+                'Intermedio (36m)',
+                '20m & 36m',
+                'No realizada',
+              ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              onChanged: (val) {
+                controller.updateVerificacion((v) {
+                  v.nivelBuceo = val;
+                  if (val == 'Básico (20m)')
+                    v.profundidadMaxima = 20;
+                  else if (val == 'Intermedio (36m)')
+                    v.profundidadMaxima = 36;
+                  else
+                    v.profundidadMaxima = 0;
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              // Clave para que se refresque cuando cambias el dropdown
+              key: ValueKey(controller.verificacionesBuceo?.profundidadMaxima),
+              initialValue: controller.verificacionesBuceo?.profundidadMaxima
+                  ?.toString(),
+              decoration: const InputDecoration(
+                labelText: 'Profundidad Máxima Alcanzada',
+                suffixText: 'metros',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.vertical_align_bottom),
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (val) {
+                controller.updateVerificacion((v) {
+                  v.profundidadMaxima = int.tryParse(val) ?? 0;
+                });
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

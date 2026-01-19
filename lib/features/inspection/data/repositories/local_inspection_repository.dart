@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/buceo_verificacion_model.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/participante_model.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/models/formulario_item.dart';
 import '../../domain/repositories/inspection_repository.dart';
 import '../../../../core/database/database_helper.dart';
@@ -27,7 +28,14 @@ class LocalInspectionRepository implements InspectionRepository {
 
   Future<void> eliminarBorrador(String activityId) async {
     final db = await dbHelper.database;
+    final supabase = Supabase.instance.client;
+
     try {
+      // 1. Borrar de Supabase (Si alcanzó a subirse)
+      // Gracias a 'ON DELETE CASCADE' en tu SQL, borrar la actividad borrará sus hijos
+      await supabase.from('actividades').delete().eq('id', activityId);
+
+      // 2. Borrar de SQLite
       await db.delete(
         'fotos_pendientes',
         where: 'actividad_id = ?',
@@ -39,13 +47,24 @@ class LocalInspectionRepository implements InspectionRepository {
         whereArgs: [activityId],
       );
       await db.delete(
+        'verificaciones_buceo',
+        where: 'actividad_id = ?',
+        whereArgs: [activityId],
+      );
+      await db.delete(
+        'actividad_participantes',
+        where: 'actividad_id = ?',
+        whereArgs: [activityId],
+      );
+      await db.delete(
         'actividades_pendientes',
         where: 'id = ?',
         whereArgs: [activityId],
       );
-      debugPrint("🗑️ Borrador eliminado correctamente: $activityId");
+
+      debugPrint("🗑️ Inspección eliminada de local y nube: $activityId");
     } catch (e) {
-      debugPrint("❌ Error eliminando borrador: $e");
+      debugPrint("❌ Error eliminando: $e");
     }
   }
 
@@ -54,6 +73,10 @@ class LocalInspectionRepository implements InspectionRepository {
     required String tipoActividad,
     required String? centroId,
     required DateTime fecha,
+    String? usuarioId, // Agregado
+    String? contratistaId, // Agregado
+    String? embarcacionId, // Agregado
+    String? estado, // Agregado
   }) async {
     final db = await dbHelper.database;
     try {
@@ -61,16 +84,17 @@ class LocalInspectionRepository implements InspectionRepository {
         'id': id,
         'tipo_actividad': tipoActividad,
         'centro_id': centroId,
+        'usuario_id': usuarioId, // Guardar
+        'contratista_id': contratistaId, // Guardar
+        'embarcacion_id': embarcacionId, // Guardar
         'fecha_realizacion': fecha.toIso8601String(),
-        'subido':
-            0, // Al guardar cambios, reseteamos a 0 para que se vuelva a subir
-        'estado_final': 'En Progreso',
+        'subido': 0,
+        'estado_final': estado ?? 'En Progreso',
         'puerto_abierto': 1,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
-
-      debugPrint("💾 ACTIVIDAD GUARDADA: ID=$id");
+      debugPrint("💾 ACTIVIDAD GUARDADA CON ÉXITO: $id");
     } catch (e) {
-      debugPrint("❌ ERROR CRÍTICO AL GUARDAR ACTIVIDAD: $e");
+      debugPrint("❌ ERROR AL GUARDAR: $e");
       throw e;
     }
   }
@@ -148,6 +172,7 @@ class LocalInspectionRepository implements InspectionRepository {
         SELECT a.*, c.nombre as nombre_centro 
         FROM actividades_pendientes a
         LEFT JOIN centros c ON a.centro_id = c.id
+        WHERE a.estado_final = 'En Progreso' AND a.subido = 0
         ORDER BY a.fecha_realizacion DESC
       ''');
 

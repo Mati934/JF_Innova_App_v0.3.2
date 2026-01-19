@@ -30,6 +30,12 @@ class BuceoVerificacionModel {
   bool certificadoEquiposOk;
   DateTime? certificadoEquiposVigencia;
 
+  // En BuceoVerificacionModel
+  String? nivelBuceo; // 'Superficie', 'Básico', 'Intermedio', etc.
+  int? profundidadMaxima;
+
+  // No olvides agregarlos al constructor, al toMap() y al fromMap()
+
   BuceoVerificacionModel({
     required this.actividadId,
     this.autorizacionAutoridadMaritima = false,
@@ -50,6 +56,8 @@ class BuceoVerificacionModel {
     this.compresor2BuzosCargo,
     this.certificadoEquiposOk = false,
     this.certificadoEquiposVigencia,
+    this.nivelBuceo,
+    this.profundidadMaxima,
   });
 
   bool get faenaHabilitada {
@@ -84,6 +92,8 @@ class BuceoVerificacionModel {
       'certificado_equipos_ok': certificadoEquiposOk ? 1 : 0,
       'certificado_equipos_vigencia': certificadoEquiposVigencia
           ?.toIso8601String(),
+      'nivel_buceo': nivelBuceo,
+      'profundidad_maxima': profundidadMaxima,
     };
   }
 
@@ -116,6 +126,8 @@ class BuceoVerificacionModel {
       certificadoEquiposVigencia: map['certificado_equipos_vigencia'] != null
           ? DateTime.tryParse(map['certificado_equipos_vigencia'])
           : null,
+      nivelBuceo: map['nivel_buceo'],
+      profundidadMaxima: map['profundidad_maxima'] as int?,
     );
   }
 }

@@ -72,6 +72,7 @@ class SyncService {
 
   Future<int> _sincronizarActividades() async {
     final db = await _dbHelper.database;
+    // Buscamos solo las que no han sido subidas
     final pendientes = await db.query(
       'actividades_pendientes',
       where: 'subido = 0',
@@ -85,21 +86,33 @@ class SyncService {
       final tipoActividad = row['tipo_actividad'] as String;
 
       try {
-        // A) Subir la Cabecera de la Actividad
+        // A) Mapeo y Limpieza para la Nube
+        // Creamos una copia para no modificar el objeto original de la fila
+        // Dentro de _sincronizarActividades
         final datosParaNube = Map<String, dynamic>.from(row);
-        datosParaNube.remove('subido');
+
+        // Mantenemos el estado que viene de SQLite (que debe ser 'En Progreso')
+        // Solo si quieres que al FINALIZAR cambie, podrías agregar una lógica aquí
+        // o manejarlo directamente desde el objeto que guardas.
         datosParaNube['puerto_abierto'] = (row['puerto_abierto'] == 1);
+        datosParaNube.remove('subido');
+
         await _supabase.from('actividades').upsert(datosParaNube);
 
-        // B) NUEVO: Subir Datos Específicos si es BUCEO
+        // C) Subir Datos Relacionados (Hijos)
         if (tipoActividad == 'INSPECCION_BUCEO') {
           await _sincronizarVerificaciones(db, activityId);
           await _sincronizarParticipantes(db, activityId);
         }
 
-        // C) Borrar de pendientes locales solo si todo lo anterior funcionó
-        await db.delete(
+        // D) Actualizar estado local
+        // En lugar de borrar (para mantener historial offline), marcamos como subido = 1
+        // O si prefieres borrar como tenías antes, descomenta la línea de abajo:
+        // await db.delete('actividades_pendientes', where: 'id = ?', whereArgs: [activityId]);
+
+        await db.update(
           'actividades_pendientes',
+          {'subido': 1},
           where: 'id = ?',
           whereArgs: [activityId],
         );
@@ -108,7 +121,7 @@ class SyncService {
         count++;
       } catch (e) {
         debugPrint("⚠️ Error subiendo actividad $activityId: $e");
-        // No borramos de pendientes para que reintente luego
+        // Si falla, no actualizamos 'subido', así reintentará en la próxima sync
       }
     }
     return count;

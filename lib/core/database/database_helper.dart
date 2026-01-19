@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -10,8 +11,8 @@ class DatabaseHelper {
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDB(
-      'jfinnova_local_v3.db',
-    ); // Nombre nuevo para asegurar limpieza
+      'jfinnova_local_v4.db',
+    ); // <--- CAMBIA v3 A v4 // Nombre nuevo para asegurar limpieza
     return _database!;
   }
 
@@ -113,7 +114,9 @@ class DatabaseHelper {
         compresor_2_vigencia TEXT,
         compresor_2_buzos_cargo INTEGER,
         certificado_equipos_ok INTEGER DEFAULT 0,
-        certificado_equipos_vigencia TEXT
+        certificado_equipos_vigencia TEXT,
+        nivel_buceo TEXT,
+        profundidad_maxima INTEGER
       )
     ''');
 
@@ -139,7 +142,6 @@ class DatabaseHelper {
         PRIMARY KEY (actividad_id, personal_id)
       )
     ''');
-
     print("✅ Base de datos inicializada correctamente con tablas de buceo.");
   }
 
@@ -218,6 +220,10 @@ class DatabaseHelper {
 
   Future<void> saveActividadOffline(Map<String, dynamic> actividad) async {
     final db = await instance.database;
+    debugPrint("--- Guardando en SQLite ---");
+    debugPrint("ID: ${actividad['id']}");
+    debugPrint("Contratista: ${actividad['contratista_id']}");
+    debugPrint("Embarcación: ${actividad['embarcacion_id']}");
     await db.insert(
       'actividades_pendientes',
       actividad,

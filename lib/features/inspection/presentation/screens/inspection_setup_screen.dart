@@ -111,16 +111,18 @@ class _InspectionSetupScreenState extends State<InspectionSetupScreen> {
         'id': newActivityId,
         'usuario_id': userId,
         'centro_id': _centroId,
-        'fecha_realizacion': DateTime.now().toIso8601String(),
-        'puerto_abierto': _estadoPuerto == 'ABIERTO' ? 1 : 0,
-        'tipo_actividad': tipoFinal,
-        'observaciones_generales': obs,
         'contratista_id': esInspeccionCompleta ? _contratistaId : null,
         'embarcacion_id': esInspeccionCompleta ? _embarcacionId : null,
-        'estado_final': 'En Seguimiento',
+        'tipo_actividad': tipoFinal,
+        'fecha_realizacion': DateTime.now().toIso8601String(),
+        'puerto_abierto': _estadoPuerto == 'ABIERTO' ? 1 : 0,
+        'observaciones_generales': obs,
+        'estado_final':
+            'En Progreso', // Cambiado de 'En Seguimiento' a 'En Progreso'
         'subido': 0,
       };
 
+      // Asegúrate de que saveActividadOffline acepte este Mapa completo
       await _dbHelper.saveActividadOffline(datosActividad);
 
       // En inspection_setup_screen.dart (~línea 135)
