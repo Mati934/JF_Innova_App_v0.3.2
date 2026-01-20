@@ -172,7 +172,7 @@ class LocalInspectionRepository implements InspectionRepository {
         SELECT a.*, c.nombre as nombre_centro 
         FROM actividades_pendientes a
         LEFT JOIN centros c ON a.centro_id = c.id
-        WHERE a.estado_final = 'En Progreso' AND a.subido = 0
+        WHERE a.estado_final = 'En Progreso'
         ORDER BY a.fecha_realizacion DESC
       ''');
 
@@ -268,6 +268,7 @@ class LocalInspectionRepository implements InspectionRepository {
           'rut': p.rut,
           'cargo': p.cargo, // Guardamos el cargo por defecto
           'activo': 1,
+          'matricula': p.matricula,
         }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
         // Crear la relación
@@ -291,7 +292,8 @@ class LocalInspectionRepository implements InspectionRepository {
       SELECT 
         ap.personal_id, 
         p.nombre_completo, 
-        p.rut, 
+        p.rut,
+        p.matricula,
         ap.rol_en_faena, 
         ap.condiciones_optimas
       FROM actividad_participantes ap

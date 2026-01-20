@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 // Ajusta la ruta si es necesario
 import '../../controllers/inspection_form_controller.dart';
 import '../../../domain/models/participante_model.dart';
+import 'package:uuid/uuid.dart';
 
 // --- WIDGET 1: CUADRILLA (Va arriba) ---
 class BuceoCuadrillaWidget extends StatelessWidget {
@@ -252,12 +253,12 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                     if (nombreCtrl.text.isEmpty) return;
 
                     final nuevo = ParticipanteModel(
-                      personalId: DateTime.now().millisecondsSinceEpoch
-                          .toString(),
+                      personalId: const Uuid()
+                          .v4(), // ✅ PONER ESTO (Genera un ID real tipo a0eebc...)
                       nombreCompleto: nombreCtrl.text,
                       rut: rutCtrl.text,
                       cargo: cargoNotifier.value,
-                      matricula: matriculaCtrl.text, // <--- GUARDAMOS
+                      matricula: matriculaCtrl.text,
                       condicionesOptimas: true,
                     );
 

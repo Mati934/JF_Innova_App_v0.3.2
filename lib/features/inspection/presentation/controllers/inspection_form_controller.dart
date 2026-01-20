@@ -207,6 +207,11 @@ class InspectionFormController extends ChangeNotifier {
     if (!silent) notifyListeners();
     try {
       await _persistirDatos();
+      _syncService.sincronizarTodo().catchError((e) {
+        debugPrint(
+          "⚠️ No se pudo subir el borrador a la nube (quizás sin internet): $e",
+        );
+      });
       return true;
     } catch (e) {
       _errorMessage = "Error guardando: $e";
@@ -250,6 +255,7 @@ class InspectionFormController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      await _persistirDatos();
       if (_repo is LocalInspectionRepository) {
         await (_repo as LocalInspectionRepository).saveActividad(
           id: activityId,
@@ -263,8 +269,6 @@ class InspectionFormController extends ChangeNotifier {
               'En Seguimiento', // Al cambiar a este estado, desaparece del Home
         );
       }
-
-      await _persistirDatos();
 
       // Forzamos una sincronización inmediata si hay internet
       _syncService.sincronizarTodo().catchError(

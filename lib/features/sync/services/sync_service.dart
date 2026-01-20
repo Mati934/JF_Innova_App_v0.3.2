@@ -84,7 +84,6 @@ class SyncService {
     for (var row in pendientes) {
       final activityId = row['id'] as String;
       final tipoActividad = row['tipo_actividad'] as String;
-
       try {
         // A) Mapeo y Limpieza para la Nube
         // Creamos una copia para no modificar el objeto original de la fila
@@ -129,10 +128,13 @@ class SyncService {
 
   // --- MÉTODOS AUXILIARES NUEVOS ---
 
+  // En SyncService.dart
+
   Future<void> _sincronizarVerificaciones(
     DatabaseExecutor db,
     String activityId,
   ) async {
+    // 1. Buscamos el registro en SQLite
     final results = await db.query(
       'verificaciones_buceo',
       where: 'actividad_id = ?',
@@ -140,46 +142,120 @@ class SyncService {
     );
 
     if (results.isNotEmpty) {
-      // Upsert directo a Supabase
-      await _supabase.from('verificaciones_buceo').upsert(results.first);
+      try {
+        // 2. Limpieza de datos (Importante)
+        // Creamos una copia editable del mapa
+        final data = Map<String, dynamic>.from(results.first);
+
+        // Eliminamos columnas que sean SOLO locales (si tienes alguna como 'id_sqlite')
+        // Si no tienes columnas extra locales, esto igual asegura que sea un mapa limpio
+
+        // 3. Upsert a Supabase
+        // Usamos upsert para que sirva tanto para guardar borrador (insert)
+        // como para actualizar cambios finales (update)
+        await _supabase
+            .from('verificaciones_buceo')
+            .upsert(
+              data,
+              onConflict: 'actividad_id',
+            ); // Asegúrate que la PK sea actividad_id o la que definiste
+
+        debugPrint("✅ Verificaciones de buceo sincronizadas para $activityId");
+      } catch (e) {
+        debugPrint("⚠️ Error subiendo verificaciones buceo: $e");
+      }
     }
   }
+
+  // En SyncService.dart
 
   Future<void> _sincronizarParticipantes(
     DatabaseExecutor db,
     String activityId,
   ) async {
-    // 1. Obtenemos la relación local
+    // 1. Obtener la lista de relaciones
     final relaciones = await db.query(
       'actividad_participantes',
       where: 'actividad_id = ?',
       whereArgs: [activityId],
     );
+    // --- NUEVO: LIMPIEZA DE HUÉRFANOS EN LA NUBE ---
+    try {
+      // Obtenemos los IDs de las personas que SÍ deben estar
+      final idsVigentes = relaciones.map((r) => r['personal_id']).toList();
+
+      // Le decimos a Supabase: "Borra de esta actividad a todos los que NO estén en esta lista"
+      if (idsVigentes.isNotEmpty) {
+        await _supabase
+            .from('actividad_participantes')
+            .delete()
+            .eq('actividad_id', activityId)
+            .filter(
+              'personal_id',
+              'not.in',
+              '(${idsVigentes.join(',')})',
+            ); // Sintaxis especial filtro
+      } else {
+        // Si la lista local está vacía, borramos a todos de la nube para esa actividad
+        await _supabase
+            .from('actividad_participantes')
+            .delete()
+            .eq('actividad_id', activityId);
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error limpiando participantes antiguos: $e");
+    }
+    // -----------------------------------------------
 
     if (relaciones.isEmpty) return;
 
     for (var rel in relaciones) {
       final personalId = rel['personal_id'] as String;
 
-      // 2. Buscamos los datos de la persona en SQLite para asegurarnos de subirla primero
-      // (Por si creaste un buzo nuevo offline que no existe en la nube)
+      // --- PASO A: Asegurar que la PERSONA exista en Supabase ---
       final personaData = await db.query(
         'personal_externo',
         where: 'id = ?',
         whereArgs: [personalId],
       );
 
+      // 👇👇 AQUÍ ESTÁ EL CAMBIO 👇👇
       if (personaData.isNotEmpty) {
-        // Upsert de la Persona (Tabla Maestra)
-        await _supabase.from('personal_externo').upsert(personaData.first);
+        final raw = personaData.first;
+
+        // Creamos el paquete limpio solo con lo que Supabase espera
+        final datosLimpios = {
+          'id': raw['id'],
+          'rut': raw['rut'],
+          'nombre_completo': raw['nombre_completo'],
+          'cargo': raw['cargo'],
+          // Convertimos int (SQLite) a bool (Postgres) si es necesario
+          'activo': (raw['activo'] == 1),
+          'matricula': raw['matricula'],
+        };
+
+        try {
+          await _supabase.from('personal_externo').upsert(datosLimpios);
+        } catch (e) {
+          // Este error suele ser ignorable (ej: si ya existe y no hay cambios)
+          debugPrint("ℹ️ Sync persona: $e");
+        }
       }
+      // 👆👆 FIN DEL CAMBIO 👆👆
 
-      // 3. Upsert de la Relación (Tabla Intermedia)
-      final datosRelacion = Map<String, dynamic>.from(rel);
-      datosRelacion['condiciones_optimas'] = (rel['condiciones_optimas'] == 1);
-
-      await _supabase.from('actividad_participantes').upsert(datosRelacion);
+      // --- PASO B: Subir la RELACIÓN ---
+      try {
+        final datosRelacion = Map<String, dynamic>.from(rel);
+        if (rel['condiciones_optimas'] is int) {
+          datosRelacion['condiciones_optimas'] =
+              (rel['condiciones_optimas'] == 1);
+        }
+        await _supabase.from('actividad_participantes').upsert(datosRelacion);
+      } catch (e) {
+        debugPrint("❌ Error vinculando participante: $e");
+      }
     }
+    debugPrint("✅ Cuadrilla sincronizada.");
   }
 
   // --- MÉTODOS EXISTENTES (Sin cambios mayores) ---

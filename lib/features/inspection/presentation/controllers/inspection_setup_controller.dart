@@ -149,16 +149,19 @@ class InspectionSetupController extends ChangeNotifier {
   }
 
   // --- LÓGICA DE GUARDADO ---
-
+  bool _yaGuardado = false;
   // Retorna true si todo salió bien
   Future<bool> guardarActividad() async {
+    if (_isSaving) return false;
     _isSaving = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
       final userId = Supabase.instance.client.auth.currentUser?.id;
-      createdActivityId = const Uuid().v4();
+      if (createdActivityId == null) {
+        createdActivityId = const Uuid().v4();
+      }
 
       // Regla de Negocio: ¿Es inspección completa o solo bitácora?
       esInspeccionCompleta =
