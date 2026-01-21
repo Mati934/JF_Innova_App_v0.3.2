@@ -173,30 +173,23 @@ class SyncService {
     DatabaseExecutor db,
     String activityId,
   ) async {
-    // 1. Obtener la lista de relaciones
+    // 1. Obtener la lista de relaciones locales
     final relaciones = await db.query(
       'actividad_participantes',
       where: 'actividad_id = ?',
       whereArgs: [activityId],
     );
-    // --- NUEVO: LIMPIEZA DE HUÉRFANOS EN LA NUBE ---
-    try {
-      // Obtenemos los IDs de las personas que SÍ deben estar
-      final idsVigentes = relaciones.map((r) => r['personal_id']).toList();
 
-      // Le decimos a Supabase: "Borra de esta actividad a todos los que NO estén en esta lista"
+    // --- LIMPIEZA DE HUÉRFANOS (Sin cambios, tu lógica estaba bien) ---
+    try {
+      final idsVigentes = relaciones.map((r) => r['personal_id']).toList();
       if (idsVigentes.isNotEmpty) {
         await _supabase
             .from('actividad_participantes')
             .delete()
             .eq('actividad_id', activityId)
-            .filter(
-              'personal_id',
-              'not.in',
-              '(${idsVigentes.join(',')})',
-            ); // Sintaxis especial filtro
+            .filter('personal_id', 'not.in', '(${idsVigentes.join(',')})');
       } else {
-        // Si la lista local está vacía, borramos a todos de la nube para esa actividad
         await _supabase
             .from('actividad_participantes')
             .delete()
@@ -205,7 +198,7 @@ class SyncService {
     } catch (e) {
       debugPrint("⚠️ Error limpiando participantes antiguos: $e");
     }
-    // -----------------------------------------------
+    // ----------------------------------------------------------------
 
     if (relaciones.isEmpty) return;
 
@@ -219,31 +212,40 @@ class SyncService {
         whereArgs: [personalId],
       );
 
-      // 👇👇 AQUÍ ESTÁ EL CAMBIO 👇👇
       if (personaData.isNotEmpty) {
         final raw = personaData.first;
 
-        // Creamos el paquete limpio solo con lo que Supabase espera
+        // 1. CREAMOS EL PAQUETE COMPLETO (Incluyendo contratista_id)
         final datosLimpios = {
           'id': raw['id'],
           'rut': raw['rut'],
           'nombre_completo': raw['nombre_completo'],
           'cargo': raw['cargo'],
-          // Convertimos int (SQLite) a bool (Postgres) si es necesario
           'activo': (raw['activo'] == 1),
           'matricula': raw['matricula'],
+          // ✅ FIX CRÍTICO: Enviamos el ID del contratista padre
+          'contratista_id': raw['contratista_id'],
         };
 
         try {
           await _supabase.from('personal_externo').upsert(datosLimpios);
+          // Si pasa aquí, la persona existe en la nube.
         } catch (e) {
-          // Este error suele ser ignorable (ej: si ya existe y no hay cambios)
-          debugPrint("ℹ️ Sync persona: $e");
+          // 🛑 SI FALLA LA PERSONA, ABORTAMOS EL VÍNCULO
+          debugPrint(
+            "🔥 Error CRÍTICO subiendo persona (${raw['nombre_completo']}): $e",
+          );
+          debugPrint("Saltando vínculo para evitar crash FK...");
+          continue; // Pasamos al siguiente del bucle, no intentamos vincular
         }
+      } else {
+        debugPrint(
+          "⚠️ ALERTA: ID $personalId en relación pero no en tabla personal local.",
+        );
+        continue;
       }
-      // 👆👆 FIN DEL CAMBIO 👆👆
 
-      // --- PASO B: Subir la RELACIÓN ---
+      // --- PASO B: Subir la RELACIÓN (Solo llegamos aquí si el PASO A funcionó) ---
       try {
         final datosRelacion = Map<String, dynamic>.from(rel);
         if (rel['condiciones_optimas'] is int) {
@@ -282,15 +284,26 @@ class SyncService {
       });
     }
 
-    await _supabase.from('inspeccion_respuestas').insert(batchParaNube);
+    await _supabase
+        .from('inspeccion_respuestas')
+        .upsert(
+          batchParaNube,
+          onConflict:
+              'actividad_id, item_id', // Asegúrate de tener este constraint en Supabase
+        );
 
+    // 2. ACTUALIZAR LOCALMENTE (NO BORRAR)
     for (var id in idsLocales) {
-      await db.delete(
+      await db.update(
         'inspeccion_respuestas_pendientes',
+        {'subido': 1}, // ✅ MARCAMOS COMO SUBIDO
         where: 'id = ?',
         whereArgs: [id],
       );
     }
+    debugPrint(
+      "✅ Respuestas sincronizadas y marcadas localmente (${batchParaNube.length})",
+    );
     return batchParaNube.length;
   }
 

@@ -318,7 +318,7 @@ class PdfGeneratorService {
           children: [
             pw.TableRow(
               decoration: const pw.BoxDecoration(color: PdfColors.grey200),
-              children: ["Nombre Completo", "RUT", "Cargo", "Rol Faena"]
+              children: ["Nombre Completo", "RUT", "Cargo", "Condición Fisica"]
                   .map(
                     (e) => pw.Padding(
                       padding: const pw.EdgeInsets.all(3),
@@ -328,6 +328,7 @@ class PdfGeneratorService {
                           fontWeight: pw.FontWeight.bold,
                           fontSize: 7,
                         ),
+                        textAlign: pw.TextAlign.center,
                       ),
                     ),
                   )
@@ -359,22 +360,6 @@ class PdfGeneratorService {
             ),
             pw.Text(
               "${data.supervisor}   |   ",
-              style: const pw.TextStyle(fontSize: 8),
-            ),
-            pw.Text(
-              "Nivel de Buceo: ",
-              style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.Text(
-              "${data.nivelBuceo}   |   ",
-              style: const pw.TextStyle(fontSize: 8),
-            ),
-            pw.Text(
-              "Prof. Máx: ",
-              style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.Text(
-              "${data.profundidad} mts",
               style: const pw.TextStyle(fontSize: 8),
             ),
           ],

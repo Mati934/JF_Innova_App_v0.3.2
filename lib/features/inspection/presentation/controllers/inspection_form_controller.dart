@@ -14,6 +14,7 @@ import '../../domain/models/formulario_item.dart';
 import '../../domain/repositories/inspection_repository.dart';
 import '../../data/repositories/local_inspection_repository.dart';
 import 'dart:typed_data';
+import 'dart:async';
 
 class InspectionFormController extends ChangeNotifier {
   final InspectionRepository _repo;
@@ -97,6 +98,10 @@ class InspectionFormController extends ChangeNotifier {
 
       // 3. Cargar Respuestas Previas
       final datos = await _repo.cargarRespuestasGuardadas(activityId);
+      debugPrint(
+        "🔍 RECUPERANDO RESPUESTAS PARA $activityId",
+      ); // <--- AGREGA ESTO
+      debugPrint("🔍 CANTIDAD ENCONTRADA: ${datos.length}"); // <--- AGREGA ESTO
       datos.forEach((id, val) {
         if (val['estado'] != null) respuestas[id] = val['estado'];
         if (val['observacion'] != null) observaciones[id] = val['observacion'];
@@ -205,20 +210,34 @@ class InspectionFormController extends ChangeNotifier {
   Future<bool> guardarBorrador({bool silent = false}) async {
     _isSaving = true;
     if (!silent) notifyListeners();
+
     try {
+      // 1. Prioridad: Persistencia Local (Bloqueante)
       await _persistirDatos();
-      _syncService.sincronizarTodo().catchError((e) {
-        debugPrint(
-          "⚠️ No se pudo subir el borrador a la nube (quizás sin internet): $e",
-        );
-      });
+
+      // 2. Sincronización (No bloqueante pero explícita)
+      // Usamos unawaited para indicar al linter y al lector que INTENCIONALMENTE
+      // no esperamos a que esto termine para retornar el control al usuario.
+      unawaited(_iniciarSincronizacionSegura());
+
       return true;
     } catch (e) {
-      _errorMessage = "Error guardando: $e";
+      _errorMessage = "Error guardando localmente: $e";
+      // Loggear error crítico aquí
       return false;
     } finally {
       _isSaving = false;
       if (!silent) notifyListeners();
+    }
+  }
+
+  // Método auxiliar para aislar la lógica de sync y mantener el try-catch limpio
+  Future<void> _iniciarSincronizacionSegura() async {
+    try {
+      await _syncService.sincronizarTodo();
+    } catch (e) {
+      debugPrint("⚠️ Sync falló (estrategia offline-first aplicada): $e");
+      // Aquí podrías encolar un reintento para más tarde
     }
   }
 
@@ -233,22 +252,22 @@ class InspectionFormController extends ChangeNotifier {
         notifyListeners();
         return false;
       }
-
-      // Validar datos de la faena
-      final vb = verificacionesBuceo;
-      if (vb == null || vb.nivelBuceo == null) {
-        _errorMessage = "Debe seleccionar el nivel de buceo.";
-        notifyListeners();
-        return false;
-      }
-
-      // Si se hizo buceo, la profundidad debe ser mayor a 0
-      if (vb.nivelBuceo != 'No realizada' && (vb.profundidadMaxima ?? 0) <= 0) {
-        _errorMessage = "Debe ingresar una profundidad válida para la faena.";
-        notifyListeners();
-        return false;
-      }
     }
+    // Validar datos de la faena
+    //   final vb = verificacionesBuceo;
+    //   if (vb == null || vb.nivelBuceo == null) {
+    //     _errorMessage = "Debe seleccionar el nivel de buceo.";
+    //     notifyListeners();
+    //     return false;
+    //   }
+
+    //   // Si se hizo buceo, la profundidad debe ser mayor a 0
+    //   if (vb.nivelBuceo != 'No realizada' && (vb.profundidadMaxima ?? 0) <= 0) {
+    //     _errorMessage = "Debe ingresar una profundidad válida para la faena.";
+    //     notifyListeners();
+    //     return false;
+    //   }
+    // }
 
     // 3. SI TODO ESTÁ BIEN, PROCEDEMOS A GUARDAR
     _isSaving = true;
@@ -286,40 +305,116 @@ class InspectionFormController extends ChangeNotifier {
   }
 
   Future<void> _persistirDatos() async {
-    if (_repo is LocalInspectionRepository) {
-      await (_repo as LocalInspectionRepository).saveActividad(
-        id: activityId,
-        tipoActividad: tipoActividad,
-        centroId: centroId,
-        usuarioId: usuarioId,
-        contratistaId: contratistaId,
-        embarcacionId: embarcacionId,
-        fecha: DateTime.now(),
-      );
-    }
+    print("💾 PERSISTIR: Iniciando guardado...");
+    print(
+      "ℹ️ Tipo Actividad actual: '$tipoActividad'",
+    ); // Verifica que sea EXACTAMENTE 'INSPECCION_BUCEO'
+    // 1. Preparar Actividad
+    final actividadMap = {
+      'id': activityId,
+      'tipo_actividad': tipoActividad,
+      'centro_id': centroId,
+      'usuario_id': usuarioId,
+      'contratista_id': contratistaId,
+      'embarcacion_id': embarcacionId,
+      'fecha_realizacion': DateTime.now()
+          .toIso8601String(), // SQLite prefiere texto
+      // ... agrega los campos que falten según tu modelo
+    };
 
-    // 2. Guardar Respuestas del Checklist
-    List<Map<String, dynamic>> lote = [];
-    respuestas.forEach((key, val) {
-      if (fotosPorPregunta.containsKey(key)) {
+    // 2. Preparar Respuestas
+    List<Map<String, dynamic>> loteRespuestas = [];
+    respuestas.forEach((itemId, estado) {
+      // Guardamos fotos si existen (esto puede ir fuera de la txn o manejarse igual)
+      if (fotosPorPregunta.containsKey(itemId)) {
         _repo.saveFoto(
           activityId: activityId,
-          itemId: key,
-          file: XFile(fotosPorPregunta[key]!.path),
-          descripcion: 'Item $key',
+          itemId: itemId,
+          file: XFile(fotosPorPregunta[itemId]!.path),
+          descripcion: 'Item $itemId',
         );
       }
-      lote.add({
+
+      loteRespuestas.add({
         'actividad_id': activityId,
-        'item_id': key,
-        'estado': val,
-        'observacion': observaciones[key],
-        'criticidad_registrada': criticidades[key] ?? 'Tolerable',
+        'item_id': itemId, // ESTA ES LA CLAVE DE UNICIDAD
+        'estado': estado,
+        'observacion': observaciones[itemId],
+        'criticidad_registrada': criticidades[itemId] ?? 'Tolerable',
+        // No mandamos 'id' (PK), dejamos que SQLite lo autogenere
       });
     });
-    await _repo.saveRespuestasBatch(lote);
 
-    // 3. Guardar Fotos Generales
+    // 3. Preparar Datos de Buceo (Si aplica)
+    Map<String, dynamic>? verificacionesMap;
+    List<Map<String, dynamic>>? participantesMap;
+
+    if (tipoActividad == 'INSPECCION_BUCEO') {
+      if (verificacionesBuceo != null) {
+        verificacionesMap = verificacionesBuceo!.toMap();
+        print(
+          "🤿 DEBUG: Verificaciones a guardar: $verificacionesMap",
+        ); // Asumiendo que tienes toMap()
+      } else {
+        print(
+          "⚠️ ALERTA: verificacionesBuceo es NULL. No se guardará el estado de faena.",
+        );
+      }
+      print(
+        "👥 DEBUG: Cantidad de participantes en memoria: ${participantes.length}",
+      );
+      print(
+        "👥 DEBUG: Cantidad de participantes en memoria: ${participantes.length}",
+      );
+      // Convertimos tus objetos ParticipanteModel a Map para SQLite
+      if (participantes.isNotEmpty) {
+        participantesMap = participantes.map((p) {
+          final map = {
+            'actividad_id': activityId,
+            'personal_id': p.personalId,
+            'rol_en_faena': p.cargo,
+            'condiciones_optimas': p.condicionesOptimas
+                ? 1
+                : 0, // SQLite usa 1 o 0
+            // --- DATOS DE LA PERSONA (PARA CREARLA SI NO EXISTE) ---
+            'nombre_completo': p.nombreCompleto, // <--- ESTO FALTABA
+            'rut': p.rut, // <--- ESTO FALTABA
+            // Asumimos que si lo creas al vuelo, está activo
+            'activo': 1,
+            // Si tienes cargo base en el modelo, úsalo, si no usa el rol
+            'cargo': p.cargo,
+          };
+          return map;
+        }).toList();
+        print(
+          "👥 DEBUG: Primer participante mapeado: ${participantesMap?.first}",
+        );
+      }
+    }
+    print(
+      '📦 DEBUG PAYLOAD: Intentando guardar ${loteRespuestas.length} respuestas.',
+    );
+    if (loteRespuestas.isNotEmpty) {
+      print('📦 EJEMPLO: ${loteRespuestas.first}');
+    } else {
+      print(
+        '🚨 ALERTA: La lista de respuestas está VACÍA. El usuario respondió algo?',
+      );
+      print('Dump del mapa respuestas: $respuestas');
+    }
+    // 4. LLAMADA MAESTRA (Solo para repositorio local)
+    if (_repo is LocalInspectionRepository) {
+      await (_repo as LocalInspectionRepository).saveInspeccionCompleta(
+        actividad: actividadMap,
+        respuestas: loteRespuestas,
+        participantes: participantesMap,
+        verificacionesBuceo: verificacionesMap,
+      );
+    } else {
+      // Lógica para Supabase directo si alguna vez la usas
+    }
+
+    // 5. Guardar fotos generales (pueden ir aparte, son archivos)
     for (var f in fotosGenerales) {
       await _repo.saveFoto(
         activityId: activityId,
@@ -327,15 +422,6 @@ class InspectionFormController extends ChangeNotifier {
         file: XFile(f.path),
         descripcion: 'General',
       );
-    }
-
-    // 4. GUARDAR DATOS ESPECÍFICOS DE BUCEO (NUEVO)
-    if (tipoActividad == 'INSPECCION_BUCEO') {
-      if (verificacionesBuceo != null) {
-        await _repo.guardarVerificacionesBuceo(verificacionesBuceo!);
-      }
-      // Guardamos la lista SIEMPRE, para reflejar adiciones y borrados
-      await _repo.guardarParticipantes(activityId, participantes);
     }
   }
 
@@ -477,17 +563,31 @@ class InspectionFormController extends ChangeNotifier {
         }
       }
 
-      // 4. PERSONAL
-      final List<PersonalDto> equipoDto = participantes
-          .map(
-            (p) => PersonalDto(
-              nombre: p.nombreCompleto,
-              rut: p.rut,
-              cargo: p.cargo,
-              rolEnFaena: p.cargo ?? "Técnico",
-            ),
-          )
-          .toList();
+      // 4. PERSONAL (Lógica corregida)
+      final List<PersonalDto> equipoDto = participantes.map((p) {
+        // --- AQUÍ ESTÁ LA MAGIA ---
+        // Definimos qué texto mostrar en la columna "Condición Física" del PDF
+        String textoCondicion =
+            "-"; // Guion por defecto para Supervisor/Asistente
+
+        // Si es un Buzo, traducimos el switch (true/false) a Texto
+        if (p.cargo != null && p.cargo!.toLowerCase().contains("buzo")) {
+          if (p.condicionesOptimas) {
+            textoCondicion = "Optima";
+          } else {
+            textoCondicion = "NO APTO";
+          }
+        }
+        // ---------------------------
+
+        return PersonalDto(
+          nombre: p.nombreCompleto,
+          rut: p.rut,
+          cargo: p.cargo,
+          // Usamos 'rolEnFaena' para transportar el estado físico al PDF
+          rolEnFaena: textoCondicion,
+        );
+      }).toList();
 
       // 5. DATOS FINALES
       final now = DateTime.now();
@@ -522,8 +622,6 @@ class InspectionFormController extends ChangeNotifier {
         embarcacion: nombreEmbarcacion,
         matricula: matriculaEmbarcacion,
         tipoFaena: "INSPECCIÓN DE BUCEO",
-        nivelBuceo: verificacionesBuceo?.nivelBuceo ?? "No indicado",
-        profundidad: (verificacionesBuceo?.profundidadMaxima ?? 0).toString(),
         supervisor: verificacionesBuceo?.supervisorNombre ?? "No asignado",
 
         // AQUI ES DONDE SE IMPRIME EL TEXTO QUE EL PDF VA A LEER

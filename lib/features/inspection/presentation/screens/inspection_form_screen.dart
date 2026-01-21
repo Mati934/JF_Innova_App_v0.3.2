@@ -155,7 +155,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
     // CAMBIO 1: Aumentamos el total a +4 (Header + Profundidad + Categorías + Verif + Footer)
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 30),
-      itemCount: categorias.length + 4,
+      itemCount: categorias.length + 3,
       itemBuilder: (context, index) {
         // 1. HEADER (POSICIÓN 0) - SE QUEDA IGUAL
         if (index == 0) {
@@ -165,19 +165,19 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
           );
         }
 
-        // CAMBIO 2: NUEVO BLOQUE PARA LA PROFUNDIDAD (POSICIÓN 1)
-        // Esto hace que aparezca justo debajo del Header
-        if (index == 1) {
-          if (widget.tipoActividad == 'INSPECCION_BUCEO') {
-            return _buildSeccionProfundidad(_controller);
-          }
-          // Si no es buceo, devolvemos un espacio vacío para no romper el índice
-          return const SizedBox.shrink();
-        }
+        // // CAMBIO 2: NUEVO BLOQUE PARA LA PROFUNDIDAD (POSICIÓN 1)
+        // // Esto hace que aparezca justo debajo del Header
+        // if (index == 1) {
+        //   if (widget.tipoActividad == 'INSPECCION_BUCEO') {
+        //     return _buildSeccionProfundidad(_controller);
+        //   }
+        //   // Si no es buceo, devolvemos un espacio vacío para no romper el índice
+        //   return const SizedBox.shrink();
+        // }
 
         // CAMBIO 3: AJUSTE MATEMÁTICO
         // Antes restabas 1. Ahora restas 2 porque tienes 2 elementos arriba (Header y Profundidad)
-        final adjustedIndex = index - 2;
+        final adjustedIndex = index - 1;
 
         // 2. ITEMS DEL FORMULARIO (CATEGORÍAS)
         if (adjustedIndex < categorias.length) {
@@ -263,76 +263,77 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
     );
   }
 
-  Widget _buildSeccionProfundidad(InspectionFormController controller) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.waves, color: Colors.blue),
-                SizedBox(width: 8),
-                Text(
-                  "Parámetros de la Faena",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              ],
-            ),
-            const Divider(),
-            const SizedBox(height: 8),
+  //   Widget _buildSeccionProfundidad(InspectionFormController controller) {
+  //     return Card(
+  //       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  //       elevation: 2,
+  //       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  //       child: Padding(
+  //         padding: const EdgeInsets.all(16),
+  //         child: Column(
+  //           crossAxisAlignment: CrossAxisAlignment.start,
+  //           children: [
+  //             const Row(
+  //               children: [
+  //                 Icon(Icons.waves, color: Colors.blue),
+  //                 SizedBox(width: 8),
+  //                 Text(
+  //                   "Parámetros de la Faena",
+  //                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+  //                 ),
+  //               ],
+  //             ),
+  //             const Divider(),
+  //             const SizedBox(height: 8),
 
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(
-                labelText: 'Nivel de Buceo / Faena',
-                border: OutlineInputBorder(),
-              ),
-              value: controller.verificacionesBuceo?.nivelBuceo,
-              items: [
-                'Superficie',
-                'Básico (20m)',
-                'Intermedio (36m)',
-                '20m & 36m',
-                'No realizada',
-              ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-              onChanged: (val) {
-                controller.updateVerificacion((v) {
-                  v.nivelBuceo = val;
-                  if (val == 'Básico (20m)')
-                    v.profundidadMaxima = 20;
-                  else if (val == 'Intermedio (36m)')
-                    v.profundidadMaxima = 36;
-                  else
-                    v.profundidadMaxima = 0;
-                });
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              // Clave para que se refresque cuando cambias el dropdown
-              key: ValueKey(controller.verificacionesBuceo?.profundidadMaxima),
-              initialValue: controller.verificacionesBuceo?.profundidadMaxima
-                  ?.toString(),
-              decoration: const InputDecoration(
-                labelText: 'Profundidad Máxima Alcanzada',
-                suffixText: 'metros',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.vertical_align_bottom),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (val) {
-                controller.updateVerificacion((v) {
-                  v.profundidadMaxima = int.tryParse(val) ?? 0;
-                });
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  //             DropdownButtonFormField<String>(
+  //               decoration: const InputDecoration(
+  //                 labelText: 'Nivel de Buceo / Faena',
+  //                 border: OutlineInputBorder(),
+  //               ),
+  //               value: controller.verificacionesBuceo?.nivelBuceo,
+  //               items: [
+  //                 'Superficie',
+  //                 'Básico (20m)',
+  //                 'Intermedio (36m)',
+  //                 '20m & 36m',
+  //                 'No realizada',
+  //               ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+  //               onChanged: (val) {
+  //                 controller.updateVerificacion((v) {
+  //                   v.nivelBuceo = val;
+  //                   if (val == 'Básico (20m)')
+  //                     v.profundidadMaxima = 20;
+  //                   else if (val == 'Intermedio (36m)')
+  //                     v.profundidadMaxima = 36;
+  //                   else
+  //                     v.profundidadMaxima = 0;
+  //                 });
+  //               },
+  //             ),
+  //             const SizedBox(height: 16),
+  //             TextFormField(
+  //               // Clave para que se refresque cuando cambias el dropdown
+  //               key: ValueKey(controller.verificacionesBuceo?.profundidadMaxima),
+  //               initialValue: controller.verificacionesBuceo?.profundidadMaxima
+  //                   ?.toString(),
+  //               decoration: const InputDecoration(
+  //                 labelText: 'Profundidad Máxima Alcanzada',
+  //                 suffixText: 'metros',
+  //                 border: OutlineInputBorder(),
+  //                 prefixIcon: Icon(Icons.vertical_align_bottom),
+  //               ),
+  //               keyboardType: TextInputType.number,
+  //               onChanged: (val) {
+  //                 controller.updateVerificacion((v) {
+  //                   v.profundidadMaxima = int.tryParse(val) ?? 0;
+  //                 });
+  //               },
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //     );
+  //   }
+  // }
 }

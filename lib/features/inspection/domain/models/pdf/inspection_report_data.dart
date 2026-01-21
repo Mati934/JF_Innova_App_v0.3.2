@@ -14,8 +14,6 @@ class InspectionReportData {
   final String matricula;
 
   final String tipoFaena;
-  final String nivelBuceo;
-  final String profundidad;
   final String supervisor;
   final String estadoGlobal;
   final bool esAprobado;
@@ -42,8 +40,6 @@ class InspectionReportData {
     required this.embarcacion,
     required this.matricula,
     required this.tipoFaena,
-    required this.nivelBuceo,
-    required this.profundidad,
     required this.supervisor,
     required this.estadoGlobal,
     required this.esAprobado,

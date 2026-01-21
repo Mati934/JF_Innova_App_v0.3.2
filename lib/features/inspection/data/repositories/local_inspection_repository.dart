@@ -73,28 +73,52 @@ class LocalInspectionRepository implements InspectionRepository {
     required String tipoActividad,
     required String? centroId,
     required DateTime fecha,
-    String? usuarioId, // Agregado
-    String? contratistaId, // Agregado
-    String? embarcacionId, // Agregado
-    String? estado, // Agregado
+    String? usuarioId,
+    String? contratistaId,
+    String? embarcacionId,
+    String? estado,
   }) async {
     final db = await dbHelper.database;
     try {
-      await db.insert('actividades_pendientes', {
-        'id': id,
-        'tipo_actividad': tipoActividad,
-        'centro_id': centroId,
-        'usuario_id': usuarioId, // Guardar
-        'contratista_id': contratistaId, // Guardar
-        'embarcacion_id': embarcacionId, // Guardar
-        'fecha_realizacion': fecha.toIso8601String(),
-        'subido': 0,
-        'estado_final': estado ?? 'En Progreso',
-        'puerto_abierto': 1,
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
-      debugPrint("💾 ACTIVIDAD GUARDADA CON ÉXITO: $id");
+      // 1. Intentamos ACTUALIZAR primero (Operación Segura)
+      // Esto mantiene el mismo ID y NO dispara el borrado en cascada.
+      int count = await db.update(
+        'actividades_pendientes',
+        {
+          'tipo_actividad': tipoActividad,
+          'centro_id': centroId,
+          'usuario_id': usuarioId,
+          'contratista_id': contratistaId,
+          'embarcacion_id': embarcacionId,
+          'fecha_realizacion': fecha.toIso8601String(),
+          'subido': 0,
+          'estado_final': estado ?? 'En Progreso',
+          'puerto_abierto': 1,
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+
+      // 2. Si count es 0, significa que no existe. INSERTAMOS.
+      if (count == 0) {
+        await db.insert('actividades_pendientes', {
+          'id': id,
+          'tipo_actividad': tipoActividad,
+          'centro_id': centroId,
+          'usuario_id': usuarioId,
+          'contratista_id': contratistaId,
+          'embarcacion_id': embarcacionId,
+          'fecha_realizacion': fecha.toIso8601String(),
+          'subido': 0,
+          'estado_final': estado ?? 'En Progreso',
+          'puerto_abierto': 1,
+        });
+        debugPrint("💾 ACTIVIDAD CREADA: $id");
+      } else {
+        debugPrint("💾 ACTIVIDAD ACTUALIZADA: $id");
+      }
     } catch (e) {
-      debugPrint("❌ ERROR AL GUARDAR: $e");
+      debugPrint("❌ ERROR AL GUARDAR ACTIVIDAD: $e");
       throw e;
     }
   }
@@ -304,5 +328,117 @@ class LocalInspectionRepository implements InspectionRepository {
     );
 
     return res.map((row) => ParticipanteModel.fromMap(row)).toList();
+  }
+
+  Future<void> saveInspeccionCompleta({
+    required Map<String, dynamic> actividad,
+    required List<Map<String, dynamic>> respuestas,
+    List<Map<String, dynamic>>? participantes, // Opcional
+    Map<String, dynamic>? verificacionesBuceo, // Opcional
+  }) async {
+    // 1. Instancia DB
+    final db = await DatabaseHelper.instance.database;
+
+    // 2. TRANSACCIÓN ATÓMICA
+    await db.transaction((txn) async {
+      print('💾 TXN: Iniciando guardado atómico...');
+
+      // --- A. GUARDAR PADRE (ACTIVIDAD) ---
+      // Aseguramos que 'subido' sea 0 porque acabamos de editarla
+      final actividadMap = Map<String, dynamic>.from(actividad);
+      actividadMap['subido'] = 0;
+
+      int count = await txn.update(
+        'actividades_pendientes',
+        actividadMap,
+        where: 'id = ?',
+        whereArgs: [actividadMap['id']],
+      );
+
+      if (count == 0) {
+        await txn.insert('actividades_pendientes', actividadMap);
+      }
+
+      // --- B. GUARDAR HIJOS (RESPUESTAS) ---
+      final batch = txn.batch();
+
+      for (var resp in respuestas) {
+        // Borrado lógico compuesto (evita duplicados de items)
+        batch.delete(
+          'inspeccion_respuestas_pendientes',
+          where: 'actividad_id = ? AND item_id = ?',
+          whereArgs: [resp['actividad_id'], resp['item_id']],
+        );
+
+        // COPIA Y RESETEO DE FLAG (CORREGIDO)
+        final respuestaConFlag = Map<String, dynamic>.from(resp);
+        respuestaConFlag['subido'] =
+            0; // Importante para que el Sync la detecte
+
+        // ❌ ANTES HACÍAS: batch.insert(..., resp); <-- ERROR
+        // ✅ AHORA HACEMOS:
+        batch.insert('inspeccion_respuestas_pendientes', respuestaConFlag);
+      }
+
+      // --- C. GUARDAR VERIFICACIONES DE BUCEO ---
+      if (verificacionesBuceo != null) {
+        // Aseguramos que tenga el ID correcto
+        if (!verificacionesBuceo.containsKey('actividad_id')) {
+          verificacionesBuceo['actividad_id'] = actividad['id'];
+        }
+
+        // Upsert manual
+        int vCount = await txn.update(
+          'verificaciones_buceo',
+          verificacionesBuceo,
+          where: 'actividad_id = ?',
+          whereArgs: [verificacionesBuceo['actividad_id']],
+        );
+
+        if (vCount == 0) {
+          batch.insert('verificaciones_buceo', verificacionesBuceo);
+        }
+      }
+
+      // --- D. GUARDAR PARTICIPANTES ---
+      if (participantes != null && participantes.isNotEmpty) {
+        // Limpiamos la cuadrilla anterior para evitar fantasmas
+        batch.delete(
+          'actividad_participantes',
+          where: 'actividad_id = ?',
+          whereArgs: [actividad['id']],
+        );
+
+        for (var p in participantes) {
+          // 2. MAGIA: Guardamos/Actualizamos a la PERSONA en la tabla maestra primero
+          // Preparamos el mapa solo con los datos de la persona
+          final datosPersona = {
+            'id': p['personal_id'],
+            'nombre_completo': p['nombre_completo'],
+            'rut': p['rut'],
+            'cargo': p['cargo'], // o p['rol_en_faena']
+            'activo': 1,
+            // Opcional: si manejas contratista_id y lo tienes, agrégalo.
+            // Si es null, SQLite lo dejará null (está bien para creación local rápida).
+          };
+          batch.insert(
+            'personal_externo',
+            datosPersona,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+          final datosRelacion = {
+            'actividad_id': p['actividad_id'],
+            'personal_id': p['personal_id'],
+            'rol_en_faena': p['rol_en_faena'],
+            'condiciones_optimas': p['condiciones_optimas'],
+          };
+          batch.insert('actividad_participantes', datosRelacion);
+        }
+      }
+
+      // --- E. EJECUTAR LOTE ---
+      await batch.commit(noResult: false);
+      print('✅ TXN: Guardado completo y exitoso.');
+    });
   }
 }
