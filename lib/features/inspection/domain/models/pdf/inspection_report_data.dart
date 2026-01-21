@@ -16,6 +16,11 @@ class InspectionReportData {
   final String tipoFaena;
   final String supervisor;
   final String estadoGlobal;
+  // --- NUEVOS CAMPOS ---
+  final String observacionPrevencionista; // La caja de texto del final
+  final Map<String, bool>
+  verificacionesBuceo; // Los switches (clave: texto, valor: true/false)
+  // ---------------------
   final bool esAprobado;
 
   final List<PersonalDto> equipo;
@@ -50,6 +55,8 @@ class InspectionReportData {
     required this.totalNoCumple,
     required this.totalNoAplica,
     required this.totalIntolerables,
+    required this.observacionPrevencionista,
+    required this.verificacionesBuceo,
   });
 }
 // ... (Las clases PersonalDto e InspectionItemDto siguen igual)

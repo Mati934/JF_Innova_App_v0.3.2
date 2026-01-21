@@ -28,7 +28,7 @@ class PdfGeneratorService {
     pw.MemoryImage? logoImage;
     try {
       final logoBytes = await rootBundle.load(
-        'assets/images/logo_jfinnova.png',
+        'assets/images/aquachileporfin3.png',
       );
       logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
     } catch (e) {
@@ -60,6 +60,8 @@ class PdfGeneratorService {
           _buildPersonnelTable(data),
           pw.SizedBox(height: 15),
 
+          _buildSafetyChecklist(data),
+          pw.SizedBox(height: 15),
           // --- ANTES ESTABAN AQUÍ LAS FOTOS, LAS QUITAMOS ---
           pw.Text(
             "DETALLE DE VERIFICACIONES",
@@ -154,7 +156,7 @@ class PdfGeneratorService {
                     border: pw.Border.all(width: 0.5),
                   ),
                   child: pw.Text(
-                    "FOLIO: ${data.numeroReporte}",
+                    "N° INFORME: ${data.numeroReporte}", // <--- CAMBIO AQUÍ
                     style: pw.TextStyle(
                       fontWeight: pw.FontWeight.bold,
                       fontSize: 8,
@@ -524,6 +526,88 @@ class PdfGeneratorService {
       child: pw.Text(
         "Generado por JF Innova App - Pág. ${context.pageNumber}/${context.pagesCount}",
         style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey),
+      ),
+    );
+  }
+
+  // Widget para las Verificaciones de Buceo y Observación
+  pw.Widget _buildSafetyChecklist(InspectionReportData data) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.symmetric(vertical: 10),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.grey500, width: 0.5),
+        color: PdfColors.grey50,
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          // Título de la sección
+          pw.Container(
+            width: double.infinity,
+            padding: const pw.EdgeInsets.all(4),
+            color: PdfColors.grey200,
+            child: pw.Text(
+              "VERIFICACIONES CRÍTICAS DE SEGURIDAD (FAENA)",
+              style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
+            ),
+          ),
+          // Lista de Switches
+          ...data.verificacionesBuceo.entries.map((entry) {
+            return pw.Container(
+              padding: const pw.EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 3,
+              ),
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                  bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+                ),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(entry.key, style: const pw.TextStyle(fontSize: 8)),
+                  pw.Text(
+                    entry.value ? "CUMPLE" : "NO CUMPLE",
+                    style: pw.TextStyle(
+                      fontSize: 8,
+                      fontWeight: pw.FontWeight.bold,
+                      color: entry.value
+                          ? PdfColors.green700
+                          : PdfColors.red700,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+
+          // Observación del Prevencionista
+          pw.Container(
+            width: double.infinity,
+            padding: const pw.EdgeInsets.all(8),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  "OBSERVACIÓN DEL PREVENCIONISTA:",
+                  style: pw.TextStyle(
+                    fontSize: 7,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  data.observacionPrevencionista,
+                  style: pw.TextStyle(
+                    fontSize: 8,
+                    fontStyle: pw.FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

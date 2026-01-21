@@ -13,6 +13,7 @@ class InspectionFormScreen extends StatefulWidget {
   final String tipoActividad;
   final String? nombreCentro;
   final String? centroId;
+  final String? numeroInformeInicial;
 
   const InspectionFormScreen({
     super.key,
@@ -20,6 +21,7 @@ class InspectionFormScreen extends StatefulWidget {
     required this.tipoActividad,
     this.nombreCentro,
     this.centroId,
+    this.numeroInformeInicial,
   });
 
   @override
@@ -38,6 +40,11 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
       tipoActividad: widget.tipoActividad,
       centroId: widget.centroId,
     );
+
+    if (widget.numeroInformeInicial != null) {
+      _controller.numeroInformeController.text = widget.numeroInformeInicial!;
+    }
+
     // IMPORTANTE: Cargamos los datos específicos (Buzos, verificaciones)
     _controller.cargarDatosEspecificos();
 

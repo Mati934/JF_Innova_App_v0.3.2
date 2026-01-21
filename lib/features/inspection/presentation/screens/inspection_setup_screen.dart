@@ -37,6 +37,7 @@ class _InspectionSetupScreenState extends State<InspectionSetupScreen> {
     'INSPECCION_BUCEO',
     'INSPECCION_EMBARCACION',
   ];
+  final TextEditingController _folioController = TextEditingController();
   final List<String> _estadosPuerto = ['ABIERTO', 'CERRADO'];
   final List<String> _opcionesPuertoCerrado = [
     'PRE_INSPECCION',
@@ -45,6 +46,12 @@ class _InspectionSetupScreenState extends State<InspectionSetupScreen> {
     'SIN_ACTIVIDAD',
     'OTRAS_LABORES',
   ];
+
+  @override
+  void dispose() {
+    _folioController.dispose(); // No olvides limpiarlo
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -148,6 +155,7 @@ class _InspectionSetupScreenState extends State<InspectionSetupScreen> {
                 activityId: newActivityId,
                 tipoActividad: tipoFinal,
                 nombreCentro: nombreCentroSeleccionado,
+                numeroInformeInicial: _folioController.text,
               ),
             ),
           );
@@ -334,6 +342,19 @@ class _InspectionSetupScreenState extends State<InspectionSetupScreen> {
                             color: Color(0xFF003366),
                           ),
                         ),
+                        const SizedBox(height: 15),
+                        TextFormField(
+                          controller: _folioController,
+                          keyboardType:
+                              TextInputType.number, // O text si tiene letras
+                          decoration: const InputDecoration(
+                            labelText: 'N° de Informe',
+                            hintText: 'Ej: 01',
+                            prefixIcon: Icon(Icons.confirmation_number),
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+
                         const SizedBox(height: 15),
 
                         DropdownButtonFormField<String>(

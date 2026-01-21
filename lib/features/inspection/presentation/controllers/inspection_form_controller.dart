@@ -34,6 +34,7 @@ class InspectionFormController extends ChangeNotifier {
   final Map<String, String> observaciones = {};
   final Map<String, String> criticidades = {};
   final Map<String, File> fotosPorPregunta = {};
+  final TextEditingController numeroInformeController = TextEditingController();
   List<File> fotosGenerales = [];
 
   // --- VARIABLES ESPECÍFICAS DE BUCEO ---
@@ -49,6 +50,7 @@ class InspectionFormController extends ChangeNotifier {
 
   @override
   void dispose() {
+    numeroInformeController.dispose();
     _disposed = true;
     super.dispose();
   }
@@ -322,28 +324,34 @@ class InspectionFormController extends ChangeNotifier {
       // ... agrega los campos que falten según tu modelo
     };
 
-    // 2. Preparar Respuestas
+    // --- 2. Preparar Respuestas del Checklist (Datos de texto) ---
     List<Map<String, dynamic>> loteRespuestas = [];
-    respuestas.forEach((itemId, estado) {
-      // Guardamos fotos si existen (esto puede ir fuera de la txn o manejarse igual)
-      if (fotosPorPregunta.containsKey(itemId)) {
-        _repo.saveFoto(
+    respuestas.forEach((key, val) {
+      loteRespuestas.add({
+        'actividad_id': activityId,
+        'item_id': key,
+        'estado': val,
+        'observacion': observaciones[key],
+        'criticidad_registrada': criticidades[key] ?? 'Tolerable',
+      });
+    });
+
+    // --- 3. Preparar Fotos por Pregunta (DESACOPLADO) ---
+    // Iteramos directamente sobre las fotos, sin importar si hay respuesta marcada
+    for (var entry in fotosPorPregunta.entries) {
+      final itemId = entry.key;
+      final file = entry.value;
+
+      // Guardamos la foto independientemente de si respondieron C/NC
+      if (_repo is LocalInspectionRepository) {
+        await (_repo as LocalInspectionRepository).saveFoto(
           activityId: activityId,
           itemId: itemId,
-          file: XFile(fotosPorPregunta[itemId]!.path),
+          file: XFile(file.path),
           descripcion: 'Item $itemId',
         );
       }
-
-      loteRespuestas.add({
-        'actividad_id': activityId,
-        'item_id': itemId, // ESTA ES LA CLAVE DE UNICIDAD
-        'estado': estado,
-        'observacion': observaciones[itemId],
-        'criticidad_registrada': criticidades[itemId] ?? 'Tolerable',
-        // No mandamos 'id' (PK), dejamos que SQLite lo autogenere
-      });
-    });
+    }
 
     // 3. Preparar Datos de Buceo (Si aplica)
     Map<String, dynamic>? verificacionesMap;
@@ -609,13 +617,33 @@ class InspectionFormController extends ChangeNotifier {
       // C. Estado Final: Solo se habilita si EL CHECKLIST ESTÁ LIMPIO Y LA SEGURIDAD OK
       final bool aprobado = checklistOk && seguridadBuceoOk;
 
+      final switchesMap = <String, bool>{
+        'IV. Autorización de la Faena':
+            verificacionesBuceo?.autorizacionAutoridadMaritima ?? false,
+        'Inducción Centro de Cultivo':
+            verificacionesBuceo?.induccionCentroCultivo ?? false,
+        'V. Permiso de Buceo (Centro Correcto)':
+            verificacionesBuceo?.permisoBuceoCentroCorrecto ?? false,
+        'VI. Plan de Contingencias':
+            verificacionesBuceo?.planContingenciasCentroOk ?? false,
+        'VII. Exámenes Ocupacionales Vigentes':
+            verificacionesBuceo?.examenesOcupacionalesVigentes ?? false,
+      };
+
+      final obsPrevencionista =
+          verificacionesBuceo?.observacionGeneral ??
+          "Sin observaciones registradas.";
+
+      String numeroManual = numeroInformeController.text.trim();
+      if (numeroManual.isEmpty) numeroManual = "S/N";
+
       // --- CORRECCIÓN FIN ---
 
       final reportData = InspectionReportData(
         empresaContratista: nombreEmpresa,
         cliente: nombreCliente,
         logoUrl: "",
-        numeroReporte: "001",
+        numeroReporte: numeroManual,
         fecha: fechaStr,
         centro: nombreCentro,
         area: nombreArea,
@@ -635,6 +663,8 @@ class InspectionFormController extends ChangeNotifier {
         totalNoCumple: countNC,
         totalNoAplica: countNA,
         totalIntolerables: countIntolerables,
+        observacionPrevencionista: obsPrevencionista,
+        verificacionesBuceo: switchesMap,
       );
 
       // 6. GENERAR
