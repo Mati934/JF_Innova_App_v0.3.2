@@ -88,6 +88,18 @@ class _MultiCameraScreenState extends State<MultiCameraScreen> {
         !_controller!.value.isInitialized)
       return;
 
+    if (!widget.modoUnica && _fotosTomadas.length >= 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '⚠️ Límite de 10 fotos alcanzado. Guarda para continuar.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isTakingPicture = true);
 
     try {

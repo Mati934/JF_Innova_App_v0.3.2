@@ -94,6 +94,15 @@ class SyncService {
         // Solo si quieres que al FINALIZAR cambie, podrías agregar una lógica aquí
         // o manejarlo directamente desde el objeto que guardas.
         datosParaNube['puerto_abierto'] = (row['puerto_abierto'] == 1);
+        // --- 1. TRADUCCIÓN DE NOMBRES ---
+        // Sacamos el valor local
+        final reporteLocal = row['numero_reporte'];
+
+        // Lo asignamos a la columna de Supabase
+        datosParaNube['numero_informe'] = reporteLocal;
+
+        // Borramos la clave local para que no de error de "columna no existe"
+        datosParaNube.remove('numero_reporte');
         datosParaNube.remove('subido');
 
         await _supabase.from('actividades').upsert(datosParaNube);

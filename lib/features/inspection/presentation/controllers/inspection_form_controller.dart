@@ -85,7 +85,11 @@ class InspectionFormController extends ChangeNotifier {
           usuarioId = data['usuario_id'] as String?;
           contratistaId = data['contratista_id'] as String?;
           embarcacionId = data['embarcacion_id'] as String?;
-
+          // --- AGREGA ESTO PARA RECUPERAR EL NÚMERO ---
+          if (data['numero_reporte'] != null) {
+            numeroInformeController.text = data['numero_reporte'] as String;
+          }
+          // --------------------------------------------
           debugPrint(
             "✅ Datos cargados del local para la actividad: $activityId",
           );
@@ -319,8 +323,9 @@ class InspectionFormController extends ChangeNotifier {
       'usuario_id': usuarioId,
       'contratista_id': contratistaId,
       'embarcacion_id': embarcacionId,
-      'fecha_realizacion': DateTime.now()
-          .toIso8601String(), // SQLite prefiere texto
+      'fecha_realizacion': DateTime.now().toIso8601String(),
+      'numero_reporte': numeroInformeController.text
+          .trim(), // SQLite prefiere texto
       // ... agrega los campos que falten según tu modelo
     };
 

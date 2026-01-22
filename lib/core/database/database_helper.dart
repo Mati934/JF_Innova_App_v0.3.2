@@ -11,7 +11,7 @@ class DatabaseHelper {
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDB(
-      'jfinnova_local_v5.db',
+      'jfinnova_local_v6.db',
     ); // <--- CAMBIA v3 A v4 // Nombre nuevo para asegurar limpieza
     return _database!;
   }
@@ -87,6 +87,7 @@ class DatabaseHelper {
         puerto_abierto INTEGER, 
         observaciones_generales TEXT,
         estado_final TEXT,
+        numero_reporte TEXT,
         subido INTEGER DEFAULT 0
       )
     ''');

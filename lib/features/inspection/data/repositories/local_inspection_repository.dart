@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/models/formulario_item.dart';
 import '../../domain/repositories/inspection_repository.dart';
 import '../../../../core/database/database_helper.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 class LocalInspectionRepository implements InspectionRepository {
   final dbHelper = DatabaseHelper.instance;
@@ -77,6 +79,7 @@ class LocalInspectionRepository implements InspectionRepository {
     String? contratistaId,
     String? embarcacionId,
     String? estado,
+    String? numeroReporte,
   }) async {
     final db = await dbHelper.database;
     try {
@@ -94,6 +97,7 @@ class LocalInspectionRepository implements InspectionRepository {
           'subido': 0,
           'estado_final': estado ?? 'En Progreso',
           'puerto_abierto': 1,
+          'numero_reporte': numeroReporte,
         },
         where: 'id = ?',
         whereArgs: [id],
@@ -173,16 +177,38 @@ class LocalInspectionRepository implements InspectionRepository {
   }) async {
     final db = await dbHelper.database;
     try {
+      // 1. BUSCAR CARPETA SEGURA (Documentos)
+      // Esta carpeta NO se borra cuando cierras la app
+      final directory = await getApplicationDocumentsDirectory();
+
+      // 2. CREAR CARPETA INTERNA (Para orden)
+      final folderPath = '${directory.path}/inspecciones_img';
+      final folder = Directory(folderPath);
+      if (!await folder.exists()) {
+        await folder.create(recursive: true);
+      }
+
+      // 3. GENERAR NOMBRE ÚNICO Y COPIAR
+      // Usamos fecha + item para que no se repitan nombres
+      final fileName =
+          '${DateTime.now().millisecondsSinceEpoch}_${itemId ?? "general"}.jpg';
+      final String permanentPath = '$folderPath/$fileName';
+
+      // ¡LA CLAVE!: Copiamos del caché a la carpeta segura
+      await File(file.path).copy(permanentPath);
+
+      // 4. GUARDAR EN LA BD LA RUTA PERMANENTE
       await db.insert('fotos_pendientes', {
         'actividad_id': activityId,
         'item_id': itemId,
-        'local_path': file.path,
+        'local_path': permanentPath, // <--- Guardamos la ruta nueva
         'descripcion': descripcion,
         'subido': 0,
       });
-      debugPrint("📸 Foto guardada localmente.");
+
+      debugPrint("📸 Foto guardada y movida a zona segura: $permanentPath");
     } catch (e) {
-      debugPrint("❌ Error guardando foto: $e");
+      debugPrint("❌ Error guardando foto persistente: $e");
     }
   }
 
