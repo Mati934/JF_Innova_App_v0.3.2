@@ -7,7 +7,6 @@ import 'package:jf_innova_app/features/inspection/services/pdf_generator_service
 import 'package:jf_innova_app/features/sync/services/sync_service.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
-// Asegúrate de que las rutas sean correctas en tu proyecto
 import '../../domain/models/buceo_verificacion_model.dart';
 import '../../domain/models/participante_model.dart';
 import '../../domain/models/formulario_item.dart';
@@ -15,6 +14,7 @@ import '../../domain/repositories/inspection_repository.dart';
 import '../../data/repositories/local_inspection_repository.dart';
 import 'dart:typed_data';
 import 'dart:async';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class InspectionFormController extends ChangeNotifier {
   final InspectionRepository _repo;
@@ -80,34 +80,38 @@ class InspectionFormController extends ChangeNotifier {
         );
 
         if (data != null) {
-          // Cargamos todos los IDs necesarios para que persistan al finalizar
           centroId = data['centro_id'] as String?;
           usuarioId = data['usuario_id'] as String?;
           contratistaId = data['contratista_id'] as String?;
           embarcacionId = data['embarcacion_id'] as String?;
-          // --- AGREGA ESTO PARA RECUPERAR EL NÚMERO ---
-          if (data['numero_reporte'] != null) {
-            numeroInformeController.text = data['numero_reporte'] as String;
+
+          // RECUPERAR NÚMERO REPORTE
+          if (data['numero_reporte'] != null &&
+              data['numero_reporte'].toString().isNotEmpty) {
+            numeroInformeController.text = data['numero_reporte'];
+          } else {
+            // Si no viene, intentamos calcularlo
+            final currentUser = Supabase.instance.client.auth.currentUser;
+            final String? idActual = currentUser?.id;
+            final userParaBuscar = usuarioId ?? idActual;
+
+            if (userParaBuscar != null) {
+              final sugerido = await (_repo as LocalInspectionRepository)
+                  .sugerirSiguienteNumeroReporte(userParaBuscar);
+
+              if (sugerido != null) {
+                numeroInformeController.text = sugerido;
+              }
+            }
           }
-          // --------------------------------------------
-          debugPrint(
-            "✅ Datos cargados del local para la actividad: $activityId",
-          );
-          debugPrint(
-            "👤 Usuario: $usuarioId | 🏗️ Contratista: $contratistaId",
-          );
         }
       }
 
-      // 2. Cargar Items del Formulario
+      // 2. Cargar Items
       _items = await _repo.getItems(tipoActividad);
 
       // 3. Cargar Respuestas Previas
       final datos = await _repo.cargarRespuestasGuardadas(activityId);
-      debugPrint(
-        "🔍 RECUPERANDO RESPUESTAS PARA $activityId",
-      ); // <--- AGREGA ESTO
-      debugPrint("🔍 CANTIDAD ENCONTRADA: ${datos.length}"); // <--- AGREGA ESTO
       datos.forEach((id, val) {
         if (val['estado'] != null) respuestas[id] = val['estado'];
         if (val['observacion'] != null) observaciones[id] = val['observacion'];
@@ -142,11 +146,9 @@ class InspectionFormController extends ChangeNotifier {
     }
   }
 
-  // --- MÉTODOS DE BUCEO ---
   Future<void> cargarDatosEspecificos() async {
     if (tipoActividad == 'INSPECCION_BUCEO') {
       try {
-        // Cargar Verificaciones
         final datosBuceo = await _repo.getVerificacionesBuceo(activityId);
         if (datosBuceo != null) {
           verificacionesBuceo = datosBuceo;
@@ -154,10 +156,21 @@ class InspectionFormController extends ChangeNotifier {
           verificacionesBuceo = BuceoVerificacionModel(actividadId: activityId);
         }
 
-        // Cargar Participantes
         participantes = await _repo.getParticipantes(activityId);
 
-        // No llamamos notifyListeners aquí porque _init ya lo hará al final
+        // --- LÓGICA AUTOMÁTICA HORA INICIO ---
+        // Si no hay hora de inicio (es nueva o nunca se guardó), ponemos la actual.
+        if (verificacionesBuceo?.horaInicio == null ||
+            verificacionesBuceo!.horaInicio!.isEmpty) {
+          final now = TimeOfDay.now();
+          final horaStr =
+              "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+
+          verificacionesBuceo?.horaInicio = horaStr;
+          // Guardamos silenciosamente para no perderla
+          updateVerificacion((m) => m.horaInicio = horaStr);
+          print("🕒 Hora Inicio Auto: $horaStr");
+        }
       } catch (e) {
         print("Error cargando datos buceo: $e");
       }
@@ -165,10 +178,11 @@ class InspectionFormController extends ChangeNotifier {
   }
 
   void updateVerificacion(Function(BuceoVerificacionModel) updates) {
-    if (verificacionesBuceo != null) {
-      updates(verificacionesBuceo!);
-      notifyListeners();
+    if (verificacionesBuceo == null) {
+      verificacionesBuceo = BuceoVerificacionModel(actividadId: activityId);
     }
+    updates(verificacionesBuceo!);
+    notifyListeners();
   }
 
   void agregarParticipante(ParticipanteModel participante) {
@@ -182,7 +196,6 @@ class InspectionFormController extends ChangeNotifier {
     participantes.removeWhere((p) => p.personalId == personalId);
     notifyListeners();
   }
-  // -------------------------
 
   void setRespuesta(String id, String val) {
     respuestas[id] = val;
@@ -198,14 +211,66 @@ class InspectionFormController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setFotoPregunta(String id, File f) {
+  // --- MÉTODOS DE FOTO BLINDADOS (GUARDADO INMEDIATO) ---
+
+  Future<void> setFotoPregunta(String id, File f) async {
+    // 1. UI Optimista
     fotosPorPregunta[id] = f;
     notifyListeners();
+
+    try {
+      if (_repo is LocalInspectionRepository) {
+        debugPrint("🛡️ Blindando foto inmediata item $id...");
+        // AWAIT CRÍTICO: No dejamos que el código siga hasta que esté en disco seguro
+        final rutaSegura = await (_repo as LocalInspectionRepository).saveFoto(
+          activityId: activityId,
+          itemId: id,
+          file: XFile(f.path),
+          descripcion: 'Item $id',
+        );
+        // Actualizamos la referencia a la ruta segura
+        fotosPorPregunta[id] = File(rutaSegura);
+        debugPrint("🔒 Foto segura OK.");
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error blindando foto: $e");
+    }
   }
 
-  void setFotosGenerales(List<File> f) {
-    fotosGenerales = f;
+  Future<void> setFotosGenerales(List<File> newFiles) async {
+    // 1. UI Optimista
+    fotosGenerales = newFiles;
     notifyListeners();
+
+    try {
+      if (_repo is LocalInspectionRepository) {
+        debugPrint("🛡️ Blindando galería general...");
+        List<File> listaSegura = [];
+
+        for (var f in newFiles) {
+          // Si ya es segura, la mantenemos
+          if (f.path.contains("inspecciones_img")) {
+            listaSegura.add(f);
+            continue;
+          }
+          // Si es nueva, la guardamos
+          final rutaSegura = await (_repo as LocalInspectionRepository)
+              .saveFoto(
+                activityId: activityId,
+                itemId: null,
+                file: XFile(f.path),
+                descripcion: 'General',
+              );
+          listaSegura.add(File(rutaSegura));
+        }
+        // Actualizamos la lista con puras rutas seguras
+        fotosGenerales = listaSegura;
+        notifyListeners();
+        debugPrint("🔒 Galería segura OK.");
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error blindando galería: $e");
+    }
   }
 
   void clearError() {
@@ -218,18 +283,12 @@ class InspectionFormController extends ChangeNotifier {
     if (!silent) notifyListeners();
 
     try {
-      // 1. Prioridad: Persistencia Local (Bloqueante)
+      // AQUÍ ESTÁ LA CLAVE: Persistir datos con Red de Seguridad
       await _persistirDatos();
-
-      // 2. Sincronización (No bloqueante pero explícita)
-      // Usamos unawaited para indicar al linter y al lector que INTENCIONALMENTE
-      // no esperamos a que esto termine para retornar el control al usuario.
       unawaited(_iniciarSincronizacionSegura());
-
       return true;
     } catch (e) {
       _errorMessage = "Error guardando localmente: $e";
-      // Loggear error crítico aquí
       return false;
     } finally {
       _isSaving = false;
@@ -237,45 +296,25 @@ class InspectionFormController extends ChangeNotifier {
     }
   }
 
-  // Método auxiliar para aislar la lógica de sync y mantener el try-catch limpio
   Future<void> _iniciarSincronizacionSegura() async {
     try {
       await _syncService.sincronizarTodo();
     } catch (e) {
-      debugPrint("⚠️ Sync falló (estrategia offline-first aplicada): $e");
-      // Aquí podrías encolar un reintento para más tarde
+      debugPrint("⚠️ Sync falló (offline): $e");
     }
   }
 
   Future<bool> finalizarInspeccion() async {
     _errorMessage = null;
 
-    // 2. VALIDACIÓN: Datos de Buceo (si aplica)
     if (tipoActividad == 'INSPECCION_BUCEO') {
-      // Validar cuadrilla
       if (participantes.length < 2) {
         _errorMessage = "Debe haber al menos 2 participantes en la cuadrilla.";
         notifyListeners();
         return false;
       }
     }
-    // Validar datos de la faena
-    //   final vb = verificacionesBuceo;
-    //   if (vb == null || vb.nivelBuceo == null) {
-    //     _errorMessage = "Debe seleccionar el nivel de buceo.";
-    //     notifyListeners();
-    //     return false;
-    //   }
 
-    //   // Si se hizo buceo, la profundidad debe ser mayor a 0
-    //   if (vb.nivelBuceo != 'No realizada' && (vb.profundidadMaxima ?? 0) <= 0) {
-    //     _errorMessage = "Debe ingresar una profundidad válida para la faena.";
-    //     notifyListeners();
-    //     return false;
-    //   }
-    // }
-
-    // 3. SI TODO ESTÁ BIEN, PROCEDEMOS A GUARDAR
     _isSaving = true;
     notifyListeners();
 
@@ -290,12 +329,10 @@ class InspectionFormController extends ChangeNotifier {
           usuarioId: usuarioId,
           contratistaId: contratistaId,
           embarcacionId: embarcacionId,
-          estado:
-              'En Seguimiento', // Al cambiar a este estado, desaparece del Home
+          estado: 'En Seguimiento',
         );
       }
 
-      // Forzamos una sincronización inmediata si hay internet
       _syncService.sincronizarTodo().catchError(
         (e) => debugPrint("Sync Error: $e"),
       );
@@ -310,12 +347,11 @@ class InspectionFormController extends ChangeNotifier {
     }
   }
 
+  // --- PERSISTENCIA CORREGIDA (SOURCE OF TRUTH) ---
   Future<void> _persistirDatos() async {
-    print("💾 PERSISTIR: Iniciando guardado...");
-    print(
-      "ℹ️ Tipo Actividad actual: '$tipoActividad'",
-    ); // Verifica que sea EXACTAMENTE 'INSPECCION_BUCEO'
-    // 1. Preparar Actividad
+    debugPrint("💾 PERSISTIR: Iniciando guardado completo...");
+
+    // 1. Datos Actividad
     final actividadMap = {
       'id': activityId,
       'tipo_actividad': tipoActividad,
@@ -324,12 +360,10 @@ class InspectionFormController extends ChangeNotifier {
       'contratista_id': contratistaId,
       'embarcacion_id': embarcacionId,
       'fecha_realizacion': DateTime.now().toIso8601String(),
-      'numero_reporte': numeroInformeController.text
-          .trim(), // SQLite prefiere texto
-      // ... agrega los campos que falten según tu modelo
+      'numero_reporte': numeroInformeController.text.trim(),
     };
 
-    // --- 2. Preparar Respuestas del Checklist (Datos de texto) ---
+    // 2. Respuestas
     List<Map<String, dynamic>> loteRespuestas = [];
     respuestas.forEach((key, val) {
       loteRespuestas.add({
@@ -341,101 +375,118 @@ class InspectionFormController extends ChangeNotifier {
       });
     });
 
-    // --- 3. Preparar Fotos por Pregunta (DESACOPLADO) ---
-    // Iteramos directamente sobre las fotos, sin importar si hay respuesta marcada
+    // 3. PREPARAR FOTOS (Aquí estaba el bug)
+    // Creamos la lista MAESTRA que representa la verdad absoluta visual
+    List<Map<String, dynamic>> listaFotosParaRepo = [];
+
+    // --- A. FOTOS POR PREGUNTA ---
     for (var entry in fotosPorPregunta.entries) {
       final itemId = entry.key;
-      final file = entry.value;
+      var file = entry.value;
 
-      // Guardamos la foto independientemente de si respondieron C/NC
-      if (_repo is LocalInspectionRepository) {
-        await (_repo as LocalInspectionRepository).saveFoto(
-          activityId: activityId,
-          itemId: itemId,
-          file: XFile(file.path),
-          descripcion: 'Item $itemId',
-        );
+      // Si NO está segura en disco, la aseguramos primero
+      if (!file.path.contains('inspecciones_img') &&
+          _repo is LocalInspectionRepository) {
+        try {
+          final rutaSegura = await (_repo as LocalInspectionRepository)
+              .saveFoto(
+                activityId: activityId,
+                itemId: itemId,
+                file: XFile(file.path),
+                descripcion: 'Item $itemId',
+              );
+          file = File(rutaSegura); // Actualizamos la referencia local
+          fotosPorPregunta[itemId] = file; // Actualizamos el mapa en memoria
+        } catch (e) {
+          debugPrint("⚠️ Error asegurando foto item $itemId: $e");
+        }
       }
+
+      // AGREGAMOS A LA LISTA DEL REPO (Sea vieja o nueva, DEBE ir)
+      listaFotosParaRepo.add({
+        'actividad_id': activityId,
+        'item_id': itemId,
+        'local_path': file.path,
+        'descripcion': 'Item $itemId',
+        'subido': 0,
+      });
     }
 
-    // 3. Preparar Datos de Buceo (Si aplica)
+    // --- B. FOTOS GENERALES ---
+    List<File> nuevaListaGenerales = [];
+    for (var f in fotosGenerales) {
+      var file = f;
+
+      // Si NO está segura, la aseguramos
+      if (!file.path.contains('inspecciones_img') &&
+          _repo is LocalInspectionRepository) {
+        try {
+          final rutaSegura = await (_repo as LocalInspectionRepository)
+              .saveFoto(
+                activityId: activityId,
+                itemId: null,
+                file: XFile(file.path),
+                descripcion: 'General',
+              );
+          file = File(rutaSegura);
+        } catch (e) {
+          debugPrint("⚠️ Error asegurando foto general: $e");
+        }
+      }
+
+      nuevaListaGenerales.add(
+        file,
+      ); // Mantenemos la lista en memoria actualizada
+
+      // AGREGAMOS A LA LISTA DEL REPO
+      listaFotosParaRepo.add({
+        'actividad_id': activityId,
+        'item_id': null, // Es general
+        'local_path': file.path,
+        'descripcion': 'General',
+        'subido': 0,
+      });
+    }
+    fotosGenerales = nuevaListaGenerales; // Actualizamos memoria
+
+    // 4. Datos Buceo & Participantes
     Map<String, dynamic>? verificacionesMap;
     List<Map<String, dynamic>>? participantesMap;
 
     if (tipoActividad == 'INSPECCION_BUCEO') {
       if (verificacionesBuceo != null) {
         verificacionesMap = verificacionesBuceo!.toMap();
-        print(
-          "🤿 DEBUG: Verificaciones a guardar: $verificacionesMap",
-        ); // Asumiendo que tienes toMap()
-      } else {
-        print(
-          "⚠️ ALERTA: verificacionesBuceo es NULL. No se guardará el estado de faena.",
-        );
       }
-      print(
-        "👥 DEBUG: Cantidad de participantes en memoria: ${participantes.length}",
-      );
-      print(
-        "👥 DEBUG: Cantidad de participantes en memoria: ${participantes.length}",
-      );
-      // Convertimos tus objetos ParticipanteModel a Map para SQLite
       if (participantes.isNotEmpty) {
         participantesMap = participantes.map((p) {
-          final map = {
+          return {
             'actividad_id': activityId,
             'personal_id': p.personalId,
             'rol_en_faena': p.cargo,
-            'condiciones_optimas': p.condicionesOptimas
-                ? 1
-                : 0, // SQLite usa 1 o 0
-            // --- DATOS DE LA PERSONA (PARA CREARLA SI NO EXISTE) ---
-            'nombre_completo': p.nombreCompleto, // <--- ESTO FALTABA
-            'rut': p.rut, // <--- ESTO FALTABA
-            // Asumimos que si lo creas al vuelo, está activo
-            'activo': 1,
-            // Si tienes cargo base en el modelo, úsalo, si no usa el rol
+            'condiciones_optimas': p.condicionesOptimas ? 1 : 0,
+            'nombre_completo': p.nombreCompleto,
+            'rut': p.rut,
             'cargo': p.cargo,
+            'activo': 1,
           };
-          return map;
         }).toList();
-        print(
-          "👥 DEBUG: Primer participante mapeado: ${participantesMap?.first}",
-        );
       }
     }
-    print(
-      '📦 DEBUG PAYLOAD: Intentando guardar ${loteRespuestas.length} respuestas.',
-    );
-    if (loteRespuestas.isNotEmpty) {
-      print('📦 EJEMPLO: ${loteRespuestas.first}');
-    } else {
-      print(
-        '🚨 ALERTA: La lista de respuestas está VACÍA. El usuario respondió algo?',
-      );
-      print('Dump del mapa respuestas: $respuestas');
-    }
-    // 4. LLAMADA MAESTRA (Solo para repositorio local)
+
+    // 5. LLAMADA MAESTRA (Ahora incluye las fotos)
     if (_repo is LocalInspectionRepository) {
       await (_repo as LocalInspectionRepository).saveInspeccionCompleta(
         actividad: actividadMap,
         respuestas: loteRespuestas,
         participantes: participantesMap,
         verificacionesBuceo: verificacionesMap,
+        fotos: listaFotosParaRepo, // <--- ¡AQUÍ ESTÁ LA MAGIA!
       );
-    } else {
-      // Lógica para Supabase directo si alguna vez la usas
     }
 
-    // 5. Guardar fotos generales (pueden ir aparte, son archivos)
-    for (var f in fotosGenerales) {
-      await _repo.saveFoto(
-        activityId: activityId,
-        itemId: null,
-        file: XFile(f.path),
-        descripcion: 'General',
-      );
-    }
+    debugPrint(
+      "✅ GUARDADO COMPLETADO (Con ${listaFotosParaRepo.length} fotos persistidas).",
+    );
   }
 
   Map<String, List<FormularioItem>> agruparPorCategoria() {
@@ -450,15 +501,13 @@ class InspectionFormController extends ChangeNotifier {
   void toggleCondicionesBuzo(String personalId, bool valor) {
     final index = participantes.indexWhere((p) => p.personalId == personalId);
     if (index != -1) {
-      // Como el modelo suele ser inmutable (final), creamos una copia con el dato cambiado
-      // Si tu modelo no tiene copyWith, lo hacemos manual:
       final p = participantes[index];
       participantes[index] = ParticipanteModel(
         personalId: p.personalId,
         nombreCompleto: p.nombreCompleto,
         rut: p.rut,
         cargo: p.cargo,
-        condicionesOptimas: valor, // <--- CAMBIO AQUÍ
+        condicionesOptimas: valor,
       );
       notifyListeners();
     }
@@ -469,8 +518,17 @@ class InspectionFormController extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
-      // 1. BUSCAR NOMBRES REALES EN LA BASE DE DATOS (OFFLINE)
-      String nombreCliente = "CLIENTE S/N";
+      // AUTO-TERMINO AL GENERAR PDF
+      if (tipoActividad == 'INSPECCION_BUCEO') {
+        final now = TimeOfDay.now();
+        final horaFinStr =
+            "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+        updateVerificacion((m) => m.horaTermino = horaFinStr);
+        debugPrint("🏁 Hora Término PDF: $horaFinStr");
+      }
+
+      // CLIENTE FIJO AQUACHILE
+      String nombreCliente = "AQUACHILE";
       String nombreEmpresa = "JF INNOVA";
       String nombreCentro = "CENTRO S/N";
       String nombreArea = "ÁREA S/N";
@@ -479,7 +537,6 @@ class InspectionFormController extends ChangeNotifier {
 
       final db = await DatabaseHelper.instance.database;
 
-      // A. Buscar Centro y Área
       if (centroId != null) {
         final resCentro = await db.query(
           'centros',
@@ -488,7 +545,6 @@ class InspectionFormController extends ChangeNotifier {
         );
         if (resCentro.isNotEmpty) {
           nombreCentro = resCentro.first['nombre'] as String;
-          // Buscar Área
           final areaId = resCentro.first['area_id'] as String;
           final resArea = await db.query(
             'areas',
@@ -501,20 +557,14 @@ class InspectionFormController extends ChangeNotifier {
         }
       }
 
-      // B. Buscar Contratista
       if (contratistaId != null) {
-        final resContratista = await db.query(
+        await db.query(
           'contratistas',
           where: 'id = ?',
           whereArgs: [contratistaId],
         );
-        if (resContratista.isNotEmpty) {
-          // Opcional: Si quieres usar el nombre del contratista en vez de JF Innova
-          // nombreEmpresa = resContratista.first['nombre'] as String;
-        }
       }
 
-      // C. Buscar Embarcación
       if (embarcacionId != null) {
         final resNave = await db.query(
           'embarcaciones',
@@ -528,7 +578,6 @@ class InspectionFormController extends ChangeNotifier {
         }
       }
 
-      // 2. ESTADÍSTICAS
       int countC = 0;
       int countNC = 0;
       int countNA = 0;
@@ -568,7 +617,6 @@ class InspectionFormController extends ChangeNotifier {
         );
       }
 
-      // 3. FOTOS GENERALES
       List<Uint8List> galeriaGeneralBytes = [];
       for (var file in fotosGenerales) {
         if (await file.exists()) {
@@ -576,62 +624,61 @@ class InspectionFormController extends ChangeNotifier {
         }
       }
 
-      // 4. PERSONAL (Lógica corregida)
       final List<PersonalDto> equipoDto = participantes.map((p) {
-        // --- AQUÍ ESTÁ LA MAGIA ---
-        // Definimos qué texto mostrar en la columna "Condición Física" del PDF
-        String textoCondicion =
-            "-"; // Guion por defecto para Supervisor/Asistente
-
-        // Si es un Buzo, traducimos el switch (true/false) a Texto
-        if (p.cargo != null && p.cargo!.toLowerCase().contains("buzo")) {
+        String textoCondicion = "-";
+        final cargoLower = p.cargo?.toLowerCase() ?? "";
+        if (cargoLower.contains("buzo") ||
+            cargoLower.contains("asistente") ||
+            cargoLower.contains("supervisor")) {
           if (p.condicionesOptimas) {
             textoCondicion = "Optima";
           } else {
             textoCondicion = "NO APTO";
           }
         }
-        // ---------------------------
-
         return PersonalDto(
           nombre: p.nombreCompleto,
           rut: p.rut,
           cargo: p.cargo,
-          // Usamos 'rolEnFaena' para transportar el estado físico al PDF
           rolEnFaena: textoCondicion,
         );
       }).toList();
 
-      // 5. DATOS FINALES
       final now = DateTime.now();
       final fechaStr =
           "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
 
-      // --- CORRECCIÓN INICIO ---
-
-      // A. Validación del Checklist (Tu lógica original)
-      final bool checklistOk = countIntolerables == 0;
-
-      // B. Validación Específica de Buceo (Switches y Estado Manual)
-      bool seguridadBuceoOk = true;
-      if (tipoActividad == 'INSPECCION_BUCEO' && verificacionesBuceo != null) {
-        // Aquí usamos el getter inteligente que creaste en tu modelo
-        seguridadBuceoOk = verificacionesBuceo!.faenaHabilitada;
+      String? ph1;
+      if (verificacionesBuceo?.compresor1VigenciaPH != null) {
+        final d = verificacionesBuceo!.compresor1VigenciaPH!;
+        ph1 =
+            "${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}";
       }
 
-      // C. Estado Final: Solo se habilita si EL CHECKLIST ESTÁ LIMPIO Y LA SEGURIDAD OK
+      String? ph2;
+      if (verificacionesBuceo?.compresor2VigenciaPH != null) {
+        final d = verificacionesBuceo!.compresor2VigenciaPH!;
+        ph2 =
+            "${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}";
+      }
+
+      final bool checklistOk = countIntolerables == 0;
+      bool seguridadBuceoOk = true;
+      if (tipoActividad == 'INSPECCION_BUCEO' && verificacionesBuceo != null) {
+        seguridadBuceoOk = verificacionesBuceo!.faenaHabilitada;
+      }
       final bool aprobado = checklistOk && seguridadBuceoOk;
 
-      final switchesMap = <String, bool>{
+      final switchesMap = <String, dynamic>{
         'IV. Autorización de la Faena':
             verificacionesBuceo?.autorizacionAutoridadMaritima ?? false,
-        'Inducción Centro de Cultivo':
+        'V. Inducción Centro de Cultivo':
             verificacionesBuceo?.induccionCentroCultivo ?? false,
-        'V. Permiso de Buceo (Centro Correcto)':
+        'VI. Permiso de Buceo (Centro Correcto)':
             verificacionesBuceo?.permisoBuceoCentroCorrecto ?? false,
-        'VI. Plan de Contingencias':
+        'VII. Plan de Contingencias':
             verificacionesBuceo?.planContingenciasCentroOk ?? false,
-        'VII. Exámenes Ocupacionales Vigentes':
+        'VIII. Exámenes Ocupacionales Vigentes':
             verificacionesBuceo?.examenesOcupacionalesVigentes ?? false,
       };
 
@@ -639,16 +686,18 @@ class InspectionFormController extends ChangeNotifier {
           verificacionesBuceo?.observacionGeneral ??
           "Sin observaciones registradas.";
 
-      String numeroManual = numeroInformeController.text.trim();
-      if (numeroManual.isEmpty) numeroManual = "S/N";
-
-      // --- CORRECCIÓN FIN ---
+      String fmtFecha(DateTime? d) {
+        if (d == null) return "-";
+        return "${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}";
+      }
 
       final reportData = InspectionReportData(
         empresaContratista: nombreEmpresa,
         cliente: nombreCliente,
         logoUrl: "",
-        numeroReporte: numeroManual,
+        numeroReporte: numeroInformeController.text.isNotEmpty
+            ? numeroInformeController.text
+            : "S/N",
         fecha: fechaStr,
         centro: nombreCentro,
         area: nombreArea,
@@ -657,10 +706,23 @@ class InspectionFormController extends ChangeNotifier {
         tipoFaena: "INSPECCIÓN DE BUCEO",
         supervisor: verificacionesBuceo?.supervisorNombre ?? "No asignado",
 
-        // AQUI ES DONDE SE IMPRIME EL TEXTO QUE EL PDF VA A LEER
+        horaInicio: verificacionesBuceo?.horaInicio ?? "--:--",
+        horaTermino: verificacionesBuceo?.horaTermino ?? "--:--",
+
+        compresor1Matricula: verificacionesBuceo?.compresor1Matricula ?? "-",
+        compresor1Vigencia: fmtFecha(verificacionesBuceo?.compresor1Vigencia),
+        compresor1PH: ph1 ?? "-",
+        compresor1Buzos:
+            verificacionesBuceo?.compresor1BuzosCargo?.toString() ?? "0",
+
+        compresor2Matricula: verificacionesBuceo?.compresor2Matricula ?? "-",
+        compresor2Vigencia: fmtFecha(verificacionesBuceo?.compresor2Vigencia),
+        compresor2PH: ph2 ?? "-",
+        compresor2Buzos:
+            verificacionesBuceo?.compresor2BuzosCargo?.toString() ?? "0",
+
         estadoGlobal: aprobado ? "HABILITADA" : "SUSPENDIDA",
         esAprobado: aprobado,
-
         equipo: equipoDto,
         items: itemsProcesados,
         fotosGenerales: galeriaGeneralBytes,
@@ -672,7 +734,6 @@ class InspectionFormController extends ChangeNotifier {
         verificacionesBuceo: switchesMap,
       );
 
-      // 6. GENERAR
       final pdfService = PdfGeneratorService();
       final pdfBytes = await pdfService.generatePdf(reportData);
 

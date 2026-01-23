@@ -10,9 +10,8 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB(
-      'jfinnova_local_v6.db',
-    ); // <--- CAMBIA v3 A v4 // Nombre nuevo para asegurar limpieza
+    // CAMBIAMOS A v9 PARA ASEGURARNOS QUE SE CREE DESDE CERO SI O SI
+    _database = await _initDB('jfinnova_local_v9.db');
     return _database!;
   }
 
@@ -74,7 +73,7 @@ class DatabaseHelper {
       'CREATE TABLE embarcaciones (id TEXT PRIMARY KEY, nombre TEXT, contratista_id TEXT)',
     );
 
-    // 4. ACTIVIDADES PENDIENTES
+    // 4. ACTIVIDADES PENDIENTES (Incluye numero_reporte)
     await db.execute('''
       CREATE TABLE actividades_pendientes (
         id TEXT PRIMARY KEY,
@@ -87,12 +86,12 @@ class DatabaseHelper {
         puerto_abierto INTEGER, 
         observaciones_generales TEXT,
         estado_final TEXT,
-        numero_reporte TEXT,
+        numero_reporte TEXT, 
         subido INTEGER DEFAULT 0
       )
     ''');
 
-    // --- 5. TABLAS ESPECÍFICAS DE BUCEO (DPR24) ---
+    // --- 5. TABLAS ESPECÍFICAS DE BUCEO (ACTUALIZADA CORRECTAMENTE) ---
 
     // Verificaciones Críticas
     await db.execute('''
@@ -105,15 +104,28 @@ class DatabaseHelper {
         examenes_ocupacionales_vigentes INTEGER DEFAULT 0,
         observacion_general TEXT,
         estado_manual TEXT,
-        -- NUEVAS COLUMNAS --
+        
+        -- DATOS TÉCNICOS
         supervisor_nombre TEXT,
         supervisor_rut TEXT,
+
+        -- HORARIOS (ESTO ERA LO QUE FALTABA)
+        hora_inicio TEXT,
+        hora_termino TEXT,
+
+        -- COMPRESOR 1
         compresor_1_matricula TEXT,
         compresor_1_vigencia TEXT,
+        compresor_1_vigencia_ph TEXT, -- NUEVO
         compresor_1_buzos_cargo INTEGER,
+
+        -- COMPRESOR 2
         compresor_2_matricula TEXT,
         compresor_2_vigencia TEXT,
+        compresor_2_vigencia_ph TEXT, -- NUEVO
         compresor_2_buzos_cargo INTEGER,
+
+        -- CERTIFICADO EQUIPOS (Aun lo dejamos por seguridad si lo tienes en el repo viejo, si no, no molesta)
         certificado_equipos_ok INTEGER DEFAULT 0,
         certificado_equipos_vigencia TEXT
       )
@@ -126,7 +138,7 @@ class DatabaseHelper {
         rut TEXT,
         nombre_completo TEXT NOT NULL,
         cargo TEXT,
-        matricula TEXT, -- <--- NUEVA COLUMNA
+        matricula TEXT, 
         activo INTEGER DEFAULT 1
       )
     ''');
@@ -141,9 +153,9 @@ class DatabaseHelper {
         PRIMARY KEY (actividad_id, personal_id)
       )
     ''');
-    print("✅ Base de datos inicializada correctamente con tablas de buceo.");
-  }
 
+    print("✅ Base de datos v9 inicializada con TODAS las columnas nuevas.");
+  }
   // --- MÉTODOS CRUD GENÉRICOS ---
 
   Future<void> guardarMaestros(

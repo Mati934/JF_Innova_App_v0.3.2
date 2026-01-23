@@ -1,10 +1,9 @@
 import 'dart:typed_data';
 
 class InspectionReportData {
-  // ... (Tus otros campos siguen igual) ...
   final String empresaContratista;
   final String cliente;
-  final String logoUrl; // No la usaremos por ahora, cargaremos asset directo
+  final String logoUrl;
   final String numeroReporte;
   final String fecha;
 
@@ -16,17 +15,33 @@ class InspectionReportData {
   final String tipoFaena;
   final String supervisor;
   final String estadoGlobal;
-  // --- NUEVOS CAMPOS ---
-  final String observacionPrevencionista; // La caja de texto del final
-  final Map<String, bool>
-  verificacionesBuceo; // Los switches (clave: texto, valor: true/false)
-  // ---------------------
+
+  final String observacionPrevencionista;
+
+  // CAMBIO 1: Cambiamos 'bool' por 'dynamic' para que acepte TODO (texto y switches)
+  final Map<String, dynamic> verificacionesBuceo;
+
   final bool esAprobado;
+
+  // --- DATOS TÉCNICOS NUEVOS (PARA EL PDF) ---
+  final String? horaInicio;
+  final String? horaTermino;
+
+  // Compresor 1
+  final String? compresor1Matricula;
+  final String? compresor1Vigencia; // Ya formateada a String
+  final String? compresor1PH; // Ya formateada a String
+  final String? compresor1Buzos;
+
+  // Compresor 2
+  final String? compresor2Matricula;
+  final String? compresor2Vigencia; // Ya formateada a String
+  final String? compresor2PH; // Ya formateada a String
+  final String? compresor2Buzos;
+  // -------------------------------------------
 
   final List<PersonalDto> equipo;
   final List<InspectionItemDto> items;
-
-  // NUEVO: Galería General
   final List<Uint8List> fotosGenerales;
 
   final int totalCumple;
@@ -50,27 +65,41 @@ class InspectionReportData {
     required this.esAprobado,
     required this.equipo,
     required this.items,
-    required this.fotosGenerales, // <--- Agregar al constructor
+    required this.fotosGenerales,
     required this.totalCumple,
     required this.totalNoCumple,
     required this.totalNoAplica,
     required this.totalIntolerables,
     required this.observacionPrevencionista,
     required this.verificacionesBuceo,
+
+    // Agregamos los nuevos al constructor
+    this.horaInicio,
+    this.horaTermino,
+
+    this.compresor1Matricula,
+    this.compresor1Vigencia,
+    this.compresor1PH,
+    this.compresor1Buzos,
+
+    this.compresor2Matricula,
+    this.compresor2Vigencia,
+    this.compresor2PH,
+    this.compresor2Buzos,
   });
 }
-// ... (Las clases PersonalDto e InspectionItemDto siguen igual)
 
+// ... (PersonalDto e InspectionItemDto se quedan igual) ...
 class PersonalDto {
   final String nombre;
   final String rut;
   final String cargo;
-  final String rolEnFaena; // "Supervisor", "Buzo", etc.
+  final String rolEnFaena;
 
   PersonalDto({
     required this.nombre,
     required this.rut,
-    required this.cargo,
+    this.cargo = '',
     required this.rolEnFaena,
   });
 }
@@ -78,8 +107,8 @@ class PersonalDto {
 class InspectionItemDto {
   final String categoria;
   final String pregunta;
-  final String respuesta; // "C", "NC", "N/A"
-  final String criticidad; // "Intolerable", "Alto", etc.
+  final String respuesta;
+  final String criticidad;
   final String? comentario;
   final List<Uint8List> fotos;
 

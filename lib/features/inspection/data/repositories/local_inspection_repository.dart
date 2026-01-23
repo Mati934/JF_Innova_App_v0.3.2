@@ -169,47 +169,69 @@ class LocalInspectionRepository implements InspectionRepository {
   }
 
   @override
-  Future<void> saveFoto({
+  Future<String> saveFoto({
     required String activityId,
     required String? itemId,
     required XFile file,
     required String descripcion,
   }) async {
     final db = await dbHelper.database;
-    try {
-      // 1. BUSCAR CARPETA SEGURA (Documentos)
-      // Esta carpeta NO se borra cuando cierras la app
-      final directory = await getApplicationDocumentsDirectory();
 
-      // 2. CREAR CARPETA INTERNA (Para orden)
-      final folderPath = '${directory.path}/inspecciones_img';
-      final folder = Directory(folderPath);
-      if (!await folder.exists()) {
-        await folder.create(recursive: true);
-      }
+    // 1. Preparar rutas
+    final directory = await getApplicationDocumentsDirectory();
+    final folderPath = '${directory.path}/inspecciones_img';
+    final folder = Directory(folderPath);
 
-      // 3. GENERAR NOMBRE ÚNICO Y COPIAR
-      // Usamos fecha + item para que no se repitan nombres
+    if (!await folder.exists()) {
+      await folder.create(recursive: true);
+    }
+
+    String permanentPath;
+
+    // 2. COPIA BLINDADA
+    // Si la foto ya está en nuestra carpeta segura, no hacemos nada extra
+    if (file.path.contains(folderPath)) {
+      permanentPath = file.path;
+    } else {
+      // Si viene de la cámara (caché), creamos un nombre único y copiamos
       final fileName =
           '${DateTime.now().millisecondsSinceEpoch}_${itemId ?? "general"}.jpg';
-      final String permanentPath = '$folderPath/$fileName';
+      permanentPath = '$folderPath/$fileName';
 
-      // ¡LA CLAVE!: Copiamos del caché a la carpeta segura
-      await File(file.path).copy(permanentPath);
-
-      // 4. GUARDAR EN LA BD LA RUTA PERMANENTE
-      await db.insert('fotos_pendientes', {
-        'actividad_id': activityId,
-        'item_id': itemId,
-        'local_path': permanentPath, // <--- Guardamos la ruta nueva
-        'descripcion': descripcion,
-        'subido': 0,
-      });
-
-      debugPrint("📸 Foto guardada y movida a zona segura: $permanentPath");
-    } catch (e) {
-      debugPrint("❌ Error guardando foto persistente: $e");
+      final sourceFile = File(file.path);
+      if (await sourceFile.exists()) {
+        // AWAIT IMPORTANTE: Esperamos a que la copia termine sí o sí
+        await sourceFile.copy(permanentPath);
+        debugPrint("📸 Foto asegurada en disco: $permanentPath");
+      } else {
+        // Si Android borró la caché milisegundos antes, lanzamos error para saberlo
+        throw Exception(
+          "El archivo original desapareció antes de poder copiarlo.",
+        );
+      }
     }
+
+    // 3. GUARDAMOS EN BASE DE DATOS
+    // Si es una foto de pregunta (itemId != null), borramos la anterior para no acumular basura
+    if (itemId != null) {
+      await db.delete(
+        'fotos_pendientes',
+        where: 'actividad_id = ? AND item_id = ?',
+        whereArgs: [activityId, itemId],
+      );
+    }
+
+    // Insertamos el registro de la foto
+    await db.insert('fotos_pendientes', {
+      'actividad_id': activityId,
+      'item_id': itemId,
+      'local_path': permanentPath,
+      'descripcion': descripcion,
+      'subido': 0,
+    });
+
+    // 4. RETORNAMOS LA RUTA SEGURA
+    return permanentPath;
   }
 
   @override
@@ -361,18 +383,18 @@ class LocalInspectionRepository implements InspectionRepository {
     required List<Map<String, dynamic>> respuestas,
     List<Map<String, dynamic>>? participantes, // Opcional
     Map<String, dynamic>? verificacionesBuceo, // Opcional
+    List<Map<String, dynamic>>? fotos, // <--- NUEVO PARÁMETRO
   }) async {
     // 1. Instancia DB
     final db = await DatabaseHelper.instance.database;
 
     // 2. TRANSACCIÓN ATÓMICA
     await db.transaction((txn) async {
-      print('💾 TXN: Iniciando guardado atómico...');
+      debugPrint('💾 TXN: Iniciando guardado atómico...');
 
       // --- A. GUARDAR PADRE (ACTIVIDAD) ---
-      // Aseguramos que 'subido' sea 0 porque acabamos de editarla
       final actividadMap = Map<String, dynamic>.from(actividad);
-      actividadMap['subido'] = 0;
+      actividadMap['subido'] = 0; // Reset para sync
 
       int count = await txn.update(
         'actividades_pendientes',
@@ -389,46 +411,36 @@ class LocalInspectionRepository implements InspectionRepository {
       final batch = txn.batch();
 
       for (var resp in respuestas) {
-        // Borrado lógico compuesto (evita duplicados de items)
         batch.delete(
           'inspeccion_respuestas_pendientes',
           where: 'actividad_id = ? AND item_id = ?',
           whereArgs: [resp['actividad_id'], resp['item_id']],
         );
 
-        // COPIA Y RESETEO DE FLAG (CORREGIDO)
         final respuestaConFlag = Map<String, dynamic>.from(resp);
-        respuestaConFlag['subido'] =
-            0; // Importante para que el Sync la detecte
-
-        // ❌ ANTES HACÍAS: batch.insert(..., resp); <-- ERROR
-        // ✅ AHORA HACEMOS:
+        respuestaConFlag['subido'] = 0;
         batch.insert('inspeccion_respuestas_pendientes', respuestaConFlag);
       }
 
       // --- C. GUARDAR VERIFICACIONES DE BUCEO ---
       if (verificacionesBuceo != null) {
-        // Aseguramos que tenga el ID correcto
         if (!verificacionesBuceo.containsKey('actividad_id')) {
           verificacionesBuceo['actividad_id'] = actividad['id'];
         }
-
-        // Upsert manual
         int vCount = await txn.update(
           'verificaciones_buceo',
           verificacionesBuceo,
           where: 'actividad_id = ?',
           whereArgs: [verificacionesBuceo['actividad_id']],
         );
-
         if (vCount == 0) {
           batch.insert('verificaciones_buceo', verificacionesBuceo);
         }
       }
 
       // --- D. GUARDAR PARTICIPANTES ---
-      if (participantes != null && participantes.isNotEmpty) {
-        // Limpiamos la cuadrilla anterior para evitar fantasmas
+      if (participantes != null) {
+        // Quitamos el isNotEmpty para permitir vaciar lista
         batch.delete(
           'actividad_participantes',
           where: 'actividad_id = ?',
@@ -436,24 +448,24 @@ class LocalInspectionRepository implements InspectionRepository {
         );
 
         for (var p in participantes) {
-          // 2. MAGIA: Guardamos/Actualizamos a la PERSONA en la tabla maestra primero
-          // Preparamos el mapa solo con los datos de la persona
+          // Upsert Persona
           final datosPersona = {
             'id': p['personal_id'],
             'nombre_completo': p['nombre_completo'],
             'rut': p['rut'],
-            'cargo': p['cargo'], // o p['rol_en_faena']
+            'cargo': p['cargo'],
             'activo': 1,
-            // Opcional: si manejas contratista_id y lo tienes, agrégalo.
-            // Si es null, SQLite lo dejará null (está bien para creación local rápida).
           };
           batch.insert(
             'personal_externo',
             datosPersona,
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
+
+          // Relación
           final datosRelacion = {
-            'actividad_id': p['actividad_id'],
+            'actividad_id':
+                p['actividad_id'], // Asegúrate que el controller mande esto
             'personal_id': p['personal_id'],
             'rol_en_faena': p['rol_en_faena'],
             'condiciones_optimas': p['condiciones_optimas'],
@@ -462,9 +474,74 @@ class LocalInspectionRepository implements InspectionRepository {
         }
       }
 
-      // --- E. EJECUTAR LOTE ---
+      // --- E. GUARDAR FOTOS (NUEVA LÓGICA) ---
+      // IMPORTANTE: Si fotos es null, NO tocamos nada (asumimos guardado parcial).
+      // Si fotos es una lista (aunque sea vacía), aplicamos "Source of Truth".
+      if (fotos != null) {
+        // 1. Limpieza de registros en DB (NO borra archivos físicos)
+        batch.delete(
+          'fotos_pendientes',
+          where: 'actividad_id = ?',
+          whereArgs: [actividad['id']],
+        );
+
+        // 2. Inserción masiva del estado actual del Controller
+        for (var f in fotos) {
+          final fotoMap = Map<String, dynamic>.from(f);
+          fotoMap['subido'] = 0; // Reset para sync
+          // Aseguramos IDs por si el Controller viene flojo
+          fotoMap['actividad_id'] = actividad['id'];
+
+          batch.insert('fotos_pendientes', fotoMap);
+        }
+      }
+
+      // --- F. EJECUTAR LOTE ---
       await batch.commit(noResult: false);
-      print('✅ TXN: Guardado completo y exitoso.');
+      debugPrint('✅ TXN: Guardado completo y exitoso.');
     });
+  }
+  // En local_inspection_repository.dart
+
+  Future<String?> sugerirSiguienteNumeroReporte(String usuarioId) async {
+    final db = await dbHelper.database;
+    try {
+      // 1. La Query ahora tiene un WHERE usuario_id = ?
+      final result = await db.rawQuery(
+        '''
+        SELECT numero_reporte 
+        FROM actividades_pendientes 
+        WHERE usuario_id = ? 
+          AND numero_reporte IS NOT NULL 
+          AND numero_reporte != ""
+        ''',
+        [usuarioId], // Pasamos el ID del usuario actual para filtrar
+      );
+
+      int maxNum = 0;
+
+      // 2. Filtramos en Dart (Más seguro que hacer Regex en SQLite antiguo)
+      for (var row in result) {
+        final val = row['numero_reporte'] as String;
+        // Si es puramente numérico (ej: "105"), lo tomamos en cuenta
+        if (RegExp(r'^[0-9]+$').hasMatch(val)) {
+          final num = int.tryParse(val);
+          if (num != null && num > maxNum) {
+            maxNum = num;
+          }
+        }
+      }
+
+      // 3. Si encontramos algo, devolvemos el siguiente (max + 1)
+      if (maxNum > 0) {
+        return (maxNum + 1).toString();
+      }
+
+      // Si no hay nada local, devolvemos null (para que el Controller decida o lo deje vacío)
+      return "1";
+    } catch (e) {
+      debugPrint("⚠️ Error calculando siguiente informe: $e");
+      return null;
+    }
   }
 }

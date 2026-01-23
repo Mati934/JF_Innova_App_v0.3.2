@@ -9,8 +9,7 @@ class PdfGeneratorService {
   Future<Uint8List> generatePdf(InspectionReportData data) async {
     final pdf = pw.Document();
 
-    // 1. CARGA DE RECURSOS OFFLINE (Fuentes y Logo)
-    // Esto asegura que funcione en medio del mar sin internet.
+    // 1. CARGA DE RECURSOS OFFLINE
     final fontRegular = await rootBundle.load(
       "assets/fonts/OpenSans-Regular.ttf",
     );
@@ -32,10 +31,7 @@ class PdfGeneratorService {
       );
       logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
     } catch (e) {
-      // Si falla, no rompemos la app, solo no mostramos logo
-      print(
-        "Advertencia: Logo no encontrado en assets/images/logo_jfinnova.png",
-      );
+      print("Advertencia: Logo no encontrado");
     }
 
     // 2. CONSTRUCCIÓN DEL DOCUMENTO
@@ -56,13 +52,19 @@ class PdfGeneratorService {
         build: (context) => [
           pw.SizedBox(height: 10),
           _buildStatusAndStats(data),
+
+          // --- AQUÍ AGREGAMOS LA TABLA TÉCNICA NUEVA ---
+          pw.SizedBox(height: 15),
+          _buildTechnicalDetails(data),
+
+          // ---------------------------------------------
           pw.SizedBox(height: 15),
           _buildPersonnelTable(data),
-          pw.SizedBox(height: 15),
 
-          _buildSafetyChecklist(data),
           pw.SizedBox(height: 15),
-          // --- ANTES ESTABAN AQUÍ LAS FOTOS, LAS QUITAMOS ---
+          _buildSafetyChecklist(data),
+
+          pw.SizedBox(height: 15),
           pw.Text(
             "DETALLE DE VERIFICACIONES",
             style: pw.TextStyle(
@@ -74,10 +76,9 @@ class PdfGeneratorService {
           pw.SizedBox(height: 5),
           _buildChecklistTable(data),
 
-          // --- NUEVA UBICACIÓN: AL FINAL DEL TODO ---
           if (data.fotosGenerales.isNotEmpty) ...[
-            pw.SizedBox(height: 20), // Un poco de aire antes de las fotos
-            pw.Divider(), // Opcional: una línea separadora se ve profesional
+            pw.SizedBox(height: 20),
+            pw.Divider(),
             pw.SizedBox(height: 10),
             _buildGeneralGallery(data.fotosGenerales),
             pw.SizedBox(height: 15),
@@ -143,7 +144,7 @@ class PdfGeneratorService {
                       ? pw.Image(logo, fit: pw.BoxFit.contain)
                       : pw.Text(
                           "[LOGO]",
-                          style: pw.TextStyle(
+                          style: const pw.TextStyle(
                             color: PdfColors.grey,
                             fontSize: 8,
                           ),
@@ -156,7 +157,7 @@ class PdfGeneratorService {
                     border: pw.Border.all(width: 0.5),
                   ),
                   child: pw.Text(
-                    "N° INFORME: ${data.numeroReporte}", // <--- CAMBIO AQUÍ
+                    "N° INFORME: ${data.numeroReporte}",
                     style: pw.TextStyle(
                       fontWeight: pw.FontWeight.bold,
                       fontSize: 8,
@@ -165,6 +166,88 @@ class PdfGeneratorService {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- NUEVO WIDGET: DETALLES TÉCNICOS ---
+  pw.Widget _buildTechnicalDetails(InspectionReportData data) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(8),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.grey400),
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          // CABECERA CON HORARIOS
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                "DETALLES TÉCNICOS Y EQUIPAMIENTO",
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 9,
+                ),
+              ),
+              pw.Text(
+                "HORARIO AUDITORIA: ${data.horaInicio ?? '--:--'} - ${data.horaTermino ?? '--:--'}",
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 9,
+                ),
+              ),
+            ],
+          ),
+          pw.Divider(color: PdfColors.grey400, thickness: 0.5),
+
+          // TABLA DE COMPRESORES
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey, width: 0.5),
+            columnWidths: {
+              0: const pw.FlexColumnWidth(2), // Equipo
+              1: const pw.FlexColumnWidth(2), // Matricula
+              2: const pw.FlexColumnWidth(2), // Vigencia
+              3: const pw.FlexColumnWidth(2), // Vigencia PH (NUEVO)
+              4: const pw.FlexColumnWidth(1), // Buzos
+            },
+            children: [
+              // HEADER TABLA
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                children: [
+                  _buildCell("Equipo", isHeader: true),
+                  _buildCell("Matrícula", isHeader: true),
+                  _buildCell("Vigencia", isHeader: true),
+                  _buildCell("Vigencia P.H.", isHeader: true),
+                  _buildCell("N° Buzos", isHeader: true),
+                ],
+              ),
+              // COMPRESOR 1
+              pw.TableRow(
+                children: [
+                  _buildCell("Compresor 1"),
+                  _buildCell(data.compresor1Matricula ?? "-"),
+                  _buildCell(data.compresor1Vigencia ?? "-"),
+                  _buildCell(data.compresor1PH ?? "-"),
+                  _buildCell(data.compresor1Buzos ?? "0"),
+                ],
+              ),
+              // COMPRESOR 2 (Solo si tiene matrícula para no ensuciar, o siempre si prefieres)
+              pw.TableRow(
+                children: [
+                  _buildCell("Compresor 2"),
+                  _buildCell(data.compresor2Matricula ?? "-"),
+                  _buildCell(data.compresor2Vigencia ?? "-"),
+                  _buildCell(data.compresor2PH ?? "-"),
+                  _buildCell(data.compresor2Buzos ?? "0"),
+                ],
+              ),
+            ],
           ),
         ],
       ),
@@ -197,11 +280,7 @@ class PdfGeneratorService {
   }
 
   pw.Widget _buildStatusAndStats(InspectionReportData data) {
-    // 1. Normalizamos el texto a mayúsculas para evitar errores (ej: "Suspendida" vs "SUSPENDIDA")
     final estadoUpper = data.estadoGlobal.toUpperCase();
-
-    // 2. Definimos la condición estricta: Rojo solo si contiene "SUSPENDIDA"
-    // (Si quieres incluir "RECHAZADA" como rojo, agrégalo aquí: || estadoUpper.contains("RECHAZADA"))
     final bool esCritico = estadoUpper.contains("SUSPENDIDA");
 
     final PdfColor colorEstado = esCritico
@@ -229,11 +308,9 @@ class PdfGeneratorService {
                   style: pw.TextStyle(fontSize: 8, color: colorEstado),
                 ),
                 pw.Text(
-                  data.estadoGlobal
-                      .toUpperCase(), // Aseguramos que se vea en mayúsculas
+                  data.estadoGlobal.toUpperCase(),
                   style: pw.TextStyle(
-                    fontSize:
-                        14, // Bajé un poco el tamaño por si el texto es largo
+                    fontSize: 14,
                     fontWeight: pw.FontWeight.bold,
                     color: colorEstado,
                   ),
@@ -530,7 +607,6 @@ class PdfGeneratorService {
     );
   }
 
-  // Widget para las Verificaciones de Buceo y Observación
   pw.Widget _buildSafetyChecklist(InspectionReportData data) {
     return pw.Container(
       margin: const pw.EdgeInsets.symmetric(vertical: 10),
@@ -541,7 +617,6 @@ class PdfGeneratorService {
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          // Título de la sección
           pw.Container(
             width: double.infinity,
             padding: const pw.EdgeInsets.all(4),
@@ -551,8 +626,20 @@ class PdfGeneratorService {
               style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
             ),
           ),
-          // Lista de Switches
           ...data.verificacionesBuceo.entries.map((entry) {
+            // DETECTAMOS SI EL VALOR ES BOOL O NO PARA PINTARLO BIEN
+            bool isBool = entry.value is bool;
+            bool isCumple = isBool && (entry.value == true);
+            String textoMostrar = isBool
+                ? (isCumple ? "CUMPLE" : "NO CUMPLE")
+                : entry.value.toString();
+
+            // Solo mostramos colorines si es un booleano (los switches)
+            // Si es texto (ej: algun dato extra que se haya colado), lo mostramos en negro
+            PdfColor colorTexto = isBool
+                ? (isCumple ? PdfColors.green700 : PdfColors.red700)
+                : PdfColors.black;
+
             return pw.Container(
               padding: const pw.EdgeInsets.symmetric(
                 horizontal: 8,
@@ -568,21 +655,17 @@ class PdfGeneratorService {
                 children: [
                   pw.Text(entry.key, style: const pw.TextStyle(fontSize: 8)),
                   pw.Text(
-                    entry.value ? "CUMPLE" : "NO CUMPLE",
+                    textoMostrar,
                     style: pw.TextStyle(
                       fontSize: 8,
                       fontWeight: pw.FontWeight.bold,
-                      color: entry.value
-                          ? PdfColors.green700
-                          : PdfColors.red700,
+                      color: colorTexto,
                     ),
                   ),
                 ],
               ),
             );
           }).toList(),
-
-          // Observación del Prevencionista
           pw.Container(
             width: double.infinity,
             padding: const pw.EdgeInsets.all(8),
@@ -608,6 +691,21 @@ class PdfGeneratorService {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // Utilidad para construir celdas de tabla
+  pw.Widget _buildCell(String text, {bool isHeader = false}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(4),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(
+          fontSize: 8,
+          fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
+        ),
+        textAlign: pw.TextAlign.center,
       ),
     );
   }

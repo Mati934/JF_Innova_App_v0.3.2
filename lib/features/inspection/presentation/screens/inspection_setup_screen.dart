@@ -127,6 +127,7 @@ class _InspectionSetupScreenState extends State<InspectionSetupScreen> {
         'estado_final':
             'En Progreso', // Cambiado de 'En Seguimiento' a 'En Progreso'
         'subido': 0,
+        'numero_reporte': _folioController.text.trim(),
       };
 
       // Asegúrate de que saveActividadOffline acepte este Mapa completo

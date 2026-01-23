@@ -335,6 +335,7 @@ class SyncService {
 
       final file = File(localPath);
       if (!file.existsSync()) {
+        // Si el archivo físico no está, borramos el registro huérfano para limpiar
         await db.delete(
           'fotos_pendientes',
           where: 'id = ?',
@@ -344,11 +345,16 @@ class SyncService {
       }
 
       try {
-        final nombreArchivo = itemId != null
-            ? '$itemId.jpg'
-            : 'general/${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final pathStorage = '$actividadId/$nombreArchivo';
+        // --- 1. NOMBRE DETERMINISTA ---
+        // NO generamos uno nuevo con DateTime. Usamos el que ya tiene el archivo.
+        // Esto evita duplicados si se resube la misma foto.
+        final nombreArchivoReal = file.uri.pathSegments.last;
 
+        // Estructura: ID_ACTIVIDAD / NOMBRE_ARCHIVO
+        final pathStorage = '$actividadId/$nombreArchivoReal';
+
+        // --- 2. SUBIDA OPTIMIZADA ---
+        // upsert: true hace que si ya existe, la sobrescriba (ahorra errores)
         await _supabase.storage
             .from('evidencias')
             .upload(
@@ -361,18 +367,40 @@ class SyncService {
             .from('evidencias')
             .getPublicUrl(pathStorage);
 
-        await _supabase.from('registro_fotografico').insert({
-          'actividad_id': actividadId,
-          'inspeccion_respuesta_id': null,
-          'foto_url': publicUrl,
-          'descripcion': descripcion ?? '',
-        });
+        // --- 3. EVITAR DUPLICADOS EN TABLA SQL DE SUPABASE ---
+        // Verificamos si esta URL ya está registrada para esta actividad
+        final existe = await _supabase
+            .from('registro_fotografico')
+            .select('id')
+            .eq('actividad_id', actividadId)
+            .eq('foto_url', publicUrl)
+            .maybeSingle();
 
-        await db.delete(
+        if (existe == null) {
+          await _supabase.from('registro_fotografico').insert({
+            'actividad_id': actividadId,
+            'inspeccion_respuesta_id': null, // O vincular si tienes la lógica
+            'foto_url': publicUrl,
+            'descripcion': descripcion ?? '',
+            // 'item_id': itemId // SUGERENCIA: Deberías guardar el item_id en Supabase si puedes
+          });
+        } else {
+          // Opcional: Actualizar descripción si cambió
+          debugPrint(
+            "📸 La foto ya estaba registrada en nube, saltando insert.",
+          );
+        }
+
+        // --- 4. ACTUALIZAR LOCALMENTE (NO BORRAR) ---
+        // CRÍTICO: No borres el registro, solo márcalo como subido.
+        // Así el Controller lo sigue encontrando.
+        await db.update(
           'fotos_pendientes',
+          {'subido': 1},
           where: 'id = ?',
           whereArgs: [localId],
         );
+
         fotosSubidas++;
       } catch (e) {
         debugPrint("Error subiendo foto $localId: $e");

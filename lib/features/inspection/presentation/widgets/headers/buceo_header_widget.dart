@@ -50,12 +50,18 @@ class BuceoCuadrillaWidget extends StatelessWidget {
             ),
 
           ...controller.participantes.map((p) {
+            // 1. Normalizamos el texto para no pelear con mayúsculas
+            final cargoLower = p.cargo.toLowerCase();
             final esBuzo = p.cargo.toLowerCase().contains('buzo');
-
+            final llevaControlSalud =
+                cargoLower.contains('buzo') ||
+                cargoLower.contains('asistente') ||
+                cargoLower.contains('supervisor');
             return Column(
               children: [
                 ListTile(
                   dense: true,
+                  // ... (El leading/avatar se queda igual con 'esBuzo') ...
                   leading: CircleAvatar(
                     backgroundColor: esBuzo
                         ? Colors.blue.shade100
@@ -70,15 +76,15 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                     p.nombreCompleto,
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  // AQUI MOSTRAMOS LA MATRICULA EN LA LISTA
                   subtitle: Text(
                     "${p.cargo} - RUT: ${p.rut}\nMatrícula: ${p.matricula}",
                   ),
-                  isThreeLine: true, // Para que quepa el subtítulo doble
+                  isThreeLine: true,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (esBuzo) ...[
+                      // 4. CAMBIAMOS EL IF AQUÍ: Usamos 'llevaControlSalud' en vez de 'esBuzo'
+                      if (llevaControlSalud) ...[
                         Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -108,6 +114,7 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                       ],
+                      // ... (Botón eliminar se queda igual)
                       IconButton(
                         icon: const Icon(
                           Icons.delete_outline,
@@ -377,7 +384,7 @@ class BuceoVerificacionesWidget extends StatelessWidget {
           ),
           const Divider(height: 1),
           _SwitchItem(
-            "Inducción Centro de Cultivo",
+            "V. Inducción Centro de Cultivo",
             verificaciones.induccionCentroCultivo,
             (v) => controller.updateVerificacion(
               (m) => m.induccionCentroCultivo = v,
@@ -385,7 +392,7 @@ class BuceoVerificacionesWidget extends StatelessWidget {
           ),
           const Divider(height: 1),
           _SwitchItem(
-            "V. Permiso de Buceo (Centro Correcto)",
+            "VI. Permiso de Buceo (Centro Correcto)",
             verificaciones.permisoBuceoCentroCorrecto,
             (v) => controller.updateVerificacion(
               (m) => m.permisoBuceoCentroCorrecto = v,
@@ -393,7 +400,7 @@ class BuceoVerificacionesWidget extends StatelessWidget {
           ),
           const Divider(height: 1),
           _SwitchItem(
-            "VI. Plan de Contingencias",
+            "VII. Plan de Contingencias",
             verificaciones.planContingenciasCentroOk,
             (v) => controller.updateVerificacion(
               (m) => m.planContingenciasCentroOk = v,
@@ -401,7 +408,7 @@ class BuceoVerificacionesWidget extends StatelessWidget {
           ),
           const Divider(height: 1),
           _SwitchItem(
-            "VII. Exámenes Ocupacionales Vigentes",
+            "VIII. Exámenes Ocupacionales Vigentes",
             verificaciones.examenesOcupacionalesVigentes,
             (v) => controller.updateVerificacion(
               (m) => m.examenesOcupacionalesVigentes = v,
@@ -462,7 +469,31 @@ class BuceoTecnicoWidget extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // SUPERVISOR
+                // --- 0. NÚMERO DE INFORME (AGREGAR ESTO AQUÍ) ---
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        // ESTA ES LA CONEXIÓN CLAVE
+                        controller: controller.numeroInformeController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: "N° de Informe",
+                          hintText: "Ej: 08",
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.confirmation_number),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Dejamos un espacio o ponemos algo más si quieres
+                    const Expanded(child: SizedBox()),
+                  ],
+                ),
+                const Divider(height: 30),
+                // -----------------------------------------------
+                // --- SUPERVISOR ---
                 const Text(
                   "SUPERVISOR DE BUCEO",
                   style: TextStyle(
@@ -496,7 +527,7 @@ class BuceoTecnicoWidget extends StatelessWidget {
                 ),
                 const Divider(height: 30),
 
-                // COMPRESOR 1
+                // --- COMPRESOR 1 ---
                 const Text(
                   "COMPRESOR 1",
                   style: TextStyle(
@@ -526,21 +557,31 @@ class BuceoTecnicoWidget extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 10),
+                    // NUEVO: VIGENCIA P.H.
                     Expanded(
-                      child: _TextInput(
-                        "N° Buzos",
-                        verificaciones.compresor1BuzosCargo?.toString(),
+                      child: _DateInput(
+                        context,
+                        "Vigencia P.H.",
+                        verificaciones.compresor1VigenciaPH,
                         (v) => controller.updateVerificacion(
-                          (m) => m.compresor1BuzosCargo = int.tryParse(v),
+                          (m) => m.compresor1VigenciaPH = v,
                         ),
-                        isNumber: true,
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                _TextInput(
+                  "N° Buzos",
+                  verificaciones.compresor1BuzosCargo?.toString(),
+                  (v) => controller.updateVerificacion(
+                    (m) => m.compresor1BuzosCargo = int.tryParse(v),
+                  ),
+                  isNumber: true,
+                ),
                 const Divider(height: 30),
 
-                // COMPRESOR 2 (Opcional)
+                // --- COMPRESOR 2 (Opcional) ---
                 const Text(
                   "COMPRESOR 2",
                   style: TextStyle(
@@ -570,39 +611,30 @@ class BuceoTecnicoWidget extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 10),
+                    // NUEVO: VIGENCIA P.H.
                     Expanded(
-                      child: _TextInput(
-                        "N° Buzos",
-                        verificaciones.compresor2BuzosCargo?.toString(),
+                      child: _DateInput(
+                        context,
+                        "Vigencia P.H.",
+                        verificaciones.compresor2VigenciaPH,
                         (v) => controller.updateVerificacion(
-                          (m) => m.compresor2BuzosCargo = int.tryParse(v),
+                          (m) => m.compresor2VigenciaPH = v,
                         ),
-                        isNumber: true,
                       ),
                     ),
                   ],
                 ),
-                const Divider(height: 30),
-
-                // CERTIFICADO EQUIPOS
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text("Certificado de Inspección de Equipos"),
-                  subtitle: const Text("¿Cuenta con certificado vigente?"),
-                  value: verificaciones.certificadoEquiposOk,
-                  onChanged: (v) => controller.updateVerificacion(
-                    (m) => m.certificadoEquiposOk = v,
+                const SizedBox(height: 8),
+                _TextInput(
+                  "N° Buzos",
+                  verificaciones.compresor2BuzosCargo?.toString(),
+                  (v) => controller.updateVerificacion(
+                    (m) => m.compresor2BuzosCargo = int.tryParse(v),
                   ),
+                  isNumber: true,
                 ),
-                if (verificaciones.certificadoEquiposOk)
-                  _DateInput(
-                    context,
-                    "Fecha Vigencia Certificado",
-                    verificaciones.certificadoEquiposVigencia,
-                    (v) => controller.updateVerificacion(
-                      (m) => m.certificadoEquiposVigencia = v,
-                    ),
-                  ),
+
+                // (YA NO ESTÁ EL CERTIFICADO DE INSPECCIÓN AQUÍ)
               ],
             ),
           ),

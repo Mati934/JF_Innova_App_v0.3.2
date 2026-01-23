@@ -19,17 +19,17 @@ class BuceoVerificacionModel {
   // Compresor 1
   String? compresor1Matricula;
   DateTime? compresor1Vigencia;
+  DateTime? compresor1VigenciaPH;
   int? compresor1BuzosCargo;
 
   // Compresor 2
   String? compresor2Matricula;
   DateTime? compresor2Vigencia;
+  DateTime? compresor2VigenciaPH;
   int? compresor2BuzosCargo;
 
-  // Certificado Equipos
-  bool certificadoEquiposOk;
-  DateTime? certificadoEquiposVigencia;
-
+  String? horaInicio;
+  String? horaTermino;
   // En BuceoVerificacionModel
 
   // No olvides agregarlos al constructor, al toMap() y al fromMap()
@@ -48,12 +48,14 @@ class BuceoVerificacionModel {
     this.supervisorRut,
     this.compresor1Matricula,
     this.compresor1Vigencia,
+    this.compresor1VigenciaPH,
     this.compresor1BuzosCargo,
     this.compresor2Matricula,
     this.compresor2Vigencia,
+    this.compresor2VigenciaPH,
     this.compresor2BuzosCargo,
-    this.certificadoEquiposOk = false,
-    this.certificadoEquiposVigencia,
+    this.horaInicio,
+    this.horaTermino,
   });
 
   bool get faenaHabilitada {
@@ -79,15 +81,18 @@ class BuceoVerificacionModel {
       // Nuevos
       'supervisor_nombre': supervisorNombre,
       'supervisor_rut': supervisorRut,
+      'hora_inicio': horaInicio,
+      'hora_termino': horaTermino,
       'compresor_1_matricula': compresor1Matricula,
       'compresor_1_vigencia': compresor1Vigencia?.toIso8601String(),
+      'compresor_1_vigencia_ph': compresor1VigenciaPH
+          ?.toIso8601String(), // NUEVO
       'compresor_1_buzos_cargo': compresor1BuzosCargo,
       'compresor_2_matricula': compresor2Matricula,
       'compresor_2_vigencia': compresor2Vigencia?.toIso8601String(),
+      'compresor_2_vigencia_ph': compresor2VigenciaPH
+          ?.toIso8601String(), // NUEVO
       'compresor_2_buzos_cargo': compresor2BuzosCargo,
-      'certificado_equipos_ok': certificadoEquiposOk ? 1 : 0,
-      'certificado_equipos_vigencia': certificadoEquiposVigencia
-          ?.toIso8601String(),
     };
   }
 
@@ -106,20 +111,28 @@ class BuceoVerificacionModel {
       // Nuevos
       supervisorNombre: map['supervisor_nombre'],
       supervisorRut: map['supervisor_rut'],
+      horaInicio: map['hora_inicio'],
+      horaTermino: map['hora_termino'],
       compresor1Matricula: map['compresor_1_matricula'],
       compresor1Vigencia: map['compresor_1_vigencia'] != null
           ? DateTime.tryParse(map['compresor_1_vigencia'])
+          : null,
+      compresor1VigenciaPH:
+          map['compresor_1_vigencia_ph'] !=
+              null // NUEVO
+          ? DateTime.tryParse(map['compresor_1_vigencia_ph'])
           : null,
       compresor1BuzosCargo: map['compresor_1_buzos_cargo'],
       compresor2Matricula: map['compresor_2_matricula'],
       compresor2Vigencia: map['compresor_2_vigencia'] != null
           ? DateTime.tryParse(map['compresor_2_vigencia'])
           : null,
-      compresor2BuzosCargo: map['compresor_2_buzos_cargo'],
-      certificadoEquiposOk: map['certificado_equipos_ok'] == 1,
-      certificadoEquiposVigencia: map['certificado_equipos_vigencia'] != null
-          ? DateTime.tryParse(map['certificado_equipos_vigencia'])
+      compresor2VigenciaPH:
+          map['compresor_2_vigencia_ph'] !=
+              null // NUEVO
+          ? DateTime.tryParse(map['compresor_2_vigencia_ph'])
           : null,
+      compresor2BuzosCargo: map['compresor_2_buzos_cargo'],
     );
   }
 }
