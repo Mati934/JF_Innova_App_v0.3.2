@@ -138,7 +138,7 @@ class BuceoCuadrillaWidget extends StatelessWidget {
   void _mostrarModalAgregarBuzo(BuildContext context) {
     final nombreCtrl = TextEditingController();
     final rutCtrl = TextEditingController();
-    final matriculaCtrl = TextEditingController(); // <--- NUEVO CONTROLADOR
+    final matriculaCtrl = TextEditingController();
     final cargoNotifier = ValueNotifier<String>('Buzo');
 
     showModalBottomSheet(
@@ -469,30 +469,80 @@ class BuceoTecnicoWidget extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // --- 0. NÚMERO DE INFORME (AGREGAR ESTO AQUÍ) ---
+                // 1. N° INFORME (Arriba, ancho completo)
+                TextFormField(
+                  controller: controller.numeroInformeController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: "N° Informe",
+                    hintText: "Ej: 08",
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.confirmation_number_outlined),
+                  ),
+                ),
+
+                const Divider(height: 30),
+
+                const Text(
+                  "HORARIO AUDITORÍA",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color:
+                        Colors.grey, // Mismo color gris que los otros títulos
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // 2. HORA INICIO y 3. HORA TÉRMINO
                 Row(
                   children: [
                     Expanded(
+                      flex: 2,
                       child: TextFormField(
-                        // ESTA ES LA CONEXIÓN CLAVE
-                        controller: controller.numeroInformeController,
-                        keyboardType: TextInputType.number,
+                        controller: controller.horaInicioController,
+                        readOnly: true,
+                        onTap: () => _seleccionarHora(context, true),
                         decoration: const InputDecoration(
-                          labelText: "N° de Informe",
-                          hintText: "Ej: 08",
+                          labelText: "Inicio",
+                          hintText: "--:--",
                           isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 12,
+                          ),
                           border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.confirmation_number),
+                          suffixIcon: Icon(Icons.access_time, size: 18),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    // Dejamos un espacio o ponemos algo más si quieres
-                    const Expanded(child: SizedBox()),
+                    const SizedBox(width: 8),
+
+                    // 3. HORA TÉRMINO
+                    Expanded(
+                      flex: 2,
+                      child: TextFormField(
+                        controller: controller.horaTerminoController,
+                        readOnly: true,
+                        onTap: () => _seleccionarHora(context, false),
+                        decoration: const InputDecoration(
+                          labelText: "Término",
+                          hintText: "--:--",
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 12,
+                          ),
+                          border: OutlineInputBorder(),
+                          suffixIcon: Icon(Icons.access_time_filled, size: 18),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                const Divider(height: 30),
-                // -----------------------------------------------
+
+                const Divider(height: 30), // --- LÍNEA SEPARADORA
+                // -----------------------------------------------------------
                 // --- SUPERVISOR ---
                 const Text(
                   "SUPERVISOR DE BUCEO",
@@ -641,6 +691,27 @@ class BuceoTecnicoWidget extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // Lógica para mostrar el reloj
+  Future<void> _seleccionarHora(BuildContext context, bool isInicio) async {
+    final initial = controller.getHoraInicialReloj(isInicio);
+
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: initial,
+      builder: (context, child) {
+        return MediaQuery(
+          // Opcional: Forzar 24h
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      controller.actualizarHora(isInicio, picked);
+    }
   }
 
   Widget _TextInput(

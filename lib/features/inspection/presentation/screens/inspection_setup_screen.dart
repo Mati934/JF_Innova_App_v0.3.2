@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/database/database_helper.dart';
 import '../../../sync/services/sync_service.dart';
 import 'inspection_form_screen.dart';
+import '../../data/repositories/local_inspection_repository.dart';
 
 class InspectionSetupScreen extends StatefulWidget {
   const InspectionSetupScreen({super.key});
@@ -16,6 +17,7 @@ class _InspectionSetupScreenState extends State<InspectionSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _dbHelper = DatabaseHelper.instance;
   final _syncService = SyncService();
+  final _localRepo = LocalInspectionRepository();
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -76,7 +78,25 @@ class _InspectionSetupScreenState extends State<InspectionSetupScreen> {
     setState(() {
       _centroId = null;
       _centros = centros;
+      _folioController.text = "";
     });
+  }
+
+  // 3. NUEVA FUNCIÓN PARA SUGERIR EL NÚMERO
+  Future<void> _sugerirNumeroReporte(String centroId) async {
+    // Llamamos al repositorio con el ID del centro seleccionado
+    final sugerido = await _localRepo.sugerirSiguienteNumeroReporte(centroId);
+
+    if (mounted) {
+      setState(() {
+        if (sugerido != null) {
+          _folioController.text = sugerido;
+        } else {
+          // Si no hay historial, lo dejamos vacío para que el usuario o el servidor decidan
+          _folioController.text = "";
+        }
+      });
+    }
   }
 
   Future<void> _cargarEmbarcaciones(String contratistaId) async {
@@ -259,7 +279,13 @@ class _InspectionSetupScreenState extends State<InspectionSetupScreen> {
                               ),
                             )
                             .toList(),
-                        onChanged: (v) => setState(() => _centroId = v),
+                        // 4. AQUÍ CONECTAMOS LA LÓGICA
+                        onChanged: (v) {
+                          setState(() => _centroId = v);
+                          if (v != null) {
+                            _sugerirNumeroReporte(v); // <-- LLAMADA MÁGICA
+                          }
+                        },
                         validator: (v) => v == null ? 'Requerido' : null,
                       ),
                       const SizedBox(height: 15),

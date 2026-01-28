@@ -389,39 +389,48 @@ class PdfGeneratorService {
         pw.Table(
           border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
           columnWidths: {
-            0: const pw.FlexColumnWidth(3),
-            1: const pw.FlexColumnWidth(2),
-            2: const pw.FlexColumnWidth(2),
-            3: const pw.FlexColumnWidth(2),
+            0: const pw.FlexColumnWidth(2.5), // Nombre (un poco menos ancho)
+            1: const pw.FlexColumnWidth(1.5), // RUT
+            2: const pw.FlexColumnWidth(1.5), // Matrícula (NUEVA)
+            3: const pw.FlexColumnWidth(2.0), // Cargo
+            4: const pw.FlexColumnWidth(1.5), // Condición
           },
           children: [
             pw.TableRow(
               decoration: const pw.BoxDecoration(color: PdfColors.grey200),
-              children: ["Nombre Completo", "RUT", "Cargo", "Condición Fisica"]
-                  .map(
-                    (e) => pw.Padding(
-                      padding: const pw.EdgeInsets.all(3),
-                      child: pw.Text(
-                        e,
-                        style: pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold,
-                          fontSize: 7,
+              children:
+                  [
+                        "Nombre Completo",
+                        "RUT",
+                        "Matricula",
+                        "Cargo",
+                        "Condición Fisica",
+                      ]
+                      .map(
+                        (e) => pw.Padding(
+                          padding: const pw.EdgeInsets.all(3),
+                          child: pw.Text(
+                            e,
+                            style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 7,
+                            ),
+                            textAlign: pw.TextAlign.center,
+                          ),
                         ),
-                        textAlign: pw.TextAlign.center,
-                      ),
-                    ),
-                  )
-                  .toList(),
+                      )
+                      .toList(),
             ),
             ...data.equipo.map(
               (p) => pw.TableRow(
-                children: [p.nombre, p.rut, p.cargo, p.rolEnFaena]
+                children: [p.nombre, p.rut, p.matricula, p.cargo, p.rolEnFaena]
                     .map(
                       (val) => pw.Padding(
                         padding: const pw.EdgeInsets.all(3),
                         child: pw.Text(
                           val,
                           style: const pw.TextStyle(fontSize: 7),
+                          textAlign: pw.TextAlign.center,
                         ),
                       ),
                     )

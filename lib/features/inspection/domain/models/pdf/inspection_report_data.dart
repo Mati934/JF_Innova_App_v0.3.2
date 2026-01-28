@@ -94,12 +94,14 @@ class PersonalDto {
   final String nombre;
   final String rut;
   final String cargo;
+  final String matricula;
   final String rolEnFaena;
 
   PersonalDto({
     required this.nombre,
     required this.rut,
     this.cargo = '',
+    this.matricula = '',
     required this.rolEnFaena,
   });
 }

@@ -162,7 +162,6 @@ class DatabaseHelper {
     String tabla,
     List<Map<String, dynamic>> datos,
   ) async {
-    // CAMBIO AQUÍ: Usamos 'await database' en vez de 'await instance.database'
     final db = await database;
     final batch = db.batch();
 

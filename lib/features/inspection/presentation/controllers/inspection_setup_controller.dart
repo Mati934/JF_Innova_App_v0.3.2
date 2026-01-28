@@ -3,10 +3,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/database/database_helper.dart';
 import '../../../sync/services/sync_service.dart';
+import '../../data/repositories/local_inspection_repository.dart';
 
 class InspectionSetupController extends ChangeNotifier {
   final _dbHelper = DatabaseHelper.instance;
   final _syncService = SyncService();
+  final _localRepo = LocalInspectionRepository();
 
   // Estados de carga
   bool _isLoading = true;
@@ -27,6 +29,8 @@ class InspectionSetupController extends ChangeNotifier {
   String? tipoActividad;
   String? contratistaId;
   String? embarcacionId;
+
+  final TextEditingController numeroInformeController = TextEditingController();
 
   // Datos calculados para la navegación posterior
   String? createdActivityId;
@@ -100,9 +104,21 @@ class InspectionSetupController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setCentro(String? v) {
+  void setCentro(String? v) async {
     centroId = v;
     notifyListeners();
+
+    // Si seleccionó un centro válido, buscamos el número sugerido
+    if (v != null) {
+      final sugerido = await _localRepo.sugerirSiguienteNumeroReporte(v);
+      if (sugerido != null) {
+        numeroInformeController.text = sugerido;
+      } else {
+        // Si no hay historial, lo dejamos vacío para que el usuario o el server decidan
+        numeroInformeController.text = "";
+      }
+      notifyListeners(); // Actualizamos la UI para que se vea el número
+    }
   }
 
   void setEstadoPuerto(String? v) {
@@ -193,6 +209,7 @@ class InspectionSetupController extends ChangeNotifier {
         'embarcacion_id': esInspeccionCompleta ? embarcacionId : null,
         'estado_final': 'En Seguimiento',
         'subido': 0,
+        'numero_reporte': numeroInformeController.text.trim(),
       };
 
       await _dbHelper.saveActividadOffline(datosActividad);

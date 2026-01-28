@@ -34,12 +34,22 @@ class InspectionFormController extends ChangeNotifier {
   final Map<String, String> observaciones = {};
   final Map<String, String> criticidades = {};
   final Map<String, File> fotosPorPregunta = {};
+
   final TextEditingController numeroInformeController = TextEditingController();
+  final TextEditingController horaInicioController =
+      TextEditingController(); // NUEVO
+  final TextEditingController horaTerminoController =
+      TextEditingController(); // NUEVO
+
   List<File> fotosGenerales = [];
 
   // --- VARIABLES ESPECÍFICAS DE BUCEO ---
   BuceoVerificacionModel? verificacionesBuceo;
   List<ParticipanteModel> participantes = [];
+
+  // Para guardar la hora real y poder manipularla
+  TimeOfDay? _timeInicio;
+  TimeOfDay? _timeTermino;
 
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
@@ -51,6 +61,8 @@ class InspectionFormController extends ChangeNotifier {
   @override
   void dispose() {
     numeroInformeController.dispose();
+    horaInicioController.dispose(); // NUEVO
+    horaTerminoController.dispose(); // NUEVO
     _disposed = true;
     super.dispose();
   }
@@ -90,17 +102,20 @@ class InspectionFormController extends ChangeNotifier {
               data['numero_reporte'].toString().isNotEmpty) {
             numeroInformeController.text = data['numero_reporte'];
           } else {
-            // Si no viene, intentamos calcularlo
-            final currentUser = Supabase.instance.client.auth.currentUser;
-            final String? idActual = currentUser?.id;
-            final userParaBuscar = usuarioId ?? idActual;
-
-            if (userParaBuscar != null) {
+            // --- LÓGICA CORREGIDA ---
+            // Ya no usamos usuarioId, usamos el centroId de la actividad actual
+            if (centroId != null) {
               final sugerido = await (_repo as LocalInspectionRepository)
-                  .sugerirSiguienteNumeroReporte(userParaBuscar);
+                  .sugerirSiguienteNumeroReporte(
+                    centroId!,
+                  ); // Pasamos el CENTRO
 
               if (sugerido != null) {
                 numeroInformeController.text = sugerido;
+              } else {
+                // Si es null (no hay historial local), lo dejamos vacío
+                // El Trigger de Supabase le pondrá el número correcto al subir.
+                numeroInformeController.text = "";
               }
             }
           }
@@ -158,23 +173,71 @@ class InspectionFormController extends ChangeNotifier {
 
         participantes = await _repo.getParticipantes(activityId);
 
-        // --- LÓGICA AUTOMÁTICA HORA INICIO ---
-        // Si no hay hora de inicio (es nueva o nunca se guardó), ponemos la actual.
-        if (verificacionesBuceo?.horaInicio == null ||
-            verificacionesBuceo!.horaInicio!.isEmpty) {
+        // --- LÓGICA DE HORAS ---
+
+        // 1. Hora Inicio
+        if (verificacionesBuceo?.horaInicio != null &&
+            verificacionesBuceo!.horaInicio!.isNotEmpty) {
+          horaInicioController.text = verificacionesBuceo!.horaInicio!;
+          // Intentar parsear a TimeOfDay para el picker
+          try {
+            final parts = verificacionesBuceo!.horaInicio!.split(":");
+            _timeInicio = TimeOfDay(
+              hour: int.parse(parts[0]),
+              minute: int.parse(parts[1]),
+            );
+          } catch (_) {}
+        } else {
+          // Si está vacía, ponemos la actual automática
           final now = TimeOfDay.now();
+          _timeInicio = now;
           final horaStr =
               "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+          horaInicioController.text = horaStr;
 
+          // Actualizamos modelo silenciosamente
           verificacionesBuceo?.horaInicio = horaStr;
-          // Guardamos silenciosamente para no perderla
-          updateVerificacion((m) => m.horaInicio = horaStr);
           print("🕒 Hora Inicio Auto: $horaStr");
+        }
+
+        // 2. Hora Término
+        if (verificacionesBuceo?.horaTermino != null &&
+            verificacionesBuceo!.horaTermino!.isNotEmpty) {
+          horaTerminoController.text = verificacionesBuceo!.horaTermino!;
+          try {
+            final parts = verificacionesBuceo!.horaTermino!.split(":");
+            _timeTermino = TimeOfDay(
+              hour: int.parse(parts[0]),
+              minute: int.parse(parts[1]),
+            );
+          } catch (_) {}
         }
       } catch (e) {
         print("Error cargando datos buceo: $e");
       }
     }
+  }
+
+  // --- NUEVA FUNCIÓN PARA ACTUALIZAR HORAS DESDE LA VISTA ---
+  void actualizarHora(bool esInicio, TimeOfDay picked) {
+    final formatted =
+        "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}";
+
+    if (esInicio) {
+      _timeInicio = picked;
+      horaInicioController.text = formatted;
+      updateVerificacion((m) => m.horaInicio = formatted);
+    } else {
+      _timeTermino = picked;
+      horaTerminoController.text = formatted;
+      updateVerificacion((m) => m.horaTermino = formatted);
+    }
+  }
+
+  // Helper para que el widget sepa qué hora mostrar en el reloj
+  TimeOfDay getHoraInicialReloj(bool esInicio) {
+    if (esInicio) return _timeInicio ?? TimeOfDay.now();
+    return _timeTermino ?? TimeOfDay.now();
   }
 
   void updateVerificacion(Function(BuceoVerificacionModel) updates) {
@@ -468,6 +531,7 @@ class InspectionFormController extends ChangeNotifier {
             'rut': p.rut,
             'cargo': p.cargo,
             'activo': 1,
+            'matricula': p.matricula,
           };
         }).toList();
       }
@@ -518,13 +582,38 @@ class InspectionFormController extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
-      // AUTO-TERMINO AL GENERAR PDF
-      if (tipoActividad == 'INSPECCION_BUCEO') {
+      // AUTO-TERMINO: Solo si el campo está vacío, lo llenamos automático
+      // Si el usuario ya puso algo manual, respetamos eso.
+      if (horaTerminoController.text.isEmpty) {
         final now = TimeOfDay.now();
         final horaFinStr =
             "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+
+        horaTerminoController.text = horaFinStr;
         updateVerificacion((m) => m.horaTermino = horaFinStr);
-        debugPrint("🏁 Hora Término PDF: $horaFinStr");
+        debugPrint("🏁 Hora Término PDF (Auto): $horaFinStr");
+      }
+
+      // ESTO ESTÁ BIEN: Solo pone la hora automática si NO has escrito nada
+      if (tipoActividad == 'INSPECCION_BUCEO') {
+        // Verificamos si el campo visual (controller) está vacío
+        if (horaTerminoController.text.isEmpty) {
+          final now = TimeOfDay.now();
+          final horaFinStr =
+              "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+
+          // 1. Actualizamos el texto en pantalla
+          horaTerminoController.text = horaFinStr;
+
+          // 2. Guardamos en el modelo
+          updateVerificacion((m) => m.horaTermino = horaFinStr);
+
+          debugPrint("🏁 Hora Término Automática aplicada: $horaFinStr");
+        } else {
+          debugPrint(
+            "✅ Se respeta la hora manual: ${horaTerminoController.text}",
+          );
+        }
       }
 
       // CLIENTE FIJO AQUACHILE
@@ -640,6 +729,7 @@ class InspectionFormController extends ChangeNotifier {
           nombre: p.nombreCompleto,
           rut: p.rut,
           cargo: p.cargo,
+          matricula: p.matricula.isEmpty ? "-" : p.matricula,
           rolEnFaena: textoCondicion,
         );
       }).toList();

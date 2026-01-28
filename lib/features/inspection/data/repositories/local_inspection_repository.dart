@@ -455,6 +455,7 @@ class LocalInspectionRepository implements InspectionRepository {
             'rut': p['rut'],
             'cargo': p['cargo'],
             'activo': 1,
+            'matricula': p['matricula'],
           };
           batch.insert(
             'personal_externo',
@@ -503,28 +504,35 @@ class LocalInspectionRepository implements InspectionRepository {
   }
   // En local_inspection_repository.dart
 
-  Future<String?> sugerirSiguienteNumeroReporte(String usuarioId) async {
+  // En LocalInspectionRepository
+
+  Future<String?> sugerirSiguienteNumeroReporte(String centroId) async {
     final db = await dbHelper.database;
     try {
-      // 1. La Query ahora tiene un WHERE usuario_id = ?
+      debugPrint("🔍 BUSCANDO ULTIMO INFORME PARA CENTRO: $centroId");
+
       final result = await db.rawQuery(
         '''
         SELECT numero_reporte 
         FROM actividades_pendientes 
-        WHERE usuario_id = ? 
+        WHERE centro_id = ? 
           AND numero_reporte IS NOT NULL 
           AND numero_reporte != ""
         ''',
-        [usuarioId], // Pasamos el ID del usuario actual para filtrar
+        [centroId],
       );
+
+      debugPrint("🔍 Registros encontrados en SQLite: ${result.length}");
 
       int maxNum = 0;
 
-      // 2. Filtramos en Dart (Más seguro que hacer Regex en SQLite antiguo)
       for (var row in result) {
-        final val = row['numero_reporte'] as String;
-        // Si es puramente numérico (ej: "105"), lo tomamos en cuenta
-        if (RegExp(r'^[0-9]+$').hasMatch(val)) {
+        // AHORA SÍ COINCIDE EL NOMBRE CON EL SELECT
+        final val = row['numero_reporte'] as String?;
+
+        debugPrint("   -> Revisando folio: $val");
+
+        if (val != null && RegExp(r'^[0-9]+$').hasMatch(val)) {
           final num = int.tryParse(val);
           if (num != null && num > maxNum) {
             maxNum = num;
@@ -532,15 +540,15 @@ class LocalInspectionRepository implements InspectionRepository {
         }
       }
 
-      // 3. Si encontramos algo, devolvemos el siguiente (max + 1)
+      debugPrint("🔍 Máximo encontrado localmente: $maxNum");
+
       if (maxNum > 0) {
         return (maxNum + 1).toString();
       }
 
-      // Si no hay nada local, devolvemos null (para que el Controller decida o lo deje vacío)
-      return "1";
+      return null;
     } catch (e) {
-      debugPrint("⚠️ Error calculando siguiente informe: $e");
+      debugPrint("❌ Error calculando siguiente informe por centro: $e");
       return null;
     }
   }
