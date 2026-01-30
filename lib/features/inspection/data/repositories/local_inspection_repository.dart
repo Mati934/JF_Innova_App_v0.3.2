@@ -386,6 +386,17 @@ class LocalInspectionRepository implements InspectionRepository {
     List<Map<String, dynamic>>? fotos, // <--- NUEVO PARÁMETRO
   }) async {
     // 1. Instancia DB
+
+    // --- 🕵️ LOG 3: ¿QUÉ LLEGÓ AL REPOSITORIO? ---
+    if (verificacionesBuceo != null) {
+      debugPrint("🕵️ [LOG 3] Repository recibio:");
+      debugPrint(
+        "   > Verif['encargado_centro']: '${verificacionesBuceo['encargado_centro']}'",
+      );
+    } else {
+      debugPrint("🕵️ [LOG 3] ALERTA: verificacionesBuceo es NULL");
+    }
+
     final db = await DatabaseHelper.instance.database;
 
     // 2. TRANSACCIÓN ATÓMICA
@@ -500,6 +511,21 @@ class LocalInspectionRepository implements InspectionRepository {
       // --- F. EJECUTAR LOTE ---
       await batch.commit(noResult: false);
       debugPrint('✅ TXN: Guardado completo y exitoso.');
+      // --- 🕵️ LOG 4: VERIFICACIÓN FORENSE (LEER LO QUE ACABAMOS DE GUARDAR) ---
+      if (verificacionesBuceo != null) {
+        final check = await txn.query(
+          'verificaciones_buceo',
+          columns: ['encargado_centro', 'supervisor_centro'],
+          where: 'actividad_id = ?',
+          whereArgs: [verificacionesBuceo['actividad_id']],
+        );
+        debugPrint("🕵️ [LOG 4] Lectura Post-Mortem SQLite:");
+        if (check.isNotEmpty) {
+          debugPrint("   > En DB: ${check.first}");
+        } else {
+          debugPrint("   > 💀 ERROR: No se encontró la fila en DB");
+        }
+      }
     });
   }
   // En local_inspection_repository.dart

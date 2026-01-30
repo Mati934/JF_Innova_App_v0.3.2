@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-// Ajusta la ruta si es necesario
 import '../../controllers/inspection_form_controller.dart';
 import '../../../domain/models/participante_model.dart';
 import 'package:uuid/uuid.dart';
@@ -48,9 +47,7 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                 style: TextStyle(color: Colors.grey),
               ),
             ),
-
           ...controller.participantes.map((p) {
-            // 1. Normalizamos el texto para no pelear con mayúsculas
             final cargoLower = p.cargo.toLowerCase();
             final esBuzo = p.cargo.toLowerCase().contains('buzo');
             final llevaControlSalud =
@@ -61,7 +58,6 @@ class BuceoCuadrillaWidget extends StatelessWidget {
               children: [
                 ListTile(
                   dense: true,
-                  // ... (El leading/avatar se queda igual con 'esBuzo') ...
                   leading: CircleAvatar(
                     backgroundColor: esBuzo
                         ? Colors.blue.shade100
@@ -83,7 +79,6 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // 4. CAMBIAMOS EL IF AQUÍ: Usamos 'llevaControlSalud' en vez de 'esBuzo'
                       if (llevaControlSalud) ...[
                         Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -114,7 +109,6 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                       ],
-                      // ... (Botón eliminar se queda igual)
                       IconButton(
                         icon: const Icon(
                           Icons.delete_outline,
@@ -178,7 +172,6 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
-
               TextField(
                 controller: nombreCtrl,
                 decoration: const InputDecoration(
@@ -188,7 +181,6 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 15),
-
               Row(
                 children: [
                   Expanded(
@@ -202,7 +194,6 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  // CAMPO MATRICULA NUEVO
                   Expanded(
                     child: TextField(
                       controller: matriculaCtrl,
@@ -217,7 +208,6 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 15),
-
               ValueListenableBuilder<String>(
                 valueListenable: cargoNotifier,
                 builder: (context, cargoActual, _) {
@@ -243,7 +233,6 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                   );
                 },
               ),
-
               const SizedBox(height: 25),
               SizedBox(
                 width: double.infinity,
@@ -260,8 +249,7 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                     if (nombreCtrl.text.isEmpty) return;
 
                     final nuevo = ParticipanteModel(
-                      personalId: const Uuid()
-                          .v4(), // ✅ PONER ESTO (Genera un ID real tipo a0eebc...)
+                      personalId: const Uuid().v4(),
                       nombreCompleto: nombreCtrl.text,
                       rut: rutCtrl.text,
                       cargo: cargoNotifier.value,
@@ -300,7 +288,7 @@ class BuceoVerificacionesWidget extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.all(12),
-      elevation: 4, // Un poco más de sombra para destacar al final
+      elevation: 4,
       color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -459,114 +447,164 @@ class BuceoTecnicoWidget extends StatelessWidget {
       elevation: 2,
       child: ExpansionTile(
         title: const Text(
-          "Detalles Técnicos (Compresores y Equipos)",
+          "Detalles Técnicos y Responsables",
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
-        leading: const Icon(Icons.build_circle_outlined, color: Colors.orange),
+        leading: const Icon(Icons.assignment_ind_outlined, color: Colors.blue),
+        initiallyExpanded: true,
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. N° INFORME (Arriba, ancho completo)
-                TextFormField(
-                  controller: controller.numeroInformeController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: "N° Informe",
-                    hintText: "Ej: 08",
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.confirmation_number_outlined),
-                  ),
-                ),
-
-                const Divider(height: 30),
-
-                const Text(
-                  "HORARIO AUDITORÍA",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color:
-                        Colors.grey, // Mismo color gris que los otros títulos
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // 2. HORA INICIO y 3. HORA TÉRMINO
+                // 1. DATOS DEL INFORME
                 Row(
                   children: [
                     Expanded(
                       flex: 2,
                       child: TextFormField(
-                        controller: controller.horaInicioController,
-                        readOnly: true,
-                        onTap: () => _seleccionarHora(context, true),
+                        controller: controller.numeroInformeController,
+                        keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
-                          labelText: "Inicio",
-                          hintText: "--:--",
+                          labelText: "N° Informe",
+                          hintText: "Ej: 01",
                           isDense: true,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 12,
-                          ),
                           border: OutlineInputBorder(),
-                          suffixIcon: Icon(Icons.access_time, size: 18),
+                          prefixIcon: Icon(Icons.confirmation_number),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-
-                    // 3. HORA TÉRMINO
+                    const SizedBox(width: 10),
                     Expanded(
-                      flex: 2,
-                      child: TextFormField(
-                        controller: controller.horaTerminoController,
-                        readOnly: true,
-                        onTap: () => _seleccionarHora(context, false),
-                        decoration: const InputDecoration(
-                          labelText: "Término",
-                          hintText: "--:--",
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 12,
-                          ),
-                          border: OutlineInputBorder(),
-                          suffixIcon: Icon(Icons.access_time_filled, size: 18),
+                      flex: 3,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Column(
+                          children: [
+                            const Text(
+                              "HORARIO AUDITORÍA",
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                InkWell(
+                                  onTap: () => _seleccionarHora(context, true),
+                                  child: Text(
+                                    controller.horaInicioController.text.isEmpty
+                                        ? "--:--"
+                                        : controller.horaInicioController.text,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue,
+                                    ),
+                                  ),
+                                ),
+                                const Text("-"),
+                                InkWell(
+                                  onTap: () => _seleccionarHora(context, false),
+                                  child: Text(
+                                    controller
+                                            .horaTerminoController
+                                            .text
+                                            .isEmpty
+                                        ? "--:--"
+                                        : controller.horaTerminoController.text,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ],
                 ),
 
-                const Divider(height: 30), // --- LÍNEA SEPARADORA
+                const Divider(height: 30, thickness: 1),
+
                 // -----------------------------------------------------------
-                // --- SUPERVISOR ---
+                // 🟢 SECCIÓN CORREGIDA: CONEXIÓN DIRECTA A CONTROLADORES
+                // -----------------------------------------------------------
                 const Text(
-                  "SUPERVISOR DE BUCEO",
+                  "PERSONAL DEL CENTRO",
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey,
+                    color: Colors.blue,
+                    fontSize: 12,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
+
+                // CAMPO 1: ENCARGADO (Usamos el controller, NO _TextInput)
+                TextFormField(
+                  controller: controller
+                      .encargadoCentroController, // <--- ESTA ES LA CLAVE
+                  decoration: const InputDecoration(
+                    labelText: "Encargado de Centro",
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person, size: 20),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                // CAMPO 2: SUPERVISOR (Usamos el controller, NO _TextInput)
+                TextFormField(
+                  controller: controller
+                      .supervisorCentroController, // <--- ESTA ES LA CLAVE
+                  decoration: const InputDecoration(
+                    labelText: "Supervisor de Centro",
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person_outline, size: 20),
+                  ),
+                ),
+
+                // -----------------------------------------------------------
+                const Divider(height: 30, thickness: 1),
+
+                // 3. PERSONAL CONTRATISTA (BUCEO)
+                const Text(
+                  "PERSONAL CONTRATISTA (EMPRESA BUCEO)",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
                       child: _TextInput(
-                        "Nombre",
+                        "Nombre Supervisor",
                         verificaciones.supervisorNombre,
                         (v) => controller.updateVerificacion(
                           (m) => m.supervisorNombre = v,
                         ),
+                        icon: Icons.engineering,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: _TextInput(
-                        "RUT",
+                        "RUT Supervisor",
                         verificaciones.supervisorRut,
                         (v) => controller.updateVerificacion(
                           (m) => m.supervisorRut = v,
@@ -575,116 +613,149 @@ class BuceoTecnicoWidget extends StatelessWidget {
                     ),
                   ],
                 ),
-                const Divider(height: 30),
 
-                // --- COMPRESOR 1 ---
+                const Divider(height: 30, thickness: 1),
+
+                // 4. EQUIPOS Y COMPRESORES
                 const Text(
-                  "COMPRESOR 1",
+                  "EQUIPOS Y COMPRESORES",
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.grey,
+                    fontSize: 12,
                   ),
                 ),
-                const SizedBox(height: 8),
-                _TextInput(
-                  "N° Matrícula",
-                  verificaciones.compresor1Matricula,
-                  (v) => controller.updateVerificacion(
-                    (m) => m.compresor1Matricula = v,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _DateInput(
-                        context,
-                        "Vigencia",
-                        verificaciones.compresor1Vigencia,
-                        (v) => controller.updateVerificacion(
-                          (m) => m.compresor1Vigencia = v,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // NUEVO: VIGENCIA P.H.
-                    Expanded(
-                      child: _DateInput(
-                        context,
-                        "Vigencia P.H.",
-                        verificaciones.compresor1VigenciaPH,
-                        (v) => controller.updateVerificacion(
-                          (m) => m.compresor1VigenciaPH = v,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                _TextInput(
-                  "N° Buzos",
-                  verificaciones.compresor1BuzosCargo?.toString(),
-                  (v) => controller.updateVerificacion(
-                    (m) => m.compresor1BuzosCargo = int.tryParse(v),
-                  ),
-                  isNumber: true,
-                ),
-                const Divider(height: 30),
+                const SizedBox(height: 10),
 
-                // --- COMPRESOR 2 (Opcional) ---
-                const Text(
-                  "COMPRESOR 2",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey,
+                // COMPRESOR 1
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                ),
-                const SizedBox(height: 8),
-                _TextInput(
-                  "N° Matrícula",
-                  verificaciones.compresor2Matricula,
-                  (v) => controller.updateVerificacion(
-                    (m) => m.compresor2Matricula = v,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _DateInput(
-                        context,
-                        "Vigencia",
-                        verificaciones.compresor2Vigencia,
-                        (v) => controller.updateVerificacion(
-                          (m) => m.compresor2Vigencia = v,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Compresor N°1",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    // NUEVO: VIGENCIA P.H.
-                    Expanded(
-                      child: _DateInput(
-                        context,
-                        "Vigencia P.H.",
-                        verificaciones.compresor2VigenciaPH,
+                      const SizedBox(height: 5),
+                      _TextInput(
+                        "Matrícula",
+                        verificaciones.compresor1Matricula,
                         (v) => controller.updateVerificacion(
-                          (m) => m.compresor2VigenciaPH = v,
+                          (m) => m.compresor1Matricula = v,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                _TextInput(
-                  "N° Buzos",
-                  verificaciones.compresor2BuzosCargo?.toString(),
-                  (v) => controller.updateVerificacion(
-                    (m) => m.compresor2BuzosCargo = int.tryParse(v),
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _DateInput(
+                              context,
+                              "Vigencia",
+                              verificaciones.compresor1Vigencia,
+                              (v) => controller.updateVerificacion(
+                                (m) => m.compresor1Vigencia = v,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: _DateInput(
+                              context,
+                              "Vigencia P.H.",
+                              verificaciones.compresor1VigenciaPH,
+                              (v) => controller.updateVerificacion(
+                                (m) => m.compresor1VigenciaPH = v,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      _TextInput(
+                        "N° Buzos a cargo",
+                        verificaciones.compresor1BuzosCargo?.toString(),
+                        (v) => controller.updateVerificacion(
+                          (m) => m.compresor1BuzosCargo = int.tryParse(v),
+                        ),
+                        isNumber: true,
+                      ),
+                    ],
                   ),
-                  isNumber: true,
                 ),
 
-                // (YA NO ESTÁ EL CERTIFICADO DE INSPECCIÓN AQUÍ)
+                const SizedBox(height: 10),
+
+                // COMPRESOR 2
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Compresor N°2 (Opcional)",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      _TextInput(
+                        "Matrícula",
+                        verificaciones.compresor2Matricula,
+                        (v) => controller.updateVerificacion(
+                          (m) => m.compresor2Matricula = v,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _DateInput(
+                              context,
+                              "Vigencia",
+                              verificaciones.compresor2Vigencia,
+                              (v) => controller.updateVerificacion(
+                                (m) => m.compresor2Vigencia = v,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: _DateInput(
+                              context,
+                              "Vigencia P.H.",
+                              verificaciones.compresor2VigenciaPH,
+                              (v) => controller.updateVerificacion(
+                                (m) => m.compresor2VigenciaPH = v,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      _TextInput(
+                        "N° Buzos a cargo",
+                        verificaciones.compresor2BuzosCargo?.toString(),
+                        (v) => controller.updateVerificacion(
+                          (m) => m.compresor2BuzosCargo = int.tryParse(v),
+                        ),
+                        isNumber: true,
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -693,22 +764,20 @@ class BuceoTecnicoWidget extends StatelessWidget {
     );
   }
 
-  // Lógica para mostrar el reloj
+  // --- MÉTODOS AUXILIARES DENTRO DE LA CLASE ---
+
   Future<void> _seleccionarHora(BuildContext context, bool isInicio) async {
     final initial = controller.getHoraInicialReloj(isInicio);
-
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: initial,
       builder: (context, child) {
         return MediaQuery(
-          // Opcional: Forzar 24h
           data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
           child: child!,
         );
       },
     );
-
     if (picked != null) {
       controller.actualizarHora(isInicio, picked);
     }
@@ -719,6 +788,7 @@ class BuceoTecnicoWidget extends StatelessWidget {
     String? val,
     Function(String) onChanged, {
     bool isNumber = false,
+    IconData? icon,
   }) {
     return TextFormField(
       initialValue: val,
@@ -727,6 +797,7 @@ class BuceoTecnicoWidget extends StatelessWidget {
         labelText: label,
         isDense: true,
         border: const OutlineInputBorder(),
+        prefixIcon: icon != null ? Icon(icon, size: 20) : null,
       ),
       onChanged: onChanged,
     );
@@ -753,11 +824,18 @@ class BuceoTecnicoWidget extends StatelessWidget {
           labelText: label,
           isDense: true,
           border: const OutlineInputBorder(),
-          suffixIcon: const Icon(Icons.calendar_today, size: 18),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 12,
+          ),
+          suffixIcon: const Icon(Icons.calendar_today, size: 16),
         ),
         child: Text(
-          val != null ? "${val.day}/${val.month}/${val.year}" : "Seleccionar",
-          style: TextStyle(color: val != null ? Colors.black : Colors.grey),
+          val != null ? "${val.day}/${val.month}/${val.year}" : "-",
+          style: TextStyle(
+            color: val != null ? Colors.black : Colors.grey,
+            fontSize: 13,
+          ),
         ),
       ),
     );

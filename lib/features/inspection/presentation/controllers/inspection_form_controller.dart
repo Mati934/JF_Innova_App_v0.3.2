@@ -29,6 +29,7 @@ class InspectionFormController extends ChangeNotifier {
   bool _isLoading = true;
   bool _isSaving = false;
   String? _errorMessage;
+  int _numeroSeguimiento = 0;
 
   final Map<String, String> respuestas = {};
   final Map<String, String> observaciones = {};
@@ -40,6 +41,12 @@ class InspectionFormController extends ChangeNotifier {
       TextEditingController(); // NUEVO
   final TextEditingController horaTerminoController =
       TextEditingController(); // NUEVO
+
+  // 🟢 NUEVOS: Para capturar lo que el usuario escribe
+  final TextEditingController encargadoCentroController =
+      TextEditingController();
+  final TextEditingController supervisorCentroController =
+      TextEditingController();
 
   List<File> fotosGenerales = [];
 
@@ -63,6 +70,8 @@ class InspectionFormController extends ChangeNotifier {
     numeroInformeController.dispose();
     horaInicioController.dispose(); // NUEVO
     horaTerminoController.dispose(); // NUEVO
+    encargadoCentroController.dispose(); // 🟢 Limpieza
+    supervisorCentroController.dispose(); // 🟢 Limpieza
     _disposed = true;
     super.dispose();
   }
@@ -96,6 +105,7 @@ class InspectionFormController extends ChangeNotifier {
           usuarioId = data['usuario_id'] as String?;
           contratistaId = data['contratista_id'] as String?;
           embarcacionId = data['embarcacion_id'] as String?;
+          _numeroSeguimiento = data['numero_seguimiento'] as int? ?? 0;
 
           // RECUPERAR NÚMERO REPORTE
           if (data['numero_reporte'] != null &&
@@ -167,6 +177,9 @@ class InspectionFormController extends ChangeNotifier {
         final datosBuceo = await _repo.getVerificacionesBuceo(activityId);
         if (datosBuceo != null) {
           verificacionesBuceo = datosBuceo;
+          // 🟢 CARGAMOS LOS DATOS GUARDADOS EN LOS TEXTFIELDS DE LA UI
+          encargadoCentroController.text = datosBuceo.encargadoCentro ?? '';
+          supervisorCentroController.text = datosBuceo.supervisorCentro ?? '';
         } else {
           verificacionesBuceo = BuceoVerificacionModel(actividadId: activityId);
         }
@@ -424,6 +437,7 @@ class InspectionFormController extends ChangeNotifier {
       'embarcacion_id': embarcacionId,
       'fecha_realizacion': DateTime.now().toIso8601String(),
       'numero_reporte': numeroInformeController.text.trim(),
+      'numero_seguimiento': _numeroSeguimiento,
     };
 
     // 2. Respuestas
@@ -518,7 +532,33 @@ class InspectionFormController extends ChangeNotifier {
 
     if (tipoActividad == 'INSPECCION_BUCEO') {
       if (verificacionesBuceo != null) {
+        // 🟢 ARREGLO: ACTUALIZAR EL MODELO CON LOS DATOS DE LOS TEXTFIELDS ANTES DE MAPEAR
+        // Si verificacionesBuceo es null, lo creamos
+        verificacionesBuceo ??= BuceoVerificacionModel(actividadId: activityId);
+
+        debugPrint("🕵️ [LOG 1] UI -> Controller:");
+        debugPrint(
+          "   > Encargado Controller Text: '${encargadoCentroController.text}'",
+        );
+        debugPrint(
+          "   > Supervisor Controller Text: '${supervisorCentroController.text}'",
+        );
+
+        // Inyectamos los valores de los controladores
+        verificacionesBuceo!.encargadoCentro = encargadoCentroController.text
+            .trim();
+        verificacionesBuceo!.supervisorCentro = supervisorCentroController.text
+            .trim();
+        verificacionesBuceo!.horaInicio = horaInicioController.text.trim();
+        verificacionesBuceo!.horaTermino = horaTerminoController.text.trim();
         verificacionesMap = verificacionesBuceo!.toMap();
+        debugPrint("🕵️ [LOG 2] Controller -> Mapa:");
+        debugPrint(
+          "   > Mapa['encargado_centro']: '${verificacionesMap['encargado_centro']}'",
+        );
+        debugPrint(
+          "   > Mapa['supervisor_centro']: '${verificacionesMap['supervisor_centro']}'",
+        );
       }
       if (participantes.isNotEmpty) {
         participantesMap = participantes.map((p) {
@@ -582,50 +622,105 @@ class InspectionFormController extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
-      // AUTO-TERMINO: Solo si el campo está vacío, lo llenamos automático
-      // Si el usuario ya puso algo manual, respetamos eso.
+      // 1. Hora Término Automática
       if (horaTerminoController.text.isEmpty) {
         final now = TimeOfDay.now();
         final horaFinStr =
             "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
-
         horaTerminoController.text = horaFinStr;
         updateVerificacion((m) => m.horaTermino = horaFinStr);
-        debugPrint("🏁 Hora Término PDF (Auto): $horaFinStr");
       }
 
-      // ESTO ESTÁ BIEN: Solo pone la hora automática si NO has escrito nada
-      if (tipoActividad == 'INSPECCION_BUCEO') {
-        // Verificamos si el campo visual (controller) está vacío
-        if (horaTerminoController.text.isEmpty) {
-          final now = TimeOfDay.now();
-          final horaFinStr =
-              "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+      // 2. DEFINIR LA BASE DE DATOS AL PRINCIPIO
+      final db = await DatabaseHelper.instance.database;
 
-          // 1. Actualizamos el texto en pantalla
-          horaTerminoController.text = horaFinStr;
+      // -----------------------------------------------------------------------
+      // 🟢 CAMBIO 1: CONSULTAR SI ES CONSECUTIVA O INICIAL
+      // -----------------------------------------------------------------------
+      bool esConsecutivaDb = false; // Default: INICIAL (0)
 
-          // 2. Guardamos en el modelo
-          updateVerificacion((m) => m.horaTermino = horaFinStr);
+      try {
+        // Usamos 'activityId' que es la variable oficial de tu clase
+        final resInsp = await db.query(
+          'inspecciones', // ⚠️ Asegúrate que tu tabla se llama 'inspecciones'. Si es 'actividades', cámbialo aquí.
+          columns: ['numero_seguimiento'],
+          where: 'id = ?',
+          whereArgs: [activityId],
+        );
 
-          debugPrint("🏁 Hora Término Automática aplicada: $horaFinStr");
-        } else {
+        if (resInsp.isNotEmpty) {
+          final val = resInsp.first['numero_seguimiento'] as int? ?? 0;
+          esConsecutivaDb = (val == 1);
           debugPrint(
-            "✅ Se respeta la hora manual: ${horaTerminoController.text}",
+            "🧐 Tipo Inspección (DB): ${esConsecutivaDb ? 'CONSECUTIVA' : 'INICIAL'}",
           );
         }
+      } catch (e) {
+        debugPrint("⚠️ Error leyendo tipo de inspección: $e");
+        // Si falla, no rompemos nada, asumimos 'Inicial' y seguimos.
       }
+      // -----------------------------------------------------------------------
 
-      // CLIENTE FIJO AQUACHILE
-      String nombreCliente = "AQUACHILE";
-      String nombreEmpresa = "JF INNOVA";
+      // --- 🔍 INICIO ZONA DE DEBUG (DIAGNÓSTICO) ---
+      debugPrint("\n🔴🔴🔴 --- INICIO DIAGNÓSTICO USUARIO --- 🔴🔴🔴");
+
+      // 3. VARIABLES INICIALES
+      String nombreCliente = "S/N";
+      String nombreEmpresaContratista = "S/N";
       String nombreCentro = "CENTRO S/N";
       String nombreArea = "ÁREA S/N";
       String nombreEmbarcacion = "NAVE S/N";
       String matriculaEmbarcacion = "S/N";
 
-      final db = await DatabaseHelper.instance.database;
+      // --- INICIO LÓGICA NOMBRE PROFESIONAL ---
+      String nombreProfesional = "USUARIO APP";
 
+      // A. Intento Supabase (Memoria/Offline Cache)
+      final currentUser = Supabase.instance.client.auth.currentUser;
+
+      debugPrint("1. Supabase User ID: ${currentUser?.id}");
+      debugPrint("2. Metadata RAW: ${currentUser?.userMetadata}");
+
+      if (currentUser != null && currentUser.userMetadata != null) {
+        final meta = currentUser.userMetadata!;
+        nombreProfesional =
+            meta['nombre_completo'] ??
+            meta['nombre'] ??
+            meta['full_name'] ??
+            meta['name'] ??
+            "USUARIO APP";
+        debugPrint("✅ Nombre encontrado en Supabase: $nombreProfesional");
+      } else {
+        debugPrint("❌ No se encontró nombre en metadata de Supabase.");
+      }
+
+      // B. Intento SQLite (Respaldo Local)
+      if (nombreProfesional == "USUARIO APP" && usuarioId != null) {
+        debugPrint("⚠️ Entrando a Respaldo SQLite con ID: $usuarioId");
+        try {
+          final resUser = await db.query(
+            'usuarios',
+            where: 'id = ?',
+            whereArgs: [usuarioId],
+          );
+
+          debugPrint("3. Resultado SQLite: $resUser");
+
+          if (resUser.isNotEmpty) {
+            nombreProfesional =
+                resUser.first['nombre_completo'] as String? ?? "USUARIO APP";
+            debugPrint("✅ Nombre recuperado de SQLite: $nombreProfesional");
+          }
+        } catch (e) {
+          debugPrint("⚠️ Error/Tabla usuarios no encontrada localmente: $e");
+        }
+      }
+
+      debugPrint("🏁 NOMBRE FINAL A IMPRIMIR: $nombreProfesional");
+      debugPrint("🔴🔴🔴 --- FIN DIAGNÓSTICO --- 🔴🔴🔴\n");
+      // --- FIN LÓGICA NOMBRE ---
+
+      // B. Buscar Centro, Área y Cliente
       if (centroId != null) {
         final resCentro = await db.query(
           'centros',
@@ -635,6 +730,7 @@ class InspectionFormController extends ChangeNotifier {
         if (resCentro.isNotEmpty) {
           nombreCentro = resCentro.first['nombre'] as String;
           final areaId = resCentro.first['area_id'] as String;
+
           final resArea = await db.query(
             'areas',
             where: 'id = ?',
@@ -642,18 +738,36 @@ class InspectionFormController extends ChangeNotifier {
           );
           if (resArea.isNotEmpty) {
             nombreArea = resArea.first['nombre'] as String;
+
+            // Buscar Cliente (Empresa dueña del área)
+            if (resArea.first['empresa_id'] != null) {
+              final empresaId = resArea.first['empresa_id'] as String;
+              final resCliente = await db.query(
+                'empresas',
+                where: 'id = ?',
+                whereArgs: [empresaId],
+              );
+              if (resCliente.isNotEmpty) {
+                nombreCliente = resCliente.first['nombre'] as String;
+              }
+            }
           }
         }
       }
 
+      // C. Buscar Contratista
       if (contratistaId != null) {
-        await db.query(
+        final resContratista = await db.query(
           'contratistas',
           where: 'id = ?',
           whereArgs: [contratistaId],
         );
+        if (resContratista.isNotEmpty) {
+          nombreEmpresaContratista = resContratista.first['nombre'] as String;
+        }
       }
 
+      // D. Buscar Embarcación
       if (embarcacionId != null) {
         final resNave = await db.query(
           'embarcaciones',
@@ -667,6 +781,7 @@ class InspectionFormController extends ChangeNotifier {
         }
       }
 
+      // 4. PROCESAMIENTO DE CHECKLIST (Igual que antes...)
       int countC = 0;
       int countNC = 0;
       int countNA = 0;
@@ -706,6 +821,7 @@ class InspectionFormController extends ChangeNotifier {
         );
       }
 
+      // 5. FOTOS Y EQUIPO
       List<Uint8List> galeriaGeneralBytes = [];
       for (var file in fotosGenerales) {
         if (await file.exists()) {
@@ -719,11 +835,7 @@ class InspectionFormController extends ChangeNotifier {
         if (cargoLower.contains("buzo") ||
             cargoLower.contains("asistente") ||
             cargoLower.contains("supervisor")) {
-          if (p.condicionesOptimas) {
-            textoCondicion = "Optima";
-          } else {
-            textoCondicion = "NO APTO";
-          }
+          textoCondicion = p.condicionesOptimas ? "Optima" : "NO APTO";
         }
         return PersonalDto(
           nombre: p.nombreCompleto,
@@ -738,19 +850,13 @@ class InspectionFormController extends ChangeNotifier {
       final fechaStr =
           "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
 
-      String? ph1;
-      if (verificacionesBuceo?.compresor1VigenciaPH != null) {
-        final d = verificacionesBuceo!.compresor1VigenciaPH!;
-        ph1 =
-            "${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}";
+      String fmtFecha(DateTime? d) {
+        if (d == null) return "-";
+        return "${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}";
       }
 
-      String? ph2;
-      if (verificacionesBuceo?.compresor2VigenciaPH != null) {
-        final d = verificacionesBuceo!.compresor2VigenciaPH!;
-        ph2 =
-            "${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}";
-      }
+      String? ph1 = fmtFecha(verificacionesBuceo?.compresor1VigenciaPH);
+      String? ph2 = fmtFecha(verificacionesBuceo?.compresor2VigenciaPH);
 
       final bool checklistOk = countIntolerables == 0;
       bool seguridadBuceoOk = true;
@@ -773,16 +879,14 @@ class InspectionFormController extends ChangeNotifier {
       };
 
       final obsPrevencionista =
-          verificacionesBuceo?.observacionGeneral ??
-          "Sin observaciones registradas.";
+          verificacionesBuceo?.observacionGeneral ?? "Sin observaciones.";
 
-      String fmtFecha(DateTime? d) {
-        if (d == null) return "-";
-        return "${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}";
-      }
-
+      // 6. CREAR REPORTE DTO
       final reportData = InspectionReportData(
-        empresaContratista: nombreEmpresa,
+        // 🟢 CAMBIO 2: PASAR EL DATO AL PDF
+        esConsecutiva: esConsecutivaDb, // <--- AQUÍ SE INYECTA
+
+        empresaContratista: nombreEmpresaContratista,
         cliente: nombreCliente,
         logoUrl: "",
         numeroReporte: numeroInformeController.text.isNotEmpty
@@ -793,6 +897,11 @@ class InspectionFormController extends ChangeNotifier {
         area: nombreArea,
         embarcacion: nombreEmbarcacion,
         matricula: matriculaEmbarcacion,
+
+        encargadoCentro: verificacionesBuceo?.encargadoCentro,
+        supervisorCentro: verificacionesBuceo?.supervisorCentro,
+        profesional: nombreProfesional,
+
         tipoFaena: "INSPECCIÓN DE BUCEO",
         supervisor: verificacionesBuceo?.supervisorNombre ?? "No asignado",
 
@@ -801,13 +910,13 @@ class InspectionFormController extends ChangeNotifier {
 
         compresor1Matricula: verificacionesBuceo?.compresor1Matricula ?? "-",
         compresor1Vigencia: fmtFecha(verificacionesBuceo?.compresor1Vigencia),
-        compresor1PH: ph1 ?? "-",
+        compresor1PH: ph1,
         compresor1Buzos:
             verificacionesBuceo?.compresor1BuzosCargo?.toString() ?? "0",
 
         compresor2Matricula: verificacionesBuceo?.compresor2Matricula ?? "-",
         compresor2Vigencia: fmtFecha(verificacionesBuceo?.compresor2Vigencia),
-        compresor2PH: ph2 ?? "-",
+        compresor2PH: ph2,
         compresor2Buzos:
             verificacionesBuceo?.compresor2BuzosCargo?.toString() ?? "0",
 

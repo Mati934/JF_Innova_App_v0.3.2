@@ -19,10 +19,27 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    // CAMBIO AQUI: version: 2 y agregamos onUpgrade
+    return await openDatabase(
+      path,
+      version: 2,
+      onCreate: _createDB,
+      onUpgrade: _onUpgrade,
+    );
   }
 
   Future<void> _createDB(Database db, int version) async {
+    // TABLA USUARIOS
+    await db.execute('''
+      CREATE TABLE usuarios (
+        id TEXT PRIMARY KEY,
+        rut TEXT,
+        nombre_completo TEXT,
+        email TEXT,
+        rol_id TEXT
+      )
+    ''');
+
     // 1. ITEMS DEL FORMULARIO
     await db.execute('''
       CREATE TABLE formulario_items (
@@ -86,7 +103,8 @@ class DatabaseHelper {
         puerto_abierto INTEGER, 
         observaciones_generales TEXT,
         estado_final TEXT,
-        numero_reporte TEXT, 
+        numero_reporte TEXT,
+        numero_seguimiento INTEGER DEFAULT 0,
         subido INTEGER DEFAULT 0
       )
     ''');
@@ -108,6 +126,9 @@ class DatabaseHelper {
         -- DATOS TÉCNICOS
         supervisor_nombre TEXT,
         supervisor_rut TEXT,
+
+        encargado_centro TEXT,     -- NUEVO: Jefe de Centro (AquaChile)
+        supervisor_centro TEXT,    -- NUEVO: Supervisor de Turno (AquaChile)
 
         -- HORARIOS (ESTO ERA LO QUE FALTABA)
         hora_inicio TEXT,
@@ -157,6 +178,27 @@ class DatabaseHelper {
     print("✅ Base de datos v9 inicializada con TODAS las columnas nuevas.");
   }
   // --- MÉTODOS CRUD GENÉRICOS ---
+
+  // 🟢 NUEVO MÉTODO DE MIGRACIÓN
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    debugPrint(
+      "🔧 DETECTADA ACTUALIZACIÓN DE BD: v$oldVersion -> v$newVersion",
+    );
+
+    if (oldVersion < 2) {
+      debugPrint("🚀 Aplicando parche v2: Agregar numero_seguimiento...");
+      try {
+        // Inyectamos la columna que falta sin borrar la tabla
+        await db.execute(
+          "ALTER TABLE actividades_pendientes ADD COLUMN numero_seguimiento INTEGER DEFAULT 0",
+        );
+        debugPrint("✅ Columna 'numero_seguimiento' agregada con éxito.");
+      } catch (e) {
+        // Si por alguna razón ya existía (ej: reiniciaste muchas veces), no rompemos nada.
+        debugPrint("⚠️ Advertencia en migración: $e");
+      }
+    }
+  }
 
   Future<void> guardarMaestros(
     String tabla,

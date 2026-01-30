@@ -30,6 +30,10 @@ class InspectionSetupController extends ChangeNotifier {
   String? contratistaId;
   String? embarcacionId;
 
+  // --- NUEVA VARIABLE: TIPO DE REPORTE ---
+  // false = Inicial (0), true = Consecutiva (1)
+  bool _esConsecutiva = false;
+
   final TextEditingController numeroInformeController = TextEditingController();
 
   // Datos calculados para la navegación posterior
@@ -56,6 +60,7 @@ class InspectionSetupController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
   String? get errorMessage => _errorMessage;
+  bool get esConsecutiva => _esConsecutiva; // Getter para la UI
 
   List<Map<String, dynamic>> get areas => _areas;
   List<Map<String, dynamic>> get centros => _centros;
@@ -85,6 +90,12 @@ class InspectionSetupController extends ChangeNotifier {
   }
 
   // --- MÉTODOS DE SELECCIÓN ---
+
+  // NUEVO MÉTODO PARA CAMBIAR TIPO
+  void setEsConsecutiva(bool valor) {
+    _esConsecutiva = valor;
+    notifyListeners();
+  }
 
   void setArea(String? v) {
     areaId = v;
@@ -207,7 +218,13 @@ class InspectionSetupController extends ChangeNotifier {
         'observaciones_generales': obs,
         'contratista_id': esInspeccionCompleta ? contratistaId : null,
         'embarcacion_id': esInspeccionCompleta ? embarcacionId : null,
-        'estado_final': 'En Seguimiento',
+        // --- CAMBIOS CLAVE AQUÍ ---
+        'estado_final':
+            'En Progreso', // CORREGIDO: Siempre empieza en Progreso para salir en borradores
+        'numero_seguimiento': _esConsecutiva
+            ? 1
+            : 0, // 0 = Inicial, 1 = Consecutiva
+        // --------------------------
         'subido': 0,
         'numero_reporte': numeroInformeController.text.trim(),
       };

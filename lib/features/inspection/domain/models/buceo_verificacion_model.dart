@@ -1,20 +1,26 @@
 class BuceoVerificacionModel {
   final String actividadId;
 
-  // CHECKS DE SEGURIDAD (Ya los tenías)
+  // CHECKS DE SEGURIDAD
   bool autorizacionAutoridadMaritima;
   bool induccionCentroCultivo;
   bool permisoBuceoCentroCorrecto;
   bool planContingenciasCentroOk;
   bool examenesOcupacionalesVigentes;
 
-  // ESTADOS (Ya los tenías)
+  // ESTADOS
   String? observacionGeneral;
   String? estadoManual;
 
-  // --- NUEVOS CAMPOS (ADMINISTRATIVOS Y TÉCNICOS) ---
+  // --- PERSONAL CONTRATISTA (EMPRESA BUCEO) ---
   String? supervisorNombre;
   String? supervisorRut;
+
+  // --- PERSONAL CENTRO (AQUACHILE - NUEVOS) ---
+  String? encargadoCentro; // Jefe de Centro
+  String? supervisorCentro; // Supervisor de Turno
+
+  // --- DATOS TÉCNICOS ---
 
   // Compresor 1
   String? compresor1Matricula;
@@ -28,11 +34,9 @@ class BuceoVerificacionModel {
   DateTime? compresor2VigenciaPH;
   int? compresor2BuzosCargo;
 
+  // Horarios
   String? horaInicio;
   String? horaTermino;
-  // En BuceoVerificacionModel
-
-  // No olvides agregarlos al constructor, al toMap() y al fromMap()
 
   BuceoVerificacionModel({
     required this.actividadId,
@@ -43,9 +47,16 @@ class BuceoVerificacionModel {
     this.examenesOcupacionalesVigentes = false,
     this.observacionGeneral,
     this.estadoManual,
-    // Nuevos
+
+    // Contratista
     this.supervisorNombre,
     this.supervisorRut,
+
+    // Cliente (AquaChile) - NUEVOS
+    this.encargadoCentro,
+    this.supervisorCentro,
+
+    // Compresores y Horarios
     this.compresor1Matricula,
     this.compresor1Vigencia,
     this.compresor1VigenciaPH,
@@ -58,9 +69,12 @@ class BuceoVerificacionModel {
     this.horaTermino,
   });
 
+  // Lógica de validación
   bool get faenaHabilitada {
     if (estadoManual == 'APROBADO') return true;
     if (estadoManual == 'SUSPENDIDO') return false;
+
+    // Si no es manual, depende de los switchs críticos
     return autorizacionAutoridadMaritima &&
         induccionCentroCultivo &&
         permisoBuceoCentroCorrecto &&
@@ -78,20 +92,29 @@ class BuceoVerificacionModel {
       'examenes_ocupacionales_vigentes': examenesOcupacionalesVigentes ? 1 : 0,
       'observacion_general': observacionGeneral,
       'estado_manual': estadoManual,
-      // Nuevos
+
+      // Contratista
       'supervisor_nombre': supervisorNombre,
       'supervisor_rut': supervisorRut,
+
+      // Cliente (AquaChile) - NUEVOS (Deben coincidir con database_helper)
+      'encargado_centro': encargadoCentro,
+      'supervisor_centro': supervisorCentro,
+
+      // Horarios
       'hora_inicio': horaInicio,
       'hora_termino': horaTermino,
+
+      // Compresor 1
       'compresor_1_matricula': compresor1Matricula,
       'compresor_1_vigencia': compresor1Vigencia?.toIso8601String(),
-      'compresor_1_vigencia_ph': compresor1VigenciaPH
-          ?.toIso8601String(), // NUEVO
+      'compresor_1_vigencia_ph': compresor1VigenciaPH?.toIso8601String(),
       'compresor_1_buzos_cargo': compresor1BuzosCargo,
+
+      // Compresor 2
       'compresor_2_matricula': compresor2Matricula,
       'compresor_2_vigencia': compresor2Vigencia?.toIso8601String(),
-      'compresor_2_vigencia_ph': compresor2VigenciaPH
-          ?.toIso8601String(), // NUEVO
+      'compresor_2_vigencia_ph': compresor2VigenciaPH?.toIso8601String(),
       'compresor_2_buzos_cargo': compresor2BuzosCargo,
     };
   }
@@ -108,28 +131,34 @@ class BuceoVerificacionModel {
           map['examenes_ocupacionales_vigentes'] == 1,
       observacionGeneral: map['observacion_general'],
       estadoManual: map['estado_manual'],
-      // Nuevos
+
+      // Contratista
       supervisorNombre: map['supervisor_nombre'],
       supervisorRut: map['supervisor_rut'],
+
+      // Cliente (AquaChile) - NUEVOS
+      encargadoCentro: map['encargado_centro'],
+      supervisorCentro: map['supervisor_centro'],
+
+      // Horarios
       horaInicio: map['hora_inicio'],
       horaTermino: map['hora_termino'],
+
+      // Compresores (con seguridad de nulos)
       compresor1Matricula: map['compresor_1_matricula'],
       compresor1Vigencia: map['compresor_1_vigencia'] != null
           ? DateTime.tryParse(map['compresor_1_vigencia'])
           : null,
-      compresor1VigenciaPH:
-          map['compresor_1_vigencia_ph'] !=
-              null // NUEVO
+      compresor1VigenciaPH: map['compresor_1_vigencia_ph'] != null
           ? DateTime.tryParse(map['compresor_1_vigencia_ph'])
           : null,
       compresor1BuzosCargo: map['compresor_1_buzos_cargo'],
+
       compresor2Matricula: map['compresor_2_matricula'],
       compresor2Vigencia: map['compresor_2_vigencia'] != null
           ? DateTime.tryParse(map['compresor_2_vigencia'])
           : null,
-      compresor2VigenciaPH:
-          map['compresor_2_vigencia_ph'] !=
-              null // NUEVO
+      compresor2VigenciaPH: map['compresor_2_vigencia_ph'] != null
           ? DateTime.tryParse(map['compresor_2_vigencia_ph'])
           : null,
       compresor2BuzosCargo: map['compresor_2_buzos_cargo'],

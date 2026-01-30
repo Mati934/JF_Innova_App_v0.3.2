@@ -92,17 +92,21 @@ class PdfGeneratorService {
 
   // --- WIDGETS ---
 
+  // Archivo: lib/features/inspection/presentation/services/pdf_generator_service.dart
+
   pw.Widget _buildHeaderDense(InspectionReportData data, pw.MemoryImage? logo) {
     return pw.Container(
-      decoration: const pw.BoxDecoration(
-        border: pw.Border(bottom: pw.BorderSide(width: 0.5)),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 0.5),
       ),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       margin: const pw.EdgeInsets.only(bottom: 10),
-      padding: const pw.EdgeInsets.only(bottom: 5),
       child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
+          // COLUMNA 1: Título y Datos Izquierda (SIN CAMBIOS)
           pw.Expanded(
-            flex: 3,
+            flex: 4,
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
@@ -110,59 +114,98 @@ class PdfGeneratorService {
                   "INFORME TÉCNICO",
                   style: pw.TextStyle(
                     fontWeight: pw.FontWeight.bold,
-                    fontSize: 12,
+                    fontSize: 14,
                   ),
                 ),
-                pw.SizedBox(height: 4),
-                _rowInfo("CLIENTE:", data.cliente),
-                _rowInfo("EMPRESA:", data.empresaContratista),
+                pw.Text(
+                  "JF INNOVA",
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 8,
+                    color: PdfColors.grey500,
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                _rowInfo("CENTRO:", data.centro),
+                _rowInfo("ÁREA:", data.area),
+                _rowInfo("ENCARGADO C.:", data.encargadoCentro ?? "N/A"),
+                _rowInfo("PROFESIONAL:", data.profesional ?? "N/A"),
                 _rowInfo("FECHA:", data.fecha),
               ],
             ),
           ),
+
+          pw.SizedBox(width: 8),
+
+          // COLUMNA 2: Datos Derecha (SIN CAMBIOS)
           pw.Expanded(
-            flex: 3,
+            flex: 4,
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                _rowInfo("CENTRO:", data.centro),
-                _rowInfo("ÁREA:", data.area),
-                _rowInfo("EMBARCACION:", data.embarcacion),
+                pw.SizedBox(height: 28),
+                _rowInfo("EMPRESA:", data.empresaContratista),
+                _rowInfo("EMBARCACIÓN:", data.embarcacion),
                 _rowInfo("MATRÍCULA:", data.matricula),
+                _rowInfo("SUPERVISOR:", data.supervisor),
               ],
             ),
           ),
+
+          // COLUMNA 3: Logo, N° Informe y Tipo (MODIFICADO)
           pw.Expanded(
-            flex: 2,
+            flex: 3,
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.end,
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
+                // LOGO
                 pw.Container(
                   height: 40,
-                  alignment: pw.Alignment.centerRight,
+                  alignment: pw.Alignment.topRight,
                   child: logo != null
                       ? pw.Image(logo, fit: pw.BoxFit.contain)
-                      : pw.Text(
-                          "[LOGO]",
-                          style: const pw.TextStyle(
-                            color: PdfColors.grey,
-                            fontSize: 8,
-                          ),
-                        ),
+                      : pw.Text("[LOGO]"),
                 ),
-                pw.SizedBox(height: 5),
-                pw.Container(
-                  padding: const pw.EdgeInsets.all(2),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(width: 0.5),
-                  ),
-                  child: pw.Text(
-                    "N° INFORME: ${data.numeroReporte}",
-                    style: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold,
-                      fontSize: 8,
+
+                // Espacio flexible
+                pw.SizedBox(height: 10),
+
+                // --- BLOQUE INFORME + TIPO ---
+                // Agrupamos en una columna para que el texto quede pegado al recuadro
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    // RECUADRO N° INFORME
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(width: 1),
+                      ),
+                      child: pw.Text(
+                        "N° INFORME: ${data.numeroReporte}",
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 9,
+                        ),
+                      ),
                     ),
-                  ),
+
+                    // --- NUEVO: TEXTO INICIAL / CONSECUTIVA ---
+                    pw.SizedBox(height: 3), // Pequeña separación visual
+                    pw.Text(
+                      data.esConsecutiva ? "(CONSECUTIVA)" : "(INICIAL)",
+                      style: pw.TextStyle(
+                        fontSize: 8,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.grey700, // Gris sutil para jerarquía
+                      ),
+                    ),
+                    // ------------------------------------------
+                  ],
                 ),
               ],
             ),
@@ -254,23 +297,27 @@ class PdfGeneratorService {
     );
   }
 
+  // 2. ACTUALIZA ESTE MÉTODO AUXILIAR (Para ajustar anchos y estilos)
   pw.Widget _rowInfo(String label, String value) {
     return pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 1),
+      padding: const pw.EdgeInsets.only(bottom: 2),
       child: pw.Row(
+        crossAxisAlignment: pw
+            .CrossAxisAlignment
+            .start, // Alineación superior por si el texto es largo
         children: [
           pw.SizedBox(
-            width: 55,
+            width: 85, // Ancho fijo para las etiquetas (alineación perfecta)
             child: pw.Text(
               label,
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7),
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
             ),
           ),
           pw.Expanded(
             child: pw.Text(
               value.toUpperCase(),
-              style: const pw.TextStyle(fontSize: 7),
-              maxLines: 1,
+              style: const pw.TextStyle(fontSize: 8),
+              maxLines: 2, // Permitir 2 líneas si el nombre es muy largo
               overflow: pw.TextOverflow.clip,
             ),
           ),

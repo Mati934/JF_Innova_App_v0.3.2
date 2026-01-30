@@ -94,6 +94,12 @@ class SyncService {
         // Solo si quieres que al FINALIZAR cambie, podrías agregar una lógica aquí
         // o manejarlo directamente desde el objeto que guardas.
         datosParaNube['puerto_abierto'] = (row['puerto_abierto'] == 1);
+
+        // --- 🟢 NUEVO: ASEGURAR NÚMERO DE SEGUIMIENTO ---
+        // Nos aseguramos que nunca vaya null, si es null mandamos 0 (Inicial)
+        datosParaNube['numero_seguimiento'] = row['numero_seguimiento'] ?? 0;
+        // ------------------------------------------------
+
         // --- 1. TRADUCCIÓN DE NOMBRES ---
         // Sacamos el valor local
         final reporteLocal = row['numero_reporte'];

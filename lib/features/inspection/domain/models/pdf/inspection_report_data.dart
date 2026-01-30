@@ -12,6 +12,15 @@ class InspectionReportData {
   final String embarcacion;
   final String matricula;
 
+  // 🟢 1. NUEVO CAMPO AGREGADO AQUÍ
+  final bool esConsecutiva;
+
+  // --- NUEVOS CAMPOS PARA EL HEADER A 2 COLUMNAS ---
+  final String? encargadoCentro; // Jefe de Centro (AquaChile)
+  final String? supervisorCentro; // Supervisor de Turno (AquaChile)
+  final String? profesional; // Prevencionista (Tu tío/Usuario App)
+  // -------------------------------------------------
+
   final String tipoFaena;
   final String supervisor;
   final String estadoGlobal;
@@ -59,6 +68,16 @@ class InspectionReportData {
     required this.area,
     required this.embarcacion,
     required this.matricula,
+
+    // 🟢 2. NUEVO: AGREGAR AL CONSTRUCTOR
+    // Le ponemos 'false' por defecto por seguridad, así no rompe si falta el dato.
+    this.esConsecutiva = false,
+
+    // Nuevos opcionales
+    this.encargadoCentro,
+    this.supervisorCentro,
+    this.profesional,
+
     required this.tipoFaena,
     required this.supervisor,
     required this.estadoGlobal,
