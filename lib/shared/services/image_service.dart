@@ -15,7 +15,7 @@ class ImageService {
 
   // --- LÓGICA DE COMPRESIÓN (NUEVO) ---
   // Clean Code: Separamos la lógica de compresión para reutilizarla
-  static Future<File> _comprimirImagen(File file) async {
+  static Future<File> comprimirImagen(File file) async {
     try {
       final dir = await path_provider.getTemporaryDirectory();
       // Creamos un path temporal único para la imagen comprimida
@@ -58,7 +58,7 @@ class ImageService {
 
       if (result != null && result.isNotEmpty) {
         // Mapeamos y comprimimos en paralelo para eficiencia
-        final futures = result.map((x) => _comprimirImagen(File(x.path)));
+        final futures = result.map((x) => comprimirImagen(File(x.path)));
         return await Future.wait(futures);
       }
       return [];
@@ -101,7 +101,7 @@ class ImageService {
         final f = await asset.file;
         if (f != null) {
           // AQUI aplicamos la compresión antes de agregar a la lista final
-          final compressed = await _comprimirImagen(f);
+          final compressed = await comprimirImagen(f);
           archivosComprimidos.add(compressed);
         }
       }

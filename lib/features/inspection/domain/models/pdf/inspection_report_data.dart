@@ -25,7 +25,7 @@ class InspectionReportData {
   final String supervisor;
   final String estadoGlobal;
 
-  final Map<String, String?> safetyPhotos;
+  final Map<String, Uint8List?> safetyPhotos;
   // 🟢 NUEVO: Mapa de observaciones específicas (IV -> "Comentario...")
   final Map<String, String?> safetyObservations;
 

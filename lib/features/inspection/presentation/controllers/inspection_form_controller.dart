@@ -15,6 +15,8 @@ import '../../data/repositories/local_inspection_repository.dart';
 import 'dart:typed_data';
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:typed_data'; // Necesario para Uint8List
+import 'package:jf_innova_app/shared/services/image_service.dart'; // Tu servicio de imágenes
 
 class InspectionFormController extends ChangeNotifier {
   final InspectionRepository _repo;
@@ -672,6 +674,12 @@ class InspectionFormController extends ChangeNotifier {
       String nombreEmbarcacion = "NAVE S/N";
       String matriculaEmbarcacion = "S/N";
 
+      final imgIV = await _pathToBytes(verificacionesBuceo?.imgAutorizacion);
+      final imgV = await _pathToBytes(verificacionesBuceo?.imgInduccion);
+      final imgVI = await _pathToBytes(verificacionesBuceo?.imgPermiso);
+      final imgVII = await _pathToBytes(verificacionesBuceo?.imgPlan);
+      final imgVIII = await _pathToBytes(verificacionesBuceo?.imgExamenes);
+
       // --- INICIO LÓGICA NOMBRE PROFESIONAL ---
       String nombreProfesional = "USUARIO APP";
 
@@ -900,11 +908,11 @@ class InspectionFormController extends ChangeNotifier {
 
         // 🟢 AGREGAMOS EL MAPA DE FOTOS SEGÚN EL NÚMERO ROMANO
         safetyPhotos: {
-          'IV': verificacionesBuceo?.imgAutorizacion,
-          'V': verificacionesBuceo?.imgInduccion,
-          'VI': verificacionesBuceo?.imgPermiso,
-          'VII': verificacionesBuceo?.imgPlan,
-          'VIII': verificacionesBuceo?.imgExamenes,
+          'IV': imgIV,
+          'V': imgV,
+          'VI': imgVI,
+          'VII': imgVII,
+          'VIII': imgVIII,
         },
 
         // 🟢 NUEVO: LLENAMOS LAS OBSERVACIONES
@@ -968,37 +976,33 @@ class InspectionFormController extends ChangeNotifier {
     }
   }
 
-  // 🟢 NUEVO MÉTODO: Maneja fotos específicas para los checks de buceo
   Future<void> tomarFotoDetalleBuceo(
-    String nombreArchivoBase, // Ej: "autorizacion", "induccion"
-    Function(String)
-    onFotoGuardada, // Callback para actualizar el modelo exacto
+    String nombreArchivoBase,
+    Function(String) onFotoGuardada,
   ) async {
     try {
       final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 80, // Comprimir un poco para no saturar
-      );
+      // Usamos la cámara básica, pero la magia viene abajo
+      final XFile? image = await picker.pickImage(source: ImageSource.camera);
 
       if (image == null) return;
 
-      // Usamos el repositorio para guardar físicamente el archivo en la carpeta segura
-      // Pasamos itemId: null porque no es una "Pregunta" del checklist normal,
-      // pero usamos la descripción para identificarlo.
+      // 🟢 1. COMPRESIÓN INMEDIATA (Clean Code)
+      // Antes de guardar, comprimimos usando tu servicio centralizado
+      File fotoOriginal = File(image.path);
+      File fotoComprimida = await ImageService.comprimirImagen(fotoOriginal);
+
       if (_repo is LocalInspectionRepository) {
         final rutaSegura = await (_repo as LocalInspectionRepository).saveFoto(
           activityId: activityId,
           itemId:
-              "verif_${nombreArchivoBase}_${DateTime.now().millisecondsSinceEpoch}", // ID único temporal
-          file: image,
+              "verif_${nombreArchivoBase}_${DateTime.now().millisecondsSinceEpoch}",
+          // Guardamos la versión ligera (200KB) en vez de la pesada (5MB)
+          file: XFile(fotoComprimida.path),
           descripcion: "Verificación: $nombreArchivoBase",
         );
 
-        // Actualizamos el modelo con la ruta local
         onFotoGuardada(rutaSegura);
-
-        // Avisamos a la UI para que muestre la miniatura
         notifyListeners();
       }
     } catch (e) {
@@ -1006,5 +1010,13 @@ class InspectionFormController extends ChangeNotifier {
       _errorMessage = "Error al guardar la foto: $e";
       notifyListeners();
     }
+  }
+
+  // Helper para leer archivos de disco a RAM de forma segura
+  Future<Uint8List?> _pathToBytes(String? path) async {
+    if (path == null || path.isEmpty) return null;
+    final file = File(path);
+    if (!await file.exists()) return null;
+    return await file.readAsBytes();
   }
 }

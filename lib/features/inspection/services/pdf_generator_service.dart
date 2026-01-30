@@ -43,41 +43,38 @@ class PdfGeneratorService {
     final order = ['IV', 'V', 'VI', 'VII', 'VIII'];
 
     for (var key in order) {
-      final path = data.safetyPhotos[key];
-      if (path != null && path.isNotEmpty) {
-        try {
-          // Leemos el archivo del disco
-          final bytes = await io.File(path).readAsBytes();
-          final image = pw.MemoryImage(bytes);
+      // data.safetyPhotos ahora es Map<String, Uint8List?>
+      final imageBytes = data.safetyPhotos[key];
 
-          safetyPhotoWidgets.add(
-            pw.Container(
-              margin: const pw.EdgeInsets.symmetric(horizontal: 5),
-              child: pw.Column(
-                children: [
-                  pw.Container(
-                    width: 60, // Tamaño de la foto
-                    height: 60,
-                    decoration: pw.BoxDecoration(
-                      border: pw.Border.all(color: PdfColors.grey, width: 0.5),
-                    ),
-                    child: pw.Image(image, fit: pw.BoxFit.cover),
+      if (imageBytes != null && imageBytes.isNotEmpty) {
+        // Directo a MemoryImage, sin try-catch de I/O
+        final image = pw.MemoryImage(imageBytes);
+
+        safetyPhotoWidgets.add(
+          pw.Container(
+            margin: const pw.EdgeInsets.symmetric(horizontal: 5),
+            child: pw.Column(
+              children: [
+                pw.Container(
+                  width: 60,
+                  height: 60,
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.grey, width: 0.5),
                   ),
-                  pw.SizedBox(height: 2),
-                  pw.Text(
-                    key, // El número romano (IV, V, etc.)
-                    style: pw.TextStyle(
-                      fontSize: 7,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
+                  child: pw.Image(image, fit: pw.BoxFit.cover),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  key,
+                  style: pw.TextStyle(
+                    fontSize: 7,
+                    fontWeight: pw.FontWeight.bold,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          );
-        } catch (e) {
-          print("Error cargando foto $key: $e");
-        }
+          ),
+        );
       }
     }
 
