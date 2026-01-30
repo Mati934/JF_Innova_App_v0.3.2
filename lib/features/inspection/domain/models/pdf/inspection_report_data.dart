@@ -25,6 +25,10 @@ class InspectionReportData {
   final String supervisor;
   final String estadoGlobal;
 
+  final Map<String, String?> safetyPhotos;
+  // 🟢 NUEVO: Mapa de observaciones específicas (IV -> "Comentario...")
+  final Map<String, String?> safetyObservations;
+
   final String observacionPrevencionista;
 
   // CAMBIO 1: Cambiamos 'bool' por 'dynamic' para que acepte TODO (texto y switches)
@@ -68,6 +72,9 @@ class InspectionReportData {
     required this.area,
     required this.embarcacion,
     required this.matricula,
+
+    this.safetyPhotos = const {},
+    this.safetyObservations = const {},
 
     // 🟢 2. NUEVO: AGREGAR AL CONSTRUCTOR
     // Le ponemos 'false' por defecto por seguridad, así no rompe si falta el dato.

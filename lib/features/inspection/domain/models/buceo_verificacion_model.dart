@@ -8,6 +8,23 @@ class BuceoVerificacionModel {
   bool planContingenciasCentroOk;
   bool examenesOcupacionalesVigentes;
 
+  // --- NUEVO: DETALLES POR ITEM (Observación + Foto) ---
+  String? obsAutorizacion;
+  String? imgAutorizacion;
+
+  String? obsInduccion;
+  String? imgInduccion;
+
+  String? obsPermiso;
+  String? imgPermiso;
+
+  String? obsPlan;
+  String? imgPlan;
+
+  String? obsExamenes;
+  String? imgExamenes;
+  // ----------------------------------------------------
+
   // ESTADOS
   String? observacionGeneral;
   String? estadoManual;
@@ -47,6 +64,18 @@ class BuceoVerificacionModel {
     this.examenesOcupacionalesVigentes = false,
     this.observacionGeneral,
     this.estadoManual,
+
+    // Inicializar nuevos campos
+    this.obsAutorizacion,
+    this.imgAutorizacion,
+    this.obsInduccion,
+    this.imgInduccion,
+    this.obsPermiso,
+    this.imgPermiso,
+    this.obsPlan,
+    this.imgPlan,
+    this.obsExamenes,
+    this.imgExamenes,
 
     // Contratista
     this.supervisorNombre,
@@ -90,6 +119,18 @@ class BuceoVerificacionModel {
       'permiso_buceo_centro_correcto': permisoBuceoCentroCorrecto ? 1 : 0,
       'plan_contingencias_centro_ok': planContingenciasCentroOk ? 1 : 0,
       'examenes_ocupacionales_vigentes': examenesOcupacionalesVigentes ? 1 : 0,
+
+      // Mapeo nuevos campos
+      'obs_autorizacion': obsAutorizacion,
+      'img_autorizacion': imgAutorizacion,
+      'obs_induccion': obsInduccion,
+      'img_induccion': imgInduccion,
+      'obs_permiso': obsPermiso,
+      'img_permiso': imgPermiso,
+      'obs_plan': obsPlan,
+      'img_plan': imgPlan,
+      'obs_examenes': obsExamenes,
+      'img_examenes': imgExamenes,
       'observacion_general': observacionGeneral,
       'estado_manual': estadoManual,
 
@@ -129,6 +170,19 @@ class BuceoVerificacionModel {
       planContingenciasCentroOk: map['plan_contingencias_centro_ok'] == 1,
       examenesOcupacionalesVigentes:
           map['examenes_ocupacionales_vigentes'] == 1,
+
+      // Leer nuevos campos
+      obsAutorizacion: map['obs_autorizacion'],
+      imgAutorizacion: map['img_autorizacion'],
+      obsInduccion: map['obs_induccion'],
+      imgInduccion: map['img_induccion'],
+      obsPermiso: map['obs_permiso'],
+      imgPermiso: map['img_permiso'],
+      obsPlan: map['obs_plan'],
+      imgPlan: map['img_plan'],
+      obsExamenes: map['obs_examenes'],
+      imgExamenes: map['img_examenes'],
+
       observacionGeneral: map['observacion_general'],
       estadoManual: map['estado_manual'],
 

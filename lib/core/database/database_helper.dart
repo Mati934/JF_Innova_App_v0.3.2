@@ -22,7 +22,7 @@ class DatabaseHelper {
     // CAMBIO AQUI: version: 2 y agregamos onUpgrade
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -120,6 +120,23 @@ class DatabaseHelper {
         permiso_buceo_centro_correcto INTEGER DEFAULT 0,
         plan_contingencias_centro_ok INTEGER DEFAULT 0,
         examenes_ocupacionales_vigentes INTEGER DEFAULT 0,
+
+        -- OBSERVACIONES Y FOTOS POR ITEM (NUEVO)
+        obs_autorizacion TEXT,
+        img_autorizacion TEXT,
+        
+        obs_induccion TEXT,
+        img_induccion TEXT,
+        
+        obs_permiso TEXT,
+        img_permiso TEXT,
+        
+        obs_plan TEXT,
+        img_plan TEXT,
+        
+        obs_examenes TEXT,
+        img_examenes TEXT,
+        
         observacion_general TEXT,
         estado_manual TEXT,
         
@@ -180,22 +197,33 @@ class DatabaseHelper {
   // --- MÉTODOS CRUD GENÉRICOS ---
 
   // 🟢 NUEVO MÉTODO DE MIGRACIÓN
+  // MIGRACIÓN PARA NO BORRAR DATOS (Si el usuario ya tiene la app)
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    debugPrint(
-      "🔧 DETECTADA ACTUALIZACIÓN DE BD: v$oldVersion -> v$newVersion",
-    );
+    debugPrint("🔧 UPGRADE DB: v$oldVersion -> v$newVersion");
 
-    if (oldVersion < 2) {
-      debugPrint("🚀 Aplicando parche v2: Agregar numero_seguimiento...");
-      try {
-        // Inyectamos la columna que falta sin borrar la tabla
-        await db.execute(
-          "ALTER TABLE actividades_pendientes ADD COLUMN numero_seguimiento INTEGER DEFAULT 0",
-        );
-        debugPrint("✅ Columna 'numero_seguimiento' agregada con éxito.");
-      } catch (e) {
-        // Si por alguna razón ya existía (ej: reiniciaste muchas veces), no rompemos nada.
-        debugPrint("⚠️ Advertencia en migración: $e");
+    if (oldVersion < 3) {
+      // Si vienes de la v2 o v1
+      List<String> columnasNuevas = [
+        "obs_autorizacion",
+        "img_autorizacion",
+        "obs_induccion",
+        "img_induccion",
+        "obs_permiso",
+        "img_permiso",
+        "obs_plan",
+        "img_plan",
+        "obs_examenes",
+        "img_examenes",
+      ];
+
+      for (var col in columnasNuevas) {
+        try {
+          await db.execute(
+            "ALTER TABLE verificaciones_buceo ADD COLUMN $col TEXT",
+          );
+        } catch (e) {
+          print("Columna $col ya existía o error: $e");
+        }
       }
     }
   }

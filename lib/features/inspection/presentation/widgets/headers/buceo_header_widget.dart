@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../controllers/inspection_form_controller.dart';
 import '../../../domain/models/participante_model.dart';
 import 'package:uuid/uuid.dart';
+import 'dart:io';
 
 // --- WIDGET 1: CUADRILLA (Va arriba) ---
 class BuceoCuadrillaWidget extends StatelessWidget {
@@ -274,7 +275,7 @@ class BuceoCuadrillaWidget extends StatelessWidget {
   }
 }
 
-// --- WIDGET 2: VERIFICACIONES (Va al final) ---
+// --- WIDGET 2 ACTUALIZADO: AHORA CON FOTOS Y COMENTARIOS ---
 class BuceoVerificacionesWidget extends StatelessWidget {
   final InspectionFormController controller;
   const BuceoVerificacionesWidget({super.key, required this.controller});
@@ -286,149 +287,379 @@ class BuceoVerificacionesWidget extends StatelessWidget {
 
     final isSafe = verificaciones.faenaHabilitada;
 
-    return Card(
-      margin: const EdgeInsets.all(12),
-      elevation: 4,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: isSafe ? Colors.green : Colors.red, width: 2),
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isSafe ? Colors.green.shade50 : Colors.red.shade50,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
-              ),
+    return Column(
+      children: [
+        Card(
+          margin: const EdgeInsets.all(12),
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: isSafe ? Colors.green : Colors.red,
+              width: 2,
             ),
-            child: Row(
-              children: [
-                Icon(
-                  isSafe ? Icons.check_circle : Icons.warning_amber,
-                  color: isSafe ? Colors.green : Colors.red,
-                  size: 30,
+          ),
+          child: Column(
+            children: [
+              // CABECERA ESTADO
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isSafe ? Colors.green.shade50 : Colors.red.shade50,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "ESTADO FINAL DE FAENA",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      DropdownButton<String?>(
-                        value: verificaciones.estadoManual,
-                        isDense: true,
-                        underline: Container(),
-                        isExpanded: true,
-                        hint: Text(
-                          isSafe
-                              ? "APROBADA (Automático)"
-                              : "SUSPENDIDA (Automático)",
-                          style: TextStyle(
-                            color: isSafe
-                                ? Colors.green.shade900
-                                : Colors.red.shade900,
-                            fontWeight: FontWeight.bold,
+                child: Row(
+                  children: [
+                    Icon(
+                      isSafe ? Icons.check_circle : Icons.warning_amber,
+                      color: isSafe ? Colors.green : Colors.red,
+                      size: 30,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "ESTADO FINAL DE FAENA",
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: null,
-                            child: Text("Automático"),
-                          ),
-                          DropdownMenuItem(
-                            value: "APROBADO",
-                            child: Text("Forzar APROBACIÓN"),
-                          ),
-                          DropdownMenuItem(
-                            value: "SUSPENDIDO",
-                            child: Text("Forzar SUSPENSIÓN"),
+                          DropdownButton<String?>(
+                            value: verificaciones.estadoManual,
+                            isDense: true,
+                            underline: Container(),
+                            isExpanded: true,
+                            hint: Text(
+                              isSafe
+                                  ? "APROBADA (Automático)"
+                                  : "SUSPENDIDA (Automático)",
+                              style: TextStyle(
+                                color: isSafe
+                                    ? Colors.green.shade900
+                                    : Colors.red.shade900,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: null,
+                                child: Text("Automático"),
+                              ),
+                              DropdownMenuItem(
+                                value: "APROBADO",
+                                child: Text("Forzar APROBACIÓN"),
+                              ),
+                              DropdownMenuItem(
+                                value: "SUSPENDIDO",
+                                child: Text("Forzar SUSPENSIÓN"),
+                              ),
+                            ],
+                            onChanged: (val) => controller.updateVerificacion(
+                              (m) => m.estadoManual = val,
+                            ),
                           ),
                         ],
-                        onChanged: (val) => controller.updateVerificacion(
-                          (m) => m.estadoManual = val,
-                        ),
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // 🟢 LISTA DE CHECKS CON DETALLES (NUEVO DISEÑO)
+              _DetailedCheckItem(
+                label: "IV. Autorización de la Faena",
+                value: verificaciones.autorizacionAutoridadMaritima,
+                obs: verificaciones.obsAutorizacion,
+                imgPath: verificaciones.imgAutorizacion,
+                onChanged: (v) => controller.updateVerificacion(
+                  (m) => m.autorizacionAutoridadMaritima = v,
+                ),
+                onObsChanged: (v) =>
+                    controller.updateVerificacion((m) => m.obsAutorizacion = v),
+                onCameraTap: () => controller.tomarFotoDetalleBuceo(
+                  "autorizacion",
+                  (path) => controller.updateVerificacion(
+                    (m) => m.imgAutorizacion = path,
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+
+              _DetailedCheckItem(
+                label: "V. Inducción Centro de Cultivo",
+                value: verificaciones.induccionCentroCultivo,
+                obs: verificaciones.obsInduccion,
+                imgPath: verificaciones.imgInduccion,
+                onChanged: (v) => controller.updateVerificacion(
+                  (m) => m.induccionCentroCultivo = v,
+                ),
+                onObsChanged: (v) =>
+                    controller.updateVerificacion((m) => m.obsInduccion = v),
+                onCameraTap: () => controller.tomarFotoDetalleBuceo(
+                  "induccion",
+                  (path) => controller.updateVerificacion(
+                    (m) => m.imgInduccion = path,
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+
+              _DetailedCheckItem(
+                label: "VI. Permiso de Buceo",
+                value: verificaciones.permisoBuceoCentroCorrecto,
+                obs: verificaciones.obsPermiso,
+                imgPath: verificaciones.imgPermiso,
+                onChanged: (v) => controller.updateVerificacion(
+                  (m) => m.permisoBuceoCentroCorrecto = v,
+                ),
+                onObsChanged: (v) =>
+                    controller.updateVerificacion((m) => m.obsPermiso = v),
+                onCameraTap: () => controller.tomarFotoDetalleBuceo(
+                  "permiso",
+                  (path) =>
+                      controller.updateVerificacion((m) => m.imgPermiso = path),
+                ),
+              ),
+              const Divider(height: 1),
+
+              _DetailedCheckItem(
+                label: "VII. Plan de Contingencias",
+                value: verificaciones.planContingenciasCentroOk,
+                obs: verificaciones.obsPlan,
+                imgPath: verificaciones.imgPlan,
+                onChanged: (v) => controller.updateVerificacion(
+                  (m) => m.planContingenciasCentroOk = v,
+                ),
+                onObsChanged: (v) =>
+                    controller.updateVerificacion((m) => m.obsPlan = v),
+                onCameraTap: () => controller.tomarFotoDetalleBuceo(
+                  "plan",
+                  (path) =>
+                      controller.updateVerificacion((m) => m.imgPlan = path),
+                ),
+              ),
+              const Divider(height: 1),
+
+              _DetailedCheckItem(
+                label: "VIII. Exámenes Ocupacionales",
+                value: verificaciones.examenesOcupacionalesVigentes,
+                obs: verificaciones.obsExamenes,
+                imgPath: verificaciones.imgExamenes,
+                onChanged: (v) => controller.updateVerificacion(
+                  (m) => m.examenesOcupacionalesVigentes = v,
+                ),
+                onObsChanged: (v) =>
+                    controller.updateVerificacion((m) => m.obsExamenes = v),
+                onCameraTap: () => controller.tomarFotoDetalleBuceo(
+                  "examenes",
+                  (path) => controller.updateVerificacion(
+                    (m) => m.imgExamenes = path,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        ),
+
+        // TARJETA DE OBSERVACIONES GENERALES (SE MANTIENE IGUAL)
+        Card(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+          elevation: 2,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "OBSERVACIONES GENERALES",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  initialValue: verificaciones.observacionGeneral,
+                  decoration: const InputDecoration(
+                    hintText: "Escriba aquí...",
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                  onChanged: (val) => controller.updateVerificacion(
+                    (m) => m.observacionGeneral = val,
                   ),
                 ),
               ],
             ),
           ),
-          _SwitchItem(
-            "IV. Autorización de la Faena",
-            verificaciones.autorizacionAutoridadMaritima,
-            (v) => controller.updateVerificacion(
-              (m) => m.autorizacionAutoridadMaritima = v,
-            ),
-          ),
-          const Divider(height: 1),
-          _SwitchItem(
-            "V. Inducción Centro de Cultivo",
-            verificaciones.induccionCentroCultivo,
-            (v) => controller.updateVerificacion(
-              (m) => m.induccionCentroCultivo = v,
-            ),
-          ),
-          const Divider(height: 1),
-          _SwitchItem(
-            "VI. Permiso de Buceo (Centro Correcto)",
-            verificaciones.permisoBuceoCentroCorrecto,
-            (v) => controller.updateVerificacion(
-              (m) => m.permisoBuceoCentroCorrecto = v,
-            ),
-          ),
-          const Divider(height: 1),
-          _SwitchItem(
-            "VII. Plan de Contingencias",
-            verificaciones.planContingenciasCentroOk,
-            (v) => controller.updateVerificacion(
-              (m) => m.planContingenciasCentroOk = v,
-            ),
-          ),
-          const Divider(height: 1),
-          _SwitchItem(
-            "VIII. Exámenes Ocupacionales Vigentes",
-            verificaciones.examenesOcupacionalesVigentes,
-            (v) => controller.updateVerificacion(
-              (m) => m.examenesOcupacionalesVigentes = v,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextFormField(
-              initialValue: verificaciones.observacionGeneral,
-              decoration: const InputDecoration(
-                labelText: "Observación del Prevencionista",
-                prefixIcon: Icon(Icons.comment),
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
-              onChanged: (val) => controller.updateVerificacion(
-                (m) => m.observacionGeneral = val,
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
+}
 
-  Widget _SwitchItem(String label, bool value, Function(bool) onChanged) {
-    return SwitchListTile(
-      dense: true,
-      title: Text(label, style: const TextStyle(fontSize: 13)),
-      value: value,
-      activeColor: Colors.green,
-      onChanged: onChanged,
+// 🟢 WIDGET HELPER NUEVO: MANEJA LA LÓGICA DE EXPANSIÓN Y FOTOS
+class _DetailedCheckItem extends StatefulWidget {
+  final String label;
+  final bool value;
+  final String? obs;
+  final String? imgPath;
+  final Function(bool) onChanged;
+  final Function(String) onObsChanged;
+  final VoidCallback onCameraTap;
+
+  const _DetailedCheckItem({
+    required this.label,
+    required this.value,
+    this.obs,
+    this.imgPath,
+    required this.onChanged,
+    required this.onObsChanged,
+    required this.onCameraTap,
+  });
+
+  @override
+  State<_DetailedCheckItem> createState() => _DetailedCheckItemState();
+}
+
+class _DetailedCheckItemState extends State<_DetailedCheckItem> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasData =
+        (widget.obs != null && widget.obs!.isNotEmpty) ||
+        (widget.imgPath != null);
+
+    return Column(
+      children: [
+        ListTile(
+          dense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 0,
+          ),
+          // El título ocupa la mayor parte
+          title: Text(
+            widget.label,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          ),
+          // Switch a la derecha
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Indicador visual si hay info oculta (un puntito azul)
+              if (hasData && !_isExpanded)
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.blue,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              Switch(
+                value: widget.value,
+                activeColor: Colors.green,
+                onChanged: widget.onChanged,
+              ),
+            ],
+          ),
+          // Al tocar el texto o el espacio vacío, expandimos/colapsamos
+          onTap: () {
+            setState(() {
+              _isExpanded = !_isExpanded;
+            });
+          },
+          // Icono para indicar que se puede expandir (a la izquierda del título)
+          leading: Icon(
+            _isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+            color: Colors.grey,
+          ),
+        ),
+
+        // ZONA DE DETALLES (Se muestra si está expandido)
+        if (_isExpanded)
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            color: Colors.grey.shade50, // Fondo sutil para diferenciar
+            child: Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // CAMPO DE TEXTO
+                    Expanded(
+                      child: TextFormField(
+                        initialValue: widget.obs,
+                        style: const TextStyle(fontSize: 13),
+                        decoration: const InputDecoration(
+                          labelText: "Observación / Justificación",
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                          fillColor: Colors.white,
+                          filled: true,
+                        ),
+                        maxLines: 2,
+                        onChanged: widget.onObsChanged,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+
+                    // BOTÓN DE CÁMARA O MINIATURA
+                    GestureDetector(
+                      onTap: widget.onCameraTap,
+                      child:
+                          widget.imgPath != null && widget.imgPath!.isNotEmpty
+                          ? Stack(
+                              alignment: Alignment.topRight,
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.file(
+                                    File(widget.imgPath!),
+                                    width: 50,
+                                    height: 50,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                Container(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.refresh,
+                                    size: 16,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Container(
+                              width: 50,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.blue.shade200),
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt,
+                                color: Colors.blue,
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

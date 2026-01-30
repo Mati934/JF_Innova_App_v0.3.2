@@ -4,6 +4,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../domain/models/pdf/inspection_report_data.dart';
+import 'dart:io' as io;
 
 class PdfGeneratorService {
   Future<Uint8List> generatePdf(InspectionReportData data) async {
@@ -34,6 +35,52 @@ class PdfGeneratorService {
       print("Advertencia: Logo no encontrado");
     }
 
+    // 🟢 1. PRE-CARGA DE FOTOS DE SEGURIDAD (Esto es nuevo)
+    // Convertimos las rutas en una lista de Widgets listos para pintar
+    List<pw.Widget> safetyPhotoWidgets = [];
+
+    // Orden de los romanos para mantener consistencia
+    final order = ['IV', 'V', 'VI', 'VII', 'VIII'];
+
+    for (var key in order) {
+      final path = data.safetyPhotos[key];
+      if (path != null && path.isNotEmpty) {
+        try {
+          // Leemos el archivo del disco
+          final bytes = await io.File(path).readAsBytes();
+          final image = pw.MemoryImage(bytes);
+
+          safetyPhotoWidgets.add(
+            pw.Container(
+              margin: const pw.EdgeInsets.symmetric(horizontal: 5),
+              child: pw.Column(
+                children: [
+                  pw.Container(
+                    width: 60, // Tamaño de la foto
+                    height: 60,
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: PdfColors.grey, width: 0.5),
+                    ),
+                    child: pw.Image(image, fit: pw.BoxFit.cover),
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    key, // El número romano (IV, V, etc.)
+                    style: pw.TextStyle(
+                      fontSize: 7,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        } catch (e) {
+          print("Error cargando foto $key: $e");
+        }
+      }
+    }
+
     // 2. CONSTRUCCIÓN DEL DOCUMENTO
     pdf.addPage(
       pw.MultiPage(
@@ -53,18 +100,32 @@ class PdfGeneratorService {
           pw.SizedBox(height: 10),
           _buildStatusAndStats(data),
 
-          // --- AQUÍ AGREGAMOS LA TABLA TÉCNICA NUEVA ---
           pw.SizedBox(height: 15),
           _buildTechnicalDetails(data),
 
-          // ---------------------------------------------
           pw.SizedBox(height: 15),
           _buildPersonnelTable(data),
 
           pw.SizedBox(height: 15),
-          _buildSafetyChecklist(data),
+          _buildSafetyChecklist(data), // 1. Switches
+          // 🟢 AQUI PINTAMOS LA FILA CENTRADA
+          if (safetyPhotoWidgets.isNotEmpty) ...[
+            pw.SizedBox(height: 8),
+            pw.Row(
+              mainAxisAlignment:
+                  pw.MainAxisAlignment.center, // <--- ALINEACIÓN AL CENTRO
+              children: safetyPhotoWidgets,
+            ),
+          ],
 
+          // 🟢 2. AHORA LAS OBSERVACIONES ESTÁN AQUÍ (ARRIBA)
           pw.SizedBox(height: 15),
+          _buildGeneralObservations(data),
+
+          // ------------------------------------------------
+          pw.SizedBox(height: 15),
+
+          // 3. LUEGO VIENE EL TÍTULO Y LA TABLA DE PREGUNTAS
           pw.Text(
             "DETALLE DE VERIFICACIONES",
             style: pw.TextStyle(
@@ -673,6 +734,7 @@ class PdfGeneratorService {
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
+          // TÍTULO DE LA SECCIÓN
           pw.Container(
             width: double.infinity,
             padding: const pw.EdgeInsets.all(4),
@@ -682,19 +744,24 @@ class PdfGeneratorService {
               style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
             ),
           ),
+
+          // ITERAMOS LOS ITEMS
           ...data.verificacionesBuceo.entries.map((entry) {
-            // DETECTAMOS SI EL VALOR ES BOOL O NO PARA PINTARLO BIEN
             bool isBool = entry.value is bool;
             bool isCumple = isBool && (entry.value == true);
             String textoMostrar = isBool
                 ? (isCumple ? "CUMPLE" : "NO CUMPLE")
                 : entry.value.toString();
 
-            // Solo mostramos colorines si es un booleano (los switches)
-            // Si es texto (ej: algun dato extra que se haya colado), lo mostramos en negro
             PdfColor colorTexto = isBool
                 ? (isCumple ? PdfColors.green700 : PdfColors.red700)
                 : PdfColors.black;
+
+            // 🟢 LÓGICA PARA SACAR EL COMENTARIO
+            // La key viene como "IV. Autorización...", hacemos split para sacar el "IV"
+            String romanKey = entry.key.split('.').first.trim();
+            String? observacion = data.safetyObservations[romanKey];
+            bool tieneObs = observacion != null && observacion.isNotEmpty;
 
             return pw.Container(
               padding: const pw.EdgeInsets.symmetric(
@@ -706,46 +773,47 @@ class PdfGeneratorService {
                   bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
                 ),
               ),
-              child: pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text(entry.key, style: const pw.TextStyle(fontSize: 8)),
-                  pw.Text(
-                    textoMostrar,
-                    style: pw.TextStyle(
-                      fontSize: 8,
-                      fontWeight: pw.FontWeight.bold,
-                      color: colorTexto,
-                    ),
+                  // FILA PRINCIPAL (Pregunta y Estado)
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        entry.key,
+                        style: const pw.TextStyle(fontSize: 8),
+                      ),
+                      pw.Text(
+                        textoMostrar,
+                        style: pw.TextStyle(
+                          fontSize: 8,
+                          fontWeight: pw.FontWeight.bold,
+                          color: colorTexto,
+                        ),
+                      ),
+                    ],
                   ),
+
+                  // 🟢 FILA DE COMENTARIO (SOLO SI EXISTE)
+                  if (tieneObs) ...[
+                    pw.SizedBox(height: 2),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(left: 10), // Sangría
+                      child: pw.Text(
+                        "Obs: $observacion",
+                        style: pw.TextStyle(
+                          fontSize: 7,
+                          fontStyle: pw.FontStyle.italic,
+                          color: PdfColors.grey700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             );
           }).toList(),
-          pw.Container(
-            width: double.infinity,
-            padding: const pw.EdgeInsets.all(8),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text(
-                  "OBSERVACIÓN DEL PREVENCIONISTA:",
-                  style: pw.TextStyle(
-                    fontSize: 7,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 2),
-                pw.Text(
-                  data.observacionPrevencionista,
-                  style: pw.TextStyle(
-                    fontSize: 8,
-                    fontStyle: pw.FontStyle.italic,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -762,6 +830,55 @@ class PdfGeneratorService {
           fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
         ),
         textAlign: pw.TextAlign.center,
+      ),
+    );
+  }
+
+  pw.Widget _buildGeneralObservations(InspectionReportData data) {
+    return pw.Container(
+      width: double.infinity,
+      // Un borde suave y fondo limpio para destacar
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.grey400, width: 0.5),
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+        color: PdfColors.white,
+      ),
+      padding: const pw.EdgeInsets.all(10),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Row(
+            children: [
+              // Icono simulado con texto o forma, ya que pdf no tiene Icons por defecto
+              // Usamos un pequeño cuadrado azul para decorar
+              pw.Container(
+                width: 4,
+                height: 10,
+                color: PdfColors.blue800,
+                margin: const pw.EdgeInsets.only(right: 5),
+              ),
+              pw.Text(
+                "OBSERVACIONES GENERALES / PREVENCIONISTA",
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.blue900,
+                ),
+              ),
+            ],
+          ),
+          pw.Divider(color: PdfColors.grey300, thickness: 0.5),
+          pw.SizedBox(height: 5),
+          pw.Text(
+            (data.observacionPrevencionista.isNotEmpty)
+                ? data.observacionPrevencionista
+                : "Sin observaciones registradas.",
+            style: const pw.TextStyle(
+              fontSize: 9,
+              lineSpacing: 1.5, // Mejor lectura para textos largos
+            ),
+          ),
+        ],
       ),
     );
   }

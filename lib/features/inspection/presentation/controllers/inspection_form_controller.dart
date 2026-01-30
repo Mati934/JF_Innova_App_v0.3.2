@@ -898,6 +898,24 @@ class InspectionFormController extends ChangeNotifier {
         embarcacion: nombreEmbarcacion,
         matricula: matriculaEmbarcacion,
 
+        // 🟢 AGREGAMOS EL MAPA DE FOTOS SEGÚN EL NÚMERO ROMANO
+        safetyPhotos: {
+          'IV': verificacionesBuceo?.imgAutorizacion,
+          'V': verificacionesBuceo?.imgInduccion,
+          'VI': verificacionesBuceo?.imgPermiso,
+          'VII': verificacionesBuceo?.imgPlan,
+          'VIII': verificacionesBuceo?.imgExamenes,
+        },
+
+        // 🟢 NUEVO: LLENAMOS LAS OBSERVACIONES
+        safetyObservations: {
+          'IV': verificacionesBuceo?.obsAutorizacion,
+          'V': verificacionesBuceo?.obsInduccion,
+          'VI': verificacionesBuceo?.obsPermiso,
+          'VII': verificacionesBuceo?.obsPlan,
+          'VIII': verificacionesBuceo?.obsExamenes,
+        },
+
         encargadoCentro: verificacionesBuceo?.encargadoCentro,
         supervisorCentro: verificacionesBuceo?.supervisorCentro,
         profesional: nombreProfesional,
@@ -946,6 +964,46 @@ class InspectionFormController extends ChangeNotifier {
       debugPrint("Error PDF Offline: $e");
     } finally {
       _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // 🟢 NUEVO MÉTODO: Maneja fotos específicas para los checks de buceo
+  Future<void> tomarFotoDetalleBuceo(
+    String nombreArchivoBase, // Ej: "autorizacion", "induccion"
+    Function(String)
+    onFotoGuardada, // Callback para actualizar el modelo exacto
+  ) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80, // Comprimir un poco para no saturar
+      );
+
+      if (image == null) return;
+
+      // Usamos el repositorio para guardar físicamente el archivo en la carpeta segura
+      // Pasamos itemId: null porque no es una "Pregunta" del checklist normal,
+      // pero usamos la descripción para identificarlo.
+      if (_repo is LocalInspectionRepository) {
+        final rutaSegura = await (_repo as LocalInspectionRepository).saveFoto(
+          activityId: activityId,
+          itemId:
+              "verif_${nombreArchivoBase}_${DateTime.now().millisecondsSinceEpoch}", // ID único temporal
+          file: image,
+          descripcion: "Verificación: $nombreArchivoBase",
+        );
+
+        // Actualizamos el modelo con la ruta local
+        onFotoGuardada(rutaSegura);
+
+        // Avisamos a la UI para que muestre la miniatura
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error tomando foto detalle: $e");
+      _errorMessage = "Error al guardar la foto: $e";
       notifyListeners();
     }
   }
