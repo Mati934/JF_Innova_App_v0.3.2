@@ -90,7 +90,7 @@ class DatabaseHelper {
       'CREATE TABLE embarcaciones (id TEXT PRIMARY KEY, nombre TEXT, contratista_id TEXT)',
     );
 
-    // 4. ACTIVIDADES PENDIENTES (Incluye numero_reporte)
+    // 4. ACTIVIDADES PENDIENTES
     await db.execute('''
       CREATE TABLE actividades_pendientes (
         id TEXT PRIMARY KEY,
@@ -109,7 +109,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // --- 5. TABLAS ESPECÍFICAS DE BUCEO (ACTUALIZADA CORRECTAMENTE) ---
+    // --- 5. TABLAS ESPECÍFICAS DE BUCEO  ---
 
     // Verificaciones Críticas
     await db.execute('''
@@ -144,10 +144,10 @@ class DatabaseHelper {
         supervisor_nombre TEXT,
         supervisor_rut TEXT,
 
-        encargado_centro TEXT,     -- NUEVO: Jefe de Centro (AquaChile)
-        supervisor_centro TEXT,    -- NUEVO: Supervisor de Turno (AquaChile)
+        encargado_centro TEXT,     
+        supervisor_centro TEXT,    
 
-        -- HORARIOS (ESTO ERA LO QUE FALTABA)
+        -- HORARIOS 
         hora_inicio TEXT,
         hora_termino TEXT,
 

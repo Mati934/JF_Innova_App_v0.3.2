@@ -793,19 +793,19 @@ class BuceoTecnicoWidget extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 10),
+                // const SizedBox(height: 10),
 
-                // CAMPO 2: SUPERVISOR (Usamos el controller, NO _TextInput)
-                TextFormField(
-                  controller: controller
-                      .supervisorCentroController, // <--- ESTA ES LA CLAVE
-                  decoration: const InputDecoration(
-                    labelText: "Supervisor de Centro",
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person_outline, size: 20),
-                  ),
-                ),
+                // // CAMPO 2: SUPERVISOR (Usamos el controller, NO _TextInput)
+                // TextFormField(
+                //   controller: controller
+                //       .supervisorCentroController, // <--- ESTA ES LA CLAVE
+                //   decoration: const InputDecoration(
+                //     labelText: "Supervisor de Centro",
+                //     isDense: true,
+                //     border: OutlineInputBorder(),
+                //     prefixIcon: Icon(Icons.person_outline, size: 20),
+                //   ),
+                // ),
 
                 // -----------------------------------------------------------
                 const Divider(height: 30, thickness: 1),
@@ -820,25 +820,38 @@ class BuceoTecnicoWidget extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
+
                 Row(
                   children: [
                     Expanded(
-                      child: _TextInput(
-                        "Nombre Supervisor",
-                        verificaciones.supervisorNombre,
-                        (v) => controller.updateVerificacion(
-                          (m) => m.supervisorNombre = v,
+                      child: TextFormField(
+                        // 1. CONECTAMOS AL CONTROLADOR (Para que se llene solo)
+                        controller: controller.supervisorNombreController,
+                        decoration: const InputDecoration(
+                          labelText: "Nombre Supervisor",
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.engineering, size: 20),
                         ),
-                        icon: Icons.engineering,
+                        // 2. GUARDAMOS MANUALMENTE (Por si el usuario edita el texto a mano)
+                        onChanged: (val) => controller.updateVerificacion(
+                          (m) => m.supervisorNombre = val,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: _TextInput(
-                        "RUT Supervisor",
-                        verificaciones.supervisorRut,
-                        (v) => controller.updateVerificacion(
-                          (m) => m.supervisorRut = v,
+                      child: TextFormField(
+                        // 1. CONECTAMOS AL CONTROLADOR
+                        controller: controller.supervisorRutController,
+                        decoration: const InputDecoration(
+                          labelText: "RUT Supervisor",
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                        ),
+                        // 2. GUARDAMOS MANUALMENTE
+                        onChanged: (val) => controller.updateVerificacion(
+                          (m) => m.supervisorRut = val,
                         ),
                       ),
                     ),

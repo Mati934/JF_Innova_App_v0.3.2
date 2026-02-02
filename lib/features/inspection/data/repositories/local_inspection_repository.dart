@@ -80,6 +80,7 @@ class LocalInspectionRepository implements InspectionRepository {
     String? embarcacionId,
     String? estado,
     String? numeroReporte,
+    int? numeroSeguimiento,
   }) async {
     final db = await dbHelper.database;
     try {
@@ -98,6 +99,7 @@ class LocalInspectionRepository implements InspectionRepository {
           'estado_final': estado ?? 'En Progreso',
           'puerto_abierto': 1,
           'numero_reporte': numeroReporte,
+          'numero_seguimiento': numeroSeguimiento ?? 0,
         },
         where: 'id = ?',
         whereArgs: [id],
@@ -116,6 +118,8 @@ class LocalInspectionRepository implements InspectionRepository {
           'subido': 0,
           'estado_final': estado ?? 'En Progreso',
           'puerto_abierto': 1,
+          'numero_reporte': numeroReporte,
+          'numero_seguimiento': numeroSeguimiento ?? 0,
         });
         debugPrint("💾 ACTIVIDAD CREADA: $id");
       } else {

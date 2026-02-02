@@ -1,16 +1,15 @@
 import 'dart:typed_data';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:image/image.dart' as img; // 1. LIBRERÍA PARA COMPRIMIR
 import '../domain/models/pdf/inspection_report_data.dart';
-import 'dart:io' as io;
 
 class PdfGeneratorService {
   Future<Uint8List> generatePdf(InspectionReportData data) async {
     final pdf = pw.Document();
 
-    // 1. CARGA DE RECURSOS OFFLINE
+    // 1. CARGA DE RECURSOS
     final fontRegular = await rootBundle.load(
       "assets/fonts/OpenSans-Regular.ttf",
     );
@@ -32,42 +31,39 @@ class PdfGeneratorService {
       );
       logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
     } catch (e) {
-      print("Advertencia: Logo no encontrado");
+      // Log silencioso
     }
 
-    // 🟢 1. PRE-CARGA DE FOTOS DE SEGURIDAD (Esto es nuevo)
-    // Convertimos las rutas en una lista de Widgets listos para pintar
+    // 2. PREPARAR FOTOS DE SEGURIDAD (Optimizado)
     List<pw.Widget> safetyPhotoWidgets = [];
-
-    // Orden de los romanos para mantener consistencia
     final order = ['IV', 'V', 'VI', 'VII', 'VIII'];
 
     for (var key in order) {
-      // data.safetyPhotos ahora es Map<String, Uint8List?>
       final imageBytes = data.safetyPhotos[key];
-
       if (imageBytes != null && imageBytes.isNotEmpty) {
-        // Directo a MemoryImage, sin try-catch de I/O
-        final image = pw.MemoryImage(imageBytes);
+        // 🟢 OPTIMIZACIÓN: Reducimos la imagen antes de meterla al PDF
+        final optimizedBytes = _optimizarImagen(imageBytes);
+        final image = pw.MemoryImage(optimizedBytes);
 
         safetyPhotoWidgets.add(
           pw.Container(
-            margin: const pw.EdgeInsets.symmetric(horizontal: 5),
+            margin: const pw.EdgeInsets.symmetric(horizontal: 6),
             child: pw.Column(
+              mainAxisSize: pw.MainAxisSize.min,
               children: [
                 pw.Container(
-                  width: 60,
-                  height: 60,
+                  width: 90,
+                  height: 90,
                   decoration: pw.BoxDecoration(
                     border: pw.Border.all(color: PdfColors.grey, width: 0.5),
                   ),
                   child: pw.Image(image, fit: pw.BoxFit.cover),
                 ),
-                pw.SizedBox(height: 2),
+                pw.SizedBox(height: 4),
                 pw.Text(
                   key,
                   style: pw.TextStyle(
-                    fontSize: 7,
+                    fontSize: 8,
                     fontWeight: pw.FontWeight.bold,
                   ),
                 ),
@@ -78,13 +74,13 @@ class PdfGeneratorService {
       }
     }
 
-    // 2. CONSTRUCCIÓN DEL DOCUMENTO
+    // 3. CONSTRUCCIÓN DEL DOCUMENTO
     pdf.addPage(
       pw.MultiPage(
         pageTheme: pw.PageTheme(
           theme: theme,
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(30),
+          margin: const pw.EdgeInsets.all(20),
           buildBackground: (context) => pw.Container(
             decoration: pw.BoxDecoration(
               border: pw.Border.all(color: PdfColors.black, width: 0.5),
@@ -94,46 +90,51 @@ class PdfGeneratorService {
         header: (context) => _buildHeaderDense(data, logoImage),
         footer: (context) => _buildFooter(context),
         build: (context) => [
-          pw.SizedBox(height: 10),
+          // PÁGINA 1: RESUMEN
+          pw.SizedBox(height: 5),
           _buildStatusAndStats(data),
 
-          pw.SizedBox(height: 15),
+          pw.SizedBox(height: 10),
           _buildTechnicalDetails(data),
 
-          pw.SizedBox(height: 15),
+          pw.SizedBox(height: 10),
           _buildPersonnelTable(data),
 
-          pw.SizedBox(height: 15),
-          _buildSafetyChecklist(data), // 1. Switches
-          // 🟢 AQUI PINTAMOS LA FILA CENTRADA
+          pw.SizedBox(height: 10),
+          _buildSafetyChecklist(data),
+
+          // FOTOS DE SEGURIDAD
           if (safetyPhotoWidgets.isNotEmpty) ...[
-            pw.SizedBox(height: 8),
+            pw.SizedBox(height: 10),
             pw.Row(
-              mainAxisAlignment:
-                  pw.MainAxisAlignment.center, // <--- ALINEACIÓN AL CENTRO
+              mainAxisAlignment: pw.MainAxisAlignment.center,
               children: safetyPhotoWidgets,
             ),
           ],
 
-          // 🟢 2. AHORA LAS OBSERVACIONES ESTÁN AQUÍ (ARRIBA)
           pw.SizedBox(height: 15),
           _buildGeneralObservations(data),
 
-          // ------------------------------------------------
-          pw.SizedBox(height: 15),
+          // SALTO DE PÁGINA
+          pw.NewPage(),
 
-          // 3. LUEGO VIENE EL TÍTULO Y LA TABLA DE PREGUNTAS
-          pw.Text(
-            "DETALLE DE VERIFICACIONES",
-            style: pw.TextStyle(
-              fontSize: 10,
-              fontWeight: pw.FontWeight.bold,
-              decoration: pw.TextDecoration.underline,
+          // PÁGINA 2+: DETALLE TÉCNICO
+          pw.Center(
+            child: pw.Text(
+              "DETALLE DE VERIFICACIONES",
+              style: pw.TextStyle(
+                fontSize: 12,
+                fontWeight: pw.FontWeight.bold,
+                decoration: pw.TextDecoration.underline,
+              ),
             ),
           ),
-          pw.SizedBox(height: 5),
-          _buildChecklistTable(data),
+          pw.SizedBox(height: 10),
 
+          // TABLAS AGRUPADAS
+          ..._buildCategorizedChecklists(data),
+
+          // GALERÍA GENERAL AL FINAL (Optimizado)
           if (data.fotosGenerales.isNotEmpty) ...[
             pw.SizedBox(height: 20),
             pw.Divider(),
@@ -148,10 +149,196 @@ class PdfGeneratorService {
     return pdf.save();
   }
 
+  // 🟢 LA LAVADORA DE IMÁGENES (REDUCE PESO)
+  Uint8List _optimizarImagen(Uint8List rawBytes) {
+    try {
+      // 1. Decodificar
+      final img.Image? original = img.decodeImage(rawBytes);
+      if (original == null) return rawBytes;
+
+      // 2. Redimensionar (Ancho máx 600px es suficiente para PDF A4)
+      final resized = img.copyResize(original, width: 600);
+
+      // 3. Comprimir a JPG calidad 60%
+      return Uint8List.fromList(img.encodeJpg(resized, quality: 60));
+    } catch (e) {
+      return rawBytes; // Si falla, usamos la original
+    }
+  }
+
   // --- WIDGETS ---
 
-  // Archivo: lib/features/inspection/presentation/services/pdf_generator_service.dart
+  List<pw.Widget> _buildCategorizedChecklists(InspectionReportData data) {
+    Map<String, List<dynamic>> groupedItems = {};
+    final categoryOrder = [
+      'EQUIPO PERSONAL',
+      'EQUIPO DE BUCEO',
+      'SEGURIDAD Y APOYO',
+    ];
 
+    for (var item in data.items) {
+      if (!groupedItems.containsKey(item.categoria)) {
+        groupedItems[item.categoria] = [];
+      }
+      groupedItems[item.categoria]!.add(item);
+    }
+
+    List<pw.Widget> widgets = [];
+    int globalCounter = 1;
+
+    final categoriesToRender = categoryOrder
+        .where((c) => groupedItems.containsKey(c))
+        .toList();
+    groupedItems.keys.forEach((k) {
+      if (!categoriesToRender.contains(k)) categoriesToRender.add(k);
+    });
+
+    for (var category in categoriesToRender) {
+      final items = groupedItems[category]!;
+      widgets.add(
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.symmetric(
+                vertical: 5,
+                horizontal: 8,
+              ),
+              margin: const pw.EdgeInsets.only(top: 15, bottom: 0),
+              decoration: const pw.BoxDecoration(
+                color: PdfColors.blue50,
+                border: pw.Border(
+                  top: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                  left: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                  right: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                ),
+              ),
+              child: pw.Text(
+                category,
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 10,
+                  color: PdfColors.blue900,
+                ),
+              ),
+            ),
+            pw.Table(
+              border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey400),
+              columnWidths: {
+                0: const pw.FixedColumnWidth(25),
+                1: const pw.FlexColumnWidth(4),
+                2: const pw.FixedColumnWidth(35),
+                3: const pw.FlexColumnWidth(3),
+              },
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                  children: [
+                    _buildHeaderCell("N°"),
+                    _buildHeaderCell("Ítem / Pregunta"),
+                    _buildHeaderCell("Est."),
+                    _buildHeaderCell("Observación / Evidencia"),
+                  ],
+                ),
+                ...items.map((item) {
+                  final row = _buildItemRow(item, globalCounter);
+                  globalCounter++;
+                  return row;
+                }).toList(),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+    return widgets;
+  }
+
+  pw.Widget _buildHeaderCell(String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7),
+        textAlign: pw.TextAlign.center,
+      ),
+    );
+  }
+
+  pw.TableRow _buildItemRow(dynamic item, int index) {
+    final isNC = item.respuesta == "NC";
+    final isIntolerable = item.criticidad == "Intolerable" && isNC;
+
+    // 🟢 OPTIMIZACIÓN DE FOTOS DEL CHECKLIST
+    List<pw.Widget> fotosWidgets = [];
+    if (item.fotos.isNotEmpty) {
+      for (var f in (item.fotos as List<Uint8List>)) {
+        final optimized = _optimizarImagen(f);
+        fotosWidgets.add(
+          pw.Container(
+            width: 80,
+            height: 80,
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.grey400),
+            ),
+            child: pw.Image(pw.MemoryImage(optimized), fit: pw.BoxFit.cover),
+          ),
+        );
+      }
+    }
+
+    return pw.TableRow(
+      decoration: isIntolerable
+          ? const pw.BoxDecoration(color: PdfColors.red100)
+          : (isNC ? const pw.BoxDecoration(color: PdfColors.orange50) : null),
+      children: [
+        pw.Container(
+          alignment: pw.Alignment.center,
+          padding: const pw.EdgeInsets.all(4),
+          child: pw.Text("$index", style: const pw.TextStyle(fontSize: 7)),
+        ),
+        pw.Padding(
+          padding: const pw.EdgeInsets.all(4),
+          child: pw.Text(item.pregunta, style: const pw.TextStyle(fontSize: 7)),
+        ),
+        pw.Container(
+          alignment: pw.Alignment.center,
+          padding: const pw.EdgeInsets.all(4),
+          child: pw.Text(
+            item.respuesta,
+            style: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold,
+              fontSize: 7,
+              color: isNC ? PdfColors.red : PdfColors.black,
+            ),
+          ),
+        ),
+        pw.Padding(
+          padding: const pw.EdgeInsets.all(4),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              if (item.comentario != null && item.comentario!.isNotEmpty)
+                pw.Text(
+                  item.comentario!,
+                  style: const pw.TextStyle(
+                    fontSize: 6,
+                    color: PdfColors.grey700,
+                  ),
+                ),
+              if (fotosWidgets.isNotEmpty) ...[
+                pw.SizedBox(height: 4),
+                pw.Wrap(spacing: 4, runSpacing: 4, children: fotosWidgets),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- CABECERA DENSE (MODIFICADA: CENTRO <-> AREA) ---
   pw.Widget _buildHeaderDense(InspectionReportData data, pw.MemoryImage? logo) {
     return pw.Container(
       decoration: pw.BoxDecoration(
@@ -162,7 +349,6 @@ class PdfGeneratorService {
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          // COLUMNA 1: Título y Datos Izquierda (SIN CAMBIOS)
           pw.Expanded(
             flex: 4,
             child: pw.Column(
@@ -183,19 +369,18 @@ class PdfGeneratorService {
                     color: PdfColors.grey500,
                   ),
                 ),
-                pw.SizedBox(height: 8),
-                _rowInfo("CENTRO:", data.centro),
+                pw.SizedBox(height: 5),
+
                 _rowInfo("ÁREA:", data.area),
+                _rowInfo("CENTRO:", data.centro),
+
                 _rowInfo("ENCARGADO C.:", data.encargadoCentro ?? "N/A"),
                 _rowInfo("PROFESIONAL:", data.profesional ?? "N/A"),
                 _rowInfo("FECHA:", data.fecha),
               ],
             ),
           ),
-
-          pw.SizedBox(width: 8),
-
-          // COLUMNA 2: Datos Derecha (SIN CAMBIOS)
+          pw.SizedBox(width: 10),
           pw.Expanded(
             flex: 4,
             child: pw.Column(
@@ -209,32 +394,23 @@ class PdfGeneratorService {
               ],
             ),
           ),
-
-          // COLUMNA 3: Logo, N° Informe y Tipo (MODIFICADO)
           pw.Expanded(
             flex: 3,
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.end,
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
-                // LOGO
                 pw.Container(
-                  height: 40,
+                  height: 35,
                   alignment: pw.Alignment.topRight,
                   child: logo != null
                       ? pw.Image(logo, fit: pw.BoxFit.contain)
-                      : pw.Text("[LOGO]"),
+                      : pw.Text(""),
                 ),
-
-                // Espacio flexible
-                pw.SizedBox(height: 10),
-
-                // --- BLOQUE INFORME + TIPO ---
-                // Agrupamos en una columna para que el texto quede pegado al recuadro
+                pw.SizedBox(height: 5),
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
-                    // RECUADRO N° INFORME
                     pw.Container(
                       padding: const pw.EdgeInsets.symmetric(
                         horizontal: 6,
@@ -251,18 +427,15 @@ class PdfGeneratorService {
                         ),
                       ),
                     ),
-
-                    // --- NUEVO: TEXTO INICIAL / CONSECUTIVA ---
-                    pw.SizedBox(height: 3), // Pequeña separación visual
+                    pw.SizedBox(height: 2),
                     pw.Text(
                       data.esConsecutiva ? "(CONSECUTIVA)" : "(INICIAL)",
                       style: pw.TextStyle(
                         fontSize: 8,
                         fontWeight: pw.FontWeight.bold,
-                        color: PdfColors.grey700, // Gris sutil para jerarquía
+                        color: PdfColors.grey700,
                       ),
                     ),
-                    // ------------------------------------------
                   ],
                 ),
               ],
@@ -273,10 +446,9 @@ class PdfGeneratorService {
     );
   }
 
-  // --- NUEVO WIDGET: DETALLES TÉCNICOS ---
   pw.Widget _buildTechnicalDetails(InspectionReportData data) {
     return pw.Container(
-      padding: const pw.EdgeInsets.all(8),
+      padding: const pw.EdgeInsets.all(5),
       decoration: pw.BoxDecoration(
         border: pw.Border.all(color: PdfColors.grey400),
         borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
@@ -284,7 +456,6 @@ class PdfGeneratorService {
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          // CABECERA CON HORARIOS
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
@@ -305,19 +476,16 @@ class PdfGeneratorService {
             ],
           ),
           pw.Divider(color: PdfColors.grey400, thickness: 0.5),
-
-          // TABLA DE COMPRESORES
           pw.Table(
             border: pw.TableBorder.all(color: PdfColors.grey, width: 0.5),
             columnWidths: {
-              0: const pw.FlexColumnWidth(2), // Equipo
-              1: const pw.FlexColumnWidth(2), // Matricula
-              2: const pw.FlexColumnWidth(2), // Vigencia
-              3: const pw.FlexColumnWidth(2), // Vigencia PH (NUEVO)
-              4: const pw.FlexColumnWidth(1), // Buzos
+              0: const pw.FlexColumnWidth(2),
+              1: const pw.FlexColumnWidth(2),
+              2: const pw.FlexColumnWidth(2),
+              3: const pw.FlexColumnWidth(2),
+              4: const pw.FlexColumnWidth(1),
             },
             children: [
-              // HEADER TABLA
               pw.TableRow(
                 decoration: const pw.BoxDecoration(color: PdfColors.grey200),
                 children: [
@@ -328,7 +496,6 @@ class PdfGeneratorService {
                   _buildCell("N° Buzos", isHeader: true),
                 ],
               ),
-              // COMPRESOR 1
               pw.TableRow(
                 children: [
                   _buildCell("Compresor 1"),
@@ -338,16 +505,16 @@ class PdfGeneratorService {
                   _buildCell(data.compresor1Buzos ?? "0"),
                 ],
               ),
-              // COMPRESOR 2 (Solo si tiene matrícula para no ensuciar, o siempre si prefieres)
-              pw.TableRow(
-                children: [
-                  _buildCell("Compresor 2"),
-                  _buildCell(data.compresor2Matricula ?? "-"),
-                  _buildCell(data.compresor2Vigencia ?? "-"),
-                  _buildCell(data.compresor2PH ?? "-"),
-                  _buildCell(data.compresor2Buzos ?? "0"),
-                ],
-              ),
+              if (data.compresor2Matricula != null)
+                pw.TableRow(
+                  children: [
+                    _buildCell("Compresor 2"),
+                    _buildCell(data.compresor2Matricula ?? "-"),
+                    _buildCell(data.compresor2Vigencia ?? "-"),
+                    _buildCell(data.compresor2PH ?? "-"),
+                    _buildCell(data.compresor2Buzos ?? "0"),
+                  ],
+                ),
             ],
           ),
         ],
@@ -355,28 +522,24 @@ class PdfGeneratorService {
     );
   }
 
-  // 2. ACTUALIZA ESTE MÉTODO AUXILIAR (Para ajustar anchos y estilos)
   pw.Widget _rowInfo(String label, String value) {
     return pw.Padding(
       padding: const pw.EdgeInsets.only(bottom: 2),
       child: pw.Row(
-        crossAxisAlignment: pw
-            .CrossAxisAlignment
-            .start, // Alineación superior por si el texto es largo
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.SizedBox(
-            width: 85, // Ancho fijo para las etiquetas (alineación perfecta)
+            width: 70,
             child: pw.Text(
               label,
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7),
             ),
           ),
           pw.Expanded(
             child: pw.Text(
               value.toUpperCase(),
-              style: const pw.TextStyle(fontSize: 8),
-              maxLines: 2, // Permitir 2 líneas si el nombre es muy largo
-              overflow: pw.TextOverflow.clip,
+              style: const pw.TextStyle(fontSize: 7),
+              maxLines: 2,
             ),
           ),
         ],
@@ -387,7 +550,6 @@ class PdfGeneratorService {
   pw.Widget _buildStatusAndStats(InspectionReportData data) {
     final estadoUpper = data.estadoGlobal.toUpperCase();
     final bool esCritico = estadoUpper.contains("SUSPENDIDA");
-
     final PdfColor colorEstado = esCritico
         ? PdfColors.red800
         : PdfColors.green800;
@@ -399,8 +561,8 @@ class PdfGeneratorService {
         pw.Expanded(
           flex: 4,
           child: pw.Container(
-            height: 50,
-            padding: const pw.EdgeInsets.all(5),
+            height: 45,
+            padding: const pw.EdgeInsets.all(4),
             decoration: pw.BoxDecoration(
               color: bgEstado,
               border: pw.Border.all(color: colorEstado, width: 1),
@@ -410,12 +572,12 @@ class PdfGeneratorService {
               children: [
                 pw.Text(
                   "ESTADO FINAL DE FAENA",
-                  style: pw.TextStyle(fontSize: 8, color: colorEstado),
+                  style: pw.TextStyle(fontSize: 7, color: colorEstado),
                 ),
                 pw.Text(
                   data.estadoGlobal.toUpperCase(),
                   style: pw.TextStyle(
-                    fontSize: 14,
+                    fontSize: 12,
                     fontWeight: pw.FontWeight.bold,
                     color: colorEstado,
                   ),
@@ -494,11 +656,11 @@ class PdfGeneratorService {
         pw.Table(
           border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
           columnWidths: {
-            0: const pw.FlexColumnWidth(2.5), // Nombre (un poco menos ancho)
-            1: const pw.FlexColumnWidth(1.5), // RUT
-            2: const pw.FlexColumnWidth(1.5), // Matrícula (NUEVA)
-            3: const pw.FlexColumnWidth(2.0), // Cargo
-            4: const pw.FlexColumnWidth(1.5), // Condición
+            0: const pw.FlexColumnWidth(2.5),
+            1: const pw.FlexColumnWidth(1.5),
+            2: const pw.FlexColumnWidth(1.5),
+            3: const pw.FlexColumnWidth(2.0),
+            4: const pw.FlexColumnWidth(1.5),
           },
           children: [
             pw.TableRow(
@@ -531,7 +693,7 @@ class PdfGeneratorService {
                 children: [p.nombre, p.rut, p.matricula, p.cargo, p.rolEnFaena]
                     .map(
                       (val) => pw.Padding(
-                        padding: const pw.EdgeInsets.all(3),
+                        padding: const pw.EdgeInsets.all(2),
                         child: pw.Text(
                           val,
                           style: const pw.TextStyle(fontSize: 7),
@@ -544,7 +706,7 @@ class PdfGeneratorService {
             ),
           ],
         ),
-        pw.SizedBox(height: 5),
+        pw.SizedBox(height: 4),
         pw.Row(
           children: [
             pw.Text(
@@ -562,6 +724,9 @@ class PdfGeneratorService {
   }
 
   pw.Widget _buildGeneralGallery(List<Uint8List> fotos) {
+    // 🟢 OPTIMIZACIÓN DE GALERÍA
+    final optimizedPhotos = fotos.map((f) => _optimizarImagen(f)).toList();
+
     return pw.Container(
       width: double.infinity,
       padding: const pw.EdgeInsets.all(5),
@@ -580,11 +745,11 @@ class PdfGeneratorService {
           pw.Wrap(
             spacing: 5,
             runSpacing: 5,
-            children: fotos
+            children: optimizedPhotos
                 .map(
                   (f) => pw.Container(
-                    width: 100,
-                    height: 100,
+                    width: 80,
+                    height: 80,
                     decoration: pw.BoxDecoration(
                       border: pw.Border.all(color: PdfColors.grey),
                     ),
@@ -598,122 +763,10 @@ class PdfGeneratorService {
     );
   }
 
-  pw.Widget _buildChecklistTable(InspectionReportData data) {
-    return pw.Table(
-      border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
-      columnWidths: {
-        0: const pw.FlexColumnWidth(3),
-        1: const pw.FlexColumnWidth(0.6),
-        2: const pw.FlexColumnWidth(2),
-        3: const pw.FlexColumnWidth(2),
-      },
-      children: [
-        pw.TableRow(
-          decoration: const pw.BoxDecoration(color: PdfColors.grey300),
-          children: ["Ítem / Pregunta", "Est.", "Observación", "Evidencia"]
-              .map(
-                (e) => pw.Padding(
-                  padding: const pw.EdgeInsets.all(4),
-                  child: pw.Text(
-                    e,
-                    style: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold,
-                      fontSize: 8,
-                    ),
-                    textAlign: pw.TextAlign.center,
-                  ),
-                ),
-              )
-              .toList(),
-        ),
-        ...data.items.map((item) {
-          final isNC = item.respuesta == "NC";
-          final isIntolerable = item.criticidad == "Intolerable" && isNC;
-
-          return pw.TableRow(
-            decoration: isIntolerable
-                ? const pw.BoxDecoration(color: PdfColors.red100)
-                : (isNC
-                      ? const pw.BoxDecoration(color: PdfColors.orange50)
-                      : null),
-            children: [
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(4),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(
-                      item.categoria.toUpperCase(),
-                      style: pw.TextStyle(
-                        fontSize: 6,
-                        color: PdfColors.grey700,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                    ),
-                    pw.Text(
-                      item.pregunta,
-                      style: const pw.TextStyle(fontSize: 8),
-                    ),
-                  ],
-                ),
-              ),
-              pw.Container(
-                alignment: pw.Alignment.center,
-                padding: const pw.EdgeInsets.all(4),
-                child: pw.Text(
-                  item.respuesta,
-                  style: pw.TextStyle(
-                    fontWeight: pw.FontWeight.bold,
-                    fontSize: 8,
-                    color: isNC ? PdfColors.red : PdfColors.black,
-                  ),
-                ),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(4),
-                child: pw.Text(
-                  item.comentario ?? "",
-                  style: const pw.TextStyle(fontSize: 7),
-                ),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(2),
-                child: item.fotos.isNotEmpty
-                    ? pw.Wrap(
-                        spacing: 2,
-                        runSpacing: 2,
-                        children: item.fotos
-                            .map(
-                              (f) => pw.Container(
-                                width: 80,
-                                height: 60,
-                                decoration: pw.BoxDecoration(
-                                  border: pw.Border.all(
-                                    color: PdfColors.grey400,
-                                    width: 0.5,
-                                  ),
-                                ),
-                                child: pw.Image(
-                                  pw.MemoryImage(f),
-                                  fit: pw.BoxFit.cover,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      )
-                    : pw.Container(),
-              ),
-            ],
-          );
-        }).toList(),
-      ],
-    );
-  }
-
   pw.Widget _buildFooter(pw.Context context) {
     return pw.Container(
       alignment: pw.Alignment.centerRight,
-      margin: const pw.EdgeInsets.only(top: 10),
+      margin: const pw.EdgeInsets.only(top: 5),
       child: pw.Text(
         "Generado por JF Innova App - Pág. ${context.pageNumber}/${context.pagesCount}",
         style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey),
@@ -723,7 +776,7 @@ class PdfGeneratorService {
 
   pw.Widget _buildSafetyChecklist(InspectionReportData data) {
     return pw.Container(
-      margin: const pw.EdgeInsets.symmetric(vertical: 10),
+      margin: const pw.EdgeInsets.symmetric(vertical: 5),
       decoration: pw.BoxDecoration(
         border: pw.Border.all(color: PdfColors.grey500, width: 0.5),
         color: PdfColors.grey50,
@@ -731,7 +784,6 @@ class PdfGeneratorService {
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          // TÍTULO DE LA SECCIÓN
           pw.Container(
             width: double.infinity,
             padding: const pw.EdgeInsets.all(4),
@@ -741,21 +793,16 @@ class PdfGeneratorService {
               style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
             ),
           ),
-
-          // ITERAMOS LOS ITEMS
           ...data.verificacionesBuceo.entries.map((entry) {
             bool isBool = entry.value is bool;
             bool isCumple = isBool && (entry.value == true);
             String textoMostrar = isBool
                 ? (isCumple ? "CUMPLE" : "NO CUMPLE")
                 : entry.value.toString();
-
             PdfColor colorTexto = isBool
                 ? (isCumple ? PdfColors.green700 : PdfColors.red700)
                 : PdfColors.black;
 
-            // 🟢 LÓGICA PARA SACAR EL COMENTARIO
-            // La key viene como "IV. Autorización...", hacemos split para sacar el "IV"
             String romanKey = entry.key.split('.').first.trim();
             String? observacion = data.safetyObservations[romanKey];
             bool tieneObs = observacion != null && observacion.isNotEmpty;
@@ -773,7 +820,6 @@ class PdfGeneratorService {
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  // FILA PRINCIPAL (Pregunta y Estado)
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
@@ -791,12 +837,10 @@ class PdfGeneratorService {
                       ),
                     ],
                   ),
-
-                  // 🟢 FILA DE COMENTARIO (SOLO SI EXISTE)
                   if (tieneObs) ...[
                     pw.SizedBox(height: 2),
                     pw.Padding(
-                      padding: const pw.EdgeInsets.only(left: 10), // Sangría
+                      padding: const pw.EdgeInsets.only(left: 8),
                       child: pw.Text(
                         "Obs: $observacion",
                         style: pw.TextStyle(
@@ -816,14 +860,13 @@ class PdfGeneratorService {
     );
   }
 
-  // Utilidad para construir celdas de tabla
   pw.Widget _buildCell(String text, {bool isHeader = false}) {
     return pw.Padding(
       padding: const pw.EdgeInsets.all(4),
       child: pw.Text(
         text,
         style: pw.TextStyle(
-          fontSize: 8,
+          fontSize: 7,
           fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
         ),
         textAlign: pw.TextAlign.center,
@@ -834,22 +877,19 @@ class PdfGeneratorService {
   pw.Widget _buildGeneralObservations(InspectionReportData data) {
     return pw.Container(
       width: double.infinity,
-      // Un borde suave y fondo limpio para destacar
       decoration: pw.BoxDecoration(
         border: pw.Border.all(color: PdfColors.grey400, width: 0.5),
         borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
         color: PdfColors.white,
       ),
-      padding: const pw.EdgeInsets.all(10),
+      padding: const pw.EdgeInsets.all(8),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Row(
             children: [
-              // Icono simulado con texto o forma, ya que pdf no tiene Icons por defecto
-              // Usamos un pequeño cuadrado azul para decorar
               pw.Container(
-                width: 4,
+                width: 3,
                 height: 10,
                 color: PdfColors.blue800,
                 margin: const pw.EdgeInsets.only(right: 5),
@@ -865,15 +905,12 @@ class PdfGeneratorService {
             ],
           ),
           pw.Divider(color: PdfColors.grey300, thickness: 0.5),
-          pw.SizedBox(height: 5),
+          pw.SizedBox(height: 4),
           pw.Text(
             (data.observacionPrevencionista.isNotEmpty)
                 ? data.observacionPrevencionista
                 : "Sin observaciones registradas.",
-            style: const pw.TextStyle(
-              fontSize: 9,
-              lineSpacing: 1.5, // Mejor lectura para textos largos
-            ),
+            style: const pw.TextStyle(fontSize: 8, lineSpacing: 1.5),
           ),
         ],
       ),
