@@ -881,7 +881,18 @@ class InspectionFormController extends ChangeNotifier {
         totalIntolerables: countIntolerables,
         observacionPrevencionista:
             verificacionesBuceo?.observacionGeneral ?? "Sin observaciones.",
-        verificacionesBuceo: {}, // Mapa de switches si fuera necesario
+        verificacionesBuceo: {
+          'IV. Autorización de la Faena':
+              verificacionesBuceo?.autorizacionAutoridadMaritima ?? false,
+          'V. Inducción Centro de Cultivo':
+              verificacionesBuceo?.induccionCentroCultivo ?? false,
+          'VI. Permiso de Buceo (Centro Correcto)':
+              verificacionesBuceo?.permisoBuceoCentroCorrecto ?? false,
+          'VII. Plan de Contingencias':
+              verificacionesBuceo?.planContingenciasCentroOk ?? false,
+          'VIII. Exámenes Ocupacionales Vigentes':
+              verificacionesBuceo?.examenesOcupacionalesVigentes ?? false,
+        }, // Mapa de switches si fuera necesario
       );
 
       // -----------------------------------------------------------------------
