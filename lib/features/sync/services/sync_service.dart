@@ -72,7 +72,6 @@ class SyncService {
 
   Future<int> _sincronizarActividades() async {
     final db = await _dbHelper.database;
-    // Buscamos solo las que no han sido subidas
     final pendientes = await db.query(
       'actividades_pendientes',
       where: 'subido = 0',
@@ -84,46 +83,80 @@ class SyncService {
     for (var row in pendientes) {
       final activityId = row['id'] as String;
       final tipoActividad = row['tipo_actividad'] as String;
+
       try {
-        // A) Mapeo y Limpieza para la Nube
-        // Creamos una copia para no modificar el objeto original de la fila
-        // Dentro de _sincronizarActividades
+        debugPrint("🚀 Iniciando Sync de Actividad: $activityId");
+
+        // 1. Preparamos datos limpios para la nube
         final datosParaNube = Map<String, dynamic>.from(row);
 
-        // Mantenemos el estado que viene de SQLite (que debe ser 'En Progreso')
-        // Solo si quieres que al FINALIZAR cambie, podrías agregar una lógica aquí
-        // o manejarlo directamente desde el objeto que guardas.
+        // Conversión de tipos
         datosParaNube['puerto_abierto'] = (row['puerto_abierto'] == 1);
-
-        // --- 🟢 NUEVO: ASEGURAR NÚMERO DE SEGUIMIENTO ---
-        // Nos aseguramos que nunca vaya null, si es null mandamos 0 (Inicial)
         datosParaNube['numero_seguimiento'] = row['numero_seguimiento'] ?? 0;
-        // ------------------------------------------------
 
-        // --- 1. TRADUCCIÓN DE NOMBRES ---
-        // Sacamos el valor local
-        final reporteLocal = row['numero_reporte'];
-
-        // Lo asignamos a la columna de Supabase
-        datosParaNube['numero_informe'] = reporteLocal;
-
-        // Borramos la clave local para que no de error de "columna no existe"
+        // LIMPIEZA CRÍTICA: Quitamos columnas que solo existen en SQLite
+        // Si mandamos 'numero_reporte' o 'subido' a Supabase, fallará.
         datosParaNube.remove('numero_reporte');
         datosParaNube.remove('subido');
 
-        await _supabase.from('actividades').upsert(datosParaNube);
+        // --- LÓGICA INTELIGENTE (Insert vs Update) ---
 
-        // C) Subir Datos Relacionados (Hijos)
+        final numeroLocal = row['numero_reporte'];
+        // Verificamos si ya tiene un número real (no null, no vacío, no "null")
+        final yaTieneNumero =
+            numeroLocal != null &&
+            numeroLocal.toString().isNotEmpty &&
+            numeroLocal.toString() != "null";
+
+        if (yaTieneNumero) {
+          // CASO A: ACTUALIZACIÓN (UPDATE)
+          // Ya tiene folio, así que solo actualizamos el resto de datos.
+          // NO usamos upsert para no quemar la secuencia.
+
+          // Quitamos 'numero_informe' del mapa para no tocarlo en la nube
+          datosParaNube.remove('numero_informe');
+
+          await _supabase
+              .from('actividades')
+              .update(datosParaNube)
+              .eq('id', activityId);
+
+          debugPrint(
+            "🔄 Actividad actualizada (Folio existente: $numeroLocal).",
+          );
+        } else {
+          // CASO B: CREACIÓN (UPSERT/INSERT)
+          // No tiene folio, es nueva. Dejamos que Supabase asigne uno.
+
+          // Aseguramos que NO vaya el campo numero_informe para que se active el IDENTITY
+          datosParaNube.remove('numero_informe');
+
+          final response = await _supabase
+              .from('actividades')
+              .upsert(datosParaNube)
+              .select('numero_informe') // <--- PEDIMOS EL NUEVO NÚMERO
+              .single();
+
+          final nuevoNumero = response['numero_informe'];
+          debugPrint("✨ ASIGNADO EN NUBE: #$nuevoNumero");
+
+          // GUARDAMOS EL NÚMERO EN EL CELULAR
+          await db.update(
+            'actividades_pendientes',
+            {'numero_reporte': nuevoNumero.toString()},
+            where: 'id = ?',
+            whereArgs: [activityId],
+          );
+          debugPrint("💾 Guardado en SQLite correctamente.");
+        }
+
+        // --- SUBIDA DE HIJOS ---
         if (tipoActividad == 'INSPECCION_BUCEO') {
           await _sincronizarVerificaciones(db, activityId);
           await _sincronizarParticipantes(db, activityId);
         }
 
-        // D) Actualizar estado local
-        // En lugar de borrar (para mantener historial offline), marcamos como subido = 1
-        // O si prefieres borrar como tenías antes, descomenta la línea de abajo:
-        // await db.delete('actividades_pendientes', where: 'id = ?', whereArgs: [activityId]);
-
+        // MARCAR COMO SUBIDO LOCALMENTE
         await db.update(
           'actividades_pendientes',
           {'subido': 1},
@@ -131,19 +164,15 @@ class SyncService {
           whereArgs: [activityId],
         );
 
-        debugPrint("✅ Actividad $activityId sincronizada completa.");
         count++;
+        debugPrint("✅ Sincronización finalizada para $activityId");
       } catch (e) {
-        debugPrint("⚠️ Error subiendo actividad $activityId: $e");
-        // Si falla, no actualizamos 'subido', así reintentará en la próxima sync
+        debugPrint("🔥 ERROR CRÍTICO subiendo actividad $activityId: $e");
       }
     }
     return count;
   }
-
   // --- MÉTODOS AUXILIARES NUEVOS ---
-
-  // En SyncService.dart
 
   Future<void> _sincronizarVerificaciones(
     DatabaseExecutor db,

@@ -119,17 +119,13 @@ class InspectionSetupController extends ChangeNotifier {
     centroId = v;
     notifyListeners();
 
-    // Si seleccionó un centro válido, buscamos el número sugerido
+    // --- CORRECCIÓN CLEAN CODE ---
+    // NO llamamos a sugerirSiguienteNumeroReporte.
+    // Dejamos el campo vacío para indicar que es nuevo y está pendiente.
     if (v != null) {
-      final sugerido = await _localRepo.sugerirSiguienteNumeroReporte(v);
-      if (sugerido != null) {
-        numeroInformeController.text = sugerido;
-      } else {
-        // Si no hay historial, lo dejamos vacío para que el usuario o el server decidan
-        numeroInformeController.text = "";
-      }
-      notifyListeners(); // Actualizamos la UI para que se vea el número
+      numeroInformeController.text = ""; // Se queda vacío
     }
+    notifyListeners();
   }
 
   void setEstadoPuerto(String? v) {
@@ -226,7 +222,9 @@ class InspectionSetupController extends ChangeNotifier {
             : 0, // 0 = Inicial, 1 = Consecutiva
         // --------------------------
         'subido': 0,
-        'numero_reporte': numeroInformeController.text.trim(),
+        'numero_reporte': numeroInformeController.text.trim().isEmpty
+            ? null
+            : numeroInformeController.text.trim(),
       };
 
       await _dbHelper.saveActividadOffline(datosActividad);

@@ -895,7 +895,7 @@ class PdfGeneratorService {
                 margin: const pw.EdgeInsets.only(right: 5),
               ),
               pw.Text(
-                "OBSERVACIONES GENERALES / PREVENCIONISTA",
+                "OBSERVACIONES GENERALES",
                 style: pw.TextStyle(
                   fontSize: 9,
                   fontWeight: pw.FontWeight.bold,

@@ -114,28 +114,22 @@ class InspectionFormController extends ChangeNotifier {
           embarcacionId = data['embarcacion_id'] as String?;
           _numeroSeguimiento = data['numero_seguimiento'] as int? ?? 0;
 
-          // RECUPERAR NÚMERO REPORTE
-          if (data['numero_reporte'] != null &&
-              data['numero_reporte'].toString().isNotEmpty) {
-            numeroInformeController.text = data['numero_reporte'];
-          } else {
-            // --- LÓGICA CORREGIDA ---
-            // Ya no usamos usuarioId, usamos el centroId de la actividad actual
-            if (centroId != null) {
-              final sugerido = await (_repo as LocalInspectionRepository)
-                  .sugerirSiguienteNumeroReporte(
-                    centroId!,
-                  ); // Pasamos el CENTRO
+          // --- CAMBIO AQUÍ: LÓGICA PASIVA ---
+          // Ya no "sugerimos" nada. Leemos lo que hay.
 
-              if (sugerido != null) {
-                numeroInformeController.text = sugerido;
-              } else {
-                // Si es null (no hay historial local), lo dejamos vacío
-                // El Trigger de Supabase le pondrá el número correcto al subir.
-                numeroInformeController.text = "";
-              }
-            }
+          final numeroReal = data['numero_reporte']?.toString();
+
+          if (numeroReal != null &&
+              numeroReal.isNotEmpty &&
+              numeroReal != "null") {
+            // Si el Sync ya trajo el número, lo mostramos
+            numeroInformeController.text = numeroReal;
+          } else {
+            // Si no hay número (estamos offline y recién creada), mostramos texto de espera
+            // Ojo: Si prefieres que salga vacío, ponle ""
+            numeroInformeController.text = "Pendiente...";
           }
+          // ----------------------------------
         }
       }
 
@@ -454,7 +448,29 @@ class InspectionFormController extends ChangeNotifier {
   // --- PERSISTENCIA CORREGIDA (SOURCE OF TRUTH) ---
   Future<void> _persistirDatos() async {
     debugPrint("💾 PERSISTIR: Iniciando guardado completo...");
+    String? numeroFinal = numeroInformeController.text.trim();
 
+    if (_repo is LocalInspectionRepository) {
+      // Leemos la verdad actual de la DB
+      final datosActualesDB = await (_repo as LocalInspectionRepository)
+          .getActividad(activityId);
+      final numeroEnDB = datosActualesDB?['numero_reporte']?.toString();
+
+      // Si la pantalla NO tiene número, pero la DB SÍ tiene uno válido...
+      // ¡Usamos el de la DB!
+      if ((numeroFinal.isEmpty || numeroFinal == "Pendiente...") &&
+          (numeroEnDB != null &&
+              numeroEnDB.isNotEmpty &&
+              numeroEnDB != "null")) {
+        numeroFinal = numeroEnDB;
+
+        // De paso, actualizamos la pantalla para que el usuario lo vea
+        numeroInformeController.text = numeroFinal!;
+        debugPrint(
+          "🛡️ Número rescatado de la DB: #$numeroFinal (Evitamos sobrescribir)",
+        );
+      }
+    }
     // 1. Datos Actividad
     final actividadMap = {
       'id': activityId,
@@ -464,7 +480,7 @@ class InspectionFormController extends ChangeNotifier {
       'contratista_id': contratistaId,
       'embarcacion_id': embarcacionId,
       'fecha_realizacion': DateTime.now().toIso8601String(),
-      'numero_reporte': numeroInformeController.text.trim(),
+      'numero_reporte': numeroFinal,
       'numero_seguimiento': _numeroSeguimiento,
     };
 
@@ -962,5 +978,24 @@ class InspectionFormController extends ChangeNotifier {
     final file = File(path);
     if (!await file.exists()) return null;
     return await file.readAsBytes();
+  }
+
+  // En InspectionFormController
+  Future<void> recargarNumeroDesdeDB() async {
+    if (_repo is LocalInspectionRepository) {
+      final data = await (_repo as LocalInspectionRepository).getActividad(
+        activityId,
+      );
+      final numDB = data?['numero_reporte']?.toString();
+
+      if (numDB != null &&
+          numDB.isNotEmpty &&
+          numDB != "null" &&
+          numDB != numeroInformeController.text) {
+        numeroInformeController.text = numDB;
+        notifyListeners(); // ¡Esto actualiza la UI automáticamente!
+        debugPrint("🔄 UI Actualizada con Folio: $numDB");
+      }
+    }
   }
 }

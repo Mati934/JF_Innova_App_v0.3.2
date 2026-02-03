@@ -270,12 +270,18 @@ class _InspectionSetupView extends StatelessWidget {
                       const SizedBox(height: 15),
                       TextFormField(
                         controller: controller.numeroInformeController,
-                        keyboardType: TextInputType.text,
+                        readOnly: true, // <--- BLOQUEADO PARA ESCRITURA
+                        enabled: false, // <--- VISUALMENTE DESHABILITADO
                         decoration: const InputDecoration(
                           labelText: 'N° de Informe',
-                          hintText: 'Ej: 01',
+                          hintText:
+                              'Automático al sincronizar', // <--- MENSAJE CLARO
                           prefixIcon: Icon(Icons.confirmation_number),
                           border: OutlineInputBorder(),
+                          filled: true,
+                          fillColor: Color(
+                            0xFFF0F0F0,
+                          ), // Grisecito para que sepa que no se toca
                         ),
                       ),
 

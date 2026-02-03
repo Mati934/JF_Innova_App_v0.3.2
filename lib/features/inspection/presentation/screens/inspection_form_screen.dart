@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:jf_innova_app/features/inspection/presentation/widgets/headers/buceo_header_widget.dart';
 import '../../../../shared/services/image_service.dart';
@@ -31,6 +33,20 @@ class InspectionFormScreen extends StatefulWidget {
 class _InspectionFormScreenState extends State<InspectionFormScreen> {
   late final InspectionFormController _controller;
   bool _canPop = false;
+  Timer? _timerVerificacion;
+
+  void _onControllerUpdate() {
+    if (_controller.errorMessage != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_controller.errorMessage!),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      _controller.clearError();
+    }
+    if (mounted) setState(() {});
+  }
 
   @override
   void initState() {
@@ -49,19 +65,15 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
     _controller.cargarDatosEspecificos();
 
     _controller.addListener(_onControllerUpdate);
-  }
 
-  void _onControllerUpdate() {
-    if (_controller.errorMessage != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_controller.errorMessage!),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      _controller.clearError();
-    }
-    if (mounted) setState(() {});
+    _timerVerificacion = Timer.periodic(const Duration(seconds: 5), (
+      timer,
+    ) async {
+      if (_controller.numeroInformeController.text.isEmpty) {
+        // Solo recargamos si no tenemos número
+        await _controller.recargarNumeroDesdeDB();
+      }
+    });
   }
 
   @override

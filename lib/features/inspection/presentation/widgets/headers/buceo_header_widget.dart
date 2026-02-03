@@ -696,11 +696,14 @@ class BuceoTecnicoWidget extends StatelessWidget {
                       flex: 2,
                       child: TextFormField(
                         controller: controller.numeroInformeController,
-                        keyboardType: TextInputType.number,
+                        readOnly: true,
+                        enabled: false,
                         decoration: const InputDecoration(
                           labelText: "N° Informe",
-                          hintText: "Ej: 01",
+                          hintText: "Auto",
                           isDense: true,
+                          filled: true,
+                          fillColor: Color(0xFFF0F0F0),
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.confirmation_number),
                         ),
