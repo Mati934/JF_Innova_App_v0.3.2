@@ -75,6 +75,7 @@ class LocalInspectionRepository implements InspectionRepository {
     required String tipoActividad,
     required String? centroId,
     required DateTime fecha,
+    required bool esBorrador,
     String? usuarioId,
     String? contratistaId,
     String? embarcacionId,
@@ -83,6 +84,7 @@ class LocalInspectionRepository implements InspectionRepository {
     int? numeroSeguimiento,
   }) async {
     final db = await dbHelper.database;
+    final estadoFinal = esBorrador ? 'En Progreso' : 'En Seguimiento';
     try {
       // 1. Intentamos ACTUALIZAR primero (Operación Segura)
       // Esto mantiene el mismo ID y NO dispara el borrado en cascada.
@@ -96,7 +98,7 @@ class LocalInspectionRepository implements InspectionRepository {
           'embarcacion_id': embarcacionId,
           'fecha_realizacion': fecha.toIso8601String(),
           'subido': 0,
-          'estado_final': estado ?? 'En Progreso',
+          'estado_final': estadoFinal,
           'puerto_abierto': 1,
           'numero_reporte': numeroReporte,
           'numero_seguimiento': numeroSeguimiento ?? 0,
@@ -385,46 +387,39 @@ class LocalInspectionRepository implements InspectionRepository {
   Future<void> saveInspeccionCompleta({
     required Map<String, dynamic> actividad,
     required List<Map<String, dynamic>> respuestas,
-    List<Map<String, dynamic>>? participantes, // Opcional
-    Map<String, dynamic>? verificacionesBuceo, // Opcional
-    List<Map<String, dynamic>>? fotos, // <--- NUEVO PARÁMETRO
+    required bool esBorrador, // 👈 NUEVO PARAMETRO OBLIGATORIO
+    List<Map<String, dynamic>>? participantes,
+    Map<String, dynamic>? verificacionesBuceo,
+    List<Map<String, dynamic>>? fotos,
   }) async {
-    // 1. Instancia DB
-
-    // --- 🕵️ LOG 3: ¿QUÉ LLEGÓ AL REPOSITORIO? ---
-    if (verificacionesBuceo != null) {
-      debugPrint("🕵️ [LOG 3] Repository recibio:");
-      debugPrint(
-        "   > Verif['encargado_centro']: '${verificacionesBuceo['encargado_centro']}'",
-      );
-    } else {
-      debugPrint("🕵️ [LOG 3] ALERTA: verificacionesBuceo es NULL");
-    }
-
     final db = await DatabaseHelper.instance.database;
 
-    // 2. TRANSACCIÓN ATÓMICA
+    // LÓGICA DE ESTADO (Source of Truth)
+    final estadoFinal = esBorrador ? 'En Progreso' : 'En Seguimiento';
+
     await db.transaction((txn) async {
-      debugPrint('💾 TXN: Iniciando guardado atómico...');
+      debugPrint('💾 TXN: Iniciando guardado ($estadoFinal)...');
 
       // --- A. GUARDAR PADRE (ACTIVIDAD) ---
       final actividadMap = Map<String, dynamic>.from(actividad);
-      actividadMap['subido'] = 0; // Reset para sync
 
-      int count = await txn.update(
+      // FORZAMOS LOS VALORES CRÍTICOS
+      actividadMap['subido'] = 0;
+      actividadMap['estado_final'] =
+          estadoFinal; // 👈 Aquí se sobrescribe cualquier basura que venga de la UI
+
+      // Upsert simplificado usando conflictAlgorithm
+      await txn.insert(
         'actividades_pendientes',
         actividadMap,
-        where: 'id = ?',
-        whereArgs: [actividadMap['id']],
+        conflictAlgorithm: ConflictAlgorithm.replace,
       );
-
-      if (count == 0) {
-        await txn.insert('actividades_pendientes', actividadMap);
-      }
 
       // --- B. GUARDAR HIJOS (RESPUESTAS) ---
       final batch = txn.batch();
 
+      // Borramos respuestas viejas para insertar las nuevas limpias
+      // (Es más seguro borrar e insertar en batch que hacer updates complejos uno por uno)
       for (var resp in respuestas) {
         batch.delete(
           'inspeccion_respuestas_pendientes',
@@ -439,23 +434,21 @@ class LocalInspectionRepository implements InspectionRepository {
 
       // --- C. GUARDAR VERIFICACIONES DE BUCEO ---
       if (verificacionesBuceo != null) {
+        // Aseguramos FK
         if (!verificacionesBuceo.containsKey('actividad_id')) {
           verificacionesBuceo['actividad_id'] = actividad['id'];
         }
-        int vCount = await txn.update(
+        // Upsert directo
+        batch.insert(
           'verificaciones_buceo',
           verificacionesBuceo,
-          where: 'actividad_id = ?',
-          whereArgs: [verificacionesBuceo['actividad_id']],
+          conflictAlgorithm: ConflictAlgorithm.replace,
         );
-        if (vCount == 0) {
-          batch.insert('verificaciones_buceo', verificacionesBuceo);
-        }
       }
 
       // --- D. GUARDAR PARTICIPANTES ---
       if (participantes != null) {
-        // Quitamos el isNotEmpty para permitir vaciar lista
+        // Borrón y cuenta nueva para la lista de participantes (evita duplicados fantasmas)
         batch.delete(
           'actividad_participantes',
           where: 'actividad_id = ?',
@@ -463,78 +456,63 @@ class LocalInspectionRepository implements InspectionRepository {
         );
 
         for (var p in participantes) {
-          // Upsert Persona
-          final datosPersona = {
-            'id': p['personal_id'],
-            'nombre_completo': p['nombre_completo'],
-            'rut': p['rut'],
-            'cargo': p['cargo'],
-            'activo': 1,
-            'matricula': p['matricula'],
-          };
+          // 1. Asegurar Persona (Ignorar si ya existe para no sobrescribir datos maestros)
           batch.insert(
             'personal_externo',
-            datosPersona,
-            conflictAlgorithm: ConflictAlgorithm.replace,
+            {
+              'id': p['personal_id'],
+              'nombre_completo': p['nombre_completo'],
+              'rut': p['rut'],
+              'cargo': p['cargo'],
+              'activo': 1,
+              'matricula': p['matricula'],
+              'contratista_id':
+                  p['contratista_id'], // Asegúrate de guardar esto si lo tienes
+            },
+            conflictAlgorithm: ConflictAlgorithm
+                .ignore, // IMPORTANTE: ignore para no pisar maestros
           );
 
-          // Relación
-          final datosRelacion = {
+          // 2. Crear Relación
+          batch.insert('actividad_participantes', {
             'actividad_id':
-                p['actividad_id'], // Asegúrate que el controller mande esto
+                actividad['id'], // Usamos el ID de la actividad padre garantizado
             'personal_id': p['personal_id'],
             'rol_en_faena': p['rol_en_faena'],
-            'condiciones_optimas': p['condiciones_optimas'],
-          };
-          batch.insert('actividad_participantes', datosRelacion);
+            'condiciones_optimas':
+                p['condiciones_optimas'] == true ||
+                    p['condiciones_optimas'] == 1
+                ? 1
+                : 0,
+          });
         }
       }
 
-      // --- E. GUARDAR FOTOS (NUEVA LÓGICA) ---
-      // IMPORTANTE: Si fotos es null, NO tocamos nada (asumimos guardado parcial).
-      // Si fotos es una lista (aunque sea vacía), aplicamos "Source of Truth".
+      // --- E. GUARDAR FOTOS ---
       if (fotos != null) {
-        // 1. Limpieza de registros en DB (NO borra archivos físicos)
-        batch.delete(
-          'fotos_pendientes',
-          where: 'actividad_id = ?',
-          whereArgs: [actividad['id']],
-        );
+        // Nota: No borramos todas las fotos porque el usuario podría haber borrado solo una en la UI.
+        // Pero como "fotos" representa el estado ACTUAL de la UI, podemos sincronizar.
+        // Estrategia segura: Upsert.
 
-        // 2. Inserción masiva del estado actual del Controller
         for (var f in fotos) {
           final fotoMap = Map<String, dynamic>.from(f);
-          fotoMap['subido'] = 0; // Reset para sync
-          // Aseguramos IDs por si el Controller viene flojo
+          fotoMap['subido'] = 0;
           fotoMap['actividad_id'] = actividad['id'];
 
-          batch.insert('fotos_pendientes', fotoMap);
+          // Asumimos que la foto ya tiene ID. Si es nueva, sqlite autogenera si id es null.
+          batch.insert(
+            'fotos_pendientes',
+            fotoMap,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
         }
       }
 
       // --- F. EJECUTAR LOTE ---
-      await batch.commit(noResult: false);
-      debugPrint('✅ TXN: Guardado completo y exitoso.');
-      // --- 🕵️ LOG 4: VERIFICACIÓN FORENSE (LEER LO QUE ACABAMOS DE GUARDAR) ---
-      if (verificacionesBuceo != null) {
-        final check = await txn.query(
-          'verificaciones_buceo',
-          columns: ['encargado_centro', 'supervisor_centro'],
-          where: 'actividad_id = ?',
-          whereArgs: [verificacionesBuceo['actividad_id']],
-        );
-        debugPrint("🕵️ [LOG 4] Lectura Post-Mortem SQLite:");
-        if (check.isNotEmpty) {
-          debugPrint("   > En DB: ${check.first}");
-        } else {
-          debugPrint("   > 💀 ERROR: No se encontró la fila en DB");
-        }
-      }
+      await batch.commit(noResult: true);
+      debugPrint('✅ TXN: Guardado exitoso. Estado final: $estadoFinal');
     });
   }
-  // En local_inspection_repository.dart
-
-  // En LocalInspectionRepository
 
   Future<String?> sugerirSiguienteNumeroReporte(String centroId) async {
     final db = await dbHelper.database;

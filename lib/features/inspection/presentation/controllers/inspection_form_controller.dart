@@ -382,7 +382,7 @@ class InspectionFormController extends ChangeNotifier {
 
     try {
       // AQUÍ ESTÁ LA CLAVE: Persistir datos con Red de Seguridad
-      await _persistirDatos();
+      await _persistirDatos(esBorrador: true);
       unawaited(_iniciarSincronizacionSegura());
       return true;
     } catch (e) {
@@ -417,20 +417,14 @@ class InspectionFormController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _persistirDatos();
-      if (_repo is LocalInspectionRepository) {
-        await (_repo as LocalInspectionRepository).saveActividad(
-          id: activityId,
-          tipoActividad: tipoActividad,
-          centroId: centroId,
-          fecha: DateTime.now(),
-          usuarioId: usuarioId,
-          contratistaId: contratistaId,
-          embarcacionId: embarcacionId,
-          estado: 'En Seguimiento',
-        );
-      }
+      // ✅ PASO 1: Guardamos como FINAL (False)
+      // Esto automáticamente pone el estado "En Seguimiento" en la BD
+      await _persistirDatos(esBorrador: false);
 
+      // ❌ BORRA EL BLOQUE saveActividad QUE TENÍAS AQUÍ. YA NO ES NECESARIO.
+      // (El _persistirDatos ya hizo todo el trabajo sucio en una transacción segura)
+
+      // ✅ PASO 2: Sincronizar
       _syncService.sincronizarTodo().catchError(
         (e) => debugPrint("Sync Error: $e"),
       );
@@ -446,7 +440,7 @@ class InspectionFormController extends ChangeNotifier {
   }
 
   // --- PERSISTENCIA CORREGIDA (SOURCE OF TRUTH) ---
-  Future<void> _persistirDatos() async {
+  Future<void> _persistirDatos({required bool esBorrador}) async {
     debugPrint("💾 PERSISTIR: Iniciando guardado completo...");
     String? numeroFinal = numeroInformeController.text.trim();
 
@@ -627,7 +621,8 @@ class InspectionFormController extends ChangeNotifier {
         respuestas: loteRespuestas,
         participantes: participantesMap,
         verificacionesBuceo: verificacionesMap,
-        fotos: listaFotosParaRepo, // <--- ¡AQUÍ ESTÁ LA MAGIA!
+        fotos: listaFotosParaRepo,
+        esBorrador: esBorrador,
       );
     }
 
