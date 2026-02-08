@@ -402,6 +402,8 @@ class InspectionFormController extends ChangeNotifier {
     }
   }
 
+  // EN InspectionFormController
+
   Future<bool> finalizarInspeccion() async {
     _errorMessage = null;
 
@@ -417,14 +419,53 @@ class InspectionFormController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // ✅ PASO 1: Guardamos como FINAL (False)
-      // Esto automáticamente pone el estado "En Seguimiento" en la BD
-      await _persistirDatos(esBorrador: false);
+      // 1. GENERAR PDF EN MEMORIA (SILENCIOSO)
+      debugPrint("📄 Generando PDF final para respaldo en nube...");
+      bool esConsecutivaFinal = (_numeroSeguimiento == 1);
 
-      // ❌ BORRA EL BLOQUE saveActividad QUE TENÍAS AQUÍ. YA NO ES NECESARIO.
-      // (El _persistirDatos ya hizo todo el trabajo sucio en una transacción segura)
+      // Usamos el constructor de datos que creamos
+      final reportData = await _buildReportData(
+        esConsecutiva: esConsecutivaFinal,
+      );
+      final pdfService = PdfGeneratorService();
+      final pdfBytes = await pdfService.generatePdf(reportData);
 
-      // ✅ PASO 2: Sincronizar
+      String? pdfUrlSubido;
+
+      // 2. INTENTAR SUBIDA A SUPABASE (Bucket 'reportes')
+      try {
+        final supabase = Supabase.instance.client;
+        // Nombre único: ID_ACTIVIDAD/reporte_FOLIO.pdf
+        final nombreArchivo = "reporte_${reportData.numeroReporte}.pdf";
+        final pathStorage = "$activityId/$nombreArchivo";
+
+        debugPrint("☁️ Subiendo PDF a bucket 'reportes' ($pathStorage)...");
+
+        await supabase.storage
+            .from('reportes')
+            .uploadBinary(
+              pathStorage,
+              pdfBytes,
+              fileOptions: const FileOptions(
+                upsert: true,
+              ), // Sobrescribe si existe
+            );
+
+        pdfUrlSubido = supabase.storage
+            .from('reportes')
+            .getPublicUrl(pathStorage);
+        debugPrint("✅ PDF Subido exitosamente: $pdfUrlSubido");
+      } catch (e) {
+        // Si falla la subida (ej: sin internet), NO detenemos el proceso.
+        // Guardamos la inspección igual, pero sin URL de PDF por ahora.
+        debugPrint("⚠️ No se pudo subir el PDF (Posiblemente Offline): $e");
+        pdfUrlSubido = null;
+      }
+
+      // 3. GUARDAR FINAL EN LOCAL (Con la URL si hubo éxito)
+      await _persistirDatos(esBorrador: false, pdfUrlFinal: pdfUrlSubido);
+
+      // 4. SINCRONIZAR DATOS
       _syncService.sincronizarTodo().catchError(
         (e) => debugPrint("Sync Error: $e"),
       );
@@ -440,32 +481,31 @@ class InspectionFormController extends ChangeNotifier {
   }
 
   // --- PERSISTENCIA CORREGIDA (SOURCE OF TRUTH) ---
-  Future<void> _persistirDatos({required bool esBorrador}) async {
-    debugPrint("💾 PERSISTIR: Iniciando guardado completo...");
-    String? numeroFinal = numeroInformeController.text.trim();
+  // EN InspectionFormController
 
+  Future<void> _persistirDatos({
+    required bool esBorrador,
+    String? pdfUrlFinal,
+  }) async {
+    debugPrint(
+      "💾 PERSISTIR: Iniciando guardado completo (Borrador: $esBorrador)...",
+    );
+
+    String? numeroFinal = numeroInformeController.text.trim();
     if (_repo is LocalInspectionRepository) {
-      // Leemos la verdad actual de la DB
       final datosActualesDB = await (_repo as LocalInspectionRepository)
           .getActividad(activityId);
       final numeroEnDB = datosActualesDB?['numero_reporte']?.toString();
-
-      // Si la pantalla NO tiene número, pero la DB SÍ tiene uno válido...
-      // ¡Usamos el de la DB!
       if ((numeroFinal.isEmpty || numeroFinal == "Pendiente...") &&
           (numeroEnDB != null &&
               numeroEnDB.isNotEmpty &&
               numeroEnDB != "null")) {
         numeroFinal = numeroEnDB;
-
-        // De paso, actualizamos la pantalla para que el usuario lo vea
         numeroInformeController.text = numeroFinal!;
-        debugPrint(
-          "🛡️ Número rescatado de la DB: #$numeroFinal (Evitamos sobrescribir)",
-        );
       }
     }
-    // 1. Datos Actividad
+
+    // 1. Datos Actividad (AHORA INCLUYE PDF_URL)
     final actividadMap = {
       'id': activityId,
       'tipo_actividad': tipoActividad,
@@ -476,6 +516,8 @@ class InspectionFormController extends ChangeNotifier {
       'fecha_realizacion': DateTime.now().toIso8601String(),
       'numero_reporte': numeroFinal,
       'numero_seguimiento': _numeroSeguimiento,
+      'pdf_url':
+          pdfUrlFinal, // <--- CAMBIO IMPORTANTE: Guardamos la URL si existe
     };
 
     // 2. Respuestas
@@ -490,34 +532,14 @@ class InspectionFormController extends ChangeNotifier {
       });
     });
 
-    // 3. PREPARAR FOTOS (Aquí estaba el bug)
-    // Creamos la lista MAESTRA que representa la verdad absoluta visual
+    // 3. FOTOS
     List<Map<String, dynamic>> listaFotosParaRepo = [];
 
-    // --- A. FOTOS POR PREGUNTA ---
+    // A. Fotos por pregunta
     for (var entry in fotosPorPregunta.entries) {
       final itemId = entry.key;
       var file = entry.value;
-
-      // Si NO está segura en disco, la aseguramos primero
-      if (!file.path.contains('inspecciones_img') &&
-          _repo is LocalInspectionRepository) {
-        try {
-          final rutaSegura = await (_repo as LocalInspectionRepository)
-              .saveFoto(
-                activityId: activityId,
-                itemId: itemId,
-                file: XFile(file.path),
-                descripcion: 'Item $itemId',
-              );
-          file = File(rutaSegura); // Actualizamos la referencia local
-          fotosPorPregunta[itemId] = file; // Actualizamos el mapa en memoria
-        } catch (e) {
-          debugPrint("⚠️ Error asegurando foto item $itemId: $e");
-        }
-      }
-
-      // AGREGAMOS A LA LISTA DEL REPO (Sea vieja o nueva, DEBE ir)
+      // Aseguramiento básico
       listaFotosParaRepo.add({
         'actividad_id': activityId,
         'item_id': itemId,
@@ -527,42 +549,16 @@ class InspectionFormController extends ChangeNotifier {
       });
     }
 
-    // --- B. FOTOS GENERALES ---
-    List<File> nuevaListaGenerales = [];
+    // B. Fotos Generales
     for (var f in fotosGenerales) {
-      var file = f;
-
-      // Si NO está segura, la aseguramos
-      if (!file.path.contains('inspecciones_img') &&
-          _repo is LocalInspectionRepository) {
-        try {
-          final rutaSegura = await (_repo as LocalInspectionRepository)
-              .saveFoto(
-                activityId: activityId,
-                itemId: null,
-                file: XFile(file.path),
-                descripcion: 'General',
-              );
-          file = File(rutaSegura);
-        } catch (e) {
-          debugPrint("⚠️ Error asegurando foto general: $e");
-        }
-      }
-
-      nuevaListaGenerales.add(
-        file,
-      ); // Mantenemos la lista en memoria actualizada
-
-      // AGREGAMOS A LA LISTA DEL REPO
       listaFotosParaRepo.add({
         'actividad_id': activityId,
-        'item_id': null, // Es general
-        'local_path': file.path,
+        'item_id': null,
+        'local_path': f.path,
         'descripcion': 'General',
         'subido': 0,
       });
     }
-    fotosGenerales = nuevaListaGenerales; // Actualizamos memoria
 
     // 4. Datos Buceo & Participantes
     Map<String, dynamic>? verificacionesMap;
@@ -570,33 +566,16 @@ class InspectionFormController extends ChangeNotifier {
 
     if (tipoActividad == 'INSPECCION_BUCEO') {
       if (verificacionesBuceo != null) {
-        // Si verificacionesBuceo es null, lo creamos
-        verificacionesBuceo ??= BuceoVerificacionModel(actividadId: activityId);
-
-        debugPrint("🕵️ [LOG 1] Guardando datos de UI en Modelo...");
-
-        // 🟢 INYECCIÓN DE VALORES (Aquí faltaba guardar los nuevos)
         verificacionesBuceo!.encargadoCentro = encargadoCentroController.text
             .trim();
-
-        // ✅ CORRECCIÓN: Guardar Supervisor Contratista
         verificacionesBuceo!.supervisorNombre = supervisorNombreController.text
             .trim();
         verificacionesBuceo!.supervisorRut = supervisorRutController.text
             .trim();
-
-        // Horas
         verificacionesBuceo!.horaInicio = horaInicioController.text.trim();
         verificacionesBuceo!.horaTermino = horaTerminoController.text.trim();
-
-        // Generar Mapa final
         verificacionesMap = verificacionesBuceo!.toMap();
-
-        debugPrint(
-          "💾 Supervisor guardado: ${verificacionesMap['supervisor_nombre']}",
-        );
       }
-
       if (participantes.isNotEmpty) {
         participantesMap = participantes.map((p) {
           return {
@@ -614,7 +593,7 @@ class InspectionFormController extends ChangeNotifier {
       }
     }
 
-    // 5. LLAMADA MAESTRA (Ahora incluye las fotos)
+    // 5. LLAMADA MAESTRA
     if (_repo is LocalInspectionRepository) {
       await (_repo as LocalInspectionRepository).saveInspeccionCompleta(
         actividad: actividadMap,
@@ -627,17 +606,8 @@ class InspectionFormController extends ChangeNotifier {
     }
 
     debugPrint(
-      "✅ GUARDADO COMPLETADO (Con ${listaFotosParaRepo.length} fotos persistidas).",
+      "✅ GUARDADO COMPLETADO. Estado: ${esBorrador ? 'Borrador' : 'Final'} | PDF: $pdfUrlFinal",
     );
-  }
-
-  Map<String, List<FormularioItem>> agruparPorCategoria() {
-    final Map<String, List<FormularioItem>> map = {};
-    for (var item in _items) {
-      if (!map.containsKey(item.categoria)) map[item.categoria] = [];
-      map[item.categoria]!.add(item);
-    }
-    return map;
   }
 
   void toggleCondicionesBuzo(String personalId, bool valor) {
@@ -663,13 +633,14 @@ class InspectionFormController extends ChangeNotifier {
     }
   }
 
+  // EN InspectionFormController
+
   Future<void> previsualizarReporte(BuildContext context) async {
     try {
       _isLoading = true;
       notifyListeners();
 
       // 1. Hora Término Automática
-      // Si el usuario no ha puesto hora, la app pone la actual para el reporte final.
       if (horaTerminoController.text.isEmpty) {
         final now = TimeOfDay.now();
         final horaFinStr =
@@ -678,244 +649,25 @@ class InspectionFormController extends ChangeNotifier {
         updateVerificacion((m) => m.horaTermino = horaFinStr);
       }
 
-      final db = await DatabaseHelper.instance.database;
-
-      // -----------------------------------------------------------------------
-      // 🟢 MODIFICACIÓN 1: DETERMINAR TIPO DE INSPECCIÓN
-      // Explicación: Eliminamos el bloque try-catch que consultaba a la DB.
-      // Ahora confiamos en '_numeroSeguimiento' que cargaste en el _init().
-      // Si es 1, es Consecutiva; si es 0, es Inicial.
-      // -----------------------------------------------------------------------
+      // 2. Determinar tipo de reporte
       bool esConsecutivaFinal = (_numeroSeguimiento == 1);
 
       debugPrint(
-        "📄 Generando PDF como: ${esConsecutivaFinal ? 'CONSECUTIVA' : 'INICIAL'} (Seguimiento: $_numeroSeguimiento)",
+        "📄 Previsualizando como: ${esConsecutivaFinal ? 'CONSECUTIVA' : 'INICIAL'}",
       );
 
-      // 2. VARIABLES DE CABECERA
-      String nombreCliente = "S/N";
-      String nombreEmpresaContratista = "S/N";
-      String nombreCentro = "CENTRO S/N";
-      String nombreArea = "ÁREA S/N";
-      String nombreEmbarcacion = "NAVE S/N";
-      String matriculaEmbarcacion = "S/N";
-
-      // Carga de bytes de imágenes (Safety Photos)
-      final imgIV = await _pathToBytes(verificacionesBuceo?.imgAutorizacion);
-      final imgV = await _pathToBytes(verificacionesBuceo?.imgInduccion);
-      final imgVI = await _pathToBytes(verificacionesBuceo?.imgPermiso);
-      final imgVII = await _pathToBytes(verificacionesBuceo?.imgPlan);
-      final imgVIII = await _pathToBytes(verificacionesBuceo?.imgExamenes);
-
-      // --- Lógica de Nombres (Profesional, Centro, Cliente, etc.) ---
-      // (Se mantiene tu lógica de diagnóstico de Supabase y SQLite para el profesional)
-      String nombreProfesional = "USUARIO APP";
-      final currentUser = Supabase.instance.client.auth.currentUser;
-      if (currentUser?.userMetadata != null) {
-        final meta = currentUser!.userMetadata!;
-        nombreProfesional =
-            meta['nombre_completo'] ??
-            meta['nombre'] ??
-            meta['full_name'] ??
-            "USUARIO APP";
-      }
-
-      // Búsqueda de información geográfica y técnica en SQLite
-      if (centroId != null) {
-        final resCentro = await db.query(
-          'centros',
-          where: 'id = ?',
-          whereArgs: [centroId],
-        );
-        if (resCentro.isNotEmpty) {
-          nombreCentro = resCentro.first['nombre'] as String;
-          final areaId = resCentro.first['area_id'] as String;
-          final resArea = await db.query(
-            'areas',
-            where: 'id = ?',
-            whereArgs: [areaId],
-          );
-          if (resArea.isNotEmpty) {
-            nombreArea = resArea.first['nombre'] as String;
-            if (resArea.first['empresa_id'] != null) {
-              final resCliente = await db.query(
-                'empresas',
-                where: 'id = ?',
-                whereArgs: [resArea.first['empresa_id']],
-              );
-              if (resCliente.isNotEmpty)
-                nombreCliente = resCliente.first['nombre'] as String;
-            }
-          }
-        }
-      }
-
-      if (contratistaId != null) {
-        final resContratista = await db.query(
-          'contratistas',
-          where: 'id = ?',
-          whereArgs: [contratistaId],
-        );
-        if (resContratista.isNotEmpty)
-          nombreEmpresaContratista = resContratista.first['nombre'] as String;
-      }
-
-      if (embarcacionId != null) {
-        final resNave = await db.query(
-          'embarcaciones',
-          where: 'id = ?',
-          whereArgs: [embarcacionId],
-        );
-        if (resNave.isNotEmpty) {
-          nombreEmbarcacion = resNave.first['nombre'] as String;
-          matriculaEmbarcacion =
-              (resNave.first['matricula'] as String?) ?? "S/N";
-        }
-      }
-
-      // 3. PROCESAMIENTO DE CHECKLIST Y ESTADÍSTICAS
-      int countC = 0, countNC = 0, countNA = 0, countIntolerables = 0;
-      final List<InspectionItemDto> itemsProcesados = [];
-
-      for (var item in items) {
-        final respuesta = respuestas[item.id] ?? 'N/A';
-        final observacion = observaciones[item.id] ?? '';
-        final criticidad = criticidades[item.id] ?? item.criticidad;
-
-        if (respuesta == 'C')
-          countC++;
-        else if (respuesta == 'NC') {
-          countNC++;
-          if (criticidad == 'Intolerable') countIntolerables++;
-        } else if (respuesta == 'N/A')
-          countNA++;
-
-        List<Uint8List> fotosBytes = [];
-        if (fotosPorPregunta.containsKey(item.id)) {
-          final file = fotosPorPregunta[item.id];
-          if (file != null && await file.exists())
-            fotosBytes.add(await file.readAsBytes());
-        }
-
-        itemsProcesados.add(
-          InspectionItemDto(
-            categoria: item.categoria,
-            pregunta: item.pregunta,
-            respuesta: respuesta,
-            criticidad: criticidad,
-            comentario: observacion,
-            fotos: fotosBytes,
-          ),
-        );
-      }
-
-      // Sumar verificaciones críticas de buceo a las estadísticas
-      if (tipoActividad == 'INSPECCION_BUCEO' && verificacionesBuceo != null) {
-        final criticas = [
-          verificacionesBuceo!.autorizacionAutoridadMaritima,
-          verificacionesBuceo!.induccionCentroCultivo,
-          verificacionesBuceo!.permisoBuceoCentroCorrecto,
-          verificacionesBuceo!.planContingenciasCentroOk,
-          verificacionesBuceo!.examenesOcupacionalesVigentes,
-        ];
-        for (var cumple in criticas) cumple ? countC++ : countNC++;
-      }
-
-      // 4. GALERÍA Y EQUIPO
-      List<Uint8List> galeriaGeneralBytes = [];
-      for (var file in fotosGenerales) {
-        if (await file.exists())
-          galeriaGeneralBytes.add(await file.readAsBytes());
-      }
-
-      final List<PersonalDto> equipoDto = participantes.map((p) {
-        String textoCondicion = p.condicionesOptimas ? "Optima" : "NO APTO";
-        return PersonalDto(
-          nombre: p.nombreCompleto,
-          rut: p.rut,
-          cargo: p.cargo,
-          matricula: p.matricula.isEmpty ? "-" : p.matricula,
-          rolEnFaena: textoCondicion,
-        );
-      }).toList();
-
-      final bool aprobado =
-          countIntolerables == 0 &&
-          (verificacionesBuceo?.faenaHabilitada ?? true);
-
-      // -----------------------------------------------------------------------
-      // 🟢 MODIFICACIÓN 2: CREACIÓN DEL DTO (REPORT DATA)
-      // Explicación: Inyectamos 'esConsecutivaFinal' directamente.
-      // -----------------------------------------------------------------------
-      final reportData = InspectionReportData(
-        esConsecutiva: esConsecutivaFinal, // 👈 EL CAMBIO CLAVE
-        empresaContratista: nombreEmpresaContratista,
-        cliente: nombreCliente,
-        logoUrl: "",
-        numeroReporte: numeroInformeController.text.isNotEmpty
-            ? numeroInformeController.text
-            : "S/N",
-        fecha:
-            "${DateTime.now().day.toString().padLeft(2, '0')}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().year}",
-        centro: nombreCentro,
-        area: nombreArea,
-        embarcacion: nombreEmbarcacion,
-        matricula: matriculaEmbarcacion,
-        safetyPhotos: {
-          'IV': imgIV,
-          'V': imgV,
-          'VI': imgVI,
-          'VII': imgVII,
-          'VIII': imgVIII,
-        },
-        safetyObservations: {
-          'IV': verificacionesBuceo?.obsAutorizacion,
-          'V': verificacionesBuceo?.obsInduccion,
-          'VI': verificacionesBuceo?.obsPermiso,
-          'VII': verificacionesBuceo?.obsPlan,
-          'VIII': verificacionesBuceo?.obsExamenes,
-        },
-        encargadoCentro: verificacionesBuceo?.encargadoCentro,
-        profesional: nombreProfesional,
-        tipoFaena: "INSPECCIÓN DE BUCEO",
-        supervisor: verificacionesBuceo?.supervisorNombre ?? "No asignado",
-        horaInicio: verificacionesBuceo?.horaInicio ?? "--:--",
-        horaTermino: verificacionesBuceo?.horaTermino ?? "--:--",
-        estadoGlobal: aprobado ? "HABILITADA" : "SUSPENDIDA",
-        esAprobado: aprobado,
-        equipo: equipoDto,
-        items: itemsProcesados,
-        fotosGenerales: galeriaGeneralBytes,
-        totalCumple: countC,
-        totalNoCumple: countNC,
-        totalNoAplica: countNA,
-        totalIntolerables: countIntolerables,
-        observacionPrevencionista:
-            verificacionesBuceo?.observacionGeneral ?? "Sin observaciones.",
-        verificacionesBuceo: {
-          'IV. Autorización de la Faena':
-              verificacionesBuceo?.autorizacionAutoridadMaritima ?? false,
-          'V. Inducción Centro de Cultivo':
-              verificacionesBuceo?.induccionCentroCultivo ?? false,
-          'VI. Permiso de Buceo (Centro Correcto)':
-              verificacionesBuceo?.permisoBuceoCentroCorrecto ?? false,
-          'VII. Plan de Contingencias':
-              verificacionesBuceo?.planContingenciasCentroOk ?? false,
-          'VIII. Exámenes Ocupacionales Vigentes':
-              verificacionesBuceo?.examenesOcupacionalesVigentes ?? false,
-        }, // Mapa de switches si fuera necesario
+      // 3. USAMOS EL CONSTRUCTOR DE DATOS (REUTILIZABLE)
+      final reportData = await _buildReportData(
+        esConsecutiva: esConsecutivaFinal,
       );
 
-      // -----------------------------------------------------------------------
-      // 🟢 MODIFICACIÓN 3: NOMBRE DEL ARCHIVO
-      // Explicación: Usamos la misma variable para que el .pdf diga lo correcto.
-      // -----------------------------------------------------------------------
+      // 4. GENERAR PDF
       final pdfService = PdfGeneratorService();
       final pdfBytes = await pdfService.generatePdf(reportData);
 
       final estadoReporteStr = esConsecutivaFinal ? "CONSECUTIVA" : "INICIAL";
       final nombreFinal =
-          'Informe N°${reportData.numeroReporte} $estadoReporteStr $tipoActividad $nombreCentro.pdf';
+          'Informe N°${reportData.numeroReporte} $estadoReporteStr $tipoActividad.pdf';
 
       if (context.mounted) {
         await Printing.layoutPdf(
@@ -924,7 +676,8 @@ class InspectionFormController extends ChangeNotifier {
         );
       }
     } catch (e) {
-      debugPrint("Error PDF Offline: $e");
+      debugPrint("❌ Error PDF Offline: $e");
+      _errorMessage = "Error generando PDF: $e";
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -992,5 +745,256 @@ class InspectionFormController extends ChangeNotifier {
         debugPrint("🔄 UI Actualizada con Folio: $numDB");
       }
     }
+  }
+
+  // MËTODO PRIVADO EN InspectionFormController
+  Future<InspectionReportData> _buildReportData({
+    required bool esConsecutiva,
+  }) async {
+    final db = await DatabaseHelper.instance.database;
+
+    // 1. VARIABLES DE CABECERA DEFAULT
+    String nombreCliente = "S/N";
+    String nombreEmpresaContratista = "S/N";
+    String nombreCentro = "CENTRO S/N";
+    String nombreArea = "ÁREA S/N";
+    String nombreEmbarcacion = "NAVE S/N";
+    String matriculaEmbarcacion = "S/N";
+
+    // 2. CARGA DE IMÁGENES DE SEGURIDAD (Safety Photos)
+    final imgIV = await _pathToBytes(verificacionesBuceo?.imgAutorizacion);
+    final imgV = await _pathToBytes(verificacionesBuceo?.imgInduccion);
+    final imgVI = await _pathToBytes(verificacionesBuceo?.imgPermiso);
+    final imgVII = await _pathToBytes(verificacionesBuceo?.imgPlan);
+    final imgVIII = await _pathToBytes(verificacionesBuceo?.imgExamenes);
+
+    // 3. NOMBRE PROFESIONAL
+    String nombreProfesional = "USUARIO APP";
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    if (currentUser?.userMetadata != null) {
+      final meta = currentUser!.userMetadata!;
+      nombreProfesional =
+          meta['nombre_completo'] ??
+          meta['nombre'] ??
+          meta['full_name'] ??
+          "USUARIO APP";
+    }
+
+    // 4. BÚSQUEDA DE DATOS RELACIONALES EN SQLITE
+    if (centroId != null) {
+      final resCentro = await db.query(
+        'centros',
+        where: 'id = ?',
+        whereArgs: [centroId],
+      );
+      if (resCentro.isNotEmpty) {
+        nombreCentro = resCentro.first['nombre'] as String;
+        final areaId = resCentro.first['area_id'] as String;
+        final resArea = await db.query(
+          'areas',
+          where: 'id = ?',
+          whereArgs: [areaId],
+        );
+        if (resArea.isNotEmpty) {
+          nombreArea = resArea.first['nombre'] as String;
+          if (resArea.first['empresa_id'] != null) {
+            final resCliente = await db.query(
+              'empresas',
+              where: 'id = ?',
+              whereArgs: [resArea.first['empresa_id']],
+            );
+            if (resCliente.isNotEmpty) {
+              nombreCliente = resCliente.first['nombre'] as String;
+            }
+          }
+        }
+      }
+    }
+
+    if (contratistaId != null) {
+      final resContratista = await db.query(
+        'contratistas',
+        where: 'id = ?',
+        whereArgs: [contratistaId],
+      );
+      if (resContratista.isNotEmpty) {
+        nombreEmpresaContratista = resContratista.first['nombre'] as String;
+      }
+    }
+
+    if (embarcacionId != null) {
+      final resNave = await db.query(
+        'embarcaciones',
+        where: 'id = ?',
+        whereArgs: [embarcacionId],
+      );
+      if (resNave.isNotEmpty) {
+        nombreEmbarcacion = resNave.first['nombre'] as String;
+        matriculaEmbarcacion = (resNave.first['matricula'] as String?) ?? "S/N";
+      }
+    }
+
+    // 5. PROCESAMIENTO DE CHECKLIST Y ESTADÍSTICAS
+    int countC = 0, countNC = 0, countNA = 0, countIntolerables = 0;
+    final List<InspectionItemDto> itemsProcesados = [];
+
+    for (var item in items) {
+      final respuesta = respuestas[item.id] ?? 'N/A';
+      final observacion = observaciones[item.id] ?? '';
+      final criticidad = criticidades[item.id] ?? item.criticidad;
+
+      if (respuesta == 'C')
+        countC++;
+      else if (respuesta == 'NC') {
+        countNC++;
+        if (criticidad == 'Intolerable') countIntolerables++;
+      } else if (respuesta == 'N/A')
+        countNA++;
+
+      List<Uint8List> fotosBytes = [];
+      if (fotosPorPregunta.containsKey(item.id)) {
+        final file = fotosPorPregunta[item.id];
+        if (file != null && await file.exists()) {
+          fotosBytes.add(await file.readAsBytes());
+        }
+      }
+
+      itemsProcesados.add(
+        InspectionItemDto(
+          categoria: item.categoria,
+          pregunta: item.pregunta,
+          respuesta: respuesta,
+          criticidad: criticidad,
+          comentario: observacion,
+          fotos: fotosBytes,
+        ),
+      );
+    }
+
+    // Sumar verificaciones críticas de buceo
+    if (tipoActividad == 'INSPECCION_BUCEO' && verificacionesBuceo != null) {
+      final criticas = [
+        verificacionesBuceo!.autorizacionAutoridadMaritima,
+        verificacionesBuceo!.induccionCentroCultivo,
+        verificacionesBuceo!.permisoBuceoCentroCorrecto,
+        verificacionesBuceo!.planContingenciasCentroOk,
+        verificacionesBuceo!.examenesOcupacionalesVigentes,
+      ];
+      for (var cumple in criticas) cumple ? countC++ : countNC++;
+    }
+
+    // 6. GALERÍA Y EQUIPO
+    List<Uint8List> galeriaGeneralBytes = [];
+    for (var file in fotosGenerales) {
+      if (await file.exists()) {
+        galeriaGeneralBytes.add(await file.readAsBytes());
+      }
+    }
+
+    final List<PersonalDto> equipoDto = participantes.map((p) {
+      String textoCondicion = p.condicionesOptimas ? "Optima" : "NO APTO";
+      return PersonalDto(
+        nombre: p.nombreCompleto,
+        rut: p.rut,
+        cargo: p.cargo,
+        matricula: p.matricula.isEmpty ? "-" : p.matricula,
+        rolEnFaena: textoCondicion,
+      );
+    }).toList();
+
+    final bool aprobado =
+        countIntolerables == 0 &&
+        (verificacionesBuceo?.faenaHabilitada ?? true);
+
+    // Función helper rápida para formatear fechas dentro de este método
+    String _fmtDate(DateTime? dt) {
+      if (dt == null) return "-";
+      return "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}";
+    }
+
+    // 7. RETORNO DEL OBJETO DATA (SIN GENERAR PDF AÚN)
+    return InspectionReportData(
+      esConsecutiva: esConsecutiva,
+      empresaContratista: nombreEmpresaContratista,
+      cliente: nombreCliente,
+      logoUrl: "",
+      numeroReporte: numeroInformeController.text.isNotEmpty
+          ? numeroInformeController.text
+          : "S/N",
+      fecha:
+          "${DateTime.now().day.toString().padLeft(2, '0')}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().year}",
+      centro: nombreCentro,
+      area: nombreArea,
+      embarcacion: nombreEmbarcacion,
+      matricula: matriculaEmbarcacion,
+      safetyPhotos: {
+        'IV': imgIV,
+        'V': imgV,
+        'VI': imgVI,
+        'VII': imgVII,
+        'VIII': imgVIII,
+      },
+      safetyObservations: {
+        'IV': verificacionesBuceo?.obsAutorizacion,
+        'V': verificacionesBuceo?.obsInduccion,
+        'VI': verificacionesBuceo?.obsPermiso,
+        'VII': verificacionesBuceo?.obsPlan,
+        'VIII': verificacionesBuceo?.obsExamenes,
+      },
+      encargadoCentro: verificacionesBuceo?.encargadoCentro,
+      profesional: nombreProfesional,
+      tipoFaena: "INSPECCIÓN DE BUCEO",
+      supervisor: verificacionesBuceo?.supervisorNombre ?? "No asignado",
+      horaInicio: verificacionesBuceo?.horaInicio ?? "--:--",
+      horaTermino: verificacionesBuceo?.horaTermino ?? "--:--",
+
+      // 🔥🔥🔥 AQUÍ ESTABA EL ERROR: FALTABA MAPEAR LOS COMPRESORES 🔥🔥🔥
+      // Compresor 1
+      compresor1Matricula: verificacionesBuceo?.compresor1Matricula,
+      compresor1Vigencia: _fmtDate(verificacionesBuceo?.compresor1Vigencia),
+      compresor1PH: _fmtDate(verificacionesBuceo?.compresor1VigenciaPH),
+      compresor1Buzos: verificacionesBuceo?.compresor1BuzosCargo?.toString(),
+
+      // Compresor 2
+      compresor2Matricula: verificacionesBuceo?.compresor2Matricula,
+      compresor2Vigencia: _fmtDate(verificacionesBuceo?.compresor2Vigencia),
+      compresor2PH: _fmtDate(verificacionesBuceo?.compresor2VigenciaPH),
+      compresor2Buzos: verificacionesBuceo?.compresor2BuzosCargo?.toString(),
+
+      // ---------------------------------------------------------------
+      estadoGlobal: aprobado ? "HABILITADA" : "SUSPENDIDA",
+      esAprobado: aprobado,
+      equipo: equipoDto,
+      items: itemsProcesados,
+      fotosGenerales: galeriaGeneralBytes,
+      totalCumple: countC,
+      totalNoCumple: countNC,
+      totalNoAplica: countNA,
+      totalIntolerables: countIntolerables,
+      observacionPrevencionista:
+          verificacionesBuceo?.observacionGeneral ?? "Sin observaciones.",
+      verificacionesBuceo: {
+        'IV. Autorización de la Faena':
+            verificacionesBuceo?.autorizacionAutoridadMaritima ?? false,
+        'V. Inducción Centro de Cultivo':
+            verificacionesBuceo?.induccionCentroCultivo ?? false,
+        'VI. Permiso de Buceo (Centro Correcto)':
+            verificacionesBuceo?.permisoBuceoCentroCorrecto ?? false,
+        'VII. Plan de Contingencias':
+            verificacionesBuceo?.planContingenciasCentroOk ?? false,
+        'VIII. Exámenes Ocupacionales Vigentes':
+            verificacionesBuceo?.examenesOcupacionalesVigentes ?? false,
+      },
+    );
+  }
+
+  // Agrega esto al final de tu Controller
+  Map<String, List<FormularioItem>> agruparPorCategoria() {
+    final Map<String, List<FormularioItem>> map = {};
+    for (var item in _items) {
+      if (!map.containsKey(item.categoria)) map[item.categoria] = [];
+      map[item.categoria]!.add(item);
+    }
+    return map;
   }
 }

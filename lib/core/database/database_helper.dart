@@ -6,6 +6,8 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
+  static const int _dbVersion = 5;
+
   DatabaseHelper._init();
 
   Future<Database> get database async {
@@ -22,7 +24,7 @@ class DatabaseHelper {
     // CAMBIO AQUI: version: 2 y agregamos onUpgrade
     return await openDatabase(
       path,
-      version: 3,
+      version: _dbVersion,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -105,6 +107,7 @@ class DatabaseHelper {
         estado_final TEXT,
         numero_reporte TEXT,
         numero_seguimiento INTEGER DEFAULT 0,
+        pdf_url TEXT,
         subido INTEGER DEFAULT 0
       )
     ''');
@@ -176,7 +179,8 @@ class DatabaseHelper {
         rut TEXT,
         nombre_completo TEXT NOT NULL,
         cargo TEXT,
-        matricula TEXT, 
+        matricula TEXT,
+        contratista_id TEXT,
         activo INTEGER DEFAULT 1
       )
     ''');
@@ -196,14 +200,12 @@ class DatabaseHelper {
   }
   // --- MÉTODOS CRUD GENÉRICOS ---
 
-  // 🟢 NUEVO MÉTODO DE MIGRACIÓN
-  // MIGRACIÓN PARA NO BORRAR DATOS (Si el usuario ya tiene la app)
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    debugPrint("🔧 UPGRADE DB: v$oldVersion -> v$newVersion");
+    debugPrint("🔧 UPGRADE DETECTADO: v$oldVersion -> v$newVersion");
 
+    // PARCHE 1 (Versiones muy viejas)
     if (oldVersion < 3) {
-      // Si vienes de la v2 o v1
-      List<String> columnasNuevas = [
+      List<String> columnasBuceo = [
         "obs_autorizacion",
         "img_autorizacion",
         "obs_induccion",
@@ -215,16 +217,74 @@ class DatabaseHelper {
         "obs_examenes",
         "img_examenes",
       ];
-
-      for (var col in columnasNuevas) {
-        try {
-          await db.execute(
-            "ALTER TABLE verificaciones_buceo ADD COLUMN $col TEXT",
-          );
-        } catch (e) {
-          print("Columna $col ya existía o error: $e");
-        }
+      for (var col in columnasBuceo) {
+        await _safeAddColumn(db, "verificaciones_buceo", col, "TEXT");
       }
+    }
+
+    // PARCHE 2 (Lo que arreglamos ayer)
+    if (oldVersion < 4) {
+      await _safeAddColumn(db, "personal_externo", "contratista_id", "TEXT");
+      await _safeAddColumn(db, "actividades_pendientes", "pdf_url", "TEXT");
+    }
+
+    // PARCHE 3 (LA SOLUCIÓN DE HOY v5)
+    // Aquí agregamos TODAS las columnas que podrían faltar en 'actividades_pendientes'
+    // revisando tu insert en el Controller.
+    if (oldVersion < 5) {
+      debugPrint("🚑 Aplicando parche v5 (Blindaje de Actividades)...");
+
+      // El error actual:
+      await _safeAddColumn(
+        db,
+        "actividades_pendientes",
+        "numero_seguimiento",
+        "INTEGER DEFAULT 0",
+      );
+
+      // Otros posibles candidatos que veo en tu código y podrían faltar en versiones viejas:
+      await _safeAddColumn(
+        db,
+        "actividades_pendientes",
+        "puerto_abierto",
+        "INTEGER",
+      );
+      await _safeAddColumn(
+        db,
+        "actividades_pendientes",
+        "numero_reporte",
+        "TEXT",
+      );
+      await _safeAddColumn(
+        db,
+        "actividades_pendientes",
+        "estado_final",
+        "TEXT",
+      );
+      await _safeAddColumn(
+        db,
+        "actividades_pendientes",
+        "observaciones_generales",
+        "TEXT",
+      );
+
+      debugPrint("✅ Parche v5 aplicado.");
+    }
+  }
+
+  Future<void> _safeAddColumn(
+    Database db,
+    String table,
+    String column,
+    String type,
+  ) async {
+    try {
+      await db.execute("ALTER TABLE $table ADD COLUMN $column $type");
+      debugPrint("   -> Columna '$column' agregada a '$table'");
+    } catch (e) {
+      // Ignoramos el error "duplicate column name", cualquier otro error sí nos interesa pero
+      // en producción es mejor que siga vivo a que crashee la migración.
+      debugPrint("   ℹ️ (SafeIgnored) Error agregando '$column': $e");
     }
   }
 

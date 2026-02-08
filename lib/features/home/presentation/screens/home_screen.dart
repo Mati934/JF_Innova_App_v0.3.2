@@ -3,6 +3,7 @@ import '../controllers/home_controller.dart';
 import '../widgets/draft_list_widget.dart'; // Importamos el widget de borradores
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../inspection/presentation/screens/inspection_setup_screen.dart';
+import '../../../history/presentation/screens/history_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -27,6 +28,18 @@ class _HomeScreenState extends State<HomeScreen> {
           appBar: AppBar(
             title: const Text('Panel de Control'),
             actions: [
+              IconButton(
+                icon: const Icon(Icons.history),
+                tooltip: 'Historial e Informes',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const HistoryScreen(),
+                    ),
+                  );
+                },
+              ),
               IconButton(
                 icon: _controller.isSyncing
                     ? const SizedBox(
