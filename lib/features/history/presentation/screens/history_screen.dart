@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
+
+// IMPORTA TU NUEVO DROPDOWN Y EL CONTROLLER
+import '../../../../shared/widgets/custom_dropdown.dart';
 import '../../controllers/history_controller.dart';
 
 class HistoryScreen extends StatelessWidget {
@@ -12,7 +15,11 @@ class HistoryScreen extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) => HistoryController(),
       child: Scaffold(
-        appBar: AppBar(title: const Text("Historial General")),
+        appBar: AppBar(
+          title: const Text("Historial General"),
+          backgroundColor: const Color(0xFF003366), // Azul corporativo
+          foregroundColor: Colors.white,
+        ),
         body: Consumer<HistoryController>(
           builder: (context, ctrl, _) {
             return Column(
@@ -20,57 +27,92 @@ class HistoryScreen extends StatelessWidget {
                 // --- BARRA DE FILTROS (SOLO ADMIN) ---
                 if (ctrl.esAdmin)
                   Container(
-                    padding: const EdgeInsets.all(8),
-                    color: Colors.grey[200],
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50, // Fondo sutil
+                      border: Border(
+                        bottom: BorderSide(color: Colors.grey.shade300),
+                      ),
+                    ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Filtro Centro
+                        // --- FILTRO CENTRO ---
                         Expanded(
-                          child: DropdownButton<String>(
-                            isExpanded: true,
-                            hint: const Text("Filtrar Centro"),
-                            value: ctrl.filtroCentroId,
+                          child: CustomDropdown(
+                            label: "Filtrar Centro",
+                            enableSearch: true, // ¡Buscador activado!
+                            // 1. Preparamos la lista: Opción "Todos" + Nombres reales
                             items: [
-                              const DropdownMenuItem(
-                                value: null,
-                                child: Text("Todos los Centros"),
-                              ),
+                              "Todos los Centros",
                               ...ctrl.listaCentros.map(
-                                (c) => DropdownMenuItem(
-                                  value: c['id'].toString(),
-                                  child: Text(
-                                    c['nombre'],
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
+                                (e) => e['nombre'].toString(),
                               ),
                             ],
-                            onChanged: ctrl.setFiltroCentro,
+
+                            // 2. Traducimos ID -> Nombre para mostrarlo seleccionado
+                            value: ctrl.filtroCentroId == null
+                                ? "Todos los Centros"
+                                : ctrl.listaCentros.firstWhere(
+                                    (e) =>
+                                        e['id'].toString() ==
+                                        ctrl.filtroCentroId,
+                                    orElse: () => {
+                                      'nombre': "Todos los Centros",
+                                    },
+                                  )['nombre'],
+
+                            // 3. Traducimos Nombre -> ID al seleccionar
+                            onChanged: (val) {
+                              if (val == "Todos los Centros" || val == null) {
+                                ctrl.setFiltroCentro(null);
+                              } else {
+                                final seleccionado = ctrl.listaCentros
+                                    .firstWhere((e) => e['nombre'] == val);
+                                ctrl.setFiltroCentro(
+                                  seleccionado['id'].toString(),
+                                );
+                              }
+                            },
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        // Filtro Usuario
+
+                        const SizedBox(width: 12),
+
+                        // --- FILTRO USUARIO ---
                         Expanded(
-                          child: DropdownButton<String>(
-                            isExpanded: true,
-                            hint: const Text("Filtrar Usuario"),
-                            value: ctrl.filtroUsuarioId,
+                          child: CustomDropdown(
+                            label: "Filtrar Usuario",
+                            enableSearch: true,
                             items: [
-                              const DropdownMenuItem(
-                                value: null,
-                                child: Text("Todos los Usuarios"),
-                              ),
+                              "Todos los Usuarios",
                               ...ctrl.listaUsuarios.map(
-                                (u) => DropdownMenuItem(
-                                  value: u['id'].toString(),
-                                  child: Text(
-                                    u['nombre_completo'],
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
+                                (e) => e['nombre_completo'].toString(),
                               ),
                             ],
-                            onChanged: ctrl.setFiltroUsuario,
+                            value: ctrl.filtroUsuarioId == null
+                                ? "Todos los Usuarios"
+                                : ctrl.listaUsuarios.firstWhere(
+                                    (e) =>
+                                        e['id'].toString() ==
+                                        ctrl.filtroUsuarioId,
+                                    orElse: () => {
+                                      'nombre_completo': "Todos los Usuarios",
+                                    },
+                                  )['nombre_completo'],
+                            onChanged: (val) {
+                              if (val == "Todos los Usuarios" || val == null) {
+                                ctrl.setFiltroUsuario(null);
+                              } else {
+                                final seleccionado = ctrl.listaUsuarios
+                                    .firstWhere(
+                                      (e) => e['nombre_completo'] == val,
+                                    );
+                                ctrl.setFiltroUsuario(
+                                  seleccionado['id'].toString(),
+                                );
+                              }
+                            },
                           ),
                         ),
                       ],
@@ -81,7 +123,26 @@ class HistoryScreen extends StatelessWidget {
                 Expanded(
                   child: ctrl.isLoading
                       ? const Center(child: CircularProgressIndicator())
+                      : ctrl.inspections.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.history_toggle_off,
+                                size: 60,
+                                color: Colors.grey.shade300,
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                "No hay registros",
+                                style: TextStyle(color: Colors.grey.shade500),
+                              ),
+                            ],
+                          ),
+                        )
                       : ListView.builder(
+                          padding: const EdgeInsets.only(top: 8, bottom: 20),
                           itemCount: ctrl.inspections.length,
                           itemBuilder: (ctx, i) =>
                               _HistoryItemTile(item: ctrl.inspections[i]),
@@ -125,11 +186,11 @@ class _HistoryItemTile extends StatelessWidget {
     final isSynced = (item['subido'] == 1);
 
     return Card(
-      elevation: 3,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      elevation: 2, // Sutil elevación
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(12.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -137,31 +198,65 @@ class _HistoryItemTile extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  "Informe N°$folio",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.blueGrey,
-                  ),
-                ),
                 Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF003366).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.description,
+                        color: Color(0xFF003366),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      "Informe N° $folio",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Color(0xFF003366),
+                      ),
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
                       fecha,
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
                     ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      isSynced ? Icons.cloud_done : Icons.cloud_off,
-                      size: 18,
-                      color: isSynced ? Colors.green : Colors.orange,
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          isSynced ? "Sincronizado" : "Pendiente",
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isSynced ? Colors.green : Colors.orange,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          isSynced ? Icons.cloud_done : Icons.cloud_off,
+                          size: 14,
+                          color: isSynced ? Colors.green : Colors.orange,
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ],
             ),
-            const Divider(),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: Divider(),
+            ),
 
             // FILA 2: CENTRO
             Row(
@@ -171,20 +266,20 @@ class _HistoryItemTile extends StatelessWidget {
                   size: 16,
                   color: Colors.redAccent,
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     centro,
                     style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
 
             // FILA 3: TIPO
             Row(
@@ -194,7 +289,7 @@ class _HistoryItemTile extends StatelessWidget {
                   size: 16,
                   color: Colors.blueAccent,
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 6),
                 Text(tipo, style: const TextStyle(fontWeight: FontWeight.w500)),
                 const SizedBox(width: 8),
                 Container(
@@ -204,12 +299,13 @@ class _HistoryItemTile extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: esConsecutiva
-                        ? Colors.purple.shade100
-                        : Colors.teal.shade100,
-                    borderRadius: BorderRadius.circular(10),
+                        ? Colors.purple.shade50
+                        : Colors.teal.shade50,
+                    borderRadius: BorderRadius.circular(6),
                     border: Border.all(
-                      color: esConsecutiva ? Colors.purple : Colors.teal,
-                      width: 0.5,
+                      color: esConsecutiva
+                          ? Colors.purple.shade200
+                          : Colors.teal.shade200,
                     ),
                   ),
                   child: Text(
@@ -218,66 +314,71 @@ class _HistoryItemTile extends StatelessWidget {
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                       color: esConsecutiva
-                          ? Colors.purple.shade900
-                          : Colors.teal.shade900,
+                          ? Colors.purple.shade700
+                          : Colors.teal.shade700,
                     ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-
-            // FILA 4: DATOS EXTRA
-            Row(
-              children: [
-                const Icon(Icons.engineering, size: 16, color: Colors.grey),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    contratista,
-                    style: const TextStyle(fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Text("|", style: TextStyle(color: Colors.grey)),
-                const SizedBox(width: 10),
-                const Icon(Icons.directions_boat, size: 16, color: Colors.grey),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    embarcacion,
-                    style: const TextStyle(fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
 
+            // FILA 4: DATOS EXTRA
+            Row(
+              children: [
+                const Icon(Icons.engineering, size: 16, color: Colors.grey),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    contratista,
+                    style: const TextStyle(fontSize: 12, color: Colors.black87),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text("|", style: TextStyle(color: Colors.grey.shade400)),
+                const SizedBox(width: 10),
+                const Icon(Icons.directions_boat, size: 16, color: Colors.grey),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    embarcacion,
+                    style: const TextStyle(fontSize: 12, color: Colors.black87),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
             // FILA 5: INSPECTOR Y BOTÓN
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      const Icon(Icons.person, size: 16, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          inspector.toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontStyle: FontStyle.italic,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 10,
+                      backgroundColor: Colors.grey.shade200,
+                      child: const Icon(
+                        Icons.person,
+                        size: 12,
+                        color: Colors.grey,
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      inspector.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
                 ),
-                // AQUÍ USAMOS EL BOTÓN PERSONALIZADO
+                // Botón PDF
                 PdfDownloadButton(pdfUrl: pdfUrl, isSynced: isSynced),
               ],
             ),
@@ -288,7 +389,7 @@ class _HistoryItemTile extends StatelessWidget {
   }
 }
 
-// --- CLASE DEL BOTÓN PDF (FUERA DE LAS OTRAS CLASES) ---
+// --- BOTÓN PDF (Mantenemos tu lógica que funciona bien) ---
 class PdfDownloadButton extends StatefulWidget {
   final String? pdfUrl;
   final bool isSynced;
@@ -334,8 +435,13 @@ class _PdfDownloadButtonState extends State<PdfDownloadButton> {
   @override
   Widget build(BuildContext context) {
     if (!widget.isSynced) {
-      return const Icon(Icons.cloud_off, color: Colors.grey);
+      // Si no está subido, mostramos un icono gris deshabilitado
+      return const Tooltip(
+        message: "Pendiente de sincronización",
+        child: Icon(Icons.cloud_off, color: Colors.grey),
+      );
     }
+
     if (_isOpening) {
       return const SizedBox(
         width: 24,
@@ -343,13 +449,38 @@ class _PdfDownloadButtonState extends State<PdfDownloadButton> {
         child: CircularProgressIndicator(strokeWidth: 2),
       );
     }
+
     if (widget.pdfUrl != null) {
-      return IconButton(
-        icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
-        onPressed: _abrirPdf,
-        tooltip: "Ver PDF",
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: _abrirPdf,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.red.shade100),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.picture_as_pdf, color: Colors.red, size: 18),
+                const SizedBox(width: 6),
+                Text(
+                  "Ver PDF",
+                  style: TextStyle(
+                    color: Colors.red.shade800,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
-    return const Icon(Icons.description, color: Colors.grey);
+    return const SizedBox();
   }
 }

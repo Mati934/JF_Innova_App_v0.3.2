@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../controllers/inspection_setup_controller.dart';
 import 'inspection_form_screen.dart';
+// Asegúrate de que esta ruta sea la correcta hacia tu archivo shared
+import '../../../../../shared/widgets/custom_dropdown.dart';
 
 class InspectionSetupScreen extends StatelessWidget {
   const InspectionSetupScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Usamos ChangeNotifierProvider para conectar la UI con el Controller
     return ChangeNotifierProvider(
       create: (_) => InspectionSetupController(),
       child: const _InspectionSetupView(),
@@ -23,7 +24,7 @@ class _InspectionSetupView extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = Provider.of<InspectionSetupController>(context);
 
-    // Listener para errores o navegación
+    // Listener para errores
     if (controller.errorMessage != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -58,59 +59,64 @@ class _InspectionSetupView extends StatelessWidget {
                     ),
                     const SizedBox(height: 15),
 
-                    // AREA
-                    DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Área / Región',
-                        border: OutlineInputBorder(),
-                      ),
-                      value: controller.areaId,
-                      items: controller.areas.map((x) {
-                        return DropdownMenuItem(
-                          value: x['id'] as String,
-                          child: Text(x['nombre']),
-                        );
-                      }).toList(),
-                      onChanged: controller.setArea,
+                    // --- ÁREA (Con lógica de ID a Nombre) ---
+                    CustomDropdown(
+                      label: 'Área / Región',
+                      // 1. Convertimos la lista de Mapas a lista de Nombres (Strings)
+                      items: controller.areas
+                          .map((x) => x['nombre'].toString())
+                          .toList(),
+                      // 2. Buscamos el nombre correspondiente al ID actual
+                      value: controller.areaId != null
+                          ? controller.areas.firstWhere(
+                              (element) => element['id'] == controller.areaId,
+                              orElse: () => {'nombre': null},
+                            )['nombre']
+                          : null,
+                      // 3. Al seleccionar nombre, buscamos su ID y lo seteamos
+                      onChanged: (val) {
+                        if (val != null) {
+                          final selected = controller.areas.firstWhere(
+                            (element) => element['nombre'] == val,
+                          );
+                          controller.setArea(selected['id']);
+                        }
+                      },
+                      enableSearch: false,
                     ),
-                    const SizedBox(height: 15),
 
-                    // CENTRO
-                    DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Centro de Trabajo',
-                        border: OutlineInputBorder(),
-                      ),
-                      value: controller.centroId,
-                      items: controller.centros.map((x) {
-                        return DropdownMenuItem(
-                          value: x['id'] as String,
-                          child: Text(x['nombre']),
-                        );
-                      }).toList(),
-                      onChanged: controller.setCentro,
+                    // --- CENTRO (Con lógica de ID a Nombre) ---
+                    CustomDropdown(
+                      label: 'Centro de Trabajo',
+                      items: controller.centros
+                          .map((x) => x['nombre'].toString())
+                          .toList(),
+                      value: controller.centroId != null
+                          ? controller.centros.firstWhere(
+                              (element) => element['id'] == controller.centroId,
+                              orElse: () => {'nombre': null},
+                            )['nombre']
+                          : null,
+                      onChanged: (val) {
+                        if (val != null) {
+                          final selected = controller.centros.firstWhere(
+                            (element) => element['nombre'] == val,
+                          );
+                          controller.setCentro(selected['id']);
+                        }
+                      },
                     ),
-                    const SizedBox(height: 15),
 
-                    // ESTADO PUERTO
-                    DropdownButtonFormField<String>(
-                      decoration: InputDecoration(
-                        labelText: 'Condición de Puerto',
-                        border: const OutlineInputBorder(),
-                        fillColor: controller.estadoPuerto == 'CERRADO'
-                            ? Colors.red.shade50
-                            : null,
-                        filled: controller.estadoPuerto == 'CERRADO',
-                      ),
+                    // --- ESTADO PUERTO (Lista simple de Strings) ---
+                    CustomDropdown(
+                      label: 'Condición de Puerto',
+                      items: controller.estadosPuerto,
                       value: controller.estadoPuerto,
-                      items: controller.estadosPuerto.map((x) {
-                        return DropdownMenuItem(value: x, child: Text(x));
-                      }).toList(),
-                      onChanged: controller.setEstadoPuerto,
+                      onChanged: (val) => controller.setEstadoPuerto(val),
+                      enableSearch: false,
                     ),
 
+                    // --- BLOQUE PUERTO CERRADO ---
                     if (controller.estadoPuerto == 'CERRADO') ...[
                       const SizedBox(height: 20),
                       Container(
@@ -130,20 +136,12 @@ class _InspectionSetupView extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 10),
-                            DropdownButtonFormField<String>(
-                              isExpanded: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Actividad Realizada',
-                                border: OutlineInputBorder(),
-                              ),
+                            CustomDropdown(
+                              label: 'Actividad Realizada',
+                              items: controller.opcionesPuertoCerrado,
                               value: controller.actividadPuertoCerrado,
-                              items: controller.opcionesPuertoCerrado.map((x) {
-                                return DropdownMenuItem(
-                                  value: x,
-                                  child: Text(x.replaceAll('_', ' ')),
-                                );
-                              }).toList(),
-                              onChanged: controller.setActividadPuertoCerrado,
+                              onChanged: (val) =>
+                                  controller.setActividadPuertoCerrado(val),
                             ),
                           ],
                         ),
@@ -151,7 +149,6 @@ class _InspectionSetupView extends StatelessWidget {
                     ],
 
                     // --- SECCIÓN TÉCNICA ---
-                    // Se muestra si es ABIERTO o PRE_INSPECCION
                     if (controller.estadoPuerto == 'ABIERTO' ||
                         (controller.estadoPuerto == 'CERRADO' &&
                             controller.actividadPuertoCerrado ==
@@ -168,10 +165,11 @@ class _InspectionSetupView extends StatelessWidget {
                       ),
                       const SizedBox(height: 15),
 
+                      // RADIO BUTTONS (Sin cambios, se ven bien nativos)
                       Container(
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -187,7 +185,6 @@ class _InspectionSetupView extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            // Usamos un Row directo para tener control total del espacio
                             Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8.0,
@@ -195,14 +192,10 @@ class _InspectionSetupView extends StatelessWidget {
                               ),
                               child: Row(
                                 children: [
-                                  // --- OPCIÓN: INICIAL ---
                                   InkWell(
                                     onTap: () =>
                                         controller.setEsConsecutiva(false),
-                                    borderRadius: BorderRadius.circular(4),
                                     child: Row(
-                                      mainAxisSize: MainAxisSize
-                                          .min, // Ocupa solo el espacio necesario
                                       children: [
                                         Radio<bool>(
                                           value: false,
@@ -210,34 +203,16 @@ class _InspectionSetupView extends StatelessWidget {
                                           onChanged: (val) =>
                                               controller.setEsConsecutiva(val!),
                                           activeColor: const Color(0xFF003366),
-                                          visualDensity: VisualDensity
-                                              .compact, // Reduce el tamaño visual
-                                          materialTapTargetSize:
-                                              MaterialTapTargetSize
-                                                  .shrinkWrap, // Reduce área muerta
                                         ),
-                                        const SizedBox(
-                                          width: 4,
-                                        ), // Pequeña separación
-                                        const Text(
-                                          "INICIAL",
-                                          style: TextStyle(fontSize: 14),
-                                        ),
-                                        const SizedBox(
-                                          width: 8,
-                                        ), // Padding derecho para el área táctil
+                                        const Text("INICIAL"),
                                       ],
                                     ),
                                   ),
-
-                                  const Spacer(), // Empuja la siguiente opción o usa SizedBox(width: 20)
-                                  // --- OPCIÓN: CONSECUTIVA ---
+                                  const SizedBox(width: 20),
                                   InkWell(
                                     onTap: () =>
                                         controller.setEsConsecutiva(true),
-                                    borderRadius: BorderRadius.circular(4),
                                     child: Row(
-                                      mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Radio<bool>(
                                           value: true,
@@ -245,103 +220,97 @@ class _InspectionSetupView extends StatelessWidget {
                                           onChanged: (val) =>
                                               controller.setEsConsecutiva(val!),
                                           activeColor: const Color(0xFF003366),
-                                          visualDensity: VisualDensity.compact,
-                                          materialTapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap,
                                         ),
-                                        const SizedBox(width: 4),
-                                        const Text(
-                                          "CONSECUTIVA",
-                                          style: TextStyle(fontSize: 14),
-                                        ),
-                                        const SizedBox(width: 8),
+                                        const Text("CONSECUTIVA"),
                                       ],
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 4),
                           ],
                         ),
                       ),
 
-                      // -----------------------------------------------------------
                       const SizedBox(height: 15),
+
+                      // N° INFORME (Solo lectura)
                       TextFormField(
                         controller: controller.numeroInformeController,
-                        readOnly: true, // <--- BLOQUEADO PARA ESCRITURA
-                        enabled: false, // <--- VISUALMENTE DESHABILITADO
+                        readOnly: true,
+                        enabled: false,
                         decoration: const InputDecoration(
                           labelText: 'N° de Informe',
-                          hintText:
-                              'Automático al sincronizar', // <--- MENSAJE CLARO
+                          hintText: 'Automático al sincronizar',
                           prefixIcon: Icon(Icons.confirmation_number),
                           border: OutlineInputBorder(),
                           filled: true,
-                          fillColor: Color(
-                            0xFFF0F0F0,
-                          ), // Grisecito para que sepa que no se toca
+                          fillColor: Color(0xFFF0F0F0),
                         ),
                       ),
 
                       const SizedBox(height: 15),
 
-                      DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Tipo de Inspección',
-                          border: OutlineInputBorder(),
-                        ),
+                      // --- TIPO INSPECCIÓN ---
+                      CustomDropdown(
+                        label: 'Tipo de Inspección',
+                        items: controller.tiposInspeccion,
                         value: controller.tipoActividad,
-                        items: controller.tiposInspeccion.map((x) {
-                          return DropdownMenuItem(value: x, child: Text(x));
-                        }).toList(),
-                        onChanged: controller.setTipoActividad,
+                        onChanged: (val) => controller.setTipoActividad(val),
+                        enableSearch: false,
                       ),
-                      const SizedBox(height: 15),
 
                       if (controller.tipoActividad != null) ...[
-                        DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          decoration: InputDecoration(
-                            labelText:
-                                controller.tipoActividad == 'INSPECCION_BUCEO'
-                                ? 'Empresa de Buceo'
-                                : 'Naviera',
-                            border: const OutlineInputBorder(),
-                          ),
-                          value: controller.contratistaId,
-                          items: controller.contratistas.map((x) {
-                            return DropdownMenuItem(
-                              value: x['id'] as String,
-                              child: Text(x['nombre']),
-                            );
-                          }).toList(),
-                          onChanged: controller.setContratista,
+                        // --- CONTRATISTA / NAVIERA ---
+                        CustomDropdown(
+                          label: controller.tipoActividad == 'INSPECCION_BUCEO'
+                              ? 'Empresa de Buceo'
+                              : 'Naviera',
+                          items: controller.contratistas
+                              .map((x) => x['nombre'].toString())
+                              .toList(),
+                          value: controller.contratistaId != null
+                              ? controller.contratistas.firstWhere(
+                                  (e) => e['id'] == controller.contratistaId,
+                                  orElse: () => {'nombre': null},
+                                )['nombre']
+                              : null,
+                          onChanged: (val) {
+                            if (val != null) {
+                              final selected = controller.contratistas
+                                  .firstWhere((e) => e['nombre'] == val);
+                              controller.setContratista(selected['id']);
+                            }
+                          },
                         ),
-                        const SizedBox(height: 15),
 
-                        DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Embarcación',
-                            border: OutlineInputBorder(),
-                          ),
-                          value: controller.embarcacionId,
-                          items: controller.embarcaciones.map((x) {
-                            return DropdownMenuItem(
-                              value: x['id'] as String,
-                              child: Text(x['nombre']),
-                            );
-                          }).toList(),
-                          onChanged: controller.setEmbarcacion,
+                        // --- EMBARCACIÓN ---
+                        CustomDropdown(
+                          label: 'Embarcación',
+                          items: controller.embarcaciones
+                              .map((x) => x['nombre'].toString())
+                              .toList(),
+                          value: controller.embarcacionId != null
+                              ? controller.embarcaciones.firstWhere(
+                                  (e) => e['id'] == controller.embarcacionId,
+                                  orElse: () => {'nombre': null},
+                                )['nombre']
+                              : null,
+                          onChanged: (val) {
+                            if (val != null) {
+                              final selected = controller.embarcaciones
+                                  .firstWhere((e) => e['nombre'] == val);
+                              controller.setEmbarcacion(selected['id']);
+                            }
+                          },
+                          // Opcional: Aquí podrías activar el "onAddNew" si quisieras crear barcos
                         ),
                       ],
                     ],
 
                     const SizedBox(height: 40),
 
+                    // BOTÓN GUARDAR (Sin cambios)
                     SizedBox(
                       width: double.infinity,
                       height: 50,
@@ -384,6 +353,9 @@ class _InspectionSetupView extends StatelessWidget {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF003366),
                           foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
                         icon: controller.isSaving
                             ? const SizedBox(

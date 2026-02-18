@@ -17,6 +17,8 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:typed_data'; // Necesario para Uint8List
 import 'package:jf_innova_app/shared/services/image_service.dart'; // Tu servicio de imágenes
+import 'package:flutter/services.dart' show rootBundle; // Para leer fuentes
+import 'package:flutter/foundation.dart'; // Para compute
 
 class InspectionFormController extends ChangeNotifier {
   final InspectionRepository _repo;
@@ -404,9 +406,13 @@ class InspectionFormController extends ChangeNotifier {
 
   // EN InspectionFormController
 
+  // EN InspectionFormController.dart
+
   Future<bool> finalizarInspeccion() async {
+    // 1. Limpiamos errores previos
     _errorMessage = null;
 
+    // 2. Validación de Negocio (Buceo necesita min 2 personas)
     if (tipoActividad == 'INSPECCION_BUCEO') {
       if (participantes.length < 2) {
         _errorMessage = "Debe haber al menos 2 participantes en la cuadrilla.";
@@ -419,60 +425,116 @@ class InspectionFormController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. GENERAR PDF EN MEMORIA (SILENCIOSO)
-      debugPrint("📄 Generando PDF final para respaldo en nube...");
-      bool esConsecutivaFinal = (_numeroSeguimiento == 1);
+      debugPrint("🚀 FINALIZAR: Iniciando proceso optimizado con Isolates...");
 
-      // Usamos el constructor de datos que creamos
+      // ---------------------------------------------------------
+      // PASO 1: CARGAR ASSETS EN EL HILO PRINCIPAL (MAIN THREAD)
+      // ---------------------------------------------------------
+      // Los Isolates no tienen acceso a los assets de la app, así que
+      // debemos cargarlos aquí y pasárselos como bytes crudos.
+      final fontReg = await rootBundle.load(
+        "assets/fonts/OpenSans-Regular.ttf",
+      );
+      final fontBold = await rootBundle.load("assets/fonts/OpenSans-Bold.ttf");
+      final fontItalic = await rootBundle.load(
+        "assets/fonts/OpenSans-Italic.ttf",
+      );
+
+      Uint8List? logoBytes;
+      try {
+        final logoData = await rootBundle.load(
+          'assets/images/aquachileporfin3.png',
+        );
+        logoBytes = logoData.buffer.asUint8List();
+      } catch (e) {
+        debugPrint("⚠️ No se pudo cargar el logo: $e");
+      }
+
+      // ---------------------------------------------------------
+      // PASO 2: PREPARAR DATOS (DTO)
+      // ---------------------------------------------------------
+      // Aquí llamamos a _buildReportData.
+      // IMPORTANTE: Asegúrate de que _buildReportData use '_pathToCompressedBytes'
+      // para que las fotos ya vayan ligeras.
+      bool esConsecutivaFinal = (_numeroSeguimiento == 1);
       final reportData = await _buildReportData(
         esConsecutiva: esConsecutivaFinal,
       );
-      final pdfService = PdfGeneratorService();
-      final pdfBytes = await pdfService.generatePdf(reportData);
 
+      // Empaquetamos todo en la clase que creamos en el paso anterior
+      final params = PdfIsolateParams(
+        data: reportData,
+        fontRegular: fontReg.buffer.asUint8List(),
+        fontBold: fontBold.buffer.asUint8List(),
+        fontItalic: fontItalic.buffer.asUint8List(),
+        logoBytes: logoBytes,
+      );
+
+      // ---------------------------------------------------------
+      // PASO 3: GENERAR PDF EN ISOLATE (OTRO HILO) 🧵
+      // ---------------------------------------------------------
+      // 'compute' lanza la función 'generatePdfEntryPoint' en otro núcleo del CPU.
+      // Esto evita que la UI se congele y usa memoria RAM independiente.
+      debugPrint("🧵 ISOLATE: Generando PDF en segundo plano...");
+
+      final pdfBytes = await compute(generatePdfEntryPoint, params);
+
+      debugPrint("✅ PDF Generado (${pdfBytes.lengthInBytes / 1024} KB).");
+
+      // ---------------------------------------------------------
+      // PASO 4: SUBIDA A SUPABASE (NUBE)
+      // ---------------------------------------------------------
       String? pdfUrlSubido;
-
-      // 2. INTENTAR SUBIDA A SUPABASE (Bucket 'reportes')
       try {
         final supabase = Supabase.instance.client;
-        // Nombre único: ID_ACTIVIDAD/reporte_FOLIO.pdf
         final nombreArchivo = "reporte_${reportData.numeroReporte}.pdf";
         final pathStorage = "$activityId/$nombreArchivo";
 
-        debugPrint("☁️ Subiendo PDF a bucket 'reportes' ($pathStorage)...");
-
+        debugPrint("☁️ Subiendo PDF a Storage...");
         await supabase.storage
             .from('reportes')
             .uploadBinary(
               pathStorage,
               pdfBytes,
-              fileOptions: const FileOptions(
-                upsert: true,
-              ), // Sobrescribe si existe
+              fileOptions: const FileOptions(upsert: true),
             );
 
         pdfUrlSubido = supabase.storage
             .from('reportes')
             .getPublicUrl(pathStorage);
-        debugPrint("✅ PDF Subido exitosamente: $pdfUrlSubido");
+        debugPrint("🔗 URL PDF: $pdfUrlSubido");
       } catch (e) {
-        // Si falla la subida (ej: sin internet), NO detenemos el proceso.
-        // Guardamos la inspección igual, pero sin URL de PDF por ahora.
-        debugPrint("⚠️ No se pudo subir el PDF (Posiblemente Offline): $e");
+        debugPrint(
+          "⚠️ Subida falló (Posiblemente Offline). Se guardará localmente sin URL.",
+        );
         pdfUrlSubido = null;
       }
 
-      // 3. GUARDAR FINAL EN LOCAL (Con la URL si hubo éxito)
+      // ---------------------------------------------------------
+      // PASO 5: PERSISTENCIA LOCAL Y SYNC
+      // ---------------------------------------------------------
       await _persistirDatos(esBorrador: false, pdfUrlFinal: pdfUrlSubido);
 
-      // 4. SINCRONIZAR DATOS
+      // Intentamos sincronizar en segundo plano (sin await para no bloquear)
       _syncService.sincronizarTodo().catchError(
         (e) => debugPrint("Sync Error: $e"),
       );
 
+      // ---------------------------------------------------------
+      // PASO 6: LIMPIEZA DE MEMORIA (GARBAGE COLLECTION MANUAL)
+      // ---------------------------------------------------------
+      // Solo limpiamos si todo salió bien. Así liberamos RAM agresivamente.
+      debugPrint("🧹 ÉXITO: Liberando memoria de fotos...");
+      fotosPorPregunta.clear();
+      fotosGenerales.clear();
+      participantes.clear();
+      // _items.clear(); // Descomenta si no vas a reusar la lista de items
+
       return true;
     } catch (e) {
       _errorMessage = "Error al finalizar: $e";
+      debugPrint("❌ ERROR CRÍTICO: $e");
+      // NOTA: No limpiamos las fotos aquí para que el usuario pueda reintentar.
       return false;
     } finally {
       _isSaving = false;
@@ -640,7 +702,7 @@ class InspectionFormController extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
-      // 1. Hora Término Automática
+      // 1. Lógica de hora (Igual que antes)
       if (horaTerminoController.text.isEmpty) {
         final now = TimeOfDay.now();
         final horaFinStr =
@@ -649,22 +711,53 @@ class InspectionFormController extends ChangeNotifier {
         updateVerificacion((m) => m.horaTermino = horaFinStr);
       }
 
-      // 2. Determinar tipo de reporte
       bool esConsecutivaFinal = (_numeroSeguimiento == 1);
-
       debugPrint(
         "📄 Previsualizando como: ${esConsecutivaFinal ? 'CONSECUTIVA' : 'INICIAL'}",
       );
 
-      // 3. USAMOS EL CONSTRUCTOR DE DATOS (REUTILIZABLE)
+      // ---------------------------------------------------------
+      // PASO A: CARGAR ASSETS (Igual que en finalizarInspeccion)
+      // ---------------------------------------------------------
+      final fontReg = await rootBundle.load(
+        "assets/fonts/OpenSans-Regular.ttf",
+      );
+      final fontBold = await rootBundle.load("assets/fonts/OpenSans-Bold.ttf");
+      final fontItalic = await rootBundle.load(
+        "assets/fonts/OpenSans-Italic.ttf",
+      );
+      Uint8List? logoBytes;
+      try {
+        final logoData = await rootBundle.load(
+          'assets/images/aquachileporfin3.png',
+        );
+        logoBytes = logoData.buffer.asUint8List();
+      } catch (_) {}
+
+      // ---------------------------------------------------------
+      // PASO B: ARMAR DATOS Y PARÁMETROS
+      // ---------------------------------------------------------
+      // Usamos el constructor de datos (que ya comprime las fotos)
       final reportData = await _buildReportData(
         esConsecutiva: esConsecutivaFinal,
       );
 
-      // 4. GENERAR PDF
-      final pdfService = PdfGeneratorService();
-      final pdfBytes = await pdfService.generatePdf(reportData);
+      final params = PdfIsolateParams(
+        data: reportData,
+        fontRegular: fontReg.buffer.asUint8List(),
+        fontBold: fontBold.buffer.asUint8List(),
+        fontItalic: fontItalic.buffer.asUint8List(),
+        logoBytes: logoBytes,
+      );
 
+      // ---------------------------------------------------------
+      // PASO C: GENERAR PDF EN ISOLATE (SIN CONGELAR UI) 🧵
+      // ---------------------------------------------------------
+      final pdfBytes = await compute(generatePdfEntryPoint, params);
+
+      // ---------------------------------------------------------
+      // PASO D: MOSTRAR PREVISUALIZACIÓN
+      // ---------------------------------------------------------
       final estadoReporteStr = esConsecutivaFinal ? "CONSECUTIVA" : "INICIAL";
       final nombreFinal =
           'Informe N°${reportData.numeroReporte} $estadoReporteStr $tipoActividad.pdf';
@@ -676,7 +769,7 @@ class InspectionFormController extends ChangeNotifier {
         );
       }
     } catch (e) {
-      debugPrint("❌ Error PDF Offline: $e");
+      debugPrint("❌ Error PDF Preview: $e");
       _errorMessage = "Error generando PDF: $e";
     } finally {
       _isLoading = false;
@@ -720,12 +813,26 @@ class InspectionFormController extends ChangeNotifier {
     }
   }
 
-  // Helper para leer archivos de disco a RAM de forma segura
-  Future<Uint8List?> _pathToBytes(String? path) async {
+  // 🟢 COMPRESIÓN PREVENTIVA
+  // Lee el archivo, lo comprime en memoria y devuelve bytes ligeros.
+  Future<Uint8List?> _pathToCompressedBytes(String? path) async {
     if (path == null || path.isEmpty) return null;
     final file = File(path);
     if (!await file.exists()) return null;
-    return await file.readAsBytes();
+
+    try {
+      // Opción A: Si tienes tu ImageService configurado para devolver File comprimido
+      // Usamos tu servicio existente para no reinventar la rueda
+      final fileComprimido = await ImageService.comprimirImagen(file);
+      return await fileComprimido.readAsBytes();
+
+      // Opción B (Si ImageService falla): FlutterImageCompress directo (si lo tienes instalado)
+      // return await FlutterImageCompress.compressWithFile(path, quality: 70, minWidth: 800);
+    } catch (e) {
+      debugPrint("⚠️ Error comprimiendo imagen $path: $e");
+      // Fallback: Si falla la compresión, leemos el original (riesgoso pero necesario)
+      return await file.readAsBytes();
+    }
   }
 
   // En InspectionFormController
@@ -762,11 +869,17 @@ class InspectionFormController extends ChangeNotifier {
     String matriculaEmbarcacion = "S/N";
 
     // 2. CARGA DE IMÁGENES DE SEGURIDAD (Safety Photos)
-    final imgIV = await _pathToBytes(verificacionesBuceo?.imgAutorizacion);
-    final imgV = await _pathToBytes(verificacionesBuceo?.imgInduccion);
-    final imgVI = await _pathToBytes(verificacionesBuceo?.imgPermiso);
-    final imgVII = await _pathToBytes(verificacionesBuceo?.imgPlan);
-    final imgVIII = await _pathToBytes(verificacionesBuceo?.imgExamenes);
+    final imgIV = await _pathToCompressedBytes(
+      verificacionesBuceo?.imgAutorizacion,
+    );
+    final imgV = await _pathToCompressedBytes(
+      verificacionesBuceo?.imgInduccion,
+    );
+    final imgVI = await _pathToCompressedBytes(verificacionesBuceo?.imgPermiso);
+    final imgVII = await _pathToCompressedBytes(verificacionesBuceo?.imgPlan);
+    final imgVIII = await _pathToCompressedBytes(
+      verificacionesBuceo?.imgExamenes,
+    );
 
     // 3. NOMBRE PROFESIONAL
     String nombreProfesional = "USUARIO APP";

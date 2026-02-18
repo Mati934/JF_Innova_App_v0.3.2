@@ -47,6 +47,8 @@ dependencies:
   path: ^1.9.0
   image: ^4.5.4
   url_launcher: ^6.2.0
+  dropdown_search: ^6.0.0
+  animated_custom_dropdown: ^3.1.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

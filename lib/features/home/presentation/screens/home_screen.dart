@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:jf_innova_app/core/theme/app_theme.dart';
 import '../controllers/home_controller.dart';
-import '../widgets/draft_list_widget.dart'; // Importamos el widget de borradores
+import '../widgets/draft_list_widget.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../inspection/presentation/screens/inspection_setup_screen.dart';
 import '../../../history/presentation/screens/history_screen.dart';
@@ -13,7 +14,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Instanciamos el controlador aquí. Al crearse, él solito carga perfil, sync y BORRADORES.
   final HomeController _controller = HomeController();
 
   @override
@@ -21,13 +21,16 @@ class _HomeScreenState extends State<HomeScreen> {
     return ListenableBuilder(
       listenable: _controller,
       builder: (context, child) {
-        // Variable para saber si debemos centrar o no
         final bool estaVacio = _controller.borradores.isEmpty;
 
         return Scaffold(
           appBar: AppBar(
             title: const Text('Panel de Control'),
+            backgroundColor:
+                AppTheme.primaryBlue, // Usamos tu color corporativo
+            foregroundColor: Colors.white,
             actions: [
+              // Botón Historial
               IconButton(
                 icon: const Icon(Icons.history),
                 tooltip: 'Historial e Informes',
@@ -40,6 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
               ),
+              // Botón Sincronizar
               IconButton(
                 icon: _controller.isSyncing
                     ? const SizedBox(
@@ -68,6 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         }
                       },
               ),
+              // Botón Salir
               IconButton(
                 onPressed: () => _cerrarSesion(context),
                 icon: const Icon(Icons.logout),
@@ -75,121 +80,176 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          // LayoutBuilder nos da las dimensiones de la pantalla para calcular el alto
           body: LayoutBuilder(
             builder: (context, constraints) {
               return SingleChildScrollView(
-                // ConstrainedBox asegura que el scroll view tenga al menos el alto de la pantalla
-                // Esto permite que el alineado "center" funcione cuando hay poco contenido
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
-                      // AQUÍ ESTÁ LA MAGIA:
-                      // Si está vacío -> MainAxisAlignment.center (Todo al medio)
-                      // Si tiene datos -> MainAxisAlignment.start (Todo arriba)
                       mainAxisAlignment: estaVacio
                           ? MainAxisAlignment.center
                           : MainAxisAlignment.start,
                       children: [
-                        // --- ESTADO DE CARGA ---
+                        // --- ESTADO DE SINCRONIZACIÓN ---
                         if (_controller.isSyncing)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
+                              horizontal: 16,
+                              vertical: 8,
                             ),
                             margin: const EdgeInsets.only(bottom: 20),
                             decoration: BoxDecoration(
-                              color: Colors.orange.shade100,
+                              color: Colors.orange.shade50,
                               borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.orange.shade200),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const SizedBox(
-                                  width: 12,
-                                  height: 12,
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
+                                    color: Colors.orange.shade800,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                const SizedBox(width: 10),
                                 Text(
-                                  "Sincronizando...",
+                                  "Sincronizando datos...",
                                   style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.orange.shade800,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.orange.shade900,
                                   ),
                                 ),
                               ],
                             ),
                           ),
 
-                        // --- LOGO ---
+                        // --- LOGO CON HERO ANIMATION ---
                         Hero(
                           tag: 'logo_app',
-                          child: Image.asset(
-                            'assets/images/logo_jfinnova.png',
-                            height: 100,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Icon(
-                                Icons.verified_user,
-                                size: 80,
-                                color: Theme.of(context).primaryColor,
-                              );
-                            },
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-                        Text(
-                          'Hola, ${_controller.nombreUsuario}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        const Text(
-                          'Sistema de Gestión JF Innova',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-
-                        // Espacio dinámico: Si está vacío, damos más aire entre texto y botón
-                        SizedBox(height: estaVacio ? 50 : 30),
-
-                        // --- BOTÓN NUEVA INSPECCIÓN ---
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const InspectionSetupScreen(),
-                              ),
-                            ).then((_) {
-                              _controller.cargarBorradores();
-                            });
-                          },
-                          icon: const Icon(Icons.add_circle),
-                          label: const Text("Nueva Inspección"),
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 55),
-                            textStyle: const TextStyle(fontSize: 18),
-                            // Opcional: Si quieres que el botón destaque más cuando es lo único en pantalla
-                            elevation: estaVacio ? 4 : 2,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Image.asset(
+                              'assets/images/logo_jfinnova.png',
+                              height: 120, // Un pelín más grande
+                              errorBuilder: (context, error, stackTrace) {
+                                return Icon(
+                                  Icons.verified_user,
+                                  size: 100,
+                                  color: AppTheme.primaryBlue,
+                                );
+                              },
+                            ),
                           ),
                         ),
 
                         const SizedBox(height: 30),
 
+                        Text(
+                          'Hola, ${_controller.nombreUsuario}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.primaryBlue, // Color corporativo
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Sistema de Gestión JF Innova',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey.shade600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+
+                        SizedBox(height: estaVacio ? 60 : 40),
+
+                        // --- BOTÓN NUEVA INSPECCIÓN (Estilo Bacán) ---
+                        Container(
+                          decoration: BoxDecoration(
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.primaryBlue.withOpacity(0.3),
+                                blurRadius: 15,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const InspectionSetupScreen(),
+                                ),
+                              ).then((_) {
+                                _controller.cargarBorradores();
+                              });
+                            },
+                            icon: const Icon(Icons.add_circle, size: 28),
+                            label: const Text("Nueva Inspección"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryBlue,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(
+                                double.infinity,
+                                60,
+                              ), // Más alto
+                              elevation: 0, // La sombra la maneja el Container
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  15,
+                                ), // Bordes más suaves
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 40),
+
                         // --- LISTA DE BORRADORES ---
-                        // Solo mostramos el widget si hay borradores o cargando
-                        // Si está vacío, no mostramos nada abajo (para que el logo quede centrado perfecto)
                         if (!estaVacio || _controller.isLoadingBorradores)
-                          DraftListWidget(controller: _controller),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 8.0,
+                                  bottom: 12.0,
+                                ),
+                                child: Text(
+                                  "Borradores Pendientes",
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey.shade800,
+                                  ),
+                                ),
+                              ),
+                              DraftListWidget(controller: _controller),
+                            ],
+                          ),
                       ],
                     ),
                   ),
@@ -206,27 +266,42 @@ class _HomeScreenState extends State<HomeScreen> {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('¿Cerrar Sesión?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            SizedBox(width: 10),
+            Text('¿Cerrar Sesión?'),
+          ],
+        ),
         content: const Text(
           'Si cierras sesión, necesitarás internet para volver a entrar.\n\n'
-          'Si vas a terreno sin señal, NO cierres sesión, solo cierra la app.',
+          '⚠️ Si vas a terreno sin señal, NO cierres sesión, solo cierra la app.',
+          style: TextStyle(fontSize: 16),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
+            child: const Text('Cancelar', style: TextStyle(fontSize: 16)),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Salir'),
+            child: const Text('Salir', style: TextStyle(fontSize: 16)),
           ),
         ],
       ),
     );
 
     if (confirmar == true) {
-      await _controller.cerrarSesion(context);
       if (mounted) {
+        await _controller.cerrarSesion(context);
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const LoginScreen()),

@@ -3,6 +3,7 @@ import '../../controllers/inspection_form_controller.dart';
 import '../../../domain/models/participante_model.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:io';
+import '../../../../../shared/widgets/custom_dropdown.dart';
 
 // --- WIDGET 1: CUADRILLA (Va arriba) ---
 class BuceoCuadrillaWidget extends StatelessWidget {
@@ -134,15 +135,18 @@ class BuceoCuadrillaWidget extends StatelessWidget {
     final nombreCtrl = TextEditingController();
     final rutCtrl = TextEditingController();
     final matriculaCtrl = TextEditingController();
+    // Usamos ValueNotifier para actualizar solo el dropdown sin redibujar todo el modal
     final cargoNotifier = ValueNotifier<String>('Buzo');
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
       ),
       builder: (ctx) {
+        // Calculamos el espacio del teclado para que no tape los campos
         final keyboardHeight = MediaQuery.of(ctx).viewInsets.bottom;
         final systemBarHeight = MediaQuery.of(ctx).padding.bottom;
 
@@ -150,13 +154,14 @@ class BuceoCuadrillaWidget extends StatelessWidget {
           padding: EdgeInsets.only(
             bottom: keyboardHeight + systemBarHeight + 20,
             top: 25,
-            left: 20,
-            right: 20,
+            left: 24,
+            right: 24,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Barra decorativa superior
               Center(
                 child: Container(
                   width: 50,
@@ -167,81 +172,103 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 25),
+
               const Text(
                 "Agregar Integrante",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF003366), // Azul corporativo
+                ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 25),
+
+              // CAMPO NOMBRE
               TextField(
                 controller: nombreCtrl,
-                decoration: const InputDecoration(
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(
                   labelText: "Nombre Completo",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person_outline),
+                  hintText: "Ej: Juan Pérez",
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  prefixIcon: const Icon(Icons.person_outline),
+                  filled: true,
+                  fillColor: Colors.white,
                 ),
               ),
               const SizedBox(height: 15),
+
+              // FILA RUT Y MATRÍCULA
               Row(
                 children: [
                   Expanded(
                     child: TextField(
                       controller: rutCtrl,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: "RUT",
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.badge_outlined),
+                        hintText: "12.345.678-9",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        prefixIcon: const Icon(Icons.badge_outlined),
+                        filled: true,
+                        fillColor: Colors.white,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 15),
                   Expanded(
                     child: TextField(
                       controller: matriculaCtrl,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: "N° Matrícula",
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.confirmation_number_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.confirmation_number_outlined,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
                       ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 15),
+
+              // --- AQUÍ ESTÁ EL CAMBIO: CustomDropdown ---
               ValueListenableBuilder<String>(
                 valueListenable: cargoNotifier,
                 builder: (context, cargoActual, _) {
-                  return DropdownButtonFormField<String>(
+                  return CustomDropdown(
+                    label: "Cargo",
+                    items: const ["Supervisor", "Buzo", "Asistente"],
                     value: cargoActual,
-                    decoration: const InputDecoration(
-                      labelText: "Cargo",
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.work_outline),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: "Supervisor",
-                        child: Text("Supervisor"),
-                      ),
-                      DropdownMenuItem(value: "Buzo", child: Text("Buzo")),
-                      DropdownMenuItem(
-                        value: "Asistente",
-                        child: Text("Asistente"),
-                      ),
-                    ],
-                    onChanged: (val) => cargoNotifier.value = val!,
+                    onChanged: (val) {
+                      if (val != null) {
+                        cargoNotifier.value = val;
+                      }
+                    },
                   );
                 },
               ),
-              const SizedBox(height: 25),
+
+              const SizedBox(height: 30),
+
+              // BOTÓN DE ACCIÓN
               SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade700,
+                    backgroundColor: const Color(0xFF003366),
                     foregroundColor: Colors.white,
+                    elevation: 2,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),

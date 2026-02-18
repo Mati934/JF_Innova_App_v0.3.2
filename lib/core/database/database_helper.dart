@@ -6,14 +6,15 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
-  static const int _dbVersion = 5;
+  // 🔥 SUBIMOS A v10 PARA BLINDAR TODO
+  static const int _dbVersion = 10;
+  static const String _dbName = 'jfinnova_local.db';
 
   DatabaseHelper._init();
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    // CAMBIAMOS A v9 PARA ASEGURARNOS QUE SE CREE DESDE CERO SI O SI
-    _database = await _initDB('jfinnova_local_v9.db');
+    _database = await _initDB(_dbName);
     return _database!;
   }
 
@@ -21,7 +22,6 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    // CAMBIO AQUI: version: 2 y agregamos onUpgrade
     return await openDatabase(
       path,
       version: _dbVersion,
@@ -31,6 +31,8 @@ class DatabaseHelper {
   }
 
   Future<void> _createDB(Database db, int version) async {
+    debugPrint("✨ Creando Base de Datos Nueva v$version");
+
     // TABLA USUARIOS
     await db.execute('''
       CREATE TABLE usuarios (
@@ -88,8 +90,9 @@ class DatabaseHelper {
     await db.execute(
       'CREATE TABLE contratistas (id TEXT PRIMARY KEY, nombre TEXT)',
     );
+    // Agregamos matricula aquí también por si acaso
     await db.execute(
-      'CREATE TABLE embarcaciones (id TEXT PRIMARY KEY, nombre TEXT, contratista_id TEXT)',
+      'CREATE TABLE embarcaciones (id TEXT PRIMARY KEY, nombre TEXT, contratista_id TEXT, matricula TEXT)',
     );
 
     // 4. ACTIVIDADES PENDIENTES
@@ -112,9 +115,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // --- 5. TABLAS ESPECÍFICAS DE BUCEO  ---
-
-    // Verificaciones Críticas
+    // --- 5. TABLAS ESPECÍFICAS DE BUCEO ---
     await db.execute('''
       CREATE TABLE verificaciones_buceo (
         actividad_id TEXT PRIMARY KEY,
@@ -124,21 +125,12 @@ class DatabaseHelper {
         plan_contingencias_centro_ok INTEGER DEFAULT 0,
         examenes_ocupacionales_vigentes INTEGER DEFAULT 0,
 
-        -- OBSERVACIONES Y FOTOS POR ITEM (NUEVO)
-        obs_autorizacion TEXT,
-        img_autorizacion TEXT,
-        
-        obs_induccion TEXT,
-        img_induccion TEXT,
-        
-        obs_permiso TEXT,
-        img_permiso TEXT,
-        
-        obs_plan TEXT,
-        img_plan TEXT,
-        
-        obs_examenes TEXT,
-        img_examenes TEXT,
+        -- OBSERVACIONES Y FOTOS POR ITEM
+        obs_autorizacion TEXT, img_autorizacion TEXT,
+        obs_induccion TEXT, img_induccion TEXT,
+        obs_permiso TEXT, img_permiso TEXT,
+        obs_plan TEXT, img_plan TEXT,
+        obs_examenes TEXT, img_examenes TEXT,
         
         observacion_general TEXT,
         estado_manual TEXT,
@@ -146,7 +138,6 @@ class DatabaseHelper {
         -- DATOS TÉCNICOS
         supervisor_nombre TEXT,
         supervisor_rut TEXT,
-
         encargado_centro TEXT,     
         supervisor_centro TEXT,    
 
@@ -157,22 +148,21 @@ class DatabaseHelper {
         -- COMPRESOR 1
         compresor_1_matricula TEXT,
         compresor_1_vigencia TEXT,
-        compresor_1_vigencia_ph TEXT, -- NUEVO
+        compresor_1_vigencia_ph TEXT, 
         compresor_1_buzos_cargo INTEGER,
 
         -- COMPRESOR 2
         compresor_2_matricula TEXT,
         compresor_2_vigencia TEXT,
-        compresor_2_vigencia_ph TEXT, -- NUEVO
+        compresor_2_vigencia_ph TEXT, 
         compresor_2_buzos_cargo INTEGER,
 
-        -- CERTIFICADO EQUIPOS (Aun lo dejamos por seguridad si lo tienes en el repo viejo, si no, no molesta)
         certificado_equipos_ok INTEGER DEFAULT 0,
         certificado_equipos_vigencia TEXT
       )
     ''');
 
-    // Tabla Maestra de Personal Externo
+    // Tabla Maestra de Personal Externo (CORREGIDA: nombre_completo)
     await db.execute('''
       CREATE TABLE personal_externo (
         id TEXT PRIMARY KEY,
@@ -185,7 +175,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // Tabla Intermedia (Relación M:N Inspección <-> Personal)
+    // Tabla Intermedia
     await db.execute('''
       CREATE TABLE actividad_participantes (
         actividad_id TEXT,
@@ -196,16 +186,16 @@ class DatabaseHelper {
       )
     ''');
 
-    print("✅ Base de datos v9 inicializada con TODAS las columnas nuevas.");
+    debugPrint("✅ Base de datos v$_dbVersion inicializada.");
   }
-  // --- MÉTODOS CRUD GENÉRICOS ---
 
+  // 🔥 GESTIÓN DE MIGRACIONES
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    debugPrint("🔧 UPGRADE DETECTADO: v$oldVersion -> v$newVersion");
+    debugPrint("🔧 UPGRADE DB: v$oldVersion -> v$newVersion");
 
-    // PARCHE 1 (Versiones muy viejas)
+    // v3: Columnas de Buceo
     if (oldVersion < 3) {
-      List<String> columnasBuceo = [
+      List<String> columnasNuevas = [
         "obs_autorizacion",
         "img_autorizacion",
         "obs_induccion",
@@ -217,32 +207,25 @@ class DatabaseHelper {
         "obs_examenes",
         "img_examenes",
       ];
-      for (var col in columnasBuceo) {
+      for (var col in columnasNuevas) {
         await _safeAddColumn(db, "verificaciones_buceo", col, "TEXT");
       }
     }
 
-    // PARCHE 2 (Lo que arreglamos ayer)
+    // v4: Contratista y PDF
     if (oldVersion < 4) {
       await _safeAddColumn(db, "personal_externo", "contratista_id", "TEXT");
       await _safeAddColumn(db, "actividades_pendientes", "pdf_url", "TEXT");
     }
 
-    // PARCHE 3 (LA SOLUCIÓN DE HOY v5)
-    // Aquí agregamos TODAS las columnas que podrían faltar en 'actividades_pendientes'
-    // revisando tu insert en el Controller.
+    // v5: Fix Actividades Pendientes
     if (oldVersion < 5) {
-      debugPrint("🚑 Aplicando parche v5 (Blindaje de Actividades)...");
-
-      // El error actual:
       await _safeAddColumn(
         db,
         "actividades_pendientes",
         "numero_seguimiento",
         "INTEGER DEFAULT 0",
       );
-
-      // Otros posibles candidatos que veo en tu código y podrían faltar en versiones viejas:
       await _safeAddColumn(
         db,
         "actividades_pendientes",
@@ -267,11 +250,23 @@ class DatabaseHelper {
         "observaciones_generales",
         "TEXT",
       );
+    }
 
-      debugPrint("✅ Parche v5 aplicado.");
+    // v10: FIX CRÍTICO PERSONAL EXTERNO (Nombre vs NombreCompleto)
+    // Saltamos a v10 para asegurarnos que esto corra sí o sí.
+    if (oldVersion < 10) {
+      debugPrint("🚑 Aplicando parche v10 (Personal Externo)...");
+      // Aseguramos que existan las columnas correctas
+      await _safeAddColumn(db, "personal_externo", "nombre_completo", "TEXT");
+      await _safeAddColumn(db, "personal_externo", "rut", "TEXT");
+
+      // Aseguramos matrícula en embarcaciones por si acaso
+      await _safeAddColumn(db, "embarcaciones", "matricula", "TEXT");
+      debugPrint("✅ Parche v10 aplicado.");
     }
   }
 
+  // Helper seguro para migraciones
   Future<void> _safeAddColumn(
     Database db,
     String table,
@@ -280,14 +275,14 @@ class DatabaseHelper {
   ) async {
     try {
       await db.execute("ALTER TABLE $table ADD COLUMN $column $type");
-      debugPrint("   -> Columna '$column' agregada a '$table'");
-    } catch (e) {
-      // Ignoramos el error "duplicate column name", cualquier otro error sí nos interesa pero
-      // en producción es mejor que siga vivo a que crashee la migración.
-      debugPrint("   ℹ️ (SafeIgnored) Error agregando '$column': $e");
+    } catch (_) {
+      // Ignoramos si ya existe
     }
   }
 
+  // --- MÉTODOS CRUD GENÉRICOS ---
+
+  // 🚨🚨🚨 AQUÍ ESTABA EL ERROR Y AQUÍ ESTÁ LA CORRECCIÓN 🚨🚨🚨
   Future<void> guardarMaestros(
     String tabla,
     List<Map<String, dynamic>> datos,
@@ -298,15 +293,44 @@ class DatabaseHelper {
     batch.delete(tabla);
 
     for (var item in datos) {
-      Map<String, dynamic> row = {'id': item['id'], 'nombre': item['nombre']};
-      if (item.containsKey('area_id')) row['area_id'] = item['area_id'];
-      if (item.containsKey('contratista_id'))
+      Map<String, dynamic> row = {};
+
+      // Copiamos ID siempre
+      row['id'] = item['id'];
+
+      // Mapeo inteligente según la tabla
+      if (tabla == 'personal_externo') {
+        // 🔥 CORRECCIÓN: Si es personal, usamos 'nombre_completo'
+        // Aceptamos que venga como 'nombre_completo' (DB) o 'nombre' (API/Genérico)
+        row['nombre_completo'] =
+            item['nombre_completo'] ?? item['nombre'] ?? 'Sin Nombre';
+
+        // Mapeamos el resto de campos específicos
+        row['rut'] = item['rut'];
+        row['cargo'] = item['cargo'];
+        row['matricula'] = item['matricula'];
         row['contratista_id'] = item['contratista_id'];
+      } else if (tabla == 'embarcaciones') {
+        // Embarcaciones usa 'nombre'
+        row['nombre'] = item['nombre'];
+        if (item.containsKey('contratista_id'))
+          row['contratista_id'] = item['contratista_id'];
+        if (item.containsKey('matricula')) row['matricula'] = item['matricula'];
+      } else if (tabla == 'centros') {
+        // Centros usa 'nombre'
+        row['nombre'] = item['nombre'];
+        if (item.containsKey('area_id')) row['area_id'] = item['area_id'];
+      } else {
+        // Tablas estándar (areas, contratistas, etc.) usan 'nombre'
+        row['nombre'] = item['nombre'];
+      }
 
       batch.insert(tabla, row);
     }
     await batch.commit(noResult: true);
   }
+
+  // ... (El resto de tus getters se mantienen igual abajo) ...
 
   Future<List<Map<String, dynamic>>> getAreas() async {
     final db = await instance.database;
@@ -360,10 +384,6 @@ class DatabaseHelper {
 
   Future<void> saveActividadOffline(Map<String, dynamic> actividad) async {
     final db = await instance.database;
-    debugPrint("--- Guardando en SQLite ---");
-    debugPrint("ID: ${actividad['id']}");
-    debugPrint("Contratista: ${actividad['contratista_id']}");
-    debugPrint("Embarcación: ${actividad['embarcacion_id']}");
     await db.insert(
       'actividades_pendientes',
       actividad,

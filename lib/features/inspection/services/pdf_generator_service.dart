@@ -1,47 +1,61 @@
 import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:flutter/services.dart' show rootBundle;
-import 'package:image/image.dart' as img; // 1. LIBRERÍA PARA COMPRIMIR
+import 'package:image/image.dart' as img; // Librería para comprimir
 import '../domain/models/pdf/inspection_report_data.dart';
 
+// 📦 1. DTO PARA EL ISOLATE (TRANSPORTE DE DATOS)
+class PdfIsolateParams {
+  final InspectionReportData data;
+  final Uint8List fontRegular;
+  final Uint8List fontBold;
+  final Uint8List fontItalic;
+  final Uint8List? logoBytes;
+
+  PdfIsolateParams({
+    required this.data,
+    required this.fontRegular,
+    required this.fontBold,
+    required this.fontItalic,
+    this.logoBytes,
+  });
+}
+
+// 🧵 2. PUNTO DE ENTRADA DEL ISOLATE (FUERA DE LA CLASE)
+Future<Uint8List> generatePdfEntryPoint(PdfIsolateParams params) async {
+  final pdfService = PdfGeneratorService();
+  // Llamamos al método síncrono que ya tiene los recursos cargados
+  return await pdfService._generatePdfSync(params);
+}
+
 class PdfGeneratorService {
-  Future<Uint8List> generatePdf(InspectionReportData data) async {
+  // ⚙️ 3. MÉTODO INTERNO (CORRE EN EL ISOLATE)
+  // Este método NO usa rootBundle, usa los bytes que le llegan en 'params'
+  Future<Uint8List> _generatePdfSync(PdfIsolateParams params) async {
     final pdf = pw.Document();
+    final data = params.data; // Alias corto
 
-    // 1. CARGA DE RECURSOS
-    final fontRegular = await rootBundle.load(
-      "assets/fonts/OpenSans-Regular.ttf",
-    );
-    final fontBold = await rootBundle.load("assets/fonts/OpenSans-Bold.ttf");
-    final fontItalic = await rootBundle.load(
-      "assets/fonts/OpenSans-Italic.ttf",
-    );
-
+    // A. CONFIGURAR FUENTES DESDE BYTES (NO ASSETS)
     final theme = pw.ThemeData.withFont(
-      base: pw.Font.ttf(fontRegular),
-      bold: pw.Font.ttf(fontBold),
-      italic: pw.Font.ttf(fontItalic),
+      base: pw.Font.ttf(params.fontRegular.buffer.asByteData()),
+      bold: pw.Font.ttf(params.fontBold.buffer.asByteData()),
+      italic: pw.Font.ttf(params.fontItalic.buffer.asByteData()),
     );
 
+    // B. CONFIGURAR LOGO DESDE BYTES
     pw.MemoryImage? logoImage;
-    try {
-      final logoBytes = await rootBundle.load(
-        'assets/images/aquachileporfin3.png',
-      );
-      logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
-    } catch (e) {
-      // Log silencioso
+    if (params.logoBytes != null) {
+      logoImage = pw.MemoryImage(params.logoBytes!);
     }
 
-    // 2. PREPARAR FOTOS DE SEGURIDAD (Optimizado)
+    // C. PREPARAR FOTOS DE SEGURIDAD
     List<pw.Widget> safetyPhotoWidgets = [];
     final order = ['IV', 'V', 'VI', 'VII', 'VIII'];
 
     for (var key in order) {
       final imageBytes = data.safetyPhotos[key];
       if (imageBytes != null && imageBytes.isNotEmpty) {
-        // 🟢 OPTIMIZACIÓN: Reducimos la imagen antes de meterla al PDF
+        // La optimización ocurre AQUÍ, dentro del Isolate (Genial para la UI)
         final optimizedBytes = _optimizarImagen(imageBytes);
         final image = pw.MemoryImage(optimizedBytes);
 
@@ -74,7 +88,7 @@ class PdfGeneratorService {
       }
     }
 
-    // 3. CONSTRUCCIÓN DEL DOCUMENTO
+    // D. CONSTRUCCIÓN DEL DOCUMENTO
     pdf.addPage(
       pw.MultiPage(
         pageTheme: pw.PageTheme(
@@ -90,7 +104,7 @@ class PdfGeneratorService {
         header: (context) => _buildHeaderDense(data, logoImage),
         footer: (context) => _buildFooter(context),
         build: (context) => [
-          // PÁGINA 1: RESUMEN
+          // PÁGINA 1
           pw.SizedBox(height: 5),
           _buildStatusAndStats(data),
 
@@ -118,7 +132,7 @@ class PdfGeneratorService {
           // SALTO DE PÁGINA
           pw.NewPage(),
 
-          // PÁGINA 2+: DETALLE TÉCNICO
+          // PÁGINA 2+: DETALLES
           pw.Center(
             child: pw.Text(
               "DETALLE DE VERIFICACIONES",
@@ -134,7 +148,7 @@ class PdfGeneratorService {
           // TABLAS AGRUPADAS
           ..._buildCategorizedChecklists(data),
 
-          // GALERÍA GENERAL AL FINAL (Optimizado)
+          // GALERÍA GENERAL
           if (data.fotosGenerales.isNotEmpty) ...[
             pw.SizedBox(height: 20),
             pw.Divider(),
@@ -152,21 +166,20 @@ class PdfGeneratorService {
   // 🟢 LA LAVADORA DE IMÁGENES (REDUCE PESO)
   Uint8List _optimizarImagen(Uint8List rawBytes) {
     try {
-      // 1. Decodificar
       final img.Image? original = img.decodeImage(rawBytes);
       if (original == null) return rawBytes;
 
-      // 2. Redimensionar (Ancho máx 600px es suficiente para PDF A4)
+      // Redimensionar a 600px ancho (suficiente para PDF)
       final resized = img.copyResize(original, width: 600);
 
-      // 3. Comprimir a JPG calidad 60%
+      // Comprimir a JPG 60%
       return Uint8List.fromList(img.encodeJpg(resized, quality: 60));
     } catch (e) {
-      return rawBytes; // Si falla, usamos la original
+      return rawBytes;
     }
   }
 
-  // --- WIDGETS ---
+  // --- WIDGETS AUXILIARES (IGUAL QUE ANTES) ---
 
   List<pw.Widget> _buildCategorizedChecklists(InspectionReportData data) {
     Map<String, List<dynamic>> groupedItems = {};
@@ -270,7 +283,6 @@ class PdfGeneratorService {
     final isNC = item.respuesta == "NC";
     final isIntolerable = item.criticidad == "Intolerable" && isNC;
 
-    // 🟢 OPTIMIZACIÓN DE FOTOS DEL CHECKLIST
     List<pw.Widget> fotosWidgets = [];
     if (item.fotos.isNotEmpty) {
       for (var f in (item.fotos as List<Uint8List>)) {
@@ -338,7 +350,6 @@ class PdfGeneratorService {
     );
   }
 
-  // --- CABECERA DENSE (MODIFICADA: CENTRO <-> AREA) ---
   pw.Widget _buildHeaderDense(InspectionReportData data, pw.MemoryImage? logo) {
     return pw.Container(
       decoration: pw.BoxDecoration(
@@ -370,10 +381,8 @@ class PdfGeneratorService {
                   ),
                 ),
                 pw.SizedBox(height: 5),
-
                 _rowInfo("ÁREA:", data.area),
                 _rowInfo("CENTRO:", data.centro),
-
                 _rowInfo("ENCARGADO C.:", data.encargadoCentro ?? "N/A"),
                 _rowInfo("PROFESIONAL:", data.profesional ?? "N/A"),
                 _rowInfo("FECHA:", data.fecha),
@@ -724,7 +733,6 @@ class PdfGeneratorService {
   }
 
   pw.Widget _buildGeneralGallery(List<Uint8List> fotos) {
-    // 🟢 OPTIMIZACIÓN DE GALERÍA
     final optimizedPhotos = fotos.map((f) => _optimizarImagen(f)).toList();
 
     return pw.Container(
