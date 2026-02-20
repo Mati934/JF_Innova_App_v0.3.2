@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
-import '../data/repositories/local_history_repository.dart';
 import '../data/repositories/supabase_history_repository.dart';
 
 class HistoryController extends ChangeNotifier {
-  final _localRepo = LocalHistoryRepository();
   final _cloudRepo = SupabaseHistoryRepository();
 
-  List<Map<String, dynamic>> inspections = [];
+  // Renombrado a 'records' porque ahora mezcla Inspecciones y Visitas
+  List<Map<String, dynamic>> records = [];
   bool isLoading = true;
   bool esAdmin = false;
 
-  // Filtros
+  // Filtros Activos
   String? filtroCentroId;
   String? filtroUsuarioId;
+  String?
+  filtroModulo; // Puede ser 'Inspección', 'Visita Técnica' o null para todos
 
   List<Map<String, dynamic>> listaCentros = [];
   List<Map<String, dynamic>> listaUsuarios = [];
@@ -30,9 +31,8 @@ class HistoryController extends ChangeNotifier {
       esAdmin = await _cloudRepo.soyAdmin();
       debugPrint("👤 Rol Admin detectado: $esAdmin");
 
-      // 2. Si es admin, cargamos las listas para los filtros
+      // 2. Si es admin, cargamos catálogos en paralelo
       if (esAdmin) {
-        // Usamos Future.wait para cargar en paralelo (más rápido)
         final results = await Future.wait([
           _cloudRepo.getCentros(),
           _cloudRepo.getUsuarios(),
@@ -41,13 +41,10 @@ class HistoryController extends ChangeNotifier {
         listaUsuarios = results[1];
       }
 
-      // 3. Cargar datos
+      // 3. Ejecutar primera carga de datos
       await cargarHistorial();
     } catch (e) {
-      debugPrint("⚠️ Error inicializando historial: $e");
-      // Si falla la inicialización (ej. sin internet), cargamos local
-      await _cargarLocal();
-    } finally {
+      debugPrint("⚠️ Error crítico inicializando historial: $e");
       isLoading = false;
       notifyListeners();
     }
@@ -58,38 +55,39 @@ class HistoryController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Intentamos ir a la Nube primero para tener datos frescos
-      inspections = await _cloudRepo.getHistorialGlobal(
+      records = await _cloudRepo.getHistorialGlobal(
         esAdmin: esAdmin,
         filtroCentroId: filtroCentroId,
         filtroUsuarioId: filtroUsuarioId,
+        filtroModulo: filtroModulo,
       );
-      debugPrint(
-        "☁️ Historial cargado desde Nube: ${inspections.length} items",
-      );
+      debugPrint("☁️ Historial unificado cargado: ${records.length} registros");
     } catch (e) {
-      debugPrint("⚠️ Fallo nube ($e). Cargando local...");
-      await _cargarLocal();
+      debugPrint("⚠️ Fallo al cargar historial desde Supabase: $e");
+      records = []; // Vaciamos para no mostrar datos fantasma
     } finally {
       isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> _cargarLocal() async {
-    // El repo local no soporta filtros complejos ni datos de otros usuarios
-    // Así que solo traemos lo que hay en el dispositivo
-    inspections = await _localRepo.getAllInspections();
-    debugPrint("🏠 Historial Local cargado: ${inspections.length} items");
-  }
+  // --- Mutadores de Filtros ---
 
   void setFiltroCentro(String? id) {
+    if (filtroCentroId == id) return;
     filtroCentroId = id;
     cargarHistorial();
   }
 
   void setFiltroUsuario(String? id) {
+    if (filtroUsuarioId == id) return;
     filtroUsuarioId = id;
+    cargarHistorial();
+  }
+
+  void setFiltroModulo(String? modulo) {
+    if (filtroModulo == modulo) return;
+    filtroModulo = modulo;
     cargarHistorial();
   }
 }

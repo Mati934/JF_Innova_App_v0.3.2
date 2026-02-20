@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 
-// IMPORTA TU NUEVO DROPDOWN Y EL CONTROLLER
 import '../../../../shared/widgets/custom_dropdown.dart';
 import '../../controllers/history_controller.dart';
 
@@ -17,113 +16,118 @@ class HistoryScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text("Historial General"),
-          backgroundColor: const Color(0xFF003366), // Azul corporativo
+          backgroundColor: const Color(0xFF003366),
           foregroundColor: Colors.white,
         ),
         body: Consumer<HistoryController>(
           builder: (context, ctrl, _) {
             return Column(
               children: [
-                // --- BARRA DE FILTROS (SOLO ADMIN) ---
-                if (ctrl.esAdmin)
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade50, // Fondo sutil
-                      border: Border(
-                        bottom: BorderSide(color: Colors.grey.shade300),
-                      ),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // --- FILTRO CENTRO ---
-                        Expanded(
-                          child: CustomDropdown(
-                            label: "Filtrar Centro",
-                            enableSearch: true, // ¡Buscador activado!
-                            // 1. Preparamos la lista: Opción "Todos" + Nombres reales
-                            items: [
-                              "Todos los Centros",
-                              ...ctrl.listaCentros.map(
-                                (e) => e['nombre'].toString(),
-                              ),
-                            ],
-
-                            // 2. Traducimos ID -> Nombre para mostrarlo seleccionado
-                            value: ctrl.filtroCentroId == null
-                                ? "Todos los Centros"
-                                : ctrl.listaCentros.firstWhere(
-                                    (e) =>
-                                        e['id'].toString() ==
-                                        ctrl.filtroCentroId,
-                                    orElse: () => {
-                                      'nombre': "Todos los Centros",
-                                    },
-                                  )['nombre'],
-
-                            // 3. Traducimos Nombre -> ID al seleccionar
-                            onChanged: (val) {
-                              if (val == "Todos los Centros" || val == null) {
-                                ctrl.setFiltroCentro(null);
-                              } else {
-                                final seleccionado = ctrl.listaCentros
-                                    .firstWhere((e) => e['nombre'] == val);
-                                ctrl.setFiltroCentro(
-                                  seleccionado['id'].toString(),
-                                );
-                              }
-                            },
-                          ),
-                        ),
-
-                        const SizedBox(width: 12),
-
-                        // --- FILTRO USUARIO ---
-                        Expanded(
-                          child: CustomDropdown(
-                            label: "Filtrar Usuario",
-                            enableSearch: true,
-                            items: [
-                              "Todos los Usuarios",
-                              ...ctrl.listaUsuarios.map(
-                                (e) => e['nombre_completo'].toString(),
-                              ),
-                            ],
-                            value: ctrl.filtroUsuarioId == null
-                                ? "Todos los Usuarios"
-                                : ctrl.listaUsuarios.firstWhere(
-                                    (e) =>
-                                        e['id'].toString() ==
-                                        ctrl.filtroUsuarioId,
-                                    orElse: () => {
-                                      'nombre_completo': "Todos los Usuarios",
-                                    },
-                                  )['nombre_completo'],
-                            onChanged: (val) {
-                              if (val == "Todos los Usuarios" || val == null) {
-                                ctrl.setFiltroUsuario(null);
-                              } else {
-                                final seleccionado = ctrl.listaUsuarios
-                                    .firstWhere(
-                                      (e) => e['nombre_completo'] == val,
-                                    );
-                                ctrl.setFiltroUsuario(
-                                  seleccionado['id'].toString(),
-                                );
-                              }
-                            },
-                          ),
-                        ),
-                      ],
+                // --- SECCIÓN DE FILTROS ---
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    border: Border(
+                      bottom: BorderSide(color: Colors.grey.shade300),
                     ),
                   ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 1. FILTRO PÚBLICO: Módulo (Para todos)
+                      CustomDropdown(
+                        label: "Tipo de Registro",
+                        enableSearch: false,
+                        items: const ["Todos", "Inspección", "Visita Técnica"],
+                        value: ctrl.filtroModulo ?? "Todos",
+                        onChanged: (val) {
+                          ctrl.setFiltroModulo(val == "Todos" ? null : val);
+                        },
+                      ),
+
+                      // 2. FILTROS PRIVADOS: Solo para Admin (Apilados en un Row)
+                      if (ctrl.esAdmin) ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: CustomDropdown(
+                                label: "Centro",
+                                enableSearch: true,
+                                items: [
+                                  "Todos",
+                                  ...ctrl.listaCentros.map(
+                                    (e) => e['nombre'].toString(),
+                                  ),
+                                ],
+                                value: ctrl.filtroCentroId == null
+                                    ? "Todos"
+                                    : ctrl.listaCentros.firstWhere(
+                                        (e) =>
+                                            e['id'].toString() ==
+                                            ctrl.filtroCentroId,
+                                        orElse: () => {'nombre': "Todos"},
+                                      )['nombre'],
+                                onChanged: (val) {
+                                  if (val == "Todos" || val == null) {
+                                    ctrl.setFiltroCentro(null);
+                                  } else {
+                                    final obj = ctrl.listaCentros.firstWhere(
+                                      (e) => e['nombre'] == val,
+                                    );
+                                    ctrl.setFiltroCentro(obj['id'].toString());
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: CustomDropdown(
+                                label: "Usuario",
+                                enableSearch: true,
+                                items: [
+                                  "Todos",
+                                  ...ctrl.listaUsuarios.map(
+                                    (e) => e['nombre_completo'].toString(),
+                                  ),
+                                ],
+                                value: ctrl.filtroUsuarioId == null
+                                    ? "Todos"
+                                    : ctrl.listaUsuarios.firstWhere(
+                                        (e) =>
+                                            e['id'].toString() ==
+                                            ctrl.filtroUsuarioId,
+                                        orElse: () => {
+                                          'nombre_completo': "Todos",
+                                        },
+                                      )['nombre_completo'],
+                                onChanged: (val) {
+                                  if (val == "Todos" || val == null) {
+                                    ctrl.setFiltroUsuario(null);
+                                  } else {
+                                    final obj = ctrl.listaUsuarios.firstWhere(
+                                      (e) => e['nombre_completo'] == val,
+                                    );
+                                    ctrl.setFiltroUsuario(obj['id'].toString());
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
 
                 // --- LISTA DE RESULTADOS ---
                 Expanded(
                   child: ctrl.isLoading
                       ? const Center(child: CircularProgressIndicator())
-                      : ctrl.inspections.isEmpty
+                      : ctrl
+                            .records
+                            .isEmpty // Cambiado de 'inspections' a 'records'
                       ? Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -143,9 +147,9 @@ class HistoryScreen extends StatelessWidget {
                         )
                       : ListView.builder(
                           padding: const EdgeInsets.only(top: 8, bottom: 20),
-                          itemCount: ctrl.inspections.length,
+                          itemCount: ctrl.records.length,
                           itemBuilder: (ctx, i) =>
-                              _HistoryItemTile(item: ctrl.inspections[i]),
+                              _HistoryItemTile(item: ctrl.records[i]),
                         ),
                 ),
               ],
@@ -157,7 +161,7 @@ class HistoryScreen extends StatelessWidget {
   }
 }
 
-// --- WIDGET DE LA TARJETA (TILE) ---
+// --- WIDGET DE LA TARJETA (TILE) REFACTORIZADO ---
 class _HistoryItemTile extends StatelessWidget {
   final Map<String, dynamic> item;
 
@@ -165,28 +169,36 @@ class _HistoryItemTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final folio = item['numero_reporte']?.toString() ?? 'Borrador';
+    final modulo = item['modulo']?.toString() ?? 'Registro';
+    final esInspeccion = modulo == 'Inspección';
+
+    final folio = item['numero_reporte']?.toString();
+    final tituloCard = esInspeccion
+        ? (folio != null ? "Informe N° $folio" : "Inspección s/n")
+        : "Visita Técnica";
+
     final fechaRaw = item['fecha_realizacion'] as String?;
     final fecha = fechaRaw != null
         ? DateFormat('dd/MM/yyyy').format(DateTime.parse(fechaRaw))
         : '--/--/--';
 
-    final centro = item['centro_nombre'] ?? 'Centro S/N';
-    final contratista = item['contratista_nombre'] ?? 'Sin contratista';
-    final embarcacion = item['embarcacion_nombre'] ?? 'Sin nave';
+    final ubicacion = item['ubicacion'] ?? 'Ubicación no especificada';
     final inspector = item['inspector_nombre'] ?? 'Inspector';
-    final tipoRaw = item['tipo_actividad']?.toString() ?? 'GENERAL';
-    final tipo = tipoRaw.replaceAll('INSPECCION_', '');
 
+    final tipoRaw = item['tipo_registro']?.toString() ?? 'General';
+    final tipoLimpio = tipoRaw.replaceAll('INSPECCION_', '');
+
+    final estado = item['estado']?.toString() ?? 'Desconocido';
+
+    // 🔥 RECUPERAMOS TU LÓGICA DE NEGOCIO ORIGINAL
     final numSeguimiento = item['numero_seguimiento'] as int? ?? 0;
     final esConsecutiva = numSeguimiento > 0;
-    final etiquetaTipo = esConsecutiva ? "CONSECUTIVA" : "INICIAL";
 
     final pdfUrl = item['pdf_url'] as String?;
     final isSynced = (item['subido'] == 1);
 
     return Card(
-      elevation: 2, // Sutil elevación
+      elevation: 2,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
@@ -194,7 +206,7 @@ class _HistoryItemTile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // FILA 1: FOLIO Y FECHA
+            // FILA 1: TÍTULO Y FECHA
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -203,22 +215,28 @@ class _HistoryItemTile extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF003366).withOpacity(0.1),
+                        color: esInspeccion
+                            ? const Color(0xFF003366).withOpacity(0.1)
+                            : Colors.teal.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(
-                        Icons.description,
-                        color: Color(0xFF003366),
+                      child: Icon(
+                        esInspeccion ? Icons.description : Icons.handshake,
+                        color: esInspeccion
+                            ? const Color(0xFF003366)
+                            : Colors.teal,
                         size: 20,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      "Informe N° $folio",
-                      style: const TextStyle(
+                      tituloCard,
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
-                        color: Color(0xFF003366),
+                        color: esInspeccion
+                            ? const Color(0xFF003366)
+                            : Colors.teal.shade800,
                       ),
                     ),
                   ],
@@ -258,18 +276,18 @@ class _HistoryItemTile extends StatelessWidget {
               child: Divider(),
             ),
 
-            // FILA 2: CENTRO
+            // FILA 2: UBICACIÓN
             Row(
               children: [
-                const Icon(
-                  Icons.location_on,
+                Icon(
+                  esInspeccion ? Icons.location_on : Icons.business,
                   size: 16,
                   color: Colors.redAccent,
                 ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    centro,
+                    ubicacion,
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
@@ -281,7 +299,7 @@ class _HistoryItemTile extends StatelessWidget {
             ),
             const SizedBox(height: 8),
 
-            // FILA 3: TIPO
+            // FILA 3: TIPO Y ETIQUETA (AQUÍ REVERTIMOS EL DAÑO)
             Row(
               children: [
                 const Icon(
@@ -290,69 +308,67 @@ class _HistoryItemTile extends StatelessWidget {
                   color: Colors.blueAccent,
                 ),
                 const SizedBox(width: 6),
-                Text(tipo, style: const TextStyle(fontWeight: FontWeight.w500)),
+                Text(
+                  tipoLimpio,
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
                 const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: esConsecutiva
-                        ? Colors.purple.shade50
-                        : Colors.teal.shade50,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: esConsecutiva
-                          ? Colors.purple.shade200
-                          : Colors.teal.shade200,
-                    ),
-                  ),
-                  child: Text(
-                    etiquetaTipo,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: esConsecutiva
-                          ? Colors.purple.shade700
-                          : Colors.teal.shade700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
 
-            // FILA 4: DATOS EXTRA
-            Row(
-              children: [
-                const Icon(Icons.engineering, size: 16, color: Colors.grey),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    contratista,
-                    style: const TextStyle(fontSize: 12, color: Colors.black87),
-                    overflow: TextOverflow.ellipsis,
+                // Renderizado condicional polimórfico
+                if (esInspeccion)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: esConsecutiva
+                          ? Colors.purple.shade50
+                          : Colors.teal.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: esConsecutiva
+                            ? Colors.purple.shade200
+                            : Colors.teal.shade200,
+                      ),
+                    ),
+                    child: Text(
+                      esConsecutiva ? "CONSECUTIVA" : "INICIAL",
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: esConsecutiva
+                            ? Colors.purple.shade700
+                            : Colors.teal.shade700,
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Text(
+                      estado.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Text("|", style: TextStyle(color: Colors.grey.shade400)),
-                const SizedBox(width: 10),
-                const Icon(Icons.directions_boat, size: 16, color: Colors.grey),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    embarcacion,
-                    style: const TextStyle(fontSize: 12, color: Colors.black87),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
               ],
             ),
 
             const SizedBox(height: 12),
 
-            // FILA 5: INSPECTOR Y BOTÓN
+            // FILA 4: INSPECTOR Y BOTÓN
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -378,7 +394,6 @@ class _HistoryItemTile extends StatelessWidget {
                     ),
                   ],
                 ),
-                // Botón PDF
                 PdfDownloadButton(pdfUrl: pdfUrl, isSynced: isSynced),
               ],
             ),
@@ -389,7 +404,7 @@ class _HistoryItemTile extends StatelessWidget {
   }
 }
 
-// --- BOTÓN PDF (Mantenemos tu lógica que funciona bien) ---
+// --- BOTÓN PDF (Intacto, la lógica de negocio estaba bien) ---
 class PdfDownloadButton extends StatefulWidget {
   final String? pdfUrl;
   final bool isSynced;
@@ -435,7 +450,6 @@ class _PdfDownloadButtonState extends State<PdfDownloadButton> {
   @override
   Widget build(BuildContext context) {
     if (!widget.isSynced) {
-      // Si no está subido, mostramos un icono gris deshabilitado
       return const Tooltip(
         message: "Pendiente de sincronización",
         child: Icon(Icons.cloud_off, color: Colors.grey),
