@@ -6,9 +6,8 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
-  // 🔥 SUBIMOS A v10 PARA BLINDAR TODO
-  static const int _dbVersion = 10;
-  static const String _dbName = 'jfinnova_local.db';
+  static const int _dbVersion = 13;
+  static const String _dbName = 'jfinnova_v17_local.db';
 
   DatabaseHelper._init();
 
@@ -40,6 +39,7 @@ class DatabaseHelper {
         rut TEXT,
         nombre_completo TEXT,
         email TEXT,
+        telefono TEXT,
         rol_id TEXT
       )
     ''');
@@ -111,7 +111,9 @@ class DatabaseHelper {
         numero_reporte TEXT,
         numero_seguimiento INTEGER DEFAULT 0,
         pdf_url TEXT,
-        subido INTEGER DEFAULT 0
+        eliminado INTEGER DEFAULT 0,
+        subido INTEGER DEFAULT 0,
+        app_version TEXT
       )
     ''');
 
@@ -183,6 +185,38 @@ class DatabaseHelper {
         rol_en_faena TEXT,
         condiciones_optimas INTEGER DEFAULT 1,
         PRIMARY KEY (actividad_id, personal_id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE visitas_tecnicas_pendientes (
+        id TEXT PRIMARY KEY,           
+        usuario_id TEXT,               
+        fecha_realizacion TEXT,        
+        estado_final TEXT,             
+        subido INTEGER DEFAULT 0,      
+        eliminado INTEGER DEFAULT 0,   
+        region TEXT,
+        lugar_visita TEXT,             
+        jefatura_a_cargo TEXT,
+        origen_visita TEXT,
+        hora_inicio TEXT,
+        hora_termino TEXT,
+        email_empresa_1 TEXT,
+        email_empresa_2 TEXT,
+        check_reunion INTEGER DEFAULT 0,
+        check_instalacion_senaletica INTEGER DEFAULT 0,
+        check_capacitacion INTEGER DEFAULT 0,
+        check_visita_sso INTEGER DEFAULT 0,
+        check_charla INTEGER DEFAULT 0,
+        check_investigacion_incidente INTEGER DEFAULT 0,
+        check_inspeccion_sso INTEGER DEFAULT 0,
+        check_obs_conductual INTEGER DEFAULT 0,
+        check_otro INTEGER DEFAULT 0,
+        otro_actividad_texto TEXT,
+        apuntes_observaciones TEXT,
+        pdf_path_local TEXT,
+        pdf_url TEXT
       )
     ''');
 
@@ -264,6 +298,54 @@ class DatabaseHelper {
       await _safeAddColumn(db, "embarcaciones", "matricula", "TEXT");
       debugPrint("✅ Parche v10 aplicado.");
     }
+
+    if (oldVersion < 11) {
+      debugPrint("🚀 Aplicando parche v11 (App Version)...");
+      await _safeAddColumn(db, "actividades_pendientes", "app_version", "TEXT");
+      debugPrint("✅ Parche v11 aplicado.");
+    }
+    if (oldVersion < 12) {
+      debugPrint("🚀 Aplicando parche v12 (Módulo Visitas)...");
+
+      // 1. Agregar teléfono al usuario local
+      await _safeAddColumn(db, "usuarios", "telefono", "TEXT");
+
+      // 2. Crear tabla local de visitas
+      await db.execute('''
+      CREATE TABLE visitas_tecnicas_pendientes (
+        activity_id TEXT PRIMARY KEY,
+        region TEXT,
+        lugar_visita TEXT,
+        jefatura_a_cargo TEXT,
+        origen_visita TEXT,
+        hora_inicio TEXT,
+        hora_termino TEXT,
+        email_empresa_1 TEXT,
+        email_empresa_2 TEXT,
+        check_reunion INTEGER DEFAULT 0,
+        check_instalacion_senaletica INTEGER DEFAULT 0,
+        check_capacitacion INTEGER DEFAULT 0,
+        check_visita_sso INTEGER DEFAULT 0,
+        check_charla INTEGER DEFAULT 0,
+        check_investigacion_incidente INTEGER DEFAULT 0,
+        check_inspeccion_sso INTEGER DEFAULT 0,
+        check_obs_conductual INTEGER DEFAULT 0,
+        check_otro INTEGER DEFAULT 0,
+        otro_actividad_texto TEXT,
+        apuntes_observaciones TEXT
+      )
+    ''');
+      debugPrint("✅ Parche v12 aplicado.");
+    }
+    if (oldVersion < 13) {
+      debugPrint("🚀 Aplicando parche v13 (Soft Delete)...");
+      await _safeAddColumn(
+        db,
+        "actividades_pendientes",
+        "eliminado",
+        "INTEGER DEFAULT 0",
+      );
+    }
   }
 
   // Helper seguro para migraciones
@@ -282,55 +364,59 @@ class DatabaseHelper {
 
   // --- MÉTODOS CRUD GENÉRICOS ---
 
-  // 🚨🚨🚨 AQUÍ ESTABA EL ERROR Y AQUÍ ESTÁ LA CORRECCIÓN 🚨🚨🚨
   Future<void> guardarMaestros(
     String tabla,
     List<Map<String, dynamic>> datos,
   ) async {
-    final db = await database;
-    final batch = db.batch();
+    // BLINDAJE: Si la lista está vacía, NO toques la base de datos.
+    // Así evitamos borrar todo por un error de red que devuelva [].
+    if (datos.isEmpty) {
+      debugPrint(
+        "⚠️ Advertencia: Se intentó guardar lista vacía en $tabla. Operación cancelada.",
+      );
+      return;
+    }
 
-    batch.delete(tabla);
+    final db = await database; // Usa el getter, no instance.database directo
 
-    for (var item in datos) {
-      Map<String, dynamic> row = {};
+    await db.transaction((txn) async {
+      final batch = txn.batch();
 
-      // Copiamos ID siempre
-      row['id'] = item['id'];
+      // Ahora sí, borramos porque traemos datos frescos seguros
+      batch.delete(tabla);
 
-      // Mapeo inteligente según la tabla
-      if (tabla == 'personal_externo') {
-        // 🔥 CORRECCIÓN: Si es personal, usamos 'nombre_completo'
-        // Aceptamos que venga como 'nombre_completo' (DB) o 'nombre' (API/Genérico)
-        row['nombre_completo'] =
-            item['nombre_completo'] ?? item['nombre'] ?? 'Sin Nombre';
+      for (var item in datos) {
+        Map<String, dynamic> row = {};
 
-        // Mapeamos el resto de campos específicos
-        row['rut'] = item['rut'];
-        row['cargo'] = item['cargo'];
-        row['matricula'] = item['matricula'];
-        row['contratista_id'] = item['contratista_id'];
-      } else if (tabla == 'embarcaciones') {
-        // Embarcaciones usa 'nombre'
-        row['nombre'] = item['nombre'];
-        if (item.containsKey('contratista_id'))
+        // ... (Tu lógica de mapeo está perfecta, déjala igual) ...
+        // ... Copia y pega tu switch/if de mapeo aquí ...
+        row['id'] = item['id'];
+        if (tabla == 'personal_externo') {
+          row['nombre_completo'] =
+              item['nombre_completo'] ?? item['nombre'] ?? 'Sin Nombre';
+          row['rut'] = item['rut'];
+          row['cargo'] = item['cargo'];
+          row['matricula'] = item['matricula'];
           row['contratista_id'] = item['contratista_id'];
-        if (item.containsKey('matricula')) row['matricula'] = item['matricula'];
-      } else if (tabla == 'centros') {
-        // Centros usa 'nombre'
-        row['nombre'] = item['nombre'];
-        if (item.containsKey('area_id')) row['area_id'] = item['area_id'];
-      } else {
-        // Tablas estándar (areas, contratistas, etc.) usan 'nombre'
-        row['nombre'] = item['nombre'];
+        } else if (tabla == 'embarcaciones') {
+          row['nombre'] = item['nombre'];
+          if (item.containsKey('contratista_id'))
+            row['contratista_id'] = item['contratista_id'];
+          if (item.containsKey('matricula'))
+            row['matricula'] = item['matricula'];
+        } else if (tabla == 'centros') {
+          row['nombre'] = item['nombre'];
+          if (item.containsKey('area_id')) row['area_id'] = item['area_id'];
+        } else {
+          row['nombre'] = item['nombre'];
+        }
+
+        batch.insert(tabla, row);
       }
 
-      batch.insert(tabla, row);
-    }
-    await batch.commit(noResult: true);
+      await batch.commit(noResult: true);
+    });
   }
-
-  // ... (El resto de tus getters se mantienen igual abajo) ...
 
   Future<List<Map<String, dynamic>>> getAreas() async {
     final db = await instance.database;

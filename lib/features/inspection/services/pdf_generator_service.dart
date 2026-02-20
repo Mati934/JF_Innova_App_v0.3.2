@@ -102,7 +102,7 @@ class PdfGeneratorService {
           ),
         ),
         header: (context) => _buildHeaderDense(data, logoImage),
-        footer: (context) => _buildFooter(context),
+        footer: (context) => _buildFooter(context, data),
         build: (context) => [
           // PÁGINA 1
           pw.SizedBox(height: 5),
@@ -771,13 +771,27 @@ class PdfGeneratorService {
     );
   }
 
-  pw.Widget _buildFooter(pw.Context context) {
+  pw.Widget _buildFooter(pw.Context context, InspectionReportData data) {
+    // <--- AHORA RECIBE 'data'
     return pw.Container(
       alignment: pw.Alignment.centerRight,
       margin: const pw.EdgeInsets.only(top: 5),
-      child: pw.Text(
-        "Generado por JF Innova App - Pág. ${context.pageNumber}/${context.pagesCount}",
-        style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey),
+      child: pw.Row(
+        mainAxisAlignment:
+            pw.MainAxisAlignment.spaceBetween, // Separamos los textos
+        children: [
+          // IZQUIERDA: Versión de la App
+          pw.Text(
+            "Versión App: ${data.appVersion}",
+            style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey500),
+          ),
+
+          // DERECHA: Paginación y marca
+          pw.Text(
+            "Generado por JF Innova App - Pág. ${context.pageNumber}/${context.pagesCount}",
+            style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey),
+          ),
+        ],
       ),
     );
   }

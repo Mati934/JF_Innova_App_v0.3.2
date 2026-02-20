@@ -38,8 +38,10 @@ class SupabaseHistoryRepository {
   }) async {
     final userId = _client.auth.currentUser?.id;
 
-    // Seleccionamos todo y hacemos JOINs para traer nombres
-    // OJO: La sintaxis de Supabase para joins anidados es específica
+    // 1. Prevención de Crash por sesión nula
+    if (userId == null) throw Exception("Sesión de usuario no encontrada");
+
+    // 2. Query Base
     var query = _client
         .from('actividades')
         .select('''
@@ -49,31 +51,28 @@ class SupabaseHistoryRepository {
       contratista:contratistas(nombre),
       embarcacion:embarcaciones(nombre)
     ''')
-        .eq('estado_final', 'En Seguimiento');
+        // FIX LÓGICO: Traer tanto las de Buceo (En Seguimiento) como Visitas (Finalizada)
+        .inFilter('estado_final', ['En Seguimiento', 'Finalizada']);
 
-    // --- APLICAR SEGURIDAD ---
+    // 3. Aplicar Seguridad
     if (!esAdmin) {
-      // Si NO es admin, forzamos que solo vea lo suyo
-      query = query.eq('usuario_id', userId!);
+      query = query.eq('usuario_id', userId); // Ya validamos que no es nulo
     } else if (filtroUsuarioId != null) {
-      // Si ES admin y eligió un usuario en el filtro
       query = query.eq('usuario_id', filtroUsuarioId);
     }
 
-    // --- APLICAR FILTROS COMUNES ---
+    // 4. Aplicar Filtros Comunes
     if (filtroCentroId != null) {
       query = query.eq('centro_id', filtroCentroId);
     }
 
-    // Ordenar por fecha
+    // 5. Ordenar
     final response = await query.order('fecha_realizacion', ascending: false);
 
-    // Mapeo para aplanar la estructura y que se parezca a lo que devuelve SQLite
-    // SQLite devuelve 'centro_nombre', Supabase devuelve {centro: {nombre: ...}}
+    // 6. Mapeo para la UI
     return List<Map<String, dynamic>>.from(response).map((item) {
       final mutableItem = Map<String, dynamic>.from(item);
 
-      // Aplanamos los datos para que la UI no se rompa
       if (item['centro'] != null)
         mutableItem['centro_nombre'] = item['centro']['nombre'];
       if (item['usuario'] != null)
@@ -87,9 +86,7 @@ class SupabaseHistoryRepository {
         mutableItem['numero_reporte'] = item['numero_informe'];
       }
 
-      // Normalizamos el subido (Supabase no tiene esta columna, pero si viene de nube es true)
       mutableItem['subido'] = 1;
-
       return mutableItem;
     }).toList();
   }

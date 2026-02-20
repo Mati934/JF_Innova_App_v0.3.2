@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/database/database_helper.dart';
 import '../../../sync/services/sync_service.dart';
 import '../../data/repositories/local_inspection_repository.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class InspectionSetupController extends ChangeNotifier {
   final _dbHelper = DatabaseHelper.instance;
@@ -181,6 +182,11 @@ class InspectionSetupController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // <--- 1. OBTENEMOS LA VERSIÓN AQUÍ AL PRINCIPIO
+      final packageInfo = await PackageInfo.fromPlatform();
+      final versionActual = "v${packageInfo.version}";
+      // ----------------------------------------------
+
       final userId = Supabase.instance.client.auth.currentUser?.id;
       if (createdActivityId == null) {
         createdActivityId = const Uuid().v4();
@@ -214,13 +220,13 @@ class InspectionSetupController extends ChangeNotifier {
         'observaciones_generales': obs,
         'contratista_id': esInspeccionCompleta ? contratistaId : null,
         'embarcacion_id': esInspeccionCompleta ? embarcacionId : null,
-        // --- CAMBIOS CLAVE AQUÍ ---
-        'estado_final':
-            'En Progreso', // CORREGIDO: Siempre empieza en Progreso para salir en borradores
-        'numero_seguimiento': _esConsecutiva
-            ? 1
-            : 0, // 0 = Inicial, 1 = Consecutiva
-        // --------------------------
+
+        // <--- 2. AGREGAMOS LA VERSIÓN AL MAPA
+        'app_version': versionActual,
+
+        // -----------------------------------
+        'estado_final': 'En Progreso',
+        'numero_seguimiento': _esConsecutiva ? 1 : 0,
         'subido': 0,
         'numero_reporte': numeroInformeController.text.trim().isEmpty
             ? null

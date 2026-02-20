@@ -29,48 +29,19 @@ class LocalInspectionRepository implements InspectionRepository {
   }
 
   Future<void> eliminarBorrador(String activityId) async {
-    final db = await dbHelper.database;
-    final supabase = Supabase.instance.client;
+    final db = await DatabaseHelper.instance.database;
 
-    try {
-      // 1. Borrar de Supabase (Si alcanzó a subirse)
-      try {
-        await supabase.from('actividades').delete().eq('id', activityId);
-      } catch (_) {
-        // Ignoramos error de red si no hay internet
-      }
+    // MALA PRÁCTICA (Lo que estabas haciendo):
+    // await db.delete('actividades_pendientes', where: 'id = ?', whereArgs: [activityId]);
 
-      // 2. Borrar de SQLite (Cascada manual)
-      await db.delete(
-        'fotos_pendientes',
-        where: 'actividad_id = ?',
-        whereArgs: [activityId],
-      );
-      await db.delete(
-        'inspeccion_respuestas_pendientes',
-        where: 'actividad_id = ?',
-        whereArgs: [activityId],
-      );
-      await db.delete(
-        'verificaciones_buceo',
-        where: 'actividad_id = ?',
-        whereArgs: [activityId],
-      );
-      await db.delete(
-        'actividad_participantes',
-        where: 'actividad_id = ?',
-        whereArgs: [activityId],
-      );
-      await db.delete(
-        'actividades_pendientes',
-        where: 'id = ?',
-        whereArgs: [activityId],
-      );
-
-      debugPrint("🗑️ Inspección eliminada de local y nube: $activityId");
-    } catch (e) {
-      debugPrint("❌ Error eliminando: $e");
-    }
+    // BUENA PRÁCTICA (Soft Delete local):
+    // Lo marcamos como eliminado y le decimos 'subido = 0' para que el SyncService lo procese.
+    await db.update(
+      'actividades_pendientes',
+      {'eliminado': 1, 'subido': 0},
+      where: 'id = ?',
+      whereArgs: [activityId],
+    );
   }
 
   // --- MÉTODO CORREGIDO: Soporte PDF y Limpieza de Estado ---
@@ -226,9 +197,20 @@ class LocalInspectionRepository implements InspectionRepository {
         SELECT a.*, c.nombre as nombre_centro 
         FROM actividades_pendientes a
         LEFT JOIN centros c ON a.centro_id = c.id
-        WHERE a.estado_final = 'En Progreso'
+        WHERE a.estado_final = 'En Progreso' AND a.eliminado = 0
         ORDER BY a.fecha_realizacion DESC
       ''');
+      // 👇 INYECTA ESTO 👇
+      debugPrint("🚨 FORENSE SQLite - Ruta DB: ${db.path}");
+      debugPrint(
+        "🚨 FORENSE SQLite - Borradores encontrados: ${result.length}",
+      );
+      for (var r in result) {
+        debugPrint(
+          "🚨 BORRADOR ENCONTRADO: ID=${r['id']}, Subido=${r['subido']}, Eliminado=${r['eliminado']}, Actividad=${r['tipo_actividad']}",
+        );
+      }
+      // 👆 HASTA AQUÍ 👆
       return result;
     } catch (e) {
       debugPrint("❌ ERROR LEYENDO BORRADORES: $e");
@@ -430,16 +412,24 @@ class LocalInspectionRepository implements InspectionRepository {
 
       // 5. FOTOS
       if (fotos != null) {
-        // Upsert de fotos (Source of truth es la UI)
+        // AÑADE ESTA LÍNEA PARA MATAR DUPLICADOS
+        batch.delete(
+          'fotos_pendientes',
+          where: 'actividad_id = ?',
+          whereArgs: [actividad['id']],
+        );
+
         for (var f in fotos) {
           final fotoMap = Map<String, dynamic>.from(f);
           fotoMap['subido'] = 0;
           fotoMap['actividad_id'] = actividad['id'];
+          // ... quítale la clave 'id' a fotoMap si la trae, para que SQLite genere una nueva
+          fotoMap.remove('id');
+
           batch.insert(
             'fotos_pendientes',
             fotoMap,
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
+          ); // Ya no necesitas conflictAlgorithm
         }
       }
 

@@ -5,6 +5,7 @@ import 'package:jf_innova_app/core/database/database_helper.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/pdf/inspection_report_data.dart';
 import 'package:jf_innova_app/features/inspection/services/pdf_generator_service.dart';
 import 'package:jf_innova_app/features/sync/services/sync_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import '../../domain/models/buceo_verificacion_model.dart';
@@ -860,6 +861,16 @@ class InspectionFormController extends ChangeNotifier {
   }) async {
     final db = await DatabaseHelper.instance.database;
 
+    // <--- 1. OBTENEMOS LA VERSIÓN REAL AQUÍ
+    String versionApp = "v1.0.0"; // Fallback
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      versionApp = "v${packageInfo.version}";
+    } catch (e) {
+      debugPrint("⚠️ No se pudo leer la versión: $e");
+    }
+    // -------------------------------------
+
     // 1. VARIABLES DE CABECERA DEFAULT
     String nombreCliente = "S/N";
     String nombreEmpresaContratista = "S/N";
@@ -1027,6 +1038,10 @@ class InspectionFormController extends ChangeNotifier {
 
     // 7. RETORNO DEL OBJETO DATA (SIN GENERAR PDF AÚN)
     return InspectionReportData(
+      // <--- 2. PASAMOS LA VERSIÓN REAL AL PDF
+      appVersion: versionApp,
+
+      // -------------------------------------
       esConsecutiva: esConsecutiva,
       empresaContratista: nombreEmpresaContratista,
       cliente: nombreCliente,
@@ -1061,7 +1076,6 @@ class InspectionFormController extends ChangeNotifier {
       horaInicio: verificacionesBuceo?.horaInicio ?? "--:--",
       horaTermino: verificacionesBuceo?.horaTermino ?? "--:--",
 
-      // 🔥🔥🔥 AQUÍ ESTABA EL ERROR: FALTABA MAPEAR LOS COMPRESORES 🔥🔥🔥
       // Compresor 1
       compresor1Matricula: verificacionesBuceo?.compresor1Matricula,
       compresor1Vigencia: _fmtDate(verificacionesBuceo?.compresor1Vigencia),

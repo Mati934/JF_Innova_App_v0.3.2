@@ -8,6 +8,7 @@ class SyncService {
   final _supabase = Supabase.instance.client;
   final _dbHelper = DatabaseHelper.instance;
 
+  // // --- 1. DESCARGAR DATOS MAESTROS (Down-Sync) ---
   // --- 1. DESCARGAR DATOS MAESTROS (Down-Sync) ---
   Future<void> descargarDatosMaestros() async {
     try {
@@ -15,9 +16,10 @@ class SyncService {
         _supabase.from('areas').select('id, nombre'),
         _supabase.from('centros').select('id, nombre, area_id'),
         _supabase.from('contratistas').select('id, nombre'),
-        _supabase.from('embarcaciones').select('id, nombre, contratista_id'),
+        _supabase
+            .from('embarcaciones')
+            .select('id, nombre, contratista_id, matricula'),
         _supabase.from('formulario_items').select().eq('activo', true),
-        // IMPORTANTE: También descargamos el personal externo existente para tener el dropdown lleno
         _supabase.from('personal_externo').select(),
       ]);
 
@@ -40,33 +42,39 @@ class SyncService {
       await _dbHelper.guardarItemsOffline(
         List<Map<String, dynamic>>.from(results[4]),
       );
-
-      // Guardamos el personal externo en SQLite para tenerlo offline
       await _dbHelper.guardarMaestros(
         'personal_externo',
         List<Map<String, dynamic>>.from(results[5]),
       );
 
-      debugPrint("✅ Datos maestros actualizados offline.");
+      debugPrint(
+        "✅ Datos maestros actualizados offline (Sin tocar al usuario).",
+      );
     } catch (e) {
-      debugPrint("⚠️ No se pudieron actualizar maestros (Sin internet): $e");
+      debugPrint(
+        "⚠️ No se pudieron actualizar maestros (Sin internet o error BD): $e",
+      );
     }
   }
 
   // --- 2. SUBIDA DE DATOS (Up-Sync) ---
+  // --- 2. SUBIDA DE DATOS (Up-Sync) ---
   Future<int> sincronizarTodo() async {
     try {
-      // 1. Subir Actividades (Y ahora sus datos hijos: Verificaciones y Participantes)
-      int inspeccionesSubidas = await _sincronizarActividades();
+      // 1. Subir Inspecciones (Las que siguen usando la tabla actividades)
+      int actividadesSubidas = await _sincronizarActividades();
 
-      // 2. Subir el resto
+      // 2. Subir Visitas Técnicas (AHORA SON INDEPENDIENTES)
+      int visitasSubidas = await _sincronizarVisitas();
+
+      // 3. Subir Hijos (Respuestas y Fotos)
       await _sincronizarRespuestas();
       await _sincronizarFotos();
 
-      return inspeccionesSubidas;
+      return actividadesSubidas + visitasSubidas;
     } catch (e) {
-      debugPrint("❌ Error en sincronización: $e");
-      rethrow;
+      debugPrint("❌ Error en sincronización global: $e");
+      return 0;
     }
   }
 
@@ -83,80 +91,103 @@ class SyncService {
     for (var row in pendientes) {
       final activityId = row['id'] as String;
       final tipoActividad = row['tipo_actividad'] as String;
+      final estaEliminado = (row['eliminado'] as int?) == 1;
+
+      if (estaEliminado) {
+        try {
+          debugPrint("🗑️ Eliminando borrador en nube: $activityId");
+
+          await _supabase
+              .from('actividades')
+              .update({'estado_final': 'Eliminada'})
+              .eq('id', activityId);
+
+          // Limpieza profunda local (Hard Delete)
+          await db.delete(
+            'actividades_pendientes',
+            where: 'id = ?',
+            whereArgs: [activityId],
+          );
+
+          // Limpieza de tablas hijas (SOLO INSPECCIONES AHORA)
+          if (tipoActividad == 'INSPECCION_BUCEO') {
+            await db.delete(
+              'verificaciones_buceo',
+              where: 'actividad_id = ?',
+              whereArgs: [activityId],
+            );
+            await db.delete(
+              'actividad_participantes',
+              where: 'actividad_id = ?',
+              whereArgs: [activityId],
+            );
+          }
+
+          await db.delete(
+            'fotos_pendientes',
+            where: 'actividad_id = ?',
+            whereArgs: [activityId],
+          );
+          await db.delete(
+            'inspeccion_respuestas_pendientes',
+            where: 'actividad_id = ?',
+            whereArgs: [activityId],
+          );
+
+          debugPrint("✅ Borrador zombie aniquilado: $activityId");
+        } catch (e) {
+          debugPrint("❌ Error eliminando zombie en Supabase  (offline?): $e");
+        }
+        continue;
+      }
 
       try {
-        debugPrint("🚀 Iniciando Sync de Actividad: $activityId");
+        debugPrint("🚀 Sync Actividad ($tipoActividad): $activityId");
 
-        // 1. Preparamos datos limpios para la nube
         final datosParaNube = Map<String, dynamic>.from(row);
-
-        // Conversión de tipos
         datosParaNube['puerto_abierto'] = (row['puerto_abierto'] == 1);
         datosParaNube['numero_seguimiento'] = row['numero_seguimiento'] ?? 0;
-
-        // LIMPIEZA CRÍTICA: Quitamos columnas que solo existen en SQLite
-        // Si mandamos 'numero_reporte' o 'subido' a Supabase, fallará.
         datosParaNube.remove('numero_reporte');
         datosParaNube.remove('subido');
+        datosParaNube.remove('eliminado');
 
-        // --- LÓGICA INTELIGENTE (Insert vs Update) ---
+        // --- 1. VERIFICACIÓN ESTRICTA EN LA NUBE ---
+        final checkNube = await _supabase
+            .from('actividades')
+            .select('id')
+            .eq('id', activityId)
+            .maybeSingle();
 
-        final numeroLocal = row['numero_reporte'];
-        // Verificamos si ya tiene un número real (no null, no vacío, no "null")
-        final yaTieneNumero =
-            numeroLocal != null &&
-            numeroLocal.toString().isNotEmpty &&
-            numeroLocal.toString() != "null";
-
-        if (yaTieneNumero) {
-          // CASO A: ACTUALIZACIÓN (UPDATE)
-          // Ya tiene folio, así que solo actualizamos el resto de datos.
-          // NO usamos upsert para no quemar la secuencia.
-
-          // Quitamos 'numero_informe' del mapa para no tocarlo en la nube
+        if (checkNube != null) {
           datosParaNube.remove('numero_informe');
-
           await _supabase
               .from('actividades')
               .update(datosParaNube)
               .eq('id', activityId);
-
-          debugPrint(
-            "🔄 Actividad actualizada (Folio existente: $numeroLocal).",
-          );
         } else {
-          // CASO B: CREACIÓN (UPSERT/INSERT)
-          // No tiene folio, es nueva. Dejamos que Supabase asigne uno.
-
-          // Aseguramos que NO vaya el campo numero_informe para que se active el IDENTITY
           datosParaNube.remove('numero_informe');
-
           final response = await _supabase
               .from('actividades')
-              .upsert(datosParaNube)
-              .select('numero_informe') // <--- PEDIMOS EL NUEVO NÚMERO
+              .insert(datosParaNube)
+              .select('numero_informe')
               .single();
 
           final nuevoNumero = response['numero_informe'];
-          debugPrint("✨ ASIGNADO EN NUBE: #$nuevoNumero");
-
-          // GUARDAMOS EL NÚMERO EN EL CELULAR
           await db.update(
             'actividades_pendientes',
             {'numero_reporte': nuevoNumero.toString()},
             where: 'id = ?',
             whereArgs: [activityId],
           );
-          debugPrint("💾 Guardado en SQLite correctamente.");
         }
 
-        // --- SUBIDA DE HIJOS ---
+        // --- 2. SUBIDA DE DATOS HIJOS (SOLO INSPECCIONES) ---
         if (tipoActividad == 'INSPECCION_BUCEO') {
           await _sincronizarVerificaciones(db, activityId);
           await _sincronizarParticipantes(db, activityId);
         }
 
-        // MARCAR COMO SUBIDO LOCALMENTE
+        // --- 3. MARCAR COMO SUBIDO LOCALMENTE ---
         await db.update(
           'actividades_pendientes',
           {'subido': 1},
@@ -165,14 +196,174 @@ class SyncService {
         );
 
         count++;
-        debugPrint("✅ Sincronización finalizada para $activityId");
+        debugPrint("✅ Actividad subida OK: $activityId");
       } catch (e) {
-        debugPrint("🔥 ERROR CRÍTICO subiendo actividad $activityId: $e");
+        debugPrint("🔥 Error subiendo actividad $activityId: $e");
       }
     }
     return count;
   }
-  // --- MÉTODOS AUXILIARES NUEVOS ---
+
+  // --- 🟢 NUEVO MÉTODO EXCLUSIVO PARA VISITAS (DDD) ---
+  Future<int> _sincronizarVisitas() async {
+    final db = await _dbHelper.database;
+    final pendientes = await db.query(
+      'visitas_tecnicas_pendientes',
+      where: 'subido = 0',
+    );
+
+    if (pendientes.isEmpty) return 0;
+
+    int count = 0;
+    for (var row in pendientes) {
+      final id = row['id'] as String;
+      final estaEliminado = (row['eliminado'] as int?) == 1;
+
+      // 1. FLUJO DE BORRADO (ZOMBIES)
+      if (estaEliminado) {
+        try {
+          debugPrint("🗑️ Eliminando Visita zombie en nube: $id");
+          await _supabase
+              .from('visitas_tecnicas')
+              .update({'estado_final': 'Eliminada'})
+              .eq('id', id);
+
+          await db.delete(
+            'visitas_tecnicas_pendientes',
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+          await db.delete(
+            'fotos_pendientes',
+            where: 'actividad_id = ?',
+            whereArgs: [id],
+          );
+
+          debugPrint("✅ Visita zombie aniquilada.");
+        } catch (e) {
+          debugPrint("❌ Error eliminando Visita zombie (offline?): $e");
+        }
+        continue;
+      }
+
+      // 2. FLUJO DE SUBIDA/UPSERT
+      try {
+        debugPrint("🚀 Sync Visita Técnica Independiente: $id");
+
+        final datosNube = Map<String, dynamic>.from(row);
+
+        // Limpiamos la basura local y la ruta física del PDF
+        datosNube.remove('subido');
+        datosNube.remove('eliminado');
+        final String? pdfPathLocal = datosNube.remove('pdf_path_local');
+
+        // Parseamos los booleanos de SQLite (1/0) a PostgreSQL (true/false)
+        datosNube['check_reunion'] = (datosNube['check_reunion'] == 1);
+        datosNube['check_instalacion_senaletica'] =
+            (datosNube['check_instalacion_senaletica'] == 1);
+        datosNube['check_capacitacion'] =
+            (datosNube['check_capacitacion'] == 1);
+        datosNube['check_visita_sso'] = (datosNube['check_visita_sso'] == 1);
+        datosNube['check_charla'] = (datosNube['check_charla'] == 1);
+        datosNube['check_investigacion_incidente'] =
+            (datosNube['check_investigacion_incidente'] == 1);
+        datosNube['check_inspeccion_sso'] =
+            (datosNube['check_inspeccion_sso'] == 1);
+        datosNube['check_obs_conductual'] =
+            (datosNube['check_obs_conductual'] == 1);
+        datosNube['check_otro'] = (datosNube['check_otro'] == 1);
+
+        final sessionActiva = _supabase.auth.currentSession;
+        debugPrint(
+          "🕵️ [AUDITORÍA AUTH] Token activo: ${sessionActiva != null}",
+        );
+        debugPrint(
+          "🕵️ [AUDITORÍA AUTH] ID Usuario: ${_supabase.auth.currentUser?.id}",
+        );
+        debugPrint("🕵️ [AUDITORÍA PAYLOAD] Datos a inyectar: $datosNube");
+
+        if (datosNube['usuario_id'] == null) {
+          final activeUserId = _supabase.auth.currentUser?.id;
+          if (activeUserId != null) {
+            datosNube['usuario_id'] = activeUserId;
+
+            // Opcional: Curar también SQLite para que quede consistente
+            await db.update(
+              'visitas_tecnicas_pendientes',
+              {'usuario_id': activeUserId},
+              where: 'id = ?',
+              whereArgs: [id],
+            );
+            debugPrint(
+              "🩹 [AUTO-FIX] usuario_id nulo curado con la sesión activa.",
+            );
+          }
+        }
+
+        // 2.A. Hacemos el Upsert directo a Supabase (Data Relacional)
+        await _supabase
+            .from('visitas_tecnicas')
+            .upsert(datosNube, onConflict: 'id');
+
+        // 2.B. MAGIA CAMINO B: Subida del PDF en Background
+        String? pdfUrlNube = row['pdf_url'] as String?;
+
+        if (pdfPathLocal != null && pdfUrlNube == null) {
+          final file = File(pdfPathLocal);
+          if (file.existsSync()) {
+            try {
+              debugPrint("📤 Subiendo PDF de visita al Storage...");
+              final nombreArchivo = 'Visita_$id.pdf';
+              final pathStorage = '$id/$nombreArchivo';
+
+              // Subimos al bucket que creaste
+              await _supabase.storage
+                  .from('pdfs_visitas')
+                  .upload(
+                    pathStorage,
+                    file,
+                    fileOptions: const FileOptions(upsert: true),
+                  );
+
+              // Obtenemos la URL pública
+              pdfUrlNube = _supabase.storage
+                  .from('pdfs_visitas')
+                  .getPublicUrl(pathStorage);
+
+              // Actualizamos la fila en la tabla con la URL generada
+              await _supabase
+                  .from('visitas_tecnicas')
+                  .update({'pdf_url': pdfUrlNube})
+                  .eq('id', id);
+
+              debugPrint("✅ PDF subido y URL enlazada: $pdfUrlNube");
+            } catch (e) {
+              debugPrint("⚠️ Error subiendo PDF al Storage: $e");
+              // OJO: Si el Storage falla por red, no reventamos la transacción.
+              // La data relacional ya subió. El PDF se intentará de nuevo después.
+            }
+          } else {
+            debugPrint("⚠️ El archivo PDF local no existe en: $pdfPathLocal");
+          }
+        }
+
+        // 2.C. Marcamos como subido localmente y guardamos la URL para la caché
+        await db.update(
+          'visitas_tecnicas_pendientes',
+          {'subido': 1, if (pdfUrlNube != null) 'pdf_url': pdfUrlNube},
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+
+        count++;
+        debugPrint("✅ Visita Técnica (y artefactos) sincronizada OK: $id");
+      } catch (e) {
+        // 🚨 AQUÍ EL CATCH ESTÁ BLINDADO. NO MODIFICA ESTADO, SOLO ADVIERTE.
+        debugPrint("🔥 Error subiendo visita $id: $e");
+      }
+    }
+    return count;
+  }
 
   Future<void> _sincronizarVerificaciones(
     DatabaseExecutor db,
@@ -383,23 +574,20 @@ class SyncService {
       try {
         // 1. BUSQUEDA DE ID PADRE (CRÍTICO)
         // Si la foto pertenece a un item, necesitamos el ID de la respuesta en Supabase (FK)
-        int?
-        respuestaIdNube; // Supabase usa int8 (int) o uuid (String) según tu diseño. Asumo int o String.
+        int? respuestaIdNube;
 
-        if (itemId != null) {
+        // PARCHE: Si es una foto de visita, NO busques en inspeccion_respuestas
+        if (itemId != null && itemId != 'visita_general') {
           final respuestaData = await _supabase
               .from('inspeccion_respuestas')
               .select('id')
               .eq('actividad_id', actividadId)
               .eq('item_id', itemId)
-              .maybeSingle(); // maybeSingle no lanza error si no encuentra nada
+              .maybeSingle();
 
           if (respuestaData != null) {
             respuestaIdNube = respuestaData['id'];
           } else {
-            // WARN: Tenemos foto para un item, pero la respuesta no subió aún.
-            // Opcion A: Saltamos esta foto hasta la próxima sync.
-            // Opcion B: La subimos sin vínculo (no recomendado).
             debugPrint(
               "⚠️ Foto huérfana para item $itemId. Saltando hasta sync de respuestas.",
             );
@@ -458,5 +646,49 @@ class SyncService {
       }
     }
     return fotosSubidas;
+  }
+
+  // --- 0. INICIALIZACIÓN CRÍTICA (NUEVO) ---
+  Future<void> hidratarContextoInicial(String userId) async {
+    try {
+      debugPrint("🔄 Iniciando hidratación de contexto para usuario: $userId");
+
+      // 1. OBTENER PERFIL DEL USUARIO (Evita que el PDF salga en blanco)
+      final userData = await _supabase
+          .from('usuarios')
+          .select('id, rut, nombre_completo, email, rol_id, telefono')
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (userData != null) {
+        final db = await _dbHelper.database;
+        await db.insert('usuarios', {
+          'id': userData['id'],
+          'rut': userData['rut'],
+          'nombre_completo': userData['nombre_completo'],
+          'email': userData['email'],
+          'rol_id': userData['rol_id'],
+          'telefono': userData['telefono'],
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        debugPrint(
+          "✅ Perfil de usuario hidratado en SQLite desde SyncService.",
+        );
+      } else {
+        throw Exception("Perfil de usuario no encontrado en la base de datos.");
+      }
+
+      // 2. DESCARGAR MAESTROS Y FORMULARIOS
+      await descargarDatosMaestros();
+
+      // 3. INTENTAR SUBIR PENDIENTES (Up-Sync silencioso)
+      // Lo lanzamos sin hacer await para no bloquear el inicio de la app más de lo necesario
+      sincronizarTodo().then((subidos) {
+        if (subidos > 0)
+          debugPrint("✅ $subidos registros pendientes subidos al iniciar.");
+      });
+    } catch (e) {
+      debugPrint("🔥 Error crítico en hidratación inicial: $e");
+      rethrow; // Lanzamos el error para que el AuthGate lo atrape y cierre sesión si es necesario
+    }
   }
 }

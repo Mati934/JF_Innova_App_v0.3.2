@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:jf_innova_app/core/theme/app_theme.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/draft_list_widget.dart';
+import '../widgets/module_selector_grid.dart'; // <--- IMPORTA TU NUEVO WIDGET
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../inspection/presentation/screens/inspection_setup_screen.dart';
 import '../../../history/presentation/screens/history_screen.dart';
+import '../../../visits/presentation/screens/visit_form_screen.dart'; // Importa la pantalla de visitas
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,11 +28,9 @@ class _HomeScreenState extends State<HomeScreen> {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Panel de Control'),
-            backgroundColor:
-                AppTheme.primaryBlue, // Usamos tu color corporativo
+            backgroundColor: AppTheme.primaryBlue,
             foregroundColor: Colors.white,
             actions: [
-              // Botón Historial
               IconButton(
                 icon: const Icon(Icons.history),
                 tooltip: 'Historial e Informes',
@@ -43,7 +43,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
               ),
-              // Botón Sincronizar
               IconButton(
                 icon: _controller.isSyncing
                     ? const SizedBox(
@@ -72,7 +71,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         }
                       },
               ),
-              // Botón Salir
               IconButton(
                 onPressed: () => _cerrarSesion(context),
                 icon: const Icon(Icons.logout),
@@ -88,11 +86,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
+                      // Si no hay borradores, centramos verticalmente
                       mainAxisAlignment: estaVacio
                           ? MainAxisAlignment.center
                           : MainAxisAlignment.start,
                       children: [
-                        // --- ESTADO DE SINCRONIZACIÓN ---
                         if (_controller.isSyncing)
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -129,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
 
-                        // --- LOGO CON HERO ANIMATION ---
+                        // LOGO
                         Hero(
                           tag: 'logo_app',
                           child: Container(
@@ -145,11 +143,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             child: Image.asset(
                               'assets/images/logo_jfinnova.png',
-                              height: 120, // Un pelín más grande
+                              height:
+                                  100, // Un poco más chico para dar espacio a la grilla
                               errorBuilder: (context, error, stackTrace) {
                                 return Icon(
                                   Icons.verified_user,
-                                  size: 100,
+                                  size: 80,
                                   color: AppTheme.primaryBlue,
                                 );
                               },
@@ -157,78 +156,57 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
 
-                        const SizedBox(height: 30),
+                        const SizedBox(height: 20),
 
                         Text(
                           'Hola, ${_controller.nombreUsuario}',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 26,
+                            fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: AppTheme.primaryBlue, // Color corporativo
+                            color: AppTheme.primaryBlue,
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 5),
                         Text(
                           'Sistema de Gestión JF Innova',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 14,
                             color: Colors.grey.shade600,
-                            letterSpacing: 0.5,
                           ),
                         ),
 
-                        SizedBox(height: estaVacio ? 60 : 40),
+                        SizedBox(height: estaVacio ? 50 : 30),
 
-                        // --- BOTÓN NUEVA INSPECCIÓN (Estilo Bacán) ---
-                        Container(
-                          decoration: BoxDecoration(
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppTheme.primaryBlue.withOpacity(0.3),
-                                blurRadius: 15,
-                                offset: const Offset(0, 8),
+                        // --- AQUÍ ESTÁ EL CAMBIO: LA NUEVA GRILLA ---
+                        ModuleSelectorGrid(
+                          onInspeccionTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const InspectionSetupScreen(),
                               ),
-                            ],
-                          ),
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const InspectionSetupScreen(),
-                                ),
-                              ).then((_) {
-                                _controller.cargarBorradores();
-                              });
-                            },
-                            icon: const Icon(Icons.add_circle, size: 28),
-                            label: const Text("Nueva Inspección"),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.primaryBlue,
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size(
-                                double.infinity,
-                                60,
-                              ), // Más alto
-                              elevation: 0, // La sombra la maneja el Container
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  15,
-                                ), // Bordes más suaves
+                            ).then((_) => _controller.cargarBorradores());
+                          },
+                          onVisitaTap: () {
+                            // Navegación al nuevo módulo
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const VisitFormScreen(),
                               ),
-                              textStyle: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ),
+                            ).then((_) => _controller.cargarBorradores());
+                          },
+                          onRendicionTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Próximamente...")),
+                            );
+                          },
                         ),
 
+                        // --------------------------------------------
                         const SizedBox(height: 40),
 
-                        // --- LISTA DE BORRADORES ---
                         if (!estaVacio || _controller.isLoadingBorradores)
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,6 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ... (Tu método _cerrarSesion se mantiene igual) ...
   Future<void> _cerrarSesion(BuildContext context) async {
     final confirmar = await showDialog<bool>(
       context: context,

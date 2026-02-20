@@ -15,6 +15,8 @@ class InspectionReportData {
   // 🟢 1. NUEVO CAMPO AGREGADO AQUÍ
   final bool esConsecutiva;
 
+  final String appVersion;
+
   // --- NUEVOS CAMPOS PARA EL HEADER A 2 COLUMNAS ---
   final String? encargadoCentro; // Jefe de Centro (AquaChile)
   final String? supervisorCentro; // Supervisor de Turno (AquaChile)
@@ -79,6 +81,8 @@ class InspectionReportData {
     // 🟢 2. NUEVO: AGREGAR AL CONSTRUCTOR
     // Le ponemos 'false' por defecto por seguridad, así no rompe si falta el dato.
     this.esConsecutiva = false,
+
+    required this.appVersion,
 
     // Nuevos opcionales
     this.encargadoCentro,
