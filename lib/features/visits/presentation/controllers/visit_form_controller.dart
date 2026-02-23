@@ -249,8 +249,9 @@ class VisitFormController extends ChangeNotifier {
       final pdfBytes = await _generatePdfBytes(reportData);
 
       if (context.mounted) {
-        final nombrePdf =
-            'Visita_Tecnica_${reportData.centro}_${reportData.fecha}.pdf';
+        // CLEAN CODE: Aplicamos la nomenclatura solicitada
+        final nombrePdf = _generarNombreArchivoSanitizado(reportData);
+
         await Printing.layoutPdf(
           onLayout: (_) async => pdfBytes,
           name: nombrePdf,
@@ -282,14 +283,21 @@ class VisitFormController extends ChangeNotifier {
       final uuid = const Uuid().v4();
       final userId = Supabase.instance.client.auth.currentUser?.id;
 
-      // 1. EL CAMINO B: Generamos el PDF silenciosamente y lo guardamos a disco
       debugPrint("⚙️ Generando PDF inmutable en background...");
       final reportData = await _buildReportData();
       final pdfBytes = await _generatePdfBytes(reportData);
 
       final directory = await getApplicationDocumentsDirectory();
-      // Creamos la ruta física del archivo
-      final String pdfPathLocal = '${directory.path}/Visita_$uuid.pdf';
+
+      // CLEAN CODE: También usamos el nombre correcto para guardarlo en el disco físico del celular.
+      // Le agregamos el UUID al final solo para garantizar que jamás se sobreescriba un archivo
+      // si el mismo profesional hace dos visitas al mismo lugar el mismo día.
+      final String nombreBase = _generarNombreArchivoSanitizado(
+        reportData,
+      ).replaceAll('.pdf', '');
+      final String pdfPathLocal =
+          '${directory.path}/${nombreBase}_${uuid.substring(0, 5)}.pdf';
+
       final file = File(pdfPathLocal);
       await file.writeAsBytes(pdfBytes);
       debugPrint("💾 PDF guardado en disco: $pdfPathLocal");
@@ -305,9 +313,7 @@ class VisitFormController extends ChangeNotifier {
         'estado_final': 'Finalizada',
         'subido': 0,
         'eliminado': 0,
-        // 👇 AHORA SÍ: Enganchamos el PDF para que el SyncService lo encuentre
         'pdf_path_local': pdfPathLocal,
-
         'region': regionNormalizada,
         'lugar_visita': centroNormalizado,
         'jefatura_a_cargo': jefaturaCtrl.text.trim(),
@@ -336,7 +342,6 @@ class VisitFormController extends ChangeNotifier {
         fotosPaths: fotosListPaths,
       );
 
-      // 3. Lanzamos el SyncService (que ahora subirá el PDF por el Camino B)
       _syncService.sincronizarTodo().catchError(
         (e) => debugPrint("Sync error silencioso: $e"),
       );
@@ -350,5 +355,47 @@ class VisitFormController extends ChangeNotifier {
       isSaving = false;
       notifyListeners();
     }
+  }
+
+  String _generarNombreArchivoSanitizado(VisitReportData data) {
+    // 1. Recopilamos los datos y manejamos nulos o vacíos
+    final String region = data.region.isNotEmpty ? data.region : 'SinRegion';
+    final String centro = data.centro.isNotEmpty ? data.centro : 'SinOficina';
+    final String fecha = data.fecha; // Ej: 23-02-2026
+    final String profesional =
+        data.profesional != "-" && data.profesional.isNotEmpty
+        ? data.profesional
+        : 'SinProfesional';
+    final String jefatura = data.jefaturaCargo.isNotEmpty
+        ? data.jefaturaCargo
+        : 'SinJefatura';
+
+    // 2. Construimos la cadena en bruto
+    String nombreBruto =
+        "${region}_${centro}_${fecha}_${profesional}_$jefatura";
+
+    // 3. Sanitización Estándar (Clean Code)
+    // - Reemplaza espacios por guiones bajos
+    // - Elimina caracteres especiales que rompen los sistemas de archivos
+    final String nombreSanitizado = nombreBruto
+        .replaceAll(' ', '_')
+        .replaceAll(RegExp(r'[áäâà]'), 'a')
+        .replaceAll(RegExp(r'[éëêè]'), 'e')
+        .replaceAll(RegExp(r'[íïîì]'), 'i')
+        .replaceAll(RegExp(r'[óöôò]'), 'o')
+        .replaceAll(RegExp(r'[úüûù]'), 'u')
+        .replaceAll(RegExp(r'[ÁÄÂÀ]'), 'A')
+        .replaceAll(RegExp(r'[ÉËÊÈ]'), 'E')
+        .replaceAll(RegExp(r'[ÍÏÎÌ]'), 'I')
+        .replaceAll(RegExp(r'[ÓÖÔÒ]'), 'O')
+        .replaceAll(RegExp(r'[ÚÜÛÙ]'), 'U')
+        .replaceAll('ñ', 'n')
+        .replaceAll('Ñ', 'N')
+        .replaceAll(
+          RegExp(r'[^\w\-]'),
+          '',
+        ); // Borra cualquier cosa que no sea letra, número o guion
+
+    return "$nombreSanitizado.pdf";
   }
 }

@@ -1089,7 +1089,7 @@ class BuceoTecnicoWidget extends StatelessWidget {
         final date = await showDatePicker(
           context: context,
           firstDate: DateTime(2020),
-          lastDate: DateTime(2030),
+          lastDate: DateTime(2100),
           initialDate: val ?? DateTime.now(),
         );
         if (date != null) onChanged(date);
