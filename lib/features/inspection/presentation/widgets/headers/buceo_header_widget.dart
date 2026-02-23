@@ -652,6 +652,7 @@ class _DetailedCheckItemState extends State<_DetailedCheckItem> {
                                     width: 50,
                                     height: 50,
                                     fit: BoxFit.cover,
+                                    cacheWidth: 150,
                                   ),
                                 ),
                                 Container(

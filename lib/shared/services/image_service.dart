@@ -43,7 +43,7 @@ class ImageService {
     }
   }
 
-  // --- CÁMARA ---
+  // --- CÁMARA (CORREGIDO: COMPRESIÓN SECUENCIAL) ---
   static Future<List<File>> _tomarFotosCustom(
     BuildContext context, {
     bool modoUnica = false,
@@ -57,9 +57,14 @@ class ImageService {
       );
 
       if (result != null && result.isNotEmpty) {
-        // Mapeamos y comprimimos en paralelo para eficiencia
-        final futures = result.map((x) => comprimirImagen(File(x.path)));
-        return await Future.wait(futures);
+        // CLEAN CODE: Procesamiento secuencial en lugar de paralelo (Future.wait).
+        // Evita picos de RAM al no intentar decodificar 10 imágenes pesadas en memoria al mismo tiempo.
+        List<File> archivosComprimidos = [];
+        for (var x in result) {
+          final compressed = await comprimirImagen(File(x.path));
+          archivosComprimidos.add(compressed);
+        }
+        return archivosComprimidos;
       }
       return [];
     } catch (e) {

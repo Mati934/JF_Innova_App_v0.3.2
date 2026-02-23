@@ -55,11 +55,14 @@ class GalleryInput extends StatelessWidget {
                   Container(
                     margin: const EdgeInsets.only(right: 8),
                     width: 100,
-                    decoration: BoxDecoration(
+                    // CLEAN CODE: Eliminamos el BoxDecoration con DecorationImage
+                    // Usamos ClipRRect e Image.file directo para controlar la decodificación en RAM
+                    child: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      image: DecorationImage(
-                        image: FileImage(images[i]),
+                      child: Image.file(
+                        images[i],
                         fit: BoxFit.cover,
+                        cacheWidth: 250, // Decodificación ligera en RAM
                       ),
                     ),
                   ),

@@ -814,27 +814,27 @@ class InspectionFormController extends ChangeNotifier {
     }
   }
 
-  // 🟢 COMPRESIÓN PREVENTIVA
-  // Lee el archivo, lo comprime en memoria y devuelve bytes ligeros.
-  Future<Uint8List?> _pathToCompressedBytes(String? path) async {
-    if (path == null || path.isEmpty) return null;
-    final file = File(path);
-    if (!await file.exists()) return null;
+  // // 🟢 COMPRESIÓN PREVENTIVA
+  // // Lee el archivo, lo comprime en memoria y devuelve bytes ligeros.
+  // Future<Uint8List?> _pathToCompressedBytes(String? path) async {
+  //   if (path == null || path.isEmpty) return null;
+  //   final file = File(path);
+  //   if (!await file.exists()) return null;
 
-    try {
-      // Opción A: Si tienes tu ImageService configurado para devolver File comprimido
-      // Usamos tu servicio existente para no reinventar la rueda
-      final fileComprimido = await ImageService.comprimirImagen(file);
-      return await fileComprimido.readAsBytes();
+  //   try {
+  //     // Opción A: Si tienes tu ImageService configurado para devolver File comprimido
+  //     // Usamos tu servicio existente para no reinventar la rueda
+  //     final fileComprimido = await ImageService.comprimirImagen(file);
+  //     return await fileComprimido.readAsBytes();
 
-      // Opción B (Si ImageService falla): FlutterImageCompress directo (si lo tienes instalado)
-      // return await FlutterImageCompress.compressWithFile(path, quality: 70, minWidth: 800);
-    } catch (e) {
-      debugPrint("⚠️ Error comprimiendo imagen $path: $e");
-      // Fallback: Si falla la compresión, leemos el original (riesgoso pero necesario)
-      return await file.readAsBytes();
-    }
-  }
+  //     // Opción B (Si ImageService falla): FlutterImageCompress directo (si lo tienes instalado)
+  //     // return await FlutterImageCompress.compressWithFile(path, quality: 70, minWidth: 800);
+  //   } catch (e) {
+  //     debugPrint("⚠️ Error comprimiendo imagen $path: $e");
+  //     // Fallback: Si falla la compresión, leemos el original (riesgoso pero necesario)
+  //     return await file.readAsBytes();
+  //   }
+  // }
 
   // En InspectionFormController
   Future<void> recargarNumeroDesdeDB() async {
@@ -855,23 +855,20 @@ class InspectionFormController extends ChangeNotifier {
     }
   }
 
-  // MËTODO PRIVADO EN InspectionFormController
+  // MÉTODO PRIVADO EN InspectionFormController
   Future<InspectionReportData> _buildReportData({
     required bool esConsecutiva,
   }) async {
     final db = await DatabaseHelper.instance.database;
 
-    // <--- 1. OBTENEMOS LA VERSIÓN REAL AQUÍ
-    String versionApp = "v1.0.0"; // Fallback
+    String versionApp = "v1.0.0";
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       versionApp = "v${packageInfo.version}";
     } catch (e) {
       debugPrint("⚠️ No se pudo leer la versión: $e");
     }
-    // -------------------------------------
 
-    // 1. VARIABLES DE CABECERA DEFAULT
     String nombreCliente = "S/N";
     String nombreEmpresaContratista = "S/N";
     String nombreCentro = "CENTRO S/N";
@@ -879,20 +876,15 @@ class InspectionFormController extends ChangeNotifier {
     String nombreEmbarcacion = "NAVE S/N";
     String matriculaEmbarcacion = "S/N";
 
-    // 2. CARGA DE IMÁGENES DE SEGURIDAD (Safety Photos)
-    final imgIV = await _pathToCompressedBytes(
-      verificacionesBuceo?.imgAutorizacion,
-    );
-    final imgV = await _pathToCompressedBytes(
-      verificacionesBuceo?.imgInduccion,
-    );
-    final imgVI = await _pathToCompressedBytes(verificacionesBuceo?.imgPermiso);
-    final imgVII = await _pathToCompressedBytes(verificacionesBuceo?.imgPlan);
-    final imgVIII = await _pathToCompressedBytes(
-      verificacionesBuceo?.imgExamenes,
-    );
+    // CLEAN CODE:
+    // Ahora pasamos Strings (rutas de archivo) en lugar de usar readAsBytes().
+    // El Isolate del PDF será el encargado de leer el disco, liberando al UI Thread.
+    final String? pathIV = verificacionesBuceo?.imgAutorizacion;
+    final String? pathV = verificacionesBuceo?.imgInduccion;
+    final String? pathVI = verificacionesBuceo?.imgPermiso;
+    final String? pathVII = verificacionesBuceo?.imgPlan;
+    final String? pathVIII = verificacionesBuceo?.imgExamenes;
 
-    // 3. NOMBRE PROFESIONAL
     String nombreProfesional = "USUARIO APP";
     final currentUser = Supabase.instance.client.auth.currentUser;
     if (currentUser?.userMetadata != null) {
@@ -904,7 +896,6 @@ class InspectionFormController extends ChangeNotifier {
           "USUARIO APP";
     }
 
-    // 4. BÚSQUEDA DE DATOS RELACIONALES EN SQLITE
     if (centroId != null) {
       final resCentro = await db.query(
         'centros',
@@ -958,7 +949,6 @@ class InspectionFormController extends ChangeNotifier {
       }
     }
 
-    // 5. PROCESAMIENTO DE CHECKLIST Y ESTADÍSTICAS
     int countC = 0, countNC = 0, countNA = 0, countIntolerables = 0;
     final List<InspectionItemDto> itemsProcesados = [];
 
@@ -967,19 +957,22 @@ class InspectionFormController extends ChangeNotifier {
       final observacion = observaciones[item.id] ?? '';
       final criticidad = criticidades[item.id] ?? item.criticidad;
 
-      if (respuesta == 'C')
+      if (respuesta == 'C') {
         countC++;
-      else if (respuesta == 'NC') {
+      } else if (respuesta == 'NC') {
         countNC++;
         if (criticidad == 'Intolerable') countIntolerables++;
-      } else if (respuesta == 'N/A')
+      } else if (respuesta == 'N/A') {
         countNA++;
+      }
 
-      List<Uint8List> fotosBytes = [];
+      // CLEAN CODE:
+      // Solo recolectamos las rutas absolutas de las fotos, no los bytes.
+      List<String> fotosPaths = [];
       if (fotosPorPregunta.containsKey(item.id)) {
         final file = fotosPorPregunta[item.id];
         if (file != null && await file.exists()) {
-          fotosBytes.add(await file.readAsBytes());
+          fotosPaths.add(file.path);
         }
       }
 
@@ -990,12 +983,12 @@ class InspectionFormController extends ChangeNotifier {
           respuesta: respuesta,
           criticidad: criticidad,
           comentario: observacion,
-          fotos: fotosBytes,
+          fotosPaths:
+              fotosPaths, // <--- CUIDADO: Tienes que actualizar el DTO en tu modelo PDF para aceptar List<String>
         ),
       );
     }
 
-    // Sumar verificaciones críticas de buceo
     if (tipoActividad == 'INSPECCION_BUCEO' && verificacionesBuceo != null) {
       final criticas = [
         verificacionesBuceo!.autorizacionAutoridadMaritima,
@@ -1004,14 +997,16 @@ class InspectionFormController extends ChangeNotifier {
         verificacionesBuceo!.planContingenciasCentroOk,
         verificacionesBuceo!.examenesOcupacionalesVigentes,
       ];
-      for (var cumple in criticas) cumple ? countC++ : countNC++;
+      for (var cumple in criticas) {
+        cumple ? countC++ : countNC++;
+      }
     }
 
-    // 6. GALERÍA Y EQUIPO
-    List<Uint8List> galeriaGeneralBytes = [];
+    // CLEAN CODE: Rutas de la galería
+    List<String> galeriaGeneralPaths = [];
     for (var file in fotosGenerales) {
       if (await file.exists()) {
-        galeriaGeneralBytes.add(await file.readAsBytes());
+        galeriaGeneralPaths.add(file.path);
       }
     }
 
@@ -1030,22 +1025,17 @@ class InspectionFormController extends ChangeNotifier {
         countIntolerables == 0 &&
         (verificacionesBuceo?.faenaHabilitada ?? true);
 
-    // Función helper rápida para formatear fechas dentro de este método
-    String _fmtDate(DateTime? dt) {
+    String fmtDate(DateTime? dt) {
       if (dt == null) return "-";
       return "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}";
     }
 
-    // 7. RETORNO DEL OBJETO DATA (SIN GENERAR PDF AÚN)
     return InspectionReportData(
-      // <--- 2. PASAMOS LA VERSIÓN REAL AL PDF
       appVersion: versionApp,
-
-      // -------------------------------------
       esConsecutiva: esConsecutiva,
       empresaContratista: nombreEmpresaContratista,
       cliente: nombreCliente,
-      logoUrl: "",
+      logoUrl: "", // No lo necesitamos, el logo pasa en PdfIsolateParams
       numeroReporte: numeroInformeController.text.isNotEmpty
           ? numeroInformeController.text
           : "S/N",
@@ -1055,12 +1045,14 @@ class InspectionFormController extends ChangeNotifier {
       area: nombreArea,
       embarcacion: nombreEmbarcacion,
       matricula: matriculaEmbarcacion,
-      safetyPhotos: {
-        'IV': imgIV,
-        'V': imgV,
-        'VI': imgVI,
-        'VII': imgVII,
-        'VIII': imgVIII,
+
+      // Pasamos un Map<String, String?> con las RUTAS
+      safetyPhotosPaths: {
+        'IV': pathIV,
+        'V': pathV,
+        'VI': pathVI,
+        'VII': pathVII,
+        'VIII': pathVIII,
       },
       safetyObservations: {
         'IV': verificacionesBuceo?.obsAutorizacion,
@@ -1075,25 +1067,20 @@ class InspectionFormController extends ChangeNotifier {
       supervisor: verificacionesBuceo?.supervisorNombre ?? "No asignado",
       horaInicio: verificacionesBuceo?.horaInicio ?? "--:--",
       horaTermino: verificacionesBuceo?.horaTermino ?? "--:--",
-
-      // Compresor 1
       compresor1Matricula: verificacionesBuceo?.compresor1Matricula,
-      compresor1Vigencia: _fmtDate(verificacionesBuceo?.compresor1Vigencia),
-      compresor1PH: _fmtDate(verificacionesBuceo?.compresor1VigenciaPH),
+      compresor1Vigencia: fmtDate(verificacionesBuceo?.compresor1Vigencia),
+      compresor1PH: fmtDate(verificacionesBuceo?.compresor1VigenciaPH),
       compresor1Buzos: verificacionesBuceo?.compresor1BuzosCargo?.toString(),
-
-      // Compresor 2
       compresor2Matricula: verificacionesBuceo?.compresor2Matricula,
-      compresor2Vigencia: _fmtDate(verificacionesBuceo?.compresor2Vigencia),
-      compresor2PH: _fmtDate(verificacionesBuceo?.compresor2VigenciaPH),
+      compresor2Vigencia: fmtDate(verificacionesBuceo?.compresor2Vigencia),
+      compresor2PH: fmtDate(verificacionesBuceo?.compresor2VigenciaPH),
       compresor2Buzos: verificacionesBuceo?.compresor2BuzosCargo?.toString(),
-
-      // ---------------------------------------------------------------
       estadoGlobal: aprobado ? "HABILITADA" : "SUSPENDIDA",
       esAprobado: aprobado,
       equipo: equipoDto,
       items: itemsProcesados,
-      fotosGenerales: galeriaGeneralBytes,
+      fotosGeneralesPaths:
+          galeriaGeneralPaths, // <--- Asegúrate de actualizar esto en tu DTO
       totalCumple: countC,
       totalNoCumple: countNC,
       totalNoAplica: countNA,

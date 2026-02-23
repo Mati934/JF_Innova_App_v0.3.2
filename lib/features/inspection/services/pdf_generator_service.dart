@@ -1,10 +1,10 @@
+import 'dart:io'; // Importante para leer archivos dentro del Isolate
 import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:image/image.dart' as img; // Librería para comprimir
+import 'package:image/image.dart' as img;
 import '../domain/models/pdf/inspection_report_data.dart';
 
-// 📦 1. DTO PARA EL ISOLATE (TRANSPORTE DE DATOS)
 class PdfIsolateParams {
   final InspectionReportData data;
   final Uint8List fontRegular;
@@ -21,74 +21,71 @@ class PdfIsolateParams {
   });
 }
 
-// 🧵 2. PUNTO DE ENTRADA DEL ISOLATE (FUERA DE LA CLASE)
 Future<Uint8List> generatePdfEntryPoint(PdfIsolateParams params) async {
   final pdfService = PdfGeneratorService();
-  // Llamamos al método síncrono que ya tiene los recursos cargados
   return await pdfService._generatePdfSync(params);
 }
 
 class PdfGeneratorService {
-  // ⚙️ 3. MÉTODO INTERNO (CORRE EN EL ISOLATE)
-  // Este método NO usa rootBundle, usa los bytes que le llegan en 'params'
   Future<Uint8List> _generatePdfSync(PdfIsolateParams params) async {
     final pdf = pw.Document();
-    final data = params.data; // Alias corto
+    final data = params.data;
 
-    // A. CONFIGURAR FUENTES DESDE BYTES (NO ASSETS)
     final theme = pw.ThemeData.withFont(
       base: pw.Font.ttf(params.fontRegular.buffer.asByteData()),
       bold: pw.Font.ttf(params.fontBold.buffer.asByteData()),
       italic: pw.Font.ttf(params.fontItalic.buffer.asByteData()),
     );
 
-    // B. CONFIGURAR LOGO DESDE BYTES
     pw.MemoryImage? logoImage;
     if (params.logoBytes != null) {
       logoImage = pw.MemoryImage(params.logoBytes!);
     }
 
-    // C. PREPARAR FOTOS DE SEGURIDAD
+    // C. PREPARAR FOTOS DE SEGURIDAD LEYENDO DEL DISCO
     List<pw.Widget> safetyPhotoWidgets = [];
     final order = ['IV', 'V', 'VI', 'VII', 'VIII'];
 
     for (var key in order) {
-      final imageBytes = data.safetyPhotos[key];
-      if (imageBytes != null && imageBytes.isNotEmpty) {
-        // La optimización ocurre AQUÍ, dentro del Isolate (Genial para la UI)
-        final optimizedBytes = _optimizarImagen(imageBytes);
-        final image = pw.MemoryImage(optimizedBytes);
+      final imagePath = data.safetyPhotosPaths[key];
+      if (imagePath != null && imagePath.isNotEmpty) {
+        final file = File(imagePath);
+        if (file.existsSync()) {
+          // LECTURA DE DISCO EN SEGUNDO PLANO
+          final imageBytes = file.readAsBytesSync();
+          final optimizedBytes = _optimizarImagen(imageBytes);
+          final image = pw.MemoryImage(optimizedBytes);
 
-        safetyPhotoWidgets.add(
-          pw.Container(
-            margin: const pw.EdgeInsets.symmetric(horizontal: 6),
-            child: pw.Column(
-              mainAxisSize: pw.MainAxisSize.min,
-              children: [
-                pw.Container(
-                  width: 90,
-                  height: 90,
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: PdfColors.grey, width: 0.5),
+          safetyPhotoWidgets.add(
+            pw.Container(
+              margin: const pw.EdgeInsets.symmetric(horizontal: 6),
+              child: pw.Column(
+                mainAxisSize: pw.MainAxisSize.min,
+                children: [
+                  pw.Container(
+                    width: 90,
+                    height: 90,
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: PdfColors.grey, width: 0.5),
+                    ),
+                    child: pw.Image(image, fit: pw.BoxFit.cover),
                   ),
-                  child: pw.Image(image, fit: pw.BoxFit.cover),
-                ),
-                pw.SizedBox(height: 4),
-                pw.Text(
-                  key,
-                  style: pw.TextStyle(
-                    fontSize: 8,
-                    fontWeight: pw.FontWeight.bold,
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    key,
+                    style: pw.TextStyle(
+                      fontSize: 8,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
+          );
+        }
       }
     }
 
-    // D. CONSTRUCCIÓN DEL DOCUMENTO
     pdf.addPage(
       pw.MultiPage(
         pageTheme: pw.PageTheme(
@@ -104,20 +101,15 @@ class PdfGeneratorService {
         header: (context) => _buildHeaderDense(data, logoImage),
         footer: (context) => _buildFooter(context, data),
         build: (context) => [
-          // PÁGINA 1
           pw.SizedBox(height: 5),
           _buildStatusAndStats(data),
-
           pw.SizedBox(height: 10),
           _buildTechnicalDetails(data),
-
           pw.SizedBox(height: 10),
           _buildPersonnelTable(data),
-
           pw.SizedBox(height: 10),
           _buildSafetyChecklist(data),
 
-          // FOTOS DE SEGURIDAD
           if (safetyPhotoWidgets.isNotEmpty) ...[
             pw.SizedBox(height: 10),
             pw.Row(
@@ -128,11 +120,7 @@ class PdfGeneratorService {
 
           pw.SizedBox(height: 15),
           _buildGeneralObservations(data),
-
-          // SALTO DE PÁGINA
           pw.NewPage(),
-
-          // PÁGINA 2+: DETALLES
           pw.Center(
             child: pw.Text(
               "DETALLE DE VERIFICACIONES",
@@ -144,16 +132,15 @@ class PdfGeneratorService {
             ),
           ),
           pw.SizedBox(height: 10),
-
-          // TABLAS AGRUPADAS
           ..._buildCategorizedChecklists(data),
 
-          // GALERÍA GENERAL
-          if (data.fotosGenerales.isNotEmpty) ...[
+          if (data.fotosGeneralesPaths.isNotEmpty) ...[
             pw.SizedBox(height: 20),
             pw.Divider(),
             pw.SizedBox(height: 10),
-            _buildGeneralGallery(data.fotosGenerales),
+            _buildGeneralGallery(
+              data.fotosGeneralesPaths,
+            ), // Actualizado a String
             pw.SizedBox(height: 15),
           ],
         ],
@@ -163,23 +150,16 @@ class PdfGeneratorService {
     return pdf.save();
   }
 
-  // 🟢 LA LAVADORA DE IMÁGENES (REDUCE PESO)
   Uint8List _optimizarImagen(Uint8List rawBytes) {
     try {
       final img.Image? original = img.decodeImage(rawBytes);
       if (original == null) return rawBytes;
-
-      // Redimensionar a 600px ancho (suficiente para PDF)
       final resized = img.copyResize(original, width: 600);
-
-      // Comprimir a JPG 60%
       return Uint8List.fromList(img.encodeJpg(resized, quality: 60));
     } catch (e) {
       return rawBytes;
     }
   }
-
-  // --- WIDGETS AUXILIARES (IGUAL QUE ANTES) ---
 
   List<pw.Widget> _buildCategorizedChecklists(InspectionReportData data) {
     Map<String, List<dynamic>> groupedItems = {};
@@ -284,19 +264,23 @@ class PdfGeneratorService {
     final isIntolerable = item.criticidad == "Intolerable" && isNC;
 
     List<pw.Widget> fotosWidgets = [];
-    if (item.fotos.isNotEmpty) {
-      for (var f in (item.fotos as List<Uint8List>)) {
-        final optimized = _optimizarImagen(f);
-        fotosWidgets.add(
-          pw.Container(
-            width: 80,
-            height: 80,
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColors.grey400),
+    if (item.fotosPaths.isNotEmpty) {
+      for (var path in (item.fotosPaths as List<String>)) {
+        final file = File(path);
+        if (file.existsSync()) {
+          final bytes = file.readAsBytesSync();
+          final optimized = _optimizarImagen(bytes);
+          fotosWidgets.add(
+            pw.Container(
+              width: 80,
+              height: 80,
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.grey400),
+              ),
+              child: pw.Image(pw.MemoryImage(optimized), fit: pw.BoxFit.cover),
             ),
-            child: pw.Image(pw.MemoryImage(optimized), fit: pw.BoxFit.cover),
-          ),
-        );
+          );
+        }
       }
     }
 
@@ -732,8 +716,26 @@ class PdfGeneratorService {
     );
   }
 
-  pw.Widget _buildGeneralGallery(List<Uint8List> fotos) {
-    final optimizedPhotos = fotos.map((f) => _optimizarImagen(f)).toList();
+  pw.Widget _buildGeneralGallery(List<String> fotosPaths) {
+    List<pw.Widget> photoWidgets = [];
+
+    for (var path in fotosPaths) {
+      final file = File(path);
+      if (file.existsSync()) {
+        final bytes = file.readAsBytesSync();
+        final optimized = _optimizarImagen(bytes);
+        photoWidgets.add(
+          pw.Container(
+            width: 80,
+            height: 80,
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.grey),
+            ),
+            child: pw.Image(pw.MemoryImage(optimized), fit: pw.BoxFit.cover),
+          ),
+        );
+      }
+    }
 
     return pw.Container(
       width: double.infinity,
@@ -750,43 +752,23 @@ class PdfGeneratorService {
             style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 5),
-          pw.Wrap(
-            spacing: 5,
-            runSpacing: 5,
-            children: optimizedPhotos
-                .map(
-                  (f) => pw.Container(
-                    width: 80,
-                    height: 80,
-                    decoration: pw.BoxDecoration(
-                      border: pw.Border.all(color: PdfColors.grey),
-                    ),
-                    child: pw.Image(pw.MemoryImage(f), fit: pw.BoxFit.cover),
-                  ),
-                )
-                .toList(),
-          ),
+          pw.Wrap(spacing: 5, runSpacing: 5, children: photoWidgets),
         ],
       ),
     );
   }
 
   pw.Widget _buildFooter(pw.Context context, InspectionReportData data) {
-    // <--- AHORA RECIBE 'data'
     return pw.Container(
       alignment: pw.Alignment.centerRight,
       margin: const pw.EdgeInsets.only(top: 5),
       child: pw.Row(
-        mainAxisAlignment:
-            pw.MainAxisAlignment.spaceBetween, // Separamos los textos
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          // IZQUIERDA: Versión de la App
           pw.Text(
             "Versión App: ${data.appVersion}",
             style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey500),
           ),
-
-          // DERECHA: Paginación y marca
           pw.Text(
             "Generado por JF Innova App - Pág. ${context.pageNumber}/${context.pagesCount}",
             style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey),

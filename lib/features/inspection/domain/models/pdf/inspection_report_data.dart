@@ -12,52 +12,43 @@ class InspectionReportData {
   final String embarcacion;
   final String matricula;
 
-  // 🟢 1. NUEVO CAMPO AGREGADO AQUÍ
   final bool esConsecutiva;
-
   final String appVersion;
 
-  // --- NUEVOS CAMPOS PARA EL HEADER A 2 COLUMNAS ---
-  final String? encargadoCentro; // Jefe de Centro (AquaChile)
-  final String? supervisorCentro; // Supervisor de Turno (AquaChile)
-  final String? profesional; // Prevencionista (Tu tío/Usuario App)
-  // -------------------------------------------------
+  final String? encargadoCentro;
+  final String? supervisorCentro;
+  final String? profesional;
 
   final String tipoFaena;
   final String supervisor;
   final String estadoGlobal;
 
-  final Map<String, Uint8List?> safetyPhotos;
-  // 🟢 NUEVO: Mapa de observaciones específicas (IV -> "Comentario...")
+  // CLEAN CODE: Ahora son mapas de Strings (rutas absolutas)
+  final Map<String, String?> safetyPhotosPaths;
   final Map<String, String?> safetyObservations;
 
   final String observacionPrevencionista;
-
-  // CAMBIO 1: Cambiamos 'bool' por 'dynamic' para que acepte TODO (texto y switches)
   final Map<String, dynamic> verificacionesBuceo;
-
   final bool esAprobado;
 
-  // --- DATOS TÉCNICOS NUEVOS (PARA EL PDF) ---
   final String? horaInicio;
   final String? horaTermino;
 
-  // Compresor 1
   final String? compresor1Matricula;
-  final String? compresor1Vigencia; // Ya formateada a String
-  final String? compresor1PH; // Ya formateada a String
+  final String? compresor1Vigencia;
+  final String? compresor1PH;
   final String? compresor1Buzos;
 
-  // Compresor 2
   final String? compresor2Matricula;
-  final String? compresor2Vigencia; // Ya formateada a String
-  final String? compresor2PH; // Ya formateada a String
+  final String? compresor2Vigencia;
+  final String? compresor2PH;
   final String? compresor2Buzos;
-  // -------------------------------------------
 
   final List<PersonalDto> equipo;
   final List<InspectionItemDto> items;
-  final List<Uint8List> fotosGenerales;
+
+  // CLEAN CODE: Lista de rutas
+  final List<String> fotosGeneralesPaths;
 
   final int totalCumple;
   final int totalNoCumple;
@@ -75,43 +66,33 @@ class InspectionReportData {
     required this.embarcacion,
     required this.matricula,
 
-    this.safetyPhotos = const {},
+    // Inicializamos con mapas/listas vacías para evitar nulls
+    this.safetyPhotosPaths = const {},
     this.safetyObservations = const {},
-
-    // 🟢 2. NUEVO: AGREGAR AL CONSTRUCTOR
-    // Le ponemos 'false' por defecto por seguridad, así no rompe si falta el dato.
     this.esConsecutiva = false,
-
     required this.appVersion,
-
-    // Nuevos opcionales
     this.encargadoCentro,
     this.supervisorCentro,
     this.profesional,
-
     required this.tipoFaena,
     required this.supervisor,
     required this.estadoGlobal,
     required this.esAprobado,
     required this.equipo,
     required this.items,
-    required this.fotosGenerales,
+    required this.fotosGeneralesPaths, // Actualizado
     required this.totalCumple,
     required this.totalNoCumple,
     required this.totalNoAplica,
     required this.totalIntolerables,
     required this.observacionPrevencionista,
     required this.verificacionesBuceo,
-
-    // Agregamos los nuevos al constructor
     this.horaInicio,
     this.horaTermino,
-
     this.compresor1Matricula,
     this.compresor1Vigencia,
     this.compresor1PH,
     this.compresor1Buzos,
-
     this.compresor2Matricula,
     this.compresor2Vigencia,
     this.compresor2PH,
@@ -119,7 +100,6 @@ class InspectionReportData {
   });
 }
 
-// ... (PersonalDto e InspectionItemDto se quedan igual) ...
 class PersonalDto {
   final String nombre;
   final String rut;
@@ -142,7 +122,9 @@ class InspectionItemDto {
   final String respuesta;
   final String criticidad;
   final String? comentario;
-  final List<Uint8List> fotos;
+
+  // CLEAN CODE: Lista de rutas de disco, no binarios
+  final List<String> fotosPaths;
 
   InspectionItemDto({
     required this.categoria,
@@ -150,6 +132,6 @@ class InspectionItemDto {
     required this.respuesta,
     required this.criticidad,
     this.comentario,
-    this.fotos = const [],
+    this.fotosPaths = const [],
   });
 }

@@ -78,6 +78,8 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
 
   @override
   void dispose() {
+    _timerVerificacion?.cancel();
+
     _controller.removeListener(_onControllerUpdate);
     _controller.dispose();
     super.dispose();
