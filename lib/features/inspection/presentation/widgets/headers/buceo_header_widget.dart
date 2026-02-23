@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:jf_innova_app/shared/utils/debouncer.dart';
 import '../../controllers/inspection_form_controller.dart';
 import '../../../domain/models/participante_model.dart';
 import 'package:uuid/uuid.dart';
@@ -135,166 +136,201 @@ class BuceoCuadrillaWidget extends StatelessWidget {
     final nombreCtrl = TextEditingController();
     final rutCtrl = TextEditingController();
     final matriculaCtrl = TextEditingController();
-    // Usamos ValueNotifier para actualizar solo el dropdown sin redibujar todo el modal
     final cargoNotifier = ValueNotifier<String>('Buzo');
+
+    // CONTROL DE INTEGRIDAD: Guardamos el ID histórico si lo encontramos
+    String? existingPersonalId;
+    final debouncer = Debouncer(milliseconds: 500);
 
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
+      isScrollControlled: true, // Vital para modales con teclado
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
       ),
       builder: (ctx) {
-        // Calculamos el espacio del teclado para que no tape los campos
         final keyboardHeight = MediaQuery.of(ctx).viewInsets.bottom;
         final systemBarHeight = MediaQuery.of(ctx).padding.bottom;
 
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: keyboardHeight + systemBarHeight + 20,
-            top: 25,
-            left: 24,
-            right: 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Barra decorativa superior
-              Center(
-                child: Container(
-                  width: 50,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(10),
+        return SingleChildScrollView(
+          // <-- SOLUCIÓN VISUAL: Ahora es scrollable
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: keyboardHeight > 0
+                  ? keyboardHeight + 20
+                  : systemBarHeight + 20,
+              top: 25,
+              left: 24,
+              right: 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 50,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 25),
-
-              const Text(
-                "Agregar Integrante",
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF003366), // Azul corporativo
-                ),
-              ),
-              const SizedBox(height: 25),
-
-              // CAMPO NOMBRE
-              TextField(
-                controller: nombreCtrl,
-                textCapitalization: TextCapitalization.words,
-                decoration: InputDecoration(
-                  labelText: "Nombre Completo",
-                  hintText: "Ej: Juan Pérez",
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
+                const SizedBox(height: 25),
+                const Text(
+                  "Agregar Integrante",
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF003366),
                   ),
-                  prefixIcon: const Icon(Icons.person_outline),
-                  filled: true,
-                  fillColor: Colors.white,
                 ),
-              ),
-              const SizedBox(height: 15),
+                const SizedBox(height: 25),
 
-              // FILA RUT Y MATRÍCULA
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: rutCtrl,
-                      decoration: InputDecoration(
-                        labelText: "RUT",
-                        hintText: "12.345.678-9",
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
+                // FILA RUT Y MATRÍCULA (El RUT va primero por lógica de UX)
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: TextField(
+                        controller: rutCtrl,
+                        decoration: InputDecoration(
+                          labelText: "RUT (Búsqueda auto)",
+                          hintText: "12.345.678-9",
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          prefixIcon: const Icon(Icons.badge_outlined),
+                          filled: true,
+                          fillColor: Colors.white,
                         ),
-                        prefixIcon: const Icon(Icons.badge_outlined),
-                        filled: true,
-                        fillColor: Colors.white,
+                        onChanged: (val) {
+                          // <-- SOLUCIÓN LÓGICA: Debouncer + Autocompletado
+                          debouncer.run(() async {
+                            final encontrado = await controller
+                                .buscarBuzoPorRut(val);
+                            if (encontrado != null) {
+                              nombreCtrl.text = encontrado.nombreCompleto;
+                              matriculaCtrl.text = encontrado.matricula;
+                              // Evitamos setear un cargo vacío que rompa el Dropdown
+                              if ([
+                                "Supervisor",
+                                "Buzo",
+                                "Asistente",
+                              ].contains(encontrado.cargo)) {
+                                cargoNotifier.value = encontrado.cargo;
+                              }
+                              existingPersonalId = encontrado
+                                  .personalId; // Reciclamos el UUID histórico
+                              debugPrint(
+                                "✅ Buzo histórico encontrado y mapeado: ${encontrado.personalId}",
+                              );
+                            } else {
+                              existingPersonalId =
+                                  null; // Es un buzo realmente nuevo
+                            }
+                          });
+                        },
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 15),
-                  Expanded(
-                    child: TextField(
-                      controller: matriculaCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: "N° Matrícula",
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      flex: 2,
+                      child: TextField(
+                        controller: matriculaCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: "N° Matrícula",
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
                         ),
-                        prefixIcon: const Icon(
-                          Icons.confirmation_number_outlined,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 15),
+                  ],
+                ),
+                const SizedBox(height: 15),
 
-              // --- AQUÍ ESTÁ EL CAMBIO: CustomDropdown ---
-              ValueListenableBuilder<String>(
-                valueListenable: cargoNotifier,
-                builder: (context, cargoActual, _) {
-                  return CustomDropdown(
-                    label: "Cargo",
-                    items: const ["Supervisor", "Buzo", "Asistente"],
-                    value: cargoActual,
-                    onChanged: (val) {
-                      if (val != null) {
-                        cargoNotifier.value = val;
-                      }
-                    },
-                  );
-                },
-              ),
-
-              const SizedBox(height: 30),
-
-              // BOTÓN DE ACCIÓN
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF003366),
-                    foregroundColor: Colors.white,
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                // CAMPO NOMBRE
+                TextField(
+                  controller: nombreCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    labelText: "Nombre Completo",
+                    hintText: "Ej: Juan Pérez",
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
+                    prefixIcon: const Icon(Icons.person_outline),
+                    filled: true,
+                    fillColor: Colors.white,
                   ),
-                  onPressed: () {
-                    if (nombreCtrl.text.isEmpty) return;
+                ),
+                const SizedBox(height: 15),
 
-                    final nuevo = ParticipanteModel(
-                      personalId: const Uuid().v4(),
-                      nombreCompleto: nombreCtrl.text,
-                      rut: rutCtrl.text,
-                      cargo: cargoNotifier.value,
-                      matricula: matriculaCtrl.text,
-                      condicionesOptimas: true,
+                ValueListenableBuilder<String>(
+                  valueListenable: cargoNotifier,
+                  builder: (context, cargoActual, _) {
+                    return CustomDropdown(
+                      label: "Cargo",
+                      items: const ["Supervisor", "Buzo", "Asistente"],
+                      value: cargoActual,
+                      onChanged: (val) {
+                        if (val != null) cargoNotifier.value = val;
+                      },
                     );
-
-                    controller.agregarParticipante(nuevo);
-                    Navigator.pop(ctx);
                   },
-                  child: const Text(
-                    "AGREGAR AL EQUIPO",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 30),
+
+                // BOTÓN DE ACCIÓN
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF003366),
+                      foregroundColor: Colors.white,
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () {
+                      if (nombreCtrl.text.trim().isEmpty ||
+                          rutCtrl.text.trim().isEmpty)
+                        return;
+
+                      // LÓGICA SENIOR: Reutilizamos ID si existe, sino generamos uno
+                      final nuevoId = existingPersonalId ?? const Uuid().v4();
+
+                      final nuevo = ParticipanteModel(
+                        personalId: nuevoId,
+                        nombreCompleto: nombreCtrl.text.trim(),
+                        rut: rutCtrl.text.trim(),
+                        cargo: cargoNotifier.value,
+                        matricula: matriculaCtrl.text.trim(),
+                        condicionesOptimas: true,
+                      );
+
+                      controller.agregarParticipante(nuevo);
+                      Navigator.pop(ctx);
+                    },
+                    child: const Text(
+                      "AGREGAR AL EQUIPO",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

@@ -49,6 +49,7 @@ class InspectionReportData {
 
   // CLEAN CODE: Lista de rutas
   final List<String> fotosGeneralesPaths;
+  final List<Map<String, String>> fotosExtraObservaciones;
 
   final int totalCumple;
   final int totalNoCumple;
@@ -81,6 +82,7 @@ class InspectionReportData {
     required this.equipo,
     required this.items,
     required this.fotosGeneralesPaths, // Actualizado
+    required this.fotosExtraObservaciones,
     required this.totalCumple,
     required this.totalNoCumple,
     required this.totalNoAplica,

@@ -8,6 +8,7 @@ import 'package:jf_innova_app/features/sync/services/sync_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
+import 'package:uuid/uuid.dart';
 import '../../domain/models/buceo_verificacion_model.dart';
 import '../../domain/models/participante_model.dart';
 import '../../domain/models/formulario_item.dart';
@@ -53,8 +54,7 @@ class InspectionFormController extends ChangeNotifier {
   final TextEditingController supervisorNombreController =
       TextEditingController();
   final TextEditingController supervisorRutController = TextEditingController();
-  // final TextEditingController supervisorCentroController =
-  //     TextEditingController();
+  final List<Map<String, dynamic>> fotosConObservacion = [];
 
   List<File> fotosGenerales = [];
 
@@ -117,22 +117,15 @@ class InspectionFormController extends ChangeNotifier {
           embarcacionId = data['embarcacion_id'] as String?;
           _numeroSeguimiento = data['numero_seguimiento'] as int? ?? 0;
 
-          // --- CAMBIO AQUÍ: LÓGICA PASIVA ---
-          // Ya no "sugerimos" nada. Leemos lo que hay.
-
           final numeroReal = data['numero_reporte']?.toString();
 
           if (numeroReal != null &&
               numeroReal.isNotEmpty &&
               numeroReal != "null") {
-            // Si el Sync ya trajo el número, lo mostramos
             numeroInformeController.text = numeroReal;
           } else {
-            // Si no hay número (estamos offline y recién creada), mostramos texto de espera
-            // Ojo: Si prefieres que salga vacío, ponle ""
             numeroInformeController.text = "Pendiente...";
           }
-          // ----------------------------------
         }
       }
 
@@ -147,18 +140,38 @@ class InspectionFormController extends ChangeNotifier {
         if (val['criticidad'] != null) criticidades[id] = val['criticidad'];
       });
 
-      // 4. Cargar Fotos Previas (Solo local)
+      // 4. Cargar Fotos Previas (Solo local) - CLEAN CODE APLICADO
       if (_repo is LocalInspectionRepository) {
         final fotos = await (_repo as LocalInspectionRepository)
             .getFotosPendientes(activityId);
+
         for (var f in fotos) {
           final file = File(f['local_path'] as String);
-          if (file.existsSync()) {
+
+          // CORRECCIÓN CRÍTICA: Lectura de disco asíncrona para no congelar la UI
+          if (await file.exists()) {
             final itemId = f['item_id'] as String?;
-            if (itemId != null) {
-              fotosPorPregunta[itemId] = file;
-            } else {
+
+            if (itemId == null) {
+              // Regla 1: Sin ID = Galería General
               fotosGenerales.add(file);
+            } else {
+              // LÓGICA RELACIONAL DE UUIDs
+              final esDePregunta = _items.any(
+                (pregunta) => pregunta.id == itemId,
+              );
+
+              if (esDePregunta) {
+                // Regla 2: Es una foto asignada a una pregunta
+                fotosPorPregunta[itemId] = file;
+              } else {
+                // Regla 3: Tiene UUID pero no es pregunta. Es foto extra.
+                fotosConObservacion.add({
+                  'id': itemId, // Usamos el UUID real
+                  'file': file,
+                  'observacion': f['descripcion'] ?? '',
+                });
+              }
             }
           }
         }
@@ -309,6 +322,32 @@ class InspectionFormController extends ChangeNotifier {
 
   void setCriticidad(String id, String val) {
     criticidades[id] = val;
+    notifyListeners();
+  }
+
+  void agregarFotosConObservacion(List<File> nuevasFotos) {
+    for (var f in nuevasFotos) {
+      fotosConObservacion.add({
+        'id': const Uuid()
+            .v4(), // ID único temporal para manejar la lista en la UI
+        'file': f,
+        'observacion': '', // Inicia vacío
+      });
+    }
+    notifyListeners();
+  }
+
+  void actualizarTextoFotoObservacion(String id, String texto) {
+    final index = fotosConObservacion.indexWhere((e) => e['id'] == id);
+    if (index != -1) {
+      fotosConObservacion[index]['observacion'] = texto;
+      // Nota Senior: NO llamo notifyListeners() aquí. Si lo hago, cada letra
+      // que el usuario escriba redibujará toda la vista, causando lag.
+    }
+  }
+
+  void eliminarFotoObservacion(String id) {
+    fotosConObservacion.removeWhere((e) => e['id'] == id);
     notifyListeners();
   }
 
@@ -619,6 +658,21 @@ class InspectionFormController extends ChangeNotifier {
         'item_id': null,
         'local_path': f.path,
         'descripcion': 'General',
+        'subido': 0,
+      });
+    }
+
+    // C. Fotos con Observación Extra
+    for (var fMap in fotosConObservacion) {
+      File file = fMap['file'];
+      String obs = fMap['observacion'].toString().trim();
+
+      listaFotosParaRepo.add({
+        'actividad_id': activityId,
+        // CORRECCIÓN: Mandamos el UUID puro, nada de textos raros.
+        'item_id': fMap['id'],
+        'local_path': file.path,
+        'descripcion': obs.isEmpty ? 'Fotografía anexa' : obs,
         'subido': 0,
       });
     }
@@ -1030,6 +1084,17 @@ class InspectionFormController extends ChangeNotifier {
       return "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}";
     }
 
+    List<Map<String, String>> fotosExtraPaths = [];
+    for (var fMap in fotosConObservacion) {
+      File file = fMap['file'];
+      if (await file.exists()) {
+        fotosExtraPaths.add({
+          'path': file.path,
+          'observacion': fMap['observacion']?.toString().trim() ?? '',
+        });
+      }
+    }
+
     return InspectionReportData(
       appVersion: versionApp,
       esConsecutiva: esConsecutiva,
@@ -1081,6 +1146,7 @@ class InspectionFormController extends ChangeNotifier {
       items: itemsProcesados,
       fotosGeneralesPaths:
           galeriaGeneralPaths, // <--- Asegúrate de actualizar esto en tu DTO
+      fotosExtraObservaciones: fotosExtraPaths,
       totalCumple: countC,
       totalNoCumple: countNC,
       totalNoAplica: countNA,
@@ -1110,5 +1176,24 @@ class InspectionFormController extends ChangeNotifier {
       map[item.categoria]!.add(item);
     }
     return map;
+  }
+
+  // Añadir dentro de InspectionFormController
+  Future<ParticipanteModel?> buscarBuzoPorRut(String rut) async {
+    final cleanRut = rut.trim();
+    if (cleanRut.isEmpty || cleanRut.length < 8)
+      return null; // Validación temprana
+
+    if (_repo is LocalInspectionRepository) {
+      try {
+        return await (_repo as LocalInspectionRepository).getPersonalByRut(
+          cleanRut,
+        );
+      } catch (e) {
+        debugPrint("❌ Error buscando RUT en SQLite: $e");
+        return null;
+      }
+    }
+    return null;
   }
 }

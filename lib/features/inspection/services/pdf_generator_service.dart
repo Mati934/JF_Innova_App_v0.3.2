@@ -134,6 +134,11 @@ class PdfGeneratorService {
           pw.SizedBox(height: 10),
           ..._buildCategorizedChecklists(data),
 
+          if (data.fotosExtraObservaciones.isNotEmpty) ...[
+            pw.SizedBox(height: 20),
+            _buildFotosObservacion(data.fotosExtraObservaciones),
+          ],
+
           if (data.fotosGeneralesPaths.isNotEmpty) ...[
             pw.SizedBox(height: 20),
             pw.Divider(),
@@ -916,6 +921,96 @@ class PdfGeneratorService {
                 : "Sin observaciones registradas.",
             style: const pw.TextStyle(fontSize: 8, lineSpacing: 1.5),
           ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildFotosObservacion(List<Map<String, String>> fotosExtras) {
+    if (fotosExtras.isEmpty) return pw.SizedBox.shrink();
+
+    List<pw.Widget> photoWidgets = [];
+
+    for (var item in fotosExtras) {
+      final String path = item['path'] ?? '';
+      final String observacion = item['observacion'] ?? 'Sin observación.';
+
+      final file = File(path);
+      if (file.existsSync()) {
+        final bytes = file.readAsBytesSync();
+        final optimized = _optimizarImagen(bytes);
+
+        photoWidgets.add(
+          pw.Container(
+            width: double.infinity,
+            margin: const pw.EdgeInsets.only(bottom: 10),
+            padding: const pw.EdgeInsets.all(5),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.grey300),
+              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+            ),
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Container(
+                  width: 100,
+                  height: 100,
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.grey400),
+                  ),
+                  child: pw.Image(
+                    pw.MemoryImage(optimized),
+                    fit: pw.BoxFit.cover,
+                  ),
+                ),
+                pw.SizedBox(width: 10),
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        "Observación:",
+                        style: pw.TextStyle(
+                          fontSize: 8,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.grey700,
+                        ),
+                      ),
+                      pw.SizedBox(height: 2),
+                      pw.Text(
+                        observacion.isEmpty
+                            ? "Sin observación detallada."
+                            : observacion,
+                        style: const pw.TextStyle(fontSize: 8),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    }
+
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(5),
+      margin: const pw.EdgeInsets.only(bottom: 15),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            "FOTOGRAFÍAS CON OBSERVACIÓN DETALLADA",
+            style: pw.TextStyle(
+              fontSize: 10,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blue900,
+            ),
+          ),
+          pw.Divider(color: PdfColors.grey400, thickness: 0.5),
+          pw.SizedBox(height: 10),
+          ...photoWidgets,
         ],
       ),
     );

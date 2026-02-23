@@ -7,7 +7,7 @@ import '../../../../shared/widgets/form_inputs/gallery_input.dart';
 import '../controllers/inspection_form_controller.dart';
 import '../widgets/question_card.dart';
 import '../widgets/category_header.dart';
-// IMPORTANTE: Asegúrate que esta ruta coincida con donde creaste el factory
+import '../widgets/fotos_observacion_widget.dart';
 import '../widgets/headers/inspection_header_factory.dart';
 
 class InspectionFormScreen extends StatefulWidget {
@@ -249,7 +249,14 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
   Widget _buildFooter() {
     return Column(
       children: [
+        const SizedBox(height: 20),
+
+        // 1. NUEVA SECCIÓN: Fotos con texto descriptivo
+        FotosConObservacionWidget(controller: _controller),
+
         const Divider(height: 40),
+
+        // 2. GALERÍA GENERAL CLÁSICA
         const Padding(
           padding: EdgeInsets.only(left: 16, bottom: 8),
           child: Text(
@@ -265,6 +272,8 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
                 _controller.setFotosGenerales(newFiles),
           ),
         ),
+
+        // 3. BOTÓN FINALIZAR
         Container(
           margin: const EdgeInsets.all(16),
           width: double.infinity,

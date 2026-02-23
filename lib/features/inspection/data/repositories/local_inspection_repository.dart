@@ -462,4 +462,28 @@ class LocalInspectionRepository implements InspectionRepository {
       return null;
     }
   }
+
+  // Añadir dentro de LocalInspectionRepository
+  Future<ParticipanteModel?> getPersonalByRut(String rut) async {
+    final db = await dbHelper.database;
+    final res = await db.query(
+      'personal_externo',
+      where: 'rut = ?',
+      whereArgs: [rut],
+      limit: 1, // Optimización: Cortamos la búsqueda al primer match
+    );
+
+    if (res.isNotEmpty) {
+      final map = res.first;
+      return ParticipanteModel(
+        personalId: map['id'] as String,
+        nombreCompleto: map['nombre_completo'] as String,
+        rut: map['rut'] as String,
+        cargo: map['cargo'] as String? ?? 'Buzo',
+        matricula: map['matricula'] as String? ?? '',
+        condicionesOptimas: true, // Default por negocio
+      );
+    }
+    return null;
+  }
 }
