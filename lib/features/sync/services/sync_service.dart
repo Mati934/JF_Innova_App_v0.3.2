@@ -573,10 +573,9 @@ class SyncService {
 
       try {
         // 1. BUSQUEDA DE ID PADRE (CRÍTICO)
-        // Si la foto pertenece a un item, necesitamos el ID de la respuesta en Supabase (FK)
-        int? respuestaIdNube;
+        // ✅ CORRECCIÓN: El ID de la tabla inspeccion_respuestas en Supabase es un UUID (String), no un int.
+        String? respuestaIdNube;
 
-        // PARCHE: Si es una foto de visita, NO busques en inspeccion_respuestas
         if (itemId != null && itemId != 'visita_general') {
           final respuestaData = await _supabase
               .from('inspeccion_respuestas')
@@ -586,7 +585,8 @@ class SyncService {
               .maybeSingle();
 
           if (respuestaData != null) {
-            respuestaIdNube = respuestaData['id'];
+            // Asignamos el String directamente
+            respuestaIdNube = respuestaData['id'] as String;
           } else {
             debugPrint(
               "⚠️ Foto huérfana para item $itemId. Saltando hasta sync de respuestas.",
@@ -617,20 +617,20 @@ class SyncService {
           'actividad_id': actividadId,
           'foto_url': publicUrl,
           'descripcion': descripcion ?? '',
-          // AQUÍ ESTÁ LA MAGIA: Vinculamos con la respuesta real
-          'inspeccion_respuesta_id': respuestaIdNube,
         };
 
-        // Limpiamos nulos si tu tabla no los acepta, o déjalos si son nullable
-        if (respuestaIdNube == null)
-          datosFoto.remove('inspeccion_respuesta_id');
+        // ✅ CORRECCIÓN: Si tenemos el ID de la respuesta, lo inyectamos al Map
+        if (respuestaIdNube != null) {
+          datosFoto['inspeccion_respuesta_id'] = respuestaIdNube;
+        }
 
         await _supabase
-            .from('registro_fotografico') // Asegúrate que la tabla se llama así
+            .from('registro_fotografico')
             .upsert(
               datosFoto,
-              onConflict: 'foto_url',
-            ); // O tu constraint unique
+              onConflict:
+                  'foto_url', // Asegúrate de que esto coincide con tu base de datos
+            );
 
         // 4. ACTUALIZAR LOCALMENTE
         await db.update(
@@ -641,6 +641,7 @@ class SyncService {
         );
 
         fotosSubidas++;
+        debugPrint("✅ Foto subida exitosamente y enlazada.");
       } catch (e) {
         debugPrint("❌ Error subiendo foto $localId: $e");
       }

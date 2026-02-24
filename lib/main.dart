@@ -13,17 +13,31 @@ import 'features/home/presentation/screens/home_screen.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/sync/services/sync_service.dart';
 
+import 'dart:ui';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'firebase_options.dart'; // Generado por flutterfire CLI
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // CLEAN CODE: OOM Prevention
-  // Estrangulamiento agresivo del ImageCache global de Skia/Impeller.
-  // Evitamos que Flutter acumule fotos en memoria (RAM) al navegar entre pantallas.
-  PaintingBinding.instance.imageCache.maximumSize =
-      30; // Máximo 30 miniaturas en RAM
-  PaintingBinding.instance.imageCache.maximumSizeBytes =
-      1024 * 1024 * 15; // Límite estricto de 15 MB
+  PaintingBinding.instance.imageCache.maximumSize = 30;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 1024 * 1024 * 15;
 
+  // 1. Inicializar Firebase
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // 2. Interceptar errores síncronos de Flutter
+  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+
+  // 3. Interceptar errores asíncronos (Isolates, Futures no manejados, etc.)
+  PlatformDispatcher.instance.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
+
+  // 4. Inicializar Supabase
   await Supabase.initialize(
     url: SupabaseConfig.url,
     anonKey: SupabaseConfig.anonKey,

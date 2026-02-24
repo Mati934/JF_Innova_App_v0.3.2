@@ -2,8 +2,9 @@ import 'dart:io'; // Importante para leer archivos dentro del Isolate
 import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:image/image.dart' as img;
+// import 'package:image/image.dart' as img;
 import '../domain/models/pdf/inspection_report_data.dart';
+import 'package:flutter/foundation.dart';
 
 class PdfIsolateParams {
   final InspectionReportData data;
@@ -22,6 +23,12 @@ class PdfIsolateParams {
 }
 
 Future<Uint8List> generatePdfEntryPoint(PdfIsolateParams params) async {
+  // AQUÍ SÍ estamos enviando el trabajo a un hilo secundario real usando compute.
+  // Esto libera el hilo principal (UI) y evita el jank mientras se crea el PDF.
+  return await compute(_buildPdfInIsolate, params);
+}
+
+Future<Uint8List> _buildPdfInIsolate(PdfIsolateParams params) async {
   final pdfService = PdfGeneratorService();
   return await pdfService._generatePdfSync(params);
 }
@@ -53,8 +60,7 @@ class PdfGeneratorService {
         if (file.existsSync()) {
           // LECTURA DE DISCO EN SEGUNDO PLANO
           final imageBytes = file.readAsBytesSync();
-          final optimizedBytes = _optimizarImagen(imageBytes);
-          final image = pw.MemoryImage(optimizedBytes);
+          final image = pw.MemoryImage(imageBytes);
 
           safetyPhotoWidgets.add(
             pw.Container(
@@ -88,6 +94,7 @@ class PdfGeneratorService {
 
     pdf.addPage(
       pw.MultiPage(
+        maxPages: 200,
         pageTheme: pw.PageTheme(
           theme: theme,
           pageFormat: PdfPageFormat.a4,
@@ -136,14 +143,14 @@ class PdfGeneratorService {
 
           if (data.fotosExtraObservaciones.isNotEmpty) ...[
             pw.SizedBox(height: 20),
-            _buildFotosObservacion(data.fotosExtraObservaciones),
+            ..._buildFotosObservacion(data.fotosExtraObservaciones),
           ],
 
           if (data.fotosGeneralesPaths.isNotEmpty) ...[
             pw.SizedBox(height: 20),
             pw.Divider(),
             pw.SizedBox(height: 10),
-            _buildGeneralGallery(
+            ..._buildGeneralGallery(
               data.fotosGeneralesPaths,
             ), // Actualizado a String
             pw.SizedBox(height: 15),
@@ -155,16 +162,16 @@ class PdfGeneratorService {
     return pdf.save();
   }
 
-  Uint8List _optimizarImagen(Uint8List rawBytes) {
-    try {
-      final img.Image? original = img.decodeImage(rawBytes);
-      if (original == null) return rawBytes;
-      final resized = img.copyResize(original, width: 600);
-      return Uint8List.fromList(img.encodeJpg(resized, quality: 60));
-    } catch (e) {
-      return rawBytes;
-    }
-  }
+  // Uint8List _optimizarImagen(Uint8List rawBytes) {
+  //   try {
+  //     final img.Image? original = img.decodeImage(rawBytes);
+  //     if (original == null) return rawBytes;
+  //     final resized = img.copyResize(original, width: 600);
+  //     return Uint8List.fromList(img.encodeJpg(resized, quality: 60));
+  //   } catch (e) {
+  //     return rawBytes;
+  //   }
+  // }
 
   List<pw.Widget> _buildCategorizedChecklists(InspectionReportData data) {
     Map<String, List<dynamic>> groupedItems = {};
@@ -175,9 +182,8 @@ class PdfGeneratorService {
     ];
 
     for (var item in data.items) {
-      if (!groupedItems.containsKey(item.categoria)) {
+      if (!groupedItems.containsKey(item.categoria))
         groupedItems[item.categoria] = [];
-      }
       groupedItems[item.categoria]!.add(item);
     }
 
@@ -187,65 +193,63 @@ class PdfGeneratorService {
     final categoriesToRender = categoryOrder
         .where((c) => groupedItems.containsKey(c))
         .toList();
-    groupedItems.keys.forEach((k) {
+    for (var k in groupedItems.keys) {
       if (!categoriesToRender.contains(k)) categoriesToRender.add(k);
-    });
+    }
 
     for (var category in categoriesToRender) {
       final items = groupedItems[category]!;
+
+      // 1. Añadimos el Header SUELTO al flujo del documento
       widgets.add(
-        pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Container(
-              width: double.infinity,
-              padding: const pw.EdgeInsets.symmetric(
-                vertical: 5,
-                horizontal: 8,
-              ),
-              margin: const pw.EdgeInsets.only(top: 15, bottom: 0),
-              decoration: const pw.BoxDecoration(
-                color: PdfColors.blue50,
-                border: pw.Border(
-                  top: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-                  left: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-                  right: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-                ),
-              ),
-              child: pw.Text(
-                category,
-                style: pw.TextStyle(
-                  fontWeight: pw.FontWeight.bold,
-                  fontSize: 10,
-                  color: PdfColors.blue900,
-                ),
-              ),
+        pw.Container(
+          width: double.infinity,
+          padding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 8),
+          margin: const pw.EdgeInsets.only(top: 15, bottom: 0),
+          decoration: const pw.BoxDecoration(
+            color: PdfColors.blue50,
+            border: pw.Border(
+              top: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+              left: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+              right: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
             ),
-            pw.Table(
-              border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey400),
-              columnWidths: {
-                0: const pw.FixedColumnWidth(25),
-                1: const pw.FlexColumnWidth(4),
-                2: const pw.FixedColumnWidth(35),
-                3: const pw.FlexColumnWidth(3),
-              },
+          ),
+          child: pw.Text(
+            category,
+            style: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold,
+              fontSize: 10,
+              color: PdfColors.blue900,
+            ),
+          ),
+        ),
+      );
+
+      // 2. Añadimos la Tabla SUELTA. Ahora sí puede saltar de página libremente.
+      widgets.add(
+        pw.Table(
+          border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey400),
+          columnWidths: {
+            0: const pw.FixedColumnWidth(25),
+            1: const pw.FlexColumnWidth(4),
+            2: const pw.FixedColumnWidth(35),
+            3: const pw.FlexColumnWidth(3),
+          },
+          children: [
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(color: PdfColors.grey100),
               children: [
-                pw.TableRow(
-                  decoration: const pw.BoxDecoration(color: PdfColors.grey100),
-                  children: [
-                    _buildHeaderCell("N°"),
-                    _buildHeaderCell("Ítem / Pregunta"),
-                    _buildHeaderCell("Est."),
-                    _buildHeaderCell("Observación / Evidencia"),
-                  ],
-                ),
-                ...items.map((item) {
-                  final row = _buildItemRow(item, globalCounter);
-                  globalCounter++;
-                  return row;
-                }).toList(),
+                _buildHeaderCell("N°"),
+                _buildHeaderCell("Ítem / Pregunta"),
+                _buildHeaderCell("Est."),
+                _buildHeaderCell("Observación / Evidencia"),
               ],
             ),
+            ...items.map((item) {
+              final row = _buildItemRow(item, globalCounter);
+              globalCounter++;
+              return row;
+            }).toList(),
           ],
         ),
       );
@@ -269,20 +273,31 @@ class PdfGeneratorService {
     final isIntolerable = item.criticidad == "Intolerable" && isNC;
 
     List<pw.Widget> fotosWidgets = [];
+    int maxFotosEnTabla =
+        4; // CORTAFUEGOS: Máximo 4 fotos por pregunta en la tabla
+    int fotosExtra = 0;
+
     if (item.fotosPaths.isNotEmpty) {
-      for (var path in (item.fotosPaths as List<String>)) {
-        final file = File(path);
+      final paths = item.fotosPaths as List<String>;
+      for (int i = 0; i < paths.length; i++) {
+        // Si superamos el límite, solo contamos cuántas sobraron para avisarle al usuario
+        if (i >= maxFotosEnTabla) {
+          fotosExtra = paths.length - maxFotosEnTabla;
+          break;
+        }
+
+        final file = File(paths[i]);
         if (file.existsSync()) {
           final bytes = file.readAsBytesSync();
-          final optimized = _optimizarImagen(bytes);
           fotosWidgets.add(
             pw.Container(
-              width: 80,
-              height: 80,
+              width:
+                  50, // Ligeramente más pequeñas para optimizar espacio en celda
+              height: 50,
               decoration: pw.BoxDecoration(
                 border: pw.Border.all(color: PdfColors.grey400),
               ),
-              child: pw.Image(pw.MemoryImage(optimized), fit: pw.BoxFit.cover),
+              child: pw.Image(pw.MemoryImage(bytes), fit: pw.BoxFit.cover),
             ),
           );
         }
@@ -331,6 +346,18 @@ class PdfGeneratorService {
               if (fotosWidgets.isNotEmpty) ...[
                 pw.SizedBox(height: 4),
                 pw.Wrap(spacing: 4, runSpacing: 4, children: fotosWidgets),
+              ],
+              // AVISO VISUAL SI HAY EXCESO DE FOTOS
+              if (fotosExtra > 0) ...[
+                pw.SizedBox(height: 4),
+                pw.Text(
+                  "+ $fotosExtra fotos anexas (Ver galería / sistema)",
+                  style: pw.TextStyle(
+                    fontSize: 6,
+                    fontStyle: pw.FontStyle.italic,
+                    color: PdfColors.red800,
+                  ),
+                ),
               ],
             ],
           ),
@@ -721,46 +748,51 @@ class PdfGeneratorService {
     );
   }
 
-  pw.Widget _buildGeneralGallery(List<String> fotosPaths) {
-    List<pw.Widget> photoWidgets = [];
+  List<pw.Widget> _buildGeneralGallery(List<String> fotosPaths) {
+    if (fotosPaths.isEmpty) return [];
+
+    List<pw.Widget> widgets = [
+      pw.Text(
+        "EVIDENCIA FOTOGRÁFICA GENERAL",
+        style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+      ),
+      pw.SizedBox(height: 10),
+    ];
+
+    List<pw.Widget> filaActual = [];
 
     for (var path in fotosPaths) {
       final file = File(path);
       if (file.existsSync()) {
         final bytes = file.readAsBytesSync();
-        final optimized = _optimizarImagen(bytes);
-        photoWidgets.add(
+        filaActual.add(
           pw.Container(
             width: 80,
             height: 80,
             decoration: pw.BoxDecoration(
               border: pw.Border.all(color: PdfColors.grey),
             ),
-            child: pw.Image(pw.MemoryImage(optimized), fit: pw.BoxFit.cover),
+            child: pw.Image(pw.MemoryImage(bytes), fit: pw.BoxFit.cover),
           ),
         );
       }
+
+      // CLEAN CODE: Algoritmo de Chunking.
+      // Cada 4 fotos, cerramos el Wrap y lo inyectamos.
+      // Esto permite que el PDF salte de página entre filas sin crashear.
+      if (filaActual.length == 4) {
+        widgets.add(pw.Wrap(spacing: 5, runSpacing: 5, children: filaActual));
+        widgets.add(pw.SizedBox(height: 5));
+        filaActual = []; // Vaciamos el buffer para la siguiente fila
+      }
     }
 
-    return pw.Container(
-      width: double.infinity,
-      padding: const pw.EdgeInsets.all(5),
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey400, width: 0.5),
-        color: PdfColors.grey100,
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            "EVIDENCIA FOTOGRÁFICA GENERAL",
-            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-          ),
-          pw.SizedBox(height: 5),
-          pw.Wrap(spacing: 5, runSpacing: 5, children: photoWidgets),
-        ],
-      ),
-    );
+    // Inyectamos las fotos sobrantes si la última fila no alcanzó a tener 4
+    if (filaActual.isNotEmpty) {
+      widgets.add(pw.Wrap(spacing: 5, runSpacing: 5, children: filaActual));
+    }
+
+    return widgets;
   }
 
   pw.Widget _buildFooter(pw.Context context, InspectionReportData data) {
@@ -926,21 +958,35 @@ class PdfGeneratorService {
     );
   }
 
-  pw.Widget _buildFotosObservacion(List<Map<String, String>> fotosExtras) {
-    if (fotosExtras.isEmpty) return pw.SizedBox.shrink();
+  // REEMPLAZA ESTE MÉTODO COMPLETO
+  List<pw.Widget> _buildFotosObservacion(
+    List<Map<String, String>> fotosExtras,
+  ) {
+    if (fotosExtras.isEmpty) return [];
 
-    List<pw.Widget> photoWidgets = [];
+    List<pw.Widget> widgets = [
+      pw.Text(
+        "FOTOGRAFÍAS CON OBSERVACIÓN DETALLADA",
+        style: pw.TextStyle(
+          fontSize: 10,
+          fontWeight: pw.FontWeight.bold,
+          color: PdfColors.blue900,
+        ),
+      ),
+      pw.Divider(color: PdfColors.grey400, thickness: 0.5),
+      pw.SizedBox(height: 10),
+    ];
 
     for (var item in fotosExtras) {
       final String path = item['path'] ?? '';
       final String observacion = item['observacion'] ?? 'Sin observación.';
-
       final file = File(path);
+
       if (file.existsSync()) {
         final bytes = file.readAsBytesSync();
-        final optimized = _optimizarImagen(bytes);
 
-        photoWidgets.add(
+        // Cada foto es un contenedor independiente que puede saltar de página sin romper el layout
+        widgets.add(
           pw.Container(
             width: double.infinity,
             margin: const pw.EdgeInsets.only(bottom: 10),
@@ -958,10 +1004,7 @@ class PdfGeneratorService {
                   decoration: pw.BoxDecoration(
                     border: pw.Border.all(color: PdfColors.grey400),
                   ),
-                  child: pw.Image(
-                    pw.MemoryImage(optimized),
-                    fit: pw.BoxFit.cover,
-                  ),
+                  child: pw.Image(pw.MemoryImage(bytes), fit: pw.BoxFit.cover),
                 ),
                 pw.SizedBox(width: 10),
                 pw.Expanded(
@@ -992,27 +1035,6 @@ class PdfGeneratorService {
         );
       }
     }
-
-    return pw.Container(
-      width: double.infinity,
-      padding: const pw.EdgeInsets.all(5),
-      margin: const pw.EdgeInsets.only(bottom: 15),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            "FOTOGRAFÍAS CON OBSERVACIÓN DETALLADA",
-            style: pw.TextStyle(
-              fontSize: 10,
-              fontWeight: pw.FontWeight.bold,
-              color: PdfColors.blue900,
-            ),
-          ),
-          pw.Divider(color: PdfColors.grey400, thickness: 0.5),
-          pw.SizedBox(height: 10),
-          ...photoWidgets,
-        ],
-      ),
-    );
+    return widgets;
   }
 }

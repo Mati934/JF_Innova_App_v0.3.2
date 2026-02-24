@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:jf_innova_app/shared/services/image_service.dart';
 import 'dart:io';
 // Ajusta las rutas a tu proyecto
 import '../controllers/inspection_form_controller.dart';
@@ -48,32 +49,18 @@ class FotosConObservacionWidget extends StatelessWidget {
                 ),
                 IconButton(
                   icon: const Icon(Icons.add_a_photo, color: Colors.amber),
-                  onPressed: () async {
-                    // 1. Recibimos el resultado como un genérico para que Dart no chille
-                    final result = await Navigator.push(
+                  onPressed: () {
+                    // 1. Usamos tu servicio centralizado
+                    ImageService.mostrarOpciones(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const MultiCameraScreen(),
-                      ),
+                      soloUna: false,
+                      onFotoTomada: (File foto) {
+                        controller.agregarFotosConObservacion([foto]);
+                      },
+                      onGaleriaSeleccionada: (List<File> fotos) {
+                        controller.agregarFotosConObservacion(fotos);
+                      },
                     );
-
-                    // 2. Parseamos de forma segura de XFile a File
-                    if (result != null && result is List) {
-                      List<File> nuevasFotos = [];
-                      for (var archivo in result) {
-                        if (archivo is File) {
-                          nuevasFotos.add(archivo);
-                        } else {
-                          // Si es un XFile, extraemos su ruta y creamos un File nativo
-                          nuevasFotos.add(File(archivo.path));
-                        }
-                      }
-
-                      // 3. Inyectamos a nuestro estado reactivo
-                      if (nuevasFotos.isNotEmpty) {
-                        controller.agregarFotosConObservacion(nuevasFotos);
-                      }
-                    }
                   },
                 ),
               ],

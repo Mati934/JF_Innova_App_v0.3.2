@@ -120,7 +120,14 @@ class _QuestionCardState extends State<QuestionCard>
                   width: 100,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.file(widget.fotoInicial!, fit: BoxFit.cover),
+                    child: Image.file(
+                      widget.fotoInicial!,
+                      fit: BoxFit.cover,
+                      // ESTA ES LA LÍNEA CRÍTICA.
+                      // Obliga al motor a decodificar el JPG en memoria RAM a un máximo de 300px,
+                      // en lugar de cargarlo en Full HD.
+                      cacheWidth: 300,
+                    ),
                   ),
                 ),
               ),

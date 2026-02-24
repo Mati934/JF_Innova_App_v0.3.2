@@ -86,12 +86,9 @@ class ImageService {
           requestType: RequestType.image,
           themeColor: _brandColor,
           textDelegate: const SpanishAssetPickerTextDelegate(),
-          // Opcional: Filtro nativo del picker para evitar seleccionar videos pesados por error
           filterOptions: FilterOptionGroup(
             imageOption: const FilterOption(
-              sizeConstraint: SizeConstraint(
-                ignoreSize: true,
-              ), // Cuidado con esto
+              sizeConstraint: SizeConstraint(ignoreSize: true),
             ),
           ),
         ),
@@ -101,13 +98,23 @@ class ImageService {
 
       List<File> archivosComprimidos = [];
 
-      // Procesamos las imágenes seleccionadas
       for (var asset in result) {
-        final f = await asset.file;
+        final f = await asset
+            .file; // Extrae el archivo crudo original al caché de la app
         if (f != null) {
-          // AQUI aplicamos la compresión antes de agregar a la lista final
           final compressed = await comprimirImagen(f);
           archivosComprimidos.add(compressed);
+
+          // CLEAN CODE: Limpieza de memoria muerta.
+          // Si el archivo se comprimió correctamente (la ruta cambió), eliminamos el original.
+          // Esto evita que la memoria del teléfono se llene de basura temporal.
+          if (compressed.path != f.path && f.existsSync()) {
+            try {
+              f.deleteSync();
+            } catch (e) {
+              debugPrint('Aviso: No se pudo limpiar el archivo original: $e');
+            }
+          }
         }
       }
       return archivosComprimidos;

@@ -197,7 +197,6 @@ class InspectionFormController extends ChangeNotifier {
 
           // 🟢 CARGA DE DATOS A LA UI (Aquí faltaban los nuevos)
           encargadoCentroController.text = datosBuceo.encargadoCentro ?? '';
-
           // ✅ CORRECCIÓN: Cargar los datos del Supervisor Contratista
           supervisorNombreController.text = datosBuceo.supervisorNombre ?? '';
           supervisorRutController.text = datosBuceo.supervisorRut ?? '';
@@ -832,20 +831,14 @@ class InspectionFormController extends ChangeNotifier {
     }
   }
 
-  Future<void> tomarFotoDetalleBuceo(
+  // CLEAN CODE: El controlador solo recibe el archivo ya capturado por la UI
+  Future<void> guardarFotoDetalleBuceo(
+    File fotoOriginal,
     String nombreArchivoBase,
     Function(String) onFotoGuardada,
   ) async {
     try {
-      final ImagePicker picker = ImagePicker();
-      // Usamos la cámara básica, pero la magia viene abajo
-      final XFile? image = await picker.pickImage(source: ImageSource.camera);
-
-      if (image == null) return;
-
-      // 🟢 1. COMPRESIÓN INMEDIATA (Clean Code)
-      // Antes de guardar, comprimimos usando tu servicio centralizado
-      File fotoOriginal = File(image.path);
+      // La compresión se mantiene aquí para asegurar que el archivo final sea ligero
       File fotoComprimida = await ImageService.comprimirImagen(fotoOriginal);
 
       if (_repo is LocalInspectionRepository) {
@@ -853,7 +846,6 @@ class InspectionFormController extends ChangeNotifier {
           activityId: activityId,
           itemId:
               "verif_${nombreArchivoBase}_${DateTime.now().millisecondsSinceEpoch}",
-          // Guardamos la versión ligera (200KB) en vez de la pesada (5MB)
           file: XFile(fotoComprimida.path),
           descripcion: "Verificación: $nombreArchivoBase",
         );
@@ -862,7 +854,7 @@ class InspectionFormController extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      debugPrint("⚠️ Error tomando foto detalle: $e");
+      debugPrint("⚠️ Error guardando foto detalle: $e");
       _errorMessage = "Error al guardar la foto: $e";
       notifyListeners();
     }

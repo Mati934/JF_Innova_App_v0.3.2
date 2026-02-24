@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:jf_innova_app/shared/services/image_service.dart';
 import 'package:jf_innova_app/shared/utils/debouncer.dart';
 import '../../controllers/inspection_form_controller.dart';
 import '../../../domain/models/participante_model.dart';
@@ -338,10 +339,35 @@ class BuceoCuadrillaWidget extends StatelessWidget {
   }
 }
 
-// --- WIDGET 2 ACTUALIZADO: AHORA CON FOTOS Y COMENTARIOS ---
+// --- WIDGET 2 ACTUALIZADO: AHORA CON FOTOS, COMENTARIOS Y GALERÍA ---
 class BuceoVerificacionesWidget extends StatelessWidget {
   final InspectionFormController controller;
   const BuceoVerificacionesWidget({super.key, required this.controller});
+
+  // CLEAN CODE: Helper para no repetir la lógica del ImageService 5 veces
+  void _capturarEvidencia(
+    BuildContext context,
+    String nombreBase,
+    Function(String) onRutaGuardada,
+  ) {
+    ImageService.mostrarOpciones(
+      context,
+      soloUna: true, // Solo necesitamos una evidencia por ítem crítico
+      onFotoTomada: (File foto) {
+        // Llamamos al NUEVO método del controlador que solo guarda
+        controller.guardarFotoDetalleBuceo(foto, nombreBase, onRutaGuardada);
+      },
+      onGaleriaSeleccionada: (List<File> fotos) {
+        if (fotos.isNotEmpty) {
+          controller.guardarFotoDetalleBuceo(
+            fotos.first,
+            nombreBase,
+            onRutaGuardada,
+          );
+        }
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -364,7 +390,7 @@ class BuceoVerificacionesWidget extends StatelessWidget {
           ),
           child: Column(
             children: [
-              // CABECERA ESTADO
+              // CABECERA ESTADO (Se mantiene igual tu código original de UI)
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -430,7 +456,7 @@ class BuceoVerificacionesWidget extends StatelessWidget {
                 ),
               ),
 
-              // 🟢 LISTA DE CHECKS CON DETALLES (NUEVO DISEÑO)
+              // 🟢 LISTA DE CHECKS (Conectados al ImageService)
               _DetailedCheckItem(
                 label: "IV. Autorización de la Faena",
                 value: verificaciones.autorizacionAutoridadMaritima,
@@ -441,7 +467,8 @@ class BuceoVerificacionesWidget extends StatelessWidget {
                 ),
                 onObsChanged: (v) =>
                     controller.updateVerificacion((m) => m.obsAutorizacion = v),
-                onCameraTap: () => controller.tomarFotoDetalleBuceo(
+                onCameraTap: () => _capturarEvidencia(
+                  context,
                   "autorizacion",
                   (path) => controller.updateVerificacion(
                     (m) => m.imgAutorizacion = path,
@@ -460,7 +487,8 @@ class BuceoVerificacionesWidget extends StatelessWidget {
                 ),
                 onObsChanged: (v) =>
                     controller.updateVerificacion((m) => m.obsInduccion = v),
-                onCameraTap: () => controller.tomarFotoDetalleBuceo(
+                onCameraTap: () => _capturarEvidencia(
+                  context,
                   "induccion",
                   (path) => controller.updateVerificacion(
                     (m) => m.imgInduccion = path,
@@ -479,7 +507,8 @@ class BuceoVerificacionesWidget extends StatelessWidget {
                 ),
                 onObsChanged: (v) =>
                     controller.updateVerificacion((m) => m.obsPermiso = v),
-                onCameraTap: () => controller.tomarFotoDetalleBuceo(
+                onCameraTap: () => _capturarEvidencia(
+                  context,
                   "permiso",
                   (path) =>
                       controller.updateVerificacion((m) => m.imgPermiso = path),
@@ -497,7 +526,8 @@ class BuceoVerificacionesWidget extends StatelessWidget {
                 ),
                 onObsChanged: (v) =>
                     controller.updateVerificacion((m) => m.obsPlan = v),
-                onCameraTap: () => controller.tomarFotoDetalleBuceo(
+                onCameraTap: () => _capturarEvidencia(
+                  context,
                   "plan",
                   (path) =>
                       controller.updateVerificacion((m) => m.imgPlan = path),
@@ -515,7 +545,8 @@ class BuceoVerificacionesWidget extends StatelessWidget {
                 ),
                 onObsChanged: (v) =>
                     controller.updateVerificacion((m) => m.obsExamenes = v),
-                onCameraTap: () => controller.tomarFotoDetalleBuceo(
+                onCameraTap: () => _capturarEvidencia(
+                  context,
                   "examenes",
                   (path) => controller.updateVerificacion(
                     (m) => m.imgExamenes = path,
@@ -527,7 +558,7 @@ class BuceoVerificacionesWidget extends StatelessWidget {
           ),
         ),
 
-        // TARJETA DE OBSERVACIONES GENERALES (SE MANTIENE IGUAL)
+        // TARJETA DE OBSERVACIONES GENERALES (Tu código original)
         Card(
           margin: const EdgeInsets.fromLTRB(12, 0, 12, 20),
           elevation: 2,

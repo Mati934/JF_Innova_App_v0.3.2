@@ -7,6 +7,7 @@ import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../inspection/presentation/screens/inspection_setup_screen.dart';
 import '../../../history/presentation/screens/history_screen.dart';
 import '../../../visits/presentation/screens/visit_form_screen.dart'; // Importa la pantalla de visitas
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
