@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:jf_innova_app/features/visits/presentation/screens/visit_form_screen.dart';
 import '../controllers/home_controller.dart';
 import '../../../inspection/presentation/screens/inspection_form_screen.dart';
 
@@ -124,17 +125,39 @@ class DraftListWidget extends StatelessWidget {
                       onPressed: () => _confirmarEliminar(context, item['id']),
                     ),
                     onTap: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => InspectionFormScreen(
-                            activityId: item['id'],
-                            tipoActividad: item['tipo_actividad'],
-                            centroId: item['centro_id'],
-                            nombreCentro: item['nombre_centro'],
+                      // Evaluamos qué tipo de actividad es para enrutar correctamente
+                      final tipoActividad =
+                          item['tipo_actividad']?.toString() ?? '';
+                      final esVisitaTecnica =
+                          tipoActividad.contains('Visita') ||
+                          item.containsKey('lugar_visita');
+
+                      if (esVisitaTecnica) {
+                        // 🚀 RUTA PARA VISITAS TÉCNICAS
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => VisitFormScreen(
+                              borrador: item,
+                            ), // Pasamos el mapa completo
                           ),
-                        ),
-                      );
+                        );
+                      } else {
+                        // 🛠️ RUTA PARA INSPECCIONES (Mantenemos tu código original)
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => InspectionFormScreen(
+                              activityId: item['id'],
+                              tipoActividad: item['tipo_actividad'],
+                              centroId: item['centro_id'],
+                              nombreCentro: item['nombre_centro'],
+                            ),
+                          ),
+                        );
+                      }
+
+                      // Al volver de cualquier pantalla, recargamos la lista
                       controller.cargarBorradores();
                     },
                   ),

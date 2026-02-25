@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/models/formulario_item.dart';
 
 // =============================================================================
-// QUESTION CARD (Tarjeta de Pregunta)
+// QUESTION CARD (Tarjeta de Pregunta Optimizada)
 // =============================================================================
 class QuestionCard extends StatefulWidget {
   final FormularioItem item;
@@ -79,154 +79,358 @@ class _QuestionCardState extends State<QuestionCard>
   Widget build(BuildContext context) {
     super.build(context);
     final esNC = _estadoSeleccionado == 'NC';
+    final tieneInfo =
+        widget.item.infoAdicional != null &&
+        widget.item.infoAdicional!.isNotEmpty;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        // Sombra suave para separar tarjetas del fondo
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.item.pregunta,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: widget.onTomarFotoTap,
-                  icon: Icon(
-                    widget.fotoInicial != null
-                        ? Icons.check_circle
-                        : Icons.add_a_photo,
-                    color: widget.fotoInicial != null
-                        ? Colors.green
-                        : Colors.blueGrey,
-                  ),
-                ),
-              ],
-            ),
-            if (widget.fotoInicial != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: SizedBox(
-                  height: 100,
-                  width: 100,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.file(
-                      widget.fotoInicial!,
-                      fit: BoxFit.cover,
-                      // ESTA ES LA LÍNEA CRÍTICA.
-                      // Obliga al motor a decodificar el JPG en memoria RAM a un máximo de 300px,
-                      // en lugar de cargarlo en Full HD.
-                      cacheWidth: 300,
-                    ),
-                  ),
-                ),
-              ),
-            Row(
-              children: [
-                _buildOptionBtn('C', 'CUMPLE', Colors.green),
-                const SizedBox(width: 8),
-                _buildOptionBtn('NC', 'NO CUMPLE', Colors.red),
-                const SizedBox(width: 8),
-                _buildOptionBtn('N/A', 'N/A', Colors.grey),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton.icon(
-                  onPressed: () => setState(
-                    () => _mostrarObservacion = !_mostrarObservacion,
-                  ),
-                  icon: Icon(
-                    _mostrarObservacion ? Icons.expand_less : Icons.add_comment,
-                    color: const Color(0xFF003366),
-                    size: 18,
-                  ),
-                  label: Text(
-                    _mostrarObservacion ? 'Ocultar' : 'Añadir Comentario',
-                    style: const TextStyle(
-                      color: Color(0xFF003366),
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-                if (esNC)
-                  DropdownButton<String>(
-                    value: _nivelesCriticidad.contains(_criticidadActual)
-                        ? _criticidadActual
-                        : _nivelesCriticidad[0],
-                    items: _nivelesCriticidad
-                        .map(
-                          (v) => DropdownMenuItem(
-                            value: v,
-                            child: Text(
-                              v,
-                              style: const TextStyle(color: Colors.red),
+            // --- CABECERA: Categoría, Info y Foto ---
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
+              color: const Color(0xFFF1F5F9), // Gris azulado suave
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Text(
+                          widget.item.categoria.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.blueGrey.shade600,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        // ICONO DE INFORMACIÓN (Hitbox generosa de 45x40)
+                        if (tieneInfo)
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _mostrarMensajeInformativo(
+                              context,
+                              widget.item.infoAdicional!,
+                            ),
+                            child: Container(
+                              width: 45,
+                              height: 40,
+                              margin: const EdgeInsets.only(left: 4),
+                              alignment: Alignment.centerLeft,
+                              child: Icon(
+                                Icons.info_rounded,
+                                color: const Color(0xFFE2B93B).withOpacity(0.9),
+                                size: 18,
+                              ),
                             ),
                           ),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) {
-                        setState(() => _criticidadActual = v);
-                        widget.onCriticidadChanged(v);
-                      }
-                    },
+                      ],
+                    ),
                   ),
-              ],
-            ),
-            if (_mostrarObservacion)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: TextField(
-                  controller: _obsController,
-                  onChanged: widget.onObservacionChanged,
-                  decoration: InputDecoration(
-                    hintText: esNC ? 'Observación.' : 'Comentario',
-                    filled: true,
-                    fillColor: esNC ? Colors.red.shade50 : Colors.grey.shade50,
+                  // Botón circular de cámara
+                  _buildCircularIconButton(
+                    icon: widget.fotoInicial != null
+                        ? Icons.check_circle
+                        : Icons.add_a_photo_rounded,
+                    color: widget.fotoInicial != null
+                        ? Colors.green
+                        : const Color(0xFF003366),
+                    onTap: widget.onTomarFotoTap,
+                    hasPhoto: widget.fotoInicial != null,
                   ),
-                ),
+                ],
               ),
+            ),
+
+            // --- CUERPO: Pregunta, Foto Preview y Selectores ---
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.item.pregunta,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF1E293B),
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  if (widget.fotoInicial != null) _buildPhotoPreview(),
+
+                  // Selector de Respuesta
+                  Row(
+                    children: [
+                      _buildModernOption('C', 'CUMPLE', Colors.green.shade600),
+                      const SizedBox(width: 8),
+                      _buildModernOption(
+                        'NC',
+                        'NO CUMPLE',
+                        Colors.red.shade600,
+                      ),
+                      const SizedBox(width: 8),
+                      _buildModernOption(
+                        'N/A',
+                        'N/A',
+                        Colors.blueGrey.shade400,
+                      ),
+                    ],
+                  ),
+
+                  // --- FOOTER: Comentar y Criticidad ---
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () => setState(
+                          () => _mostrarObservacion = !_mostrarObservacion,
+                        ),
+                        icon: Icon(
+                          _mostrarObservacion
+                              ? Icons.visibility_off_outlined
+                              : Icons.comment_bank_outlined,
+                          size: 20,
+                          color: const Color(0xFF003366),
+                        ),
+                        label: Text(
+                          _mostrarObservacion ? 'Cerrar' : 'Comentar',
+                          style: const TextStyle(
+                            color: Color(0xFF003366),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      if (esNC) _buildCriticidadBadge(),
+                    ],
+                  ),
+
+                  if (_mostrarObservacion) _buildModernTextField(),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildOptionBtn(String codigo, String label, Color color) {
+  // --- WIDGETS AUXILIARES PARA MANTENER CLEAN CODE ---
+
+  Widget _buildCircularIconButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    bool hasPhoto = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: hasPhoto ? color.withOpacity(0.1) : Colors.white,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: hasPhoto ? color : Colors.grey.shade300,
+            width: 1.5,
+          ),
+        ),
+        child: Icon(icon, color: color, size: 22),
+      ),
+    );
+  }
+
+  Widget _buildModernOption(String codigo, String label, Color color) {
     final isSelected = _estadoSeleccionado == codigo;
     return Expanded(
-      child: GestureDetector(
+      child: InkWell(
         onTap: () => _seleccionar(codigo),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
             color: isSelected ? color : Colors.white,
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isSelected ? color : Colors.grey.shade300,
+              width: 1.5,
             ),
-            borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: isSelected ? Colors.white : Colors.grey[600],
+              color: isSelected ? Colors.white : Colors.blueGrey.shade700,
               fontWeight: FontWeight.bold,
-              fontSize: 11,
+              fontSize: 12,
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoPreview() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      height: 120,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(11),
+        child: Image.file(
+          widget.fotoInicial!,
+          fit: BoxFit.cover,
+          cacheWidth: 400, // RAM Optimization intocable
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCriticidadBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: DropdownButton<String>(
+        value: _nivelesCriticidad.contains(_criticidadActual)
+            ? _criticidadActual
+            : _nivelesCriticidad[0],
+        underline: const SizedBox(),
+        icon: const Icon(Icons.arrow_drop_down, color: Colors.red),
+        items: _nivelesCriticidad
+            .map(
+              (v) => DropdownMenuItem(
+                value: v,
+                child: Text(
+                  v,
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+        onChanged: (v) {
+          if (v != null) {
+            setState(() => _criticidadActual = v);
+            widget.onCriticidadChanged(v);
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildModernTextField() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: TextField(
+        controller: _obsController,
+        onChanged: widget.onObservacionChanged,
+        maxLines: 2,
+        decoration: InputDecoration(
+          hintText: 'Escribe una observación...',
+          filled: true,
+          fillColor: const Color(0xFFF1F5F9),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.all(12),
+        ),
+      ),
+    );
+  }
+
+  // --- LÓGICA DEL MENSAJE INFORMATIVO FLOTANTE (Optimizado y Moderno) ---
+  void _mostrarMensajeInformativo(BuildContext context, String mensaje) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        // Hacemos el fondo nativo transparente para dibujar nuestro propio contenedor con sombra
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
+        // Mantengo tu posición flotante en la parte superior/media de la pantalla
+        margin: EdgeInsets.only(
+          bottom: MediaQuery.of(context).size.height * 0.70,
+          left: 20,
+          right: 20,
+        ),
+        duration: const Duration(seconds: 4), // 4 segundos es el estándar UX
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(
+              0xFF1E293B,
+            ), // Un azul pizarra oscuro muy elegante (Slate)
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.25),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              ),
+            ],
+            // Un borde sutil para darle ese toque "Premium"
+            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Icono distintivo
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(
+                  Icons.info_outline_rounded,
+                  color: Color(
+                    0xFFE2B93B,
+                  ), // El amarillo/dorado que estabas usando
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Texto expandido para que no desborde si es muy largo
+              Expanded(
+                child: Text(
+                  mensaje,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    height: 1.4, // Interlineado para mejor legibilidad
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

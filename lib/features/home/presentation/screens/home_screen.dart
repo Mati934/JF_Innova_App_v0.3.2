@@ -208,27 +208,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         // --------------------------------------------
                         const SizedBox(height: 40),
 
-                        if (!estaVacio || _controller.isLoadingBorradores)
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  left: 8.0,
-                                  bottom: 12.0,
-                                ),
-                                child: Text(
-                                  "Borradores Pendientes",
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey.shade800,
-                                  ),
-                                ),
-                              ),
-                              DraftListWidget(controller: _controller),
-                            ],
-                          ),
+                        DraftListWidget(controller: _controller),
+
+                        const SizedBox(height: 80),
                       ],
                     ),
                   ),

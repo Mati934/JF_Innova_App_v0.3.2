@@ -3,7 +3,7 @@ import 'dart:typed_data';
 class VisitReportData {
   final String region;
   final String centro;
-  final String profesional; // Nombre de tu tío Jorge o el prevencionista
+  final String profesional;
   final String fonoProfesional;
   final String correoProfesional;
   final String jefaturaCargo;
@@ -14,7 +14,6 @@ class VisitReportData {
   final String emailEmpresa1;
   final String emailEmpresa2;
 
-  // Actividades (Booleanos)
   final bool checkReunion;
   final bool checkSenaletica;
   final bool checkCapacitacion;
@@ -28,8 +27,8 @@ class VisitReportData {
 
   final String apuntesObservaciones;
 
-  // Fotos (Lista de bytes ya procesados para el PDF)
-  final List<Uint8List> fotos;
+  // CLEAN CODE: Replicando Inspecciones - Usamos rutas de disco
+  final List<String> fotosPaths;
 
   VisitReportData({
     required this.region,
@@ -55,6 +54,6 @@ class VisitReportData {
     required this.checkOtro,
     this.otroActividadTexto,
     required this.apuntesObservaciones,
-    required this.fotos,
+    required this.fotosPaths, // Cambiado
   });
 }

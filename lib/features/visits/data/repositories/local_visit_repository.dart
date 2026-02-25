@@ -43,40 +43,90 @@ class LocalVisitRepository {
   }
 
   Future<void> saveVisitaCompleta({
-    required Map<String, dynamic>
-    visitaCompletaMap, // Recibimos un solo mapa consolidado
+    required Map<String, dynamic> visitaMap,
     required List<String> fotosPaths,
+    required bool
+    esBorrador, // 👈 EL JEFE DEL ESTADO (Igual que en Inspecciones)
   }) async {
     final db = await dbHelper.database;
+    final estadoFinal = esBorrador ? 'En Progreso' : 'Finalizada';
+
+    // Aseguramos el estado antes de insertar
+    visitaMap['estado_final'] = estadoFinal;
+    visitaMap['subido'] = 0; // Forzamos sync al guardar cambios
 
     await db.transaction((txn) async {
-      debugPrint('💾 TXN: Guardando Visita Técnica (Independiente)...');
+      debugPrint('💾 TXN: Guardando Visita Técnica (Borrador: $esBorrador)...');
 
-      // 1. Guardar en la ÚNICA tabla de visitas
       await txn.insert(
         'visitas_tecnicas_pendientes',
-        visitaCompletaMap,
+        visitaMap,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
 
-      // 2. Guardar Fotos (Si existen)
+      // BLINDAJE ANTI FUGAS DE MEMORIA Y DUPLICADOS
       if (fotosPaths.isNotEmpty) {
+        // Regla de Inspecciones: Limpiamos antes de insertar para no acumular basura
+        await txn.delete(
+          'fotos_pendientes',
+          where: 'actividad_id = ?',
+          whereArgs: [visitaMap['id']],
+        );
         for (var path in fotosPaths) {
-          // Reutilizamos fotos_pendientes. La columna se llama 'actividad_id' por herencia,
-          // pero ahora guardará el UUID de la visita. Funciona perfecto.
           await txn.insert('fotos_pendientes', {
-            'actividad_id': visitaCompletaMap['id'],
+            'actividad_id': visitaMap['id'],
             'item_id': 'visita_general',
             'local_path': path,
             'descripcion': 'Anexo fotográfico de Visita Técnica',
             'subido': 0,
-          }, conflictAlgorithm: ConflictAlgorithm.replace);
+          });
         }
       }
-
-      debugPrint(
-        '✅ TXN: Visita Técnica guardada con éxito (Sin acoplamiento).',
-      );
     });
+  }
+
+  Future<List<Map<String, dynamic>>> getBorradores() async {
+    final db = await dbHelper.database;
+    final result = await db.query(
+      'visitas_tecnicas_pendientes',
+      where: 'estado_final = ? AND subido = 0 AND eliminado = 0',
+      whereArgs: ['En Progreso'],
+      orderBy: 'fecha_realizacion DESC',
+    );
+
+    // INYECCIÓN VITAL: El DraftListWidget necesita 'tipo_actividad' y 'nombre_centro' para funcionar
+    return result.map((e) {
+      final map = Map<String, dynamic>.from(e);
+      map['tipo_actividad'] = 'Visita Técnica';
+      map['nombre_centro'] =
+          map['lugar_visita']; // Homologamos nombre para la UI
+      return map;
+    }).toList();
+  }
+
+  // Soft delete para ser llamado desde el Home
+  Future<void> eliminarBorrador(String id) async {
+    final db = await dbHelper.database;
+    await db.update(
+      'visitas_tecnicas_pendientes',
+      {
+        'estado_final': 'Eliminada',
+        'eliminado': 1,
+        'subido': 0, // Fuerza al SyncService a leer esto y subir el cambio
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getFotosPendientes(
+    String activityId,
+  ) async {
+    final db = await dbHelper.database;
+    return await db.query(
+      'fotos_pendientes',
+      where: 'actividad_id = ?',
+      whereArgs: [activityId],
+    );
   }
 }

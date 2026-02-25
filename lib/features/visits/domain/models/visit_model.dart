@@ -72,7 +72,8 @@ class VisitModel {
 
   factory VisitModel.fromMap(Map<String, dynamic> map) {
     return VisitModel(
-      activityId: map['activity_id'],
+      // CLEAN CODE: Soporta la llave 'id' (nueva tabla) o 'activity_id' (tabla vieja)
+      activityId: map['id'] ?? map['activity_id'] ?? '',
       region: map['region'],
       centro: map['lugar_visita'],
       jefaturaCargo: map['jefatura_a_cargo'],
@@ -81,15 +82,25 @@ class VisitModel {
       horaTermino: map['hora_termino'],
       emailEmpresa1: map['email_empresa_1'],
       emailEmpresa2: map['email_empresa_2'],
-      checkReunion: map['check_reunion'] == 1,
-      checkSenaletica: map['check_instalacion_senaletica'] == 1,
-      checkCapacitacion: map['check_capacitacion'] == 1,
-      checkVisitaSso: map['check_visita_sso'] == 1,
-      checkCharla: map['check_charla'] == 1,
-      checkInvestigacion: map['check_investigacion_incidente'] == 1,
-      checkInspeccionSso: map['check_inspeccion_sso'] == 1,
-      checkObsConductual: map['check_obs_conductual'] == 1,
-      checkOtro: map['check_otro'] == 1,
+      checkReunion: map['check_reunion'] == 1 || map['check_reunion'] == true,
+      checkSenaletica:
+          map['check_instalacion_senaletica'] == 1 ||
+          map['check_instalacion_senaletica'] == true,
+      checkCapacitacion:
+          map['check_capacitacion'] == 1 || map['check_capacitacion'] == true,
+      checkVisitaSso:
+          map['check_visita_sso'] == 1 || map['check_visita_sso'] == true,
+      checkCharla: map['check_charla'] == 1 || map['check_charla'] == true,
+      checkInvestigacion:
+          map['check_investigacion_incidente'] == 1 ||
+          map['check_investigacion_incidente'] == true,
+      checkInspeccionSso:
+          map['check_inspeccion_sso'] == 1 ||
+          map['check_inspeccion_sso'] == true,
+      checkObsConductual:
+          map['check_obs_conductual'] == 1 ||
+          map['check_obs_conductual'] == true,
+      checkOtro: map['check_otro'] == 1 || map['check_otro'] == true,
       otroActividadTexto: map['otro_actividad_texto'],
       apuntesObservaciones: map['apuntes_observaciones'],
     );

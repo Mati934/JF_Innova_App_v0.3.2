@@ -1,6 +1,6 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
+
 import 'package:jf_innova_app/features/inspection/presentation/widgets/headers/buceo_header_widget.dart';
 import '../../../../shared/services/image_service.dart';
 import '../../../../shared/widgets/form_inputs/gallery_input.dart';
@@ -61,8 +61,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
       _controller.numeroInformeController.text = widget.numeroInformeInicial!;
     }
 
-    // IMPORTANTE: Cargamos los datos específicos (Buzos, verificaciones)
-    _controller.cargarDatosEspecificos();
+    // ELIMINADO: _controller.cargarDatosEspecificos() porque ya se llama en el _init() del Controller
 
     _controller.addListener(_onControllerUpdate);
 
@@ -70,7 +69,6 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
       timer,
     ) async {
       if (_controller.numeroInformeController.text.isEmpty) {
-        // Solo recargamos si no tenemos número
         await _controller.recargarNumeroDesdeDB();
       }
     });
@@ -79,7 +77,6 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
   @override
   void dispose() {
     _timerVerificacion?.cancel();
-
     _controller.removeListener(_onControllerUpdate);
     _controller.dispose();
     super.dispose();
@@ -88,6 +85,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
   void _finalizar() async {
     final exito = await _controller.finalizarInspeccion();
     if (exito && mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
       setState(() => _canPop = true);
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -114,47 +112,72 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: _canPop,
-      onPopInvoked: (didPop) async {
+      // 1. LE QUITAMOS EL 'async' AQUÍ
+      onPopInvoked: (didPop) {
         if (didPop) return;
+
+        // 2. MOSTRAR MENSAJE INSTANTÁNEO
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Guardando borrador...'),
-            duration: Duration(milliseconds: 800),
-            backgroundColor: Colors.grey,
+            duration: Duration(milliseconds: 1500),
+            backgroundColor: Colors.blueGrey,
           ),
         );
-        await _controller.guardarBorrador(silent: true);
-        if (mounted) {
-          setState(() => _canPop = true);
-          Navigator.of(context).pop();
-        }
+
+        // 3. FIRE AND FORGET: Disparamos el guardado SIN 'await'.
+        // Esto manda a SQLite a trabajar sin congelar la UI.
+        _controller.guardarBorrador(silent: true);
+
+        // 4. PREPARAMOS LA SALIDA
+        setState(() => _canPop = true);
+
+        // 5. SALIDA INMEDIATA: Forzamos la animación de retroceder en el siguiente frame.
+        Future.delayed(Duration.zero, () {
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+        });
       },
       child: Scaffold(
+        backgroundColor: const Color(0xFFF1F5F9), // Mantiene el fondo limpio
         appBar: AppBar(
+          elevation: 3,
+          shadowColor: Colors.black.withOpacity(0.4),
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF003366),
+          surfaceTintColor: Colors.transparent,
+          centerTitle: true,
           title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('Inspección en Curso', style: TextStyle(fontSize: 16)),
+              const Text(
+                'Inspección en Curso',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 2),
               Text(
                 widget.nombreCentro ?? 'Ubicación registrada',
-                style: const TextStyle(fontSize: 12),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.blueGrey.shade500,
+                  fontWeight: FontWeight.w400,
+                ),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
-          // --- AQUÍ COMIENZA LO NUEVO: EL BOTÓN PDF ---
           actions: [
-            // Solo mostramos el botón si el controlador ya cargó y no está guardando
             IconButton(
               icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
               tooltip: 'Previsualizar PDF',
-              onPressed: () {
-                // Llamamos a la función que creamos en el controlador
-                _controller.previsualizarReporte(context);
-              },
+              onPressed: () => _controller.previsualizarReporte(context),
             ),
-            const SizedBox(width: 8), // Un pequeño espacio al final
+            const SizedBox(width: 8),
           ],
-          // --- AQUÍ TERMINA LO NUEVO ---
         ),
         body: SafeArea(
           child: _controller.isLoading
@@ -173,76 +196,94 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
     final grupos = _controller.agruparPorCategoria();
     final categorias = grupos.keys.toList();
 
-    // CAMBIO 1: Aumentamos el total a +4 (Header + Profundidad + Categorías + Verif + Footer)
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 30),
-      itemCount: categorias.length + 3,
-      itemBuilder: (context, index) {
-        // 1. HEADER (POSICIÓN 0) - SE QUEDA IGUAL
-        if (index == 0) {
-          return InspectionHeaderFactory.create(
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        // 1. HEADER
+        SliverToBoxAdapter(
+          child: InspectionHeaderFactory.create(
             widget.tipoActividad,
             _controller,
-          );
-        }
+          ),
+        ),
 
-        // // CAMBIO 2: NUEVO BLOQUE PARA LA PROFUNDIDAD (POSICIÓN 1)
-        // // Esto hace que aparezca justo debajo del Header
-        // if (index == 1) {
-        //   if (widget.tipoActividad == 'INSPECCION_BUCEO') {
-        //     return _buildSeccionProfundidad(_controller);
-        //   }
-        //   // Si no es buceo, devolvemos un espacio vacío para no romper el índice
-        //   return const SizedBox.shrink();
-        // }
-
-        // CAMBIO 3: AJUSTE MATEMÁTICO
-        // Antes restabas 1. Ahora restas 2 porque tienes 2 elementos arriba (Header y Profundidad)
-        final adjustedIndex = index - 1;
-
-        // 2. ITEMS DEL FORMULARIO (CATEGORÍAS)
-        if (adjustedIndex < categorias.length) {
-          final catNombre = categorias[adjustedIndex];
-          final items = grupos[catNombre]!;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CategoryHeader(nombre: catNombre),
-              ...items.map(
-                (item) => QuestionCard(
-                  key: ValueKey(item.id),
-                  item: item,
-                  respuestaInicial: _controller.respuestas[item.id],
-                  observacionInicial: _controller.observaciones[item.id],
-                  criticidadInicial:
-                      _controller.criticidades[item.id] ?? item.criticidad,
-                  fotoInicial: _controller.fotosPorPregunta[item.id],
-                  onRespuestaChanged: (val) =>
-                      _controller.setRespuesta(item.id, val),
-                  onObservacionChanged: (val) =>
-                      _controller.setObservacion(item.id, val),
-                  onCriticidadChanged: (val) =>
-                      _controller.setCriticidad(item.id, val),
-                  onTomarFotoTap: () => _tomarFoto(item.id),
+        // 2. DETECTOR DE FALLO DE BASE DE DATOS (Te salvará la vida en desarrollo)
+        if (categorias.isEmpty && !_controller.isLoading)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Center(
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      size: 48,
+                      color: Colors.orange,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      "No hay preguntas descargadas para:\n${widget.tipoActividad}",
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Sincroniza los datos maestros o revisa la versión de tu BD.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          );
-        }
+            ),
+          ),
 
-        // 3. VERIFICACIONES CRÍTICAS (AL FINAL DE LAS CATEGORÍAS)
-        if (adjustedIndex == categorias.length) {
-          if (widget.tipoActividad == 'INSPECCION_BUCEO') {
-            // CAMBIO 4: AQUÍ LO QUITAMOS
-            // Ya no llamamos a _buildSeccionProfundidad aquí, solo dejamos las verificaciones
-            return BuceoVerificacionesWidget(controller: _controller);
-          }
-          return const SizedBox.shrink();
-        }
+        // 3. PREGUNTAS (Sin matemáticas raras de índices)
+        if (categorias.isNotEmpty)
+          SliverList(
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final catNombre = categorias[index];
+              final items = grupos[catNombre]!;
 
-        // 4. FOOTER (FOTOS GENERALES Y BOTÓN)
-        return _buildFooter();
-      },
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CategoryHeader(nombre: catNombre),
+                  ...items.map(
+                    (item) => QuestionCard(
+                      key: ValueKey(item.id),
+                      item: item,
+                      respuestaInicial: _controller.respuestas[item.id],
+                      observacionInicial: _controller.observaciones[item.id],
+                      criticidadInicial:
+                          _controller.criticidades[item.id] ?? item.criticidad,
+                      fotoInicial: _controller.fotosPorPregunta[item.id],
+                      onRespuestaChanged: (val) =>
+                          _controller.setRespuesta(item.id, val),
+                      onObservacionChanged: (val) =>
+                          _controller.setObservacion(item.id, val),
+                      onCriticidadChanged: (val) =>
+                          _controller.setCriticidad(item.id, val),
+                      onTomarFotoTap: () => _tomarFoto(item.id),
+                    ),
+                  ),
+                ],
+              );
+            }, childCount: categorias.length),
+          ),
+
+        // 4. VERIFICACIONES DE BUCEO
+        if (widget.tipoActividad == 'INSPECCION_BUCEO')
+          SliverToBoxAdapter(
+            child: BuceoVerificacionesWidget(controller: _controller),
+          ),
+
+        // 5. FOOTER
+        SliverToBoxAdapter(child: _buildFooter()),
+      ],
     );
   }
 
@@ -250,13 +291,8 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
     return Column(
       children: [
         const SizedBox(height: 20),
-
-        // 1. NUEVA SECCIÓN: Fotos con texto descriptivo
         FotosConObservacionWidget(controller: _controller),
-
         const Divider(height: 40),
-
-        // 2. GALERÍA GENERAL CLÁSICA
         const Padding(
           padding: EdgeInsets.only(left: 16, bottom: 8),
           child: Text(
@@ -272,8 +308,6 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
                 _controller.setFotosGenerales(newFiles),
           ),
         ),
-
-        // 3. BOTÓN FINALIZAR
         Container(
           margin: const EdgeInsets.all(16),
           width: double.infinity,
@@ -282,10 +316,16 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green.shade700,
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             onPressed: _finalizar,
             icon: const Icon(Icons.check_circle),
-            label: const Text('FINALIZAR INSPECCIÓN'),
+            label: const Text(
+              'FINALIZAR INSPECCIÓN',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
           ),
         ),
         const SizedBox(height: 100),

@@ -6,7 +6,7 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
-  static const int _dbVersion = 13;
+  static const int _dbVersion = 15;
   static const String _dbName = 'jfinnova_v17_local.db';
 
   DatabaseHelper._init();
@@ -53,7 +53,8 @@ class DatabaseHelper {
         pregunta TEXT,
         criticidad TEXT,
         orden INTEGER,
-        activo INTEGER
+        activo INTEGER,
+        info_adicional TEXT
       )
     ''');
 
@@ -346,6 +347,11 @@ class DatabaseHelper {
         "INTEGER DEFAULT 0",
       );
     }
+    if (oldVersion < 15) {
+      debugPrint("🚀 Aplicando parche v14 (Info Adicional en Items)...");
+      await _safeAddColumn(db, "formulario_items", "info_adicional", "TEXT");
+      debugPrint("✅ Parche v14 aplicado.");
+    }
   }
 
   // Helper seguro para migraciones
@@ -463,6 +469,7 @@ class DatabaseHelper {
         'criticidad': item['criticidad'],
         'orden': item['orden'],
         'activo': (item['activo'] == true) ? 1 : 0,
+        'info_adicional': item['info_adicional'],
       });
     }
     await batch.commit(noResult: true);

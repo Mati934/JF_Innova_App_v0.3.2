@@ -418,18 +418,35 @@ class InspectionFormController extends ChangeNotifier {
   }
 
   Future<bool> guardarBorrador({bool silent = false}) async {
+    // MUTEX: Evita que el usuario spamee el guardado
+    if (_isSaving) return false;
+
     _isSaving = true;
     if (!silent) notifyListeners();
 
     try {
-      // AQUÍ ESTÁ LA CLAVE: Persistir datos con Red de Seguridad
+      // 1. Guardado Local Inmediato (Tu red de seguridad nivel 1)
       await _persistirDatos(esBorrador: true);
-      unawaited(_iniciarSincronizacionSegura());
+
+      // 2. Respaldo en la Nube (Tu red de seguridad nivel 2)
+      // AWAIT CRÍTICO: Esperamos a que termine el sync antes de liberar el Mutex.
+      // Esto previene los crasheos por Deadlock en SQLite.
+      try {
+        await _iniciarSincronizacionSegura();
+      } catch (e) {
+        debugPrint(
+          "⚠️ Borrador guardado localmente, pero falló el respaldo en la nube: $e",
+        );
+        // No lanzamos el error hacia arriba para no arruinar la experiencia.
+        // Si no hay internet, se queda en local y ya está.
+      }
+
       return true;
     } catch (e) {
-      _errorMessage = "Error guardando localmente: $e";
+      _errorMessage = "Error guardando borrador: $e";
       return false;
     } finally {
+      // 3. Liberamos el cerrojo para que la app pueda seguir funcionando
       _isSaving = false;
       if (!silent) notifyListeners();
     }
@@ -860,28 +877,6 @@ class InspectionFormController extends ChangeNotifier {
     }
   }
 
-  // // 🟢 COMPRESIÓN PREVENTIVA
-  // // Lee el archivo, lo comprime en memoria y devuelve bytes ligeros.
-  // Future<Uint8List?> _pathToCompressedBytes(String? path) async {
-  //   if (path == null || path.isEmpty) return null;
-  //   final file = File(path);
-  //   if (!await file.exists()) return null;
-
-  //   try {
-  //     // Opción A: Si tienes tu ImageService configurado para devolver File comprimido
-  //     // Usamos tu servicio existente para no reinventar la rueda
-  //     final fileComprimido = await ImageService.comprimirImagen(file);
-  //     return await fileComprimido.readAsBytes();
-
-  //     // Opción B (Si ImageService falla): FlutterImageCompress directo (si lo tienes instalado)
-  //     // return await FlutterImageCompress.compressWithFile(path, quality: 70, minWidth: 800);
-  //   } catch (e) {
-  //     debugPrint("⚠️ Error comprimiendo imagen $path: $e");
-  //     // Fallback: Si falla la compresión, leemos el original (riesgoso pero necesario)
-  //     return await file.readAsBytes();
-  //   }
-  // }
-
   // En InspectionFormController
   Future<void> recargarNumeroDesdeDB() async {
     if (_repo is LocalInspectionRepository) {
@@ -933,13 +928,49 @@ class InspectionFormController extends ChangeNotifier {
 
     String nombreProfesional = "USUARIO APP";
     final currentUser = Supabase.instance.client.auth.currentUser;
-    if (currentUser?.userMetadata != null) {
-      final meta = currentUser!.userMetadata!;
-      nombreProfesional =
-          meta['nombre_completo'] ??
-          meta['nombre'] ??
-          meta['full_name'] ??
-          "USUARIO APP";
+
+    if (currentUser != null) {
+      try {
+        // 1. Intento: SQLite (Tabla local 'usuarios')
+        final userLocal = await db.query(
+          'usuarios',
+          where: 'id = ?',
+          whereArgs: [currentUser.id],
+          limit: 1,
+        );
+
+        if (userLocal.isNotEmpty &&
+            userLocal.first['nombre_completo']?.toString().trim().isNotEmpty ==
+                true) {
+          nombreProfesional = userLocal.first['nombre_completo'].toString();
+          debugPrint(
+            "👤 [ID-INSP] Nombre recuperado de SQLite: $nombreProfesional",
+          );
+        } else {
+          // 2. Fallback: Metadatos de Supabase
+          final meta = currentUser.userMetadata;
+          final String? nombreMeta =
+              meta?['nombre_completo'] ??
+              meta?['full_name'] ??
+              meta?['display_name'] ??
+              meta?['nombre'];
+
+          if (nombreMeta != null && nombreMeta.trim().isNotEmpty) {
+            nombreProfesional = nombreMeta;
+            debugPrint(
+              "☁️ [ID-INSP] Fallback: Nombre recuperado de Metadata: $nombreProfesional",
+            );
+          } else {
+            // 3. Fallback: Email (Mejor que "USUARIO APP")
+            nombreProfesional = currentUser.email ?? "USUARIO APP";
+            debugPrint(
+              "⚠️ [ID-INSP] Sin nombre en DB ni Metadata. Usando email: $nombreProfesional",
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint("❌ [ID-INSP] Error crítico recuperando identidad: $e");
+      }
     }
 
     if (centroId != null) {

@@ -3,10 +3,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../sync/services/sync_service.dart';
 import '../../../inspection/data/repositories/local_inspection_repository.dart';
 import '../../../../core/database/database_helper.dart';
+import '../../../visits/data/repositories/local_visit_repository.dart';
 
 class HomeController extends ChangeNotifier {
   final _syncService = SyncService();
   final _localRepo = LocalInspectionRepository();
+  final _visitRepo = LocalVisitRepository();
 
   final User? user = Supabase.instance.client.auth.currentUser;
 
@@ -37,9 +39,28 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      borradores = await _localRepo.getBorradores();
+      // CLEAN CODE: Ejecución en paralelo (Concurrencia)
+      // Disparamos ambas queries a SQLite al mismo tiempo.
+      final resultados = await Future.wait([
+        _localRepo.getBorradores(),
+        _visitRepo.getBorradores(),
+      ]);
+
+      final inspecciones = resultados[0];
+      final visitas =
+          resultados[1]; // Ya vienen normalizadas desde el Repositorio
+
+      // Fusionamos
+      borradores = [...inspecciones, ...visitas];
+
+      // Ordenamos por fecha (del más reciente al más antiguo)
+      borradores.sort((a, b) {
+        final fechaA = a['fecha_realizacion'] ?? '';
+        final fechaB = b['fecha_realizacion'] ?? '';
+        return fechaB.compareTo(fechaA);
+      });
     } catch (e) {
-      debugPrint("❌ Error cargando borradores: $e");
+      debugPrint("❌ Error cargando borradores combinados: $e");
       borradores = [];
     } finally {
       isLoadingBorradores = false;
@@ -48,7 +69,29 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> eliminarBorrador(String id) async {
-    await _localRepo.eliminarBorrador(id);
+    // 1. Buscamos el borrador en la lista en memoria para saber qué es
+    final borrador = borradores.firstWhere(
+      (b) => b['id'] == id,
+      orElse: () => {},
+    );
+
+    if (borrador.isNotEmpty) {
+      final esVisita = borrador['tipo_actividad'] == 'Visita Técnica';
+
+      // 2. Enrutamos la orden de eliminación al repositorio correcto
+      if (esVisita) {
+        await _visitRepo.eliminarBorrador(id);
+      } else {
+        await _localRepo.eliminarBorrador(id);
+      }
+
+      // 3. Disparamos la sincronización en background para limpiar Supabase
+      _syncService.sincronizarTodo().catchError(
+        (e) => debugPrint("Sync error: $e"),
+      );
+    }
+
+    // 4. Refrescamos la UI
     await cargarBorradores();
   }
 

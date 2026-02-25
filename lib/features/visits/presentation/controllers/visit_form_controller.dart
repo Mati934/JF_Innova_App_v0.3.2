@@ -15,6 +15,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart'; // Para compute()
 import 'package:flutter/services.dart' show rootBundle; // Para las fuentes
 import 'package:printing/printing.dart'; // Para mostrar el visor PDF
+import '../../../../shared/utils/debouncer.dart';
 
 class VisitFormController extends ChangeNotifier {
   final _repository = LocalVisitRepository();
@@ -34,6 +35,11 @@ class VisitFormController extends ChangeNotifier {
   final otroActividadCtrl = TextEditingController();
   final observacionesCtrl = TextEditingController();
 
+  final _debouncer = Debouncer(
+    milliseconds: 1000,
+  ); // Espera 1 seg antes de guardar
+  late String _currentVisitId;
+
   // Historial para Autocomplete
   List<String> historialRegiones = [];
   List<String> historialCentros = [];
@@ -43,6 +49,10 @@ class VisitFormController extends ChangeNotifier {
 
   TimeOfDay? timeInicio;
   TimeOfDay? timeTermino;
+
+  DateTime fechaVisita = DateTime.now();
+  String get fechaVisitaStr =>
+      "${fechaVisita.day.toString().padLeft(2, '0')}-${fechaVisita.month.toString().padLeft(2, '0')}-${fechaVisita.year}";
   String get horaInicioStr => timeInicio != null
       ? "${timeInicio!.hour}:${timeInicio!.minute.toString().padLeft(2, '0')}"
       : "--:--";
@@ -52,15 +62,104 @@ class VisitFormController extends ChangeNotifier {
 
   VisitModel model = VisitModel(activityId: '');
 
-  VisitFormController() {
+  VisitFormController({Map<String, dynamic>? borradorInicial}) {
+    if (borradorInicial != null) {
+      _currentVisitId = borradorInicial['id'] ?? borradorInicial['activity_id'];
+      model = VisitModel.fromMap(borradorInicial);
+      _cargarDatosEnUI(); // Llenamos UI ANTES de activar los listeners
+    } else {
+      _currentVisitId = const Uuid().v4();
+      model.activityId = _currentVisitId;
+    }
     _init();
   }
 
+  void _cargarDatosEnUI() {
+    regionCtrl.text = model.region ?? '';
+    centroCtrl.text = model.centro ?? '';
+    jefaturaCtrl.text = model.jefaturaCargo ?? '';
+    origenCtrl.text = model.origenVisita ?? '';
+    email1Ctrl.text = model.emailEmpresa1 ?? '';
+    email2Ctrl.text = model.emailEmpresa2 ?? '';
+    otroActividadCtrl.text = model.otroActividadTexto ?? '';
+    observacionesCtrl.text = model.apuntesObservaciones ?? '';
+
+    if (model.horaInicio != null && model.horaInicio != "--:--") {
+      final p = model.horaInicio!.split(':');
+      if (p.length == 2)
+        timeInicio = TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
+    }
+    if (model.horaTermino != null && model.horaTermino != "--:--") {
+      final p = model.horaTermino!.split(':');
+      if (p.length == 2)
+        timeTermino = TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
+    }
+  }
+
   Future<void> _init() async {
-    timeInicio = TimeOfDay.now();
+    timeInicio ??= TimeOfDay.now();
     await _loadHistorialAutocomplete();
+
+    // 🚨 PARCHE DE HIDRATACIÓN DE FOTOS (Faltaba esto)
+    if (_currentVisitId.isNotEmpty) {
+      final fotosGuardadas = await _repository.getFotosPendientes(
+        _currentVisitId,
+      );
+      for (var f in fotosGuardadas) {
+        final path = f['local_path'] as String?;
+        if (path != null) {
+          final file = File(path);
+          if (await file.exists()) {
+            fotos.add(file);
+            fotosPaths.add(path);
+          }
+        }
+      }
+    }
+
+    // Activamos listeners al final
+    regionCtrl.addListener(_onFieldChanged);
+    centroCtrl.addListener(_onFieldChanged);
+    jefaturaCtrl.addListener(_onFieldChanged);
+    observacionesCtrl.addListener(_onFieldChanged);
+
     isLoading = false;
     notifyListeners();
+  }
+
+  // 3. CENTRALIZACIÓN DE MAPA (DRY)
+  Map<String, dynamic> _generarMapaVisita({String? pdfPathLocal}) {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    return {
+      'id': _currentVisitId,
+      'usuario_id': userId,
+      'fecha_realizacion': fechaVisita.toIso8601String(),
+      'pdf_path_local': pdfPathLocal,
+      'region': regionCtrl.text.trim().toUpperCase(),
+      'lugar_visita': centroCtrl.text.trim().toUpperCase(),
+      'jefatura_a_cargo': jefaturaCtrl.text.trim(),
+      'origen_visita': origenCtrl.text.trim(),
+      // 🔥 SANITIZACIÓN: Si es el string de la UI, mandamos null
+      'hora_inicio': (horaInicioStr == "--:--") ? null : horaInicioStr,
+      'hora_termino': (horaTerminoStr == "--:--") ? null : horaTerminoStr,
+      'email_empresa_1': email1Ctrl.text.trim(),
+      'email_empresa_2': email2Ctrl.text.trim(),
+      'check_reunion': model.checkReunion ? 1 : 0,
+      'check_instalacion_senaletica': model.checkSenaletica ? 1 : 0,
+      'check_capacitacion': model.checkCapacitacion ? 1 : 0,
+      'check_visita_sso': model.checkVisitaSso ? 1 : 0,
+      'check_charla': model.checkCharla ? 1 : 0,
+      'check_investigacion_incidente': model.checkInvestigacion ? 1 : 0,
+      'check_inspeccion_sso': model.checkInspeccionSso ? 1 : 0,
+      'check_obs_conductual': model.checkObsConductual ? 1 : 0,
+      'check_otro': model.checkOtro ? 1 : 0,
+      'otro_actividad_texto': otroActividadCtrl.text.trim(),
+      'apuntes_observaciones': observacionesCtrl.text.trim(),
+    };
+  }
+
+  void _onFieldChanged() {
+    _debouncer.run(() => guardarBorradorSilencioso());
   }
 
   Future<void> _loadHistorialAutocomplete() async {
@@ -69,8 +168,11 @@ class VisitFormController extends ChangeNotifier {
   }
 
   void addFoto(String path) {
-    fotosPaths.add(path);
-    notifyListeners();
+    if (!fotosPaths.contains(path)) {
+      fotosPaths.add(path);
+      fotos.add(File(path)); // Mantener sincronía para la UI
+      notifyListeners();
+    }
   }
 
   void removeFoto(int index) {
@@ -82,6 +184,9 @@ class VisitFormController extends ChangeNotifier {
 
   void onFotosChanged(List<File> nuevasFotos) {
     fotos = nuevasFotos;
+    // Actualizar la lista de rutas para que el PDF se entere
+    fotosPaths = nuevasFotos.map((f) => f.path).toList();
+    _debouncer.run(() => guardarBorradorSilencioso());
     notifyListeners();
   }
 
@@ -115,6 +220,7 @@ class VisitFormController extends ChangeNotifier {
         model.checkOtro = val;
         break;
     }
+    _debouncer.run(() => guardarBorradorSilencioso());
     notifyListeners();
   }
 
@@ -128,6 +234,21 @@ class VisitFormController extends ChangeNotifier {
         timeInicio = picked;
       else
         timeTermino = picked;
+      _debouncer.run(() => guardarBorradorSilencioso());
+      notifyListeners();
+    }
+  }
+
+  Future<void> pickDate(BuildContext context) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: fechaVisita,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      fechaVisita = picked;
+      _debouncer.run(() => guardarBorradorSilencioso());
       notifyListeners();
     }
   }
@@ -151,35 +272,39 @@ class VisitFormController extends ChangeNotifier {
           limit: 1,
         );
 
-        if (userQuery.isNotEmpty) {
-          final u = userQuery.first;
-          if (u['nombre_completo'] != null &&
-              u['nombre_completo'].toString().trim().isNotEmpty) {
-            profesional = u['nombre_completo'].toString();
-          }
-          if (u['telefono'] != null &&
-              u['telefono'].toString().trim().isNotEmpty) {
-            fonoProfesional = u['telefono'].toString();
-          }
-          if (u['email'] != null && u['email'].toString().trim().isNotEmpty) {
-            correoProfesional = u['email'].toString();
+        if (userQuery.isNotEmpty &&
+            userQuery.first['nombre_completo']?.toString().trim().isNotEmpty ==
+                true) {
+          profesional = userQuery.first['nombre_completo'].toString();
+          debugPrint(
+            "🚀 [IDENTIDAD] Éxito: Nombre cargado desde SQLite local.",
+          );
+        } else {
+          final metaName =
+              user.userMetadata?['full_name'] ??
+              user.userMetadata?['display_name'];
+          if (metaName != null) {
+            profesional = metaName.toString();
+            debugPrint(
+              "ℹ️ [IDENTIDAD] Fallback: Nombre cargado desde Metadatos de Supabase (Yashin Case).",
+            );
+          } else {
+            // AQUÍ ES DONDE TE ENTERAS SI ALGO ESTÁ MAL
+            final errorMsg =
+                "❌ [IDENTIDAD] Error: Usuario ${user.id} no tiene nombre en SQLite ni en Metadata.";
+            debugPrint(errorMsg);
+            // Si usas Crashlytics: FirebaseCrashlytics.instance.log(errorMsg);
           }
         }
       } catch (e) {
-        debugPrint("⚠️ Error leyendo perfil SQLite: $e");
+        debugPrint("🚨 [IDENTIDAD] Crash crítico obteniendo identidad: $e");
       }
     }
 
-    List<Uint8List> fotosBytes = [];
-    for (var file in fotos) {
-      if (await file.exists()) {
-        fotosBytes.add(await file.readAsBytes());
-      }
-    }
-
-    final now = DateTime.now();
-    final fechaFormateada =
-        "${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}";
+    // 🚨 REEMPLAZO CRÍTICO: Usar fotosPaths directamente para evitar el desync con la lista 'fotos'
+    final List<String> galeriaPaths = fotosPaths
+        .where((p) => File(p).existsSync())
+        .toList();
 
     return VisitReportData(
       region: regionCtrl.text.trim().toUpperCase(),
@@ -188,7 +313,7 @@ class VisitFormController extends ChangeNotifier {
       fonoProfesional: fonoProfesional,
       correoProfesional: correoProfesional,
       jefaturaCargo: jefaturaCtrl.text.trim(),
-      fecha: fechaFormateada,
+      fecha: fechaVisitaStr,
       horaInicio: horaInicioStr,
       horaTermino: horaTerminoStr,
       origenVisita: origenCtrl.text.trim(),
@@ -205,7 +330,7 @@ class VisitFormController extends ChangeNotifier {
       checkOtro: model.checkOtro,
       otroActividadTexto: otroActividadCtrl.text.trim(),
       apuntesObservaciones: observacionesCtrl.text.trim(),
-      fotos: fotosBytes,
+      fotosPaths: galeriaPaths,
     );
   }
 
@@ -232,13 +357,6 @@ class VisitFormController extends ChangeNotifier {
   // --- 🚀 2. FLUJOS PRINCIPALES ---
 
   Future<void> previsualizarReporte(BuildContext context) async {
-    if (regionCtrl.text.trim().isEmpty || centroCtrl.text.trim().isEmpty) {
-      errorMessage =
-          "Debe escribir la Región y la Oficina/Área para generar el PDF.";
-      notifyListeners();
-      return;
-    }
-
     isLoading = true;
     errorMessage = null;
     notifyListeners();
@@ -268,9 +386,9 @@ class VisitFormController extends ChangeNotifier {
 
   Future<bool> guardarVisita() async {
     if (isSaving) return false;
-
     if (regionCtrl.text.trim().isEmpty || centroCtrl.text.trim().isEmpty) {
-      errorMessage = "Debe escribir la Región y la Oficina/Área.";
+      errorMessage =
+          "❌ No puedes guardar un registro oficial sin Región y Oficina/Área.";
       notifyListeners();
       return false;
     }
@@ -280,76 +398,35 @@ class VisitFormController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final uuid = const Uuid().v4();
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-
-      debugPrint("⚙️ Generando PDF inmutable en background...");
       final reportData = await _buildReportData();
       final pdfBytes = await _generatePdfBytes(reportData);
-
       final directory = await getApplicationDocumentsDirectory();
 
-      // CLEAN CODE: También usamos el nombre correcto para guardarlo en el disco físico del celular.
-      // Le agregamos el UUID al final solo para garantizar que jamás se sobreescriba un archivo
-      // si el mismo profesional hace dos visitas al mismo lugar el mismo día.
       final String nombreBase = _generarNombreArchivoSanitizado(
         reportData,
       ).replaceAll('.pdf', '');
       final String pdfPathLocal =
-          '${directory.path}/${nombreBase}_${uuid.substring(0, 5)}.pdf';
+          '${directory.path}/${nombreBase}_${_currentVisitId.substring(0, 5)}.pdf';
 
       final file = File(pdfPathLocal);
       await file.writeAsBytes(pdfBytes);
-      debugPrint("💾 PDF guardado en disco: $pdfPathLocal");
 
-      // 2. Mapeo de BD Relacional
-      final regionNormalizada = regionCtrl.text.trim().toUpperCase();
-      final centroNormalizado = centroCtrl.text.trim().toUpperCase();
-
-      final visitaCompletaMap = {
-        'id': uuid,
-        'usuario_id': userId,
-        'fecha_realizacion': DateTime.now().toIso8601String(),
-        'estado_final': 'Finalizada',
-        'subido': 0,
-        'eliminado': 0,
-        'pdf_path_local': pdfPathLocal,
-        'region': regionNormalizada,
-        'lugar_visita': centroNormalizado,
-        'jefatura_a_cargo': jefaturaCtrl.text.trim(),
-        'origen_visita': origenCtrl.text.trim(),
-        'hora_inicio': horaInicioStr,
-        'hora_termino': horaTerminoStr,
-        'email_empresa_1': email1Ctrl.text.trim(),
-        'email_empresa_2': email2Ctrl.text.trim(),
-        'check_reunion': model.checkReunion ? 1 : 0,
-        'check_instalacion_senaletica': model.checkSenaletica ? 1 : 0,
-        'check_capacitacion': model.checkCapacitacion ? 1 : 0,
-        'check_visita_sso': model.checkVisitaSso ? 1 : 0,
-        'check_charla': model.checkCharla ? 1 : 0,
-        'check_investigacion_incidente': model.checkInvestigacion ? 1 : 0,
-        'check_inspeccion_sso': model.checkInspeccionSso ? 1 : 0,
-        'check_obs_conductual': model.checkObsConductual ? 1 : 0,
-        'check_otro': model.checkOtro ? 1 : 0,
-        'otro_actividad_texto': otroActividadCtrl.text.trim(),
-        'apuntes_observaciones': observacionesCtrl.text.trim(),
-      };
-
+      // Usamos la función DRY y le decimos al Repo que YA NO es borrador
+      final visitaMap = _generarMapaVisita(pdfPathLocal: pdfPathLocal);
       final fotosListPaths = fotos.map((f) => f.path).toList();
 
       await _repository.saveVisitaCompleta(
-        visitaCompletaMap: visitaCompletaMap,
+        visitaMap: visitaMap,
         fotosPaths: fotosListPaths,
+        esBorrador: false,
       );
 
       _syncService.sincronizarTodo().catchError(
         (e) => debugPrint("Sync error silencioso: $e"),
       );
-
       return true;
     } catch (e) {
       errorMessage = "Error guardando visita: $e";
-      debugPrint("❌ $errorMessage");
       return false;
     } finally {
       isSaving = false;
@@ -397,5 +474,98 @@ class VisitFormController extends ChangeNotifier {
         ); // Borra cualquier cosa que no sea letra, número o guion
 
     return "$nombreSanitizado.pdf";
+  }
+
+  Future<void> guardarBorradorSilencioso() async {
+    if (isSaving) return; // Mutex para evitar colisiones
+    try {
+      final visitaMap = _generarMapaVisita();
+      final fotosListPaths = fotos.map((f) => f.path).toList();
+
+      await _repository.saveVisitaCompleta(
+        visitaMap: visitaMap,
+        fotosPaths: fotosListPaths,
+        esBorrador: true, // Centralizado en el Repo
+      );
+      debugPrint("💾 Borrador [En Progreso] autoguardado");
+    } catch (e) {
+      debugPrint("⚠️ Error guardando borrador silencioso: $e");
+    }
+  }
+
+  Future<bool> eliminarBorrador() async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return false;
+
+      final visitaMap = {
+        'estado_final': 'Eliminada',
+        'eliminado': 1,
+        'subido': 0,
+      };
+
+      final db = await DatabaseHelper.instance.database;
+      await db.update(
+        'visitas_tecnicas_pendientes',
+        visitaMap,
+        where: 'id = ?',
+        whereArgs: [_currentVisitId],
+      );
+
+      debugPrint("🗑️ Borrador marcado como Eliminado.");
+
+      _syncService.sincronizarTodo().catchError(
+        (e) => debugPrint("Sync error: $e"),
+      );
+
+      return true;
+    } catch (e) {
+      debugPrint("❌ Error eliminando borrador: $e");
+      return false;
+    }
+  }
+
+  void cargarBorrador(Map<String, dynamic> borradorBD) {
+    // 1. Restauramos el modelo y machacamos el ID nuevo generado en el constructor
+    // por el ID real del borrador. ¡Cero duplicados!
+    model = VisitModel.fromMap(borradorBD);
+    _currentVisitId = model.activityId;
+
+    // 2. Poblamos los controladores de texto para que la UI refleje los datos
+    regionCtrl.text = model.region ?? '';
+    centroCtrl.text = model.centro ?? '';
+    jefaturaCtrl.text = model.jefaturaCargo ?? '';
+    origenCtrl.text = model.origenVisita ?? '';
+    email1Ctrl.text = model.emailEmpresa1 ?? '';
+    email2Ctrl.text = model.emailEmpresa2 ?? '';
+    otroActividadCtrl.text = model.otroActividadTexto ?? '';
+    observacionesCtrl.text = model.apuntesObservaciones ?? '';
+
+    // 3. Restauramos los TimeOfDay parseando los strings
+    if (model.horaInicio != null && model.horaInicio != "--:--") {
+      final partes = model.horaInicio!.split(':');
+      if (partes.length == 2) {
+        timeInicio = TimeOfDay(
+          hour: int.parse(partes[0]),
+          minute: int.parse(partes[1]),
+        );
+      }
+    }
+
+    if (model.horaTermino != null && model.horaTermino != "--:--") {
+      final partes = model.horaTermino!.split(':');
+      if (partes.length == 2) {
+        timeTermino = TimeOfDay(
+          hour: int.parse(partes[0]),
+          minute: int.parse(partes[1]),
+        );
+      }
+    }
+
+    // Nota de Mentor: Para que el borrador sea 100% fiel, luego tendrás que hacer
+    // una query a 'fotos_pendientes' filtrando por _currentVisitId y cargar esos paths
+    // en tu lista 'fotosPaths'. Pero esto estabiliza los textos y checkboxes.
+
+    notifyListeners();
   }
 }

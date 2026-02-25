@@ -1,10 +1,11 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:image/image.dart' as img;
 import '../domain/models/pdf/visit_report_data.dart'; // Asegúrate de que esta ruta sea correcta
 
-// 📦 1. DTO PARA EL ISOLATE
+// 📦 1. PARÁMETROS ESTANDARIZADOS (Mirror de Inspecciones)
 class VisitPdfIsolateParams {
   final VisitReportData data;
   final Uint8List fontRegular;
@@ -19,7 +20,7 @@ class VisitPdfIsolateParams {
   });
 }
 
-// 🧵 2. PUNTO DE ENTRADA DEL ISOLATE
+// 🧵 2. ENTRY POINT (Optimizado con compute)
 Future<Uint8List> generateVisitPdfEntryPoint(
   VisitPdfIsolateParams params,
 ) async {
@@ -32,7 +33,6 @@ class VisitPdfGeneratorService {
     final pdf = pw.Document();
     final data = params.data;
 
-    // A. Fuentes
     final theme = pw.ThemeData.withFont(
       base: pw.Font.ttf(params.fontRegular.buffer.asByteData()),
       bold: pw.Font.ttf(params.fontBold.buffer.asByteData()),
@@ -43,29 +43,6 @@ class VisitPdfGeneratorService {
       logoImage = pw.MemoryImage(params.logoBytes!);
     }
 
-    // B. Procesar y optimizar fotos en background para no reventar la RAM
-    List<pw.Widget> photoWidgets = [];
-    if (data.fotos.isNotEmpty) {
-      for (var imageBytes in data.fotos) {
-        final optimizedBytes = _optimizarImagen(imageBytes);
-        photoWidgets.add(
-          pw.Container(
-            width: 80,
-            height: 80,
-            margin: const pw.EdgeInsets.all(5),
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColors.grey),
-            ),
-            child: pw.Image(
-              pw.MemoryImage(optimizedBytes),
-              fit: pw.BoxFit.cover,
-            ),
-          ),
-        );
-      }
-    }
-
-    // C. Construir el documento
     pdf.addPage(
       pw.MultiPage(
         pageTheme: pw.PageTheme(
@@ -86,34 +63,77 @@ class VisitPdfGeneratorService {
           _buildActividades(data),
           pw.SizedBox(height: 15),
           _buildObservaciones(data),
-
           pw.SizedBox(height: 40),
           pw.Center(child: _buildFirma()),
 
-          if (photoWidgets.isNotEmpty) ...[
-            pw.SizedBox(height: 20),
-            pw.Text(
-              "Anexo Fotográfico",
-              style: pw.TextStyle(
-                fontSize: 12,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColors.blue900,
-              ),
-            ),
-            pw.Divider(),
-            pw.SizedBox(height: 10),
-            pw.Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              alignment: pw.WrapAlignment.center,
-              children: photoWidgets,
-            ),
-          ],
+          // 🖼️ ANEXO FOTOGRÁFICO CON ALGORITMO DE CHUNKING (Clonado de Inspecciones)
+          ..._buildGalleryChunked(data.fotosPaths),
         ],
       ),
     );
 
     return pdf.save();
+  }
+
+  // ALGORITMO DE CHUNKING: Evita desbordamientos de página y crasheos por RAM
+  List<pw.Widget> _buildGalleryChunked(List<String> paths) {
+    if (paths.isEmpty) return [];
+
+    List<pw.Widget> widgets = [
+      pw.SizedBox(height: 20),
+      pw.Text(
+        "ANEXO FOTOGRÁFICO",
+        style: pw.TextStyle(
+          fontSize: 12,
+          fontWeight: pw.FontWeight.bold,
+          color: PdfColors.blue900,
+        ),
+      ),
+      pw.Divider(),
+      pw.SizedBox(height: 10),
+    ];
+
+    List<pw.Widget> fila = [];
+    for (var path in paths) {
+      final file = File(path);
+      if (file.existsSync()) {
+        try {
+          // Lectura protegida
+          final bytes = file.readAsBytesSync();
+          fila.add(
+            pw.Container(
+              width: 120,
+              height: 120,
+              margin: const pw.EdgeInsets.all(5),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.grey),
+              ),
+              child: pw.Image(pw.MemoryImage(bytes), fit: pw.BoxFit.cover),
+            ),
+          );
+        } catch (e) {
+          print("❌ Error cargando imagen en PDF: $path - $e");
+        }
+      }
+
+      if (fila.length == 3) {
+        // 3 fotos por fila para que se vean bien
+        widgets.add(
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.center,
+            children: fila,
+          ),
+        );
+        fila = [];
+      }
+    }
+    if (fila.isNotEmpty) {
+      widgets.add(
+        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.center, children: fila),
+      );
+    }
+
+    return widgets;
   }
 
   // --- WIDGETS DEL PDF ---
