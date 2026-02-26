@@ -129,4 +129,16 @@ class LocalVisitRepository {
       whereArgs: [activityId],
     );
   }
+
+  // Extrae el perfil del usuario activo desde SQLite
+  Future<Map<String, dynamic>?> getUsuarioLocal(String userId) async {
+    final db = await dbHelper.database;
+    final result = await db.query(
+      'usuarios',
+      where: 'id = ?',
+      whereArgs: [userId],
+      limit: 1,
+    );
+    return result.isNotEmpty ? result.first : null;
+  }
 }

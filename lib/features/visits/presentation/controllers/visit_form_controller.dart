@@ -256,44 +256,36 @@ class VisitFormController extends ChangeNotifier {
   // --- 🛠️ 1. MÉTODOS REUTILIZABLES (DRY) ---
 
   Future<VisitReportData> _buildReportData() async {
-    final db = await DatabaseHelper.instance.database;
     final user = Supabase.instance.client.auth.currentUser;
 
-    String profesional = "-";
-    String fonoProfesional = "-";
-    String correoProfesional = user?.email ?? "-";
+    String profesional = "Sin Profesional";
+    String fonoProfesional = "No registrado";
+    String correoProfesional = user?.email ?? "No registrado";
 
     if (user != null) {
       try {
-        final userQuery = await db.query(
-          'usuarios',
-          where: 'id = ?',
-          whereArgs: [user.id],
-          limit: 1,
-        );
+        // CLEAN ARCHITECTURE: Delegamos la consulta al repositorio, no al controller.
+        final userLocal = await _repository.getUsuarioLocal(user.id);
 
-        if (userQuery.isNotEmpty &&
-            userQuery.first['nombre_completo']?.toString().trim().isNotEmpty ==
-                true) {
-          profesional = userQuery.first['nombre_completo'].toString();
-          debugPrint(
-            "🚀 [IDENTIDAD] Éxito: Nombre cargado desde SQLite local.",
-          );
+        if (userLocal != null) {
+          profesional = userLocal['nombre_completo']?.toString() ?? profesional;
+          // 🔥 CORRECCIÓN: Ahora sí extraemos el teléfono de la base local
+          fonoProfesional =
+              userLocal['telefono']?.toString() ?? fonoProfesional;
+
+          debugPrint("🚀 [IDENTIDAD] Datos cargados desde SQLite local.");
         } else {
+          // Fallback a metadata si no hay base local
           final metaName =
               user.userMetadata?['full_name'] ??
               user.userMetadata?['display_name'];
           if (metaName != null) {
             profesional = metaName.toString();
-            debugPrint(
-              "ℹ️ [IDENTIDAD] Fallback: Nombre cargado desde Metadatos de Supabase (Yashin Case).",
-            );
+            debugPrint("ℹ️ [IDENTIDAD] Fallback: Metadata Supabase.");
           } else {
-            // AQUÍ ES DONDE TE ENTERAS SI ALGO ESTÁ MAL
-            final errorMsg =
-                "❌ [IDENTIDAD] Error: Usuario ${user.id} no tiene nombre en SQLite ni en Metadata.";
-            debugPrint(errorMsg);
-            // Si usas Crashlytics: FirebaseCrashlytics.instance.log(errorMsg);
+            debugPrint(
+              "❌ [IDENTIDAD] Usuario ${user.id} sin datos locales ni metadata.",
+            );
           }
         }
       } catch (e) {
@@ -301,7 +293,6 @@ class VisitFormController extends ChangeNotifier {
       }
     }
 
-    // 🚨 REEMPLAZO CRÍTICO: Usar fotosPaths directamente para evitar el desync con la lista 'fotos'
     final List<String> galeriaPaths = fotosPaths
         .where((p) => File(p).existsSync())
         .toList();
@@ -310,7 +301,7 @@ class VisitFormController extends ChangeNotifier {
       region: regionCtrl.text.trim().toUpperCase(),
       centro: centroCtrl.text.trim().toUpperCase(),
       profesional: profesional,
-      fonoProfesional: fonoProfesional,
+      fonoProfesional: fonoProfesional, // ¡Ahora sí viajará al PDF!
       correoProfesional: correoProfesional,
       jefaturaCargo: jefaturaCtrl.text.trim(),
       fecha: fechaVisitaStr,
