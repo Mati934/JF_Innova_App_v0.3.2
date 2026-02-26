@@ -105,12 +105,16 @@ class PdfGeneratorService {
             ),
           ),
         ),
-        header: (context) => data.tipoFaena.contains('EMBARCACIÓN')
-            ? _buildHeaderEmbarcacion(data, logoImage)
-            : _buildHeaderDense(data, logoImage),
+        // 👇 ELIMINAMOS EL PARAMETRO 'header:' QUE LO REPETÍA EN TODAS LAS PÁGINAS 👇
         footer: (context) => _buildFooter(context, data),
         build: (context) => [
-          pw.SizedBox(height: 5),
+          // 👇 LO PONEMOS AQUÍ COMO EL PRIMER ELEMENTO DEL REPORTE 👇
+          data.tipoFaena.contains('EMBARCACIÓN')
+              ? _buildHeaderEmbarcacion(data, logoImage)
+              : _buildHeaderDense(data, logoImage),
+
+          pw.SizedBox(height: 15), // Espacio entre el encabezado y el contenido
+
           _buildStatusAndStats(data),
           pw.SizedBox(height: 10),
 
@@ -391,6 +395,14 @@ class PdfGeneratorService {
                   style: pw.TextStyle(
                     fontWeight: pw.FontWeight.bold,
                     fontSize: 14,
+                  ),
+                ),
+                pw.Text(
+                  data.tipoFaena,
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 9,
+                    color: PdfColors.blue900,
                   ),
                 ),
                 pw.Text(
@@ -1047,7 +1059,7 @@ class PdfGeneratorService {
     InspectionReportData data,
     pw.MemoryImage? logo,
   ) {
-    // Filtrar roles de la cuadrilla (Clean Code)
+    // Filtrar roles de la cuadrilla
     String patron = data.equipo
         .where((p) => p.cargo.toUpperCase().contains('PATR'))
         .map((p) => p.nombre)
@@ -1065,7 +1077,7 @@ class PdfGeneratorService {
         .map((p) => "${p.nombre} (${p.rut})")
         .toList();
 
-    // Helper para celdas de tabla
+    // Helper para celdas
     pw.Widget celda(
       String txt, {
       bool isHeader = false,
@@ -1073,7 +1085,8 @@ class PdfGeneratorService {
     }) {
       return pw.Container(
         color: bg,
-        padding: const pw.EdgeInsets.all(5),
+        padding: const pw.EdgeInsets.all(6),
+        alignment: pw.Alignment.centerLeft,
         child: pw.Text(
           txt,
           style: pw.TextStyle(
@@ -1087,41 +1100,83 @@ class PdfGeneratorService {
     final gris = PdfColors.grey200;
 
     return pw.Container(
-      margin: const pw.EdgeInsets.only(bottom: 10),
+      margin: const pw.EdgeInsets.only(bottom: 5),
       child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.end,
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          // Logo superior
-          if (logo != null) pw.Container(height: 40, child: pw.Image(logo)),
-          pw.SizedBox(height: 5),
+          // 🟢 FILA SUPERIOR: TÍTULOS Y LOGO
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    "INFORME TÉCNICO",
+                    style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.Text(
+                    data.tipoFaena,
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue900,
+                    ),
+                  ),
+                ],
+              ),
+              if (logo != null)
+                pw.Container(
+                  height: 35,
+                  child: pw.Image(logo, fit: pw.BoxFit.contain),
+                ),
+            ],
+          ),
+          pw.SizedBox(height: 12),
 
-          // Tabla 1: Correlativo (Alineado a la derecha simulado)
+          // 🟢 TABLA 1: CORRELATIVO
           pw.Table(
-            border: pw.TableBorder.all(color: PdfColors.black, width: 0.5),
+            border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.5),
             columnWidths: {
-              0: const pw.FlexColumnWidth(6),
+              0: const pw.FlexColumnWidth(7),
               1: const pw.FlexColumnWidth(2),
-              2: const pw.FlexColumnWidth(2),
+              2: const pw.FlexColumnWidth(1.5),
             },
             children: [
               pw.TableRow(
                 children: [
-                  pw.Container(),
+                  pw.Container(), // Espacio vacío a la izquierda
                   celda("CORRELATIVO N°", isHeader: true, bg: gris),
-                  celda(data.numeroReporte),
+                  pw.Container(
+                    color: PdfColors.white,
+                    alignment: pw.Alignment.center,
+                    padding: const pw.EdgeInsets.all(6),
+                    child: pw.Text(
+                      data.numeroReporte,
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.red800,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ],
           ),
 
-          // Tabla 2: Datos Principales
+          // 🟢 TABLA 2: DATOS PRINCIPALES
           pw.Table(
-            border: pw.TableBorder.all(color: PdfColors.black, width: 0.5),
+            border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.5),
             columnWidths: {
               0: const pw.FlexColumnWidth(2),
-              1: const pw.FlexColumnWidth(3),
+              1: const pw.FlexColumnWidth(3.5),
               2: const pw.FlexColumnWidth(2),
-              3: const pw.FlexColumnWidth(3),
+              3: const pw.FlexColumnWidth(3.5),
             },
             children: [
               pw.TableRow(
@@ -1159,28 +1214,31 @@ class PdfGeneratorService {
             ],
           ),
 
-          // Tabla 3: Tripulantes (Simula Colspan)
+          // 🟢 TABLA 3: TRIPULANTES
           pw.Table(
             border: const pw.TableBorder(
-              left: pw.BorderSide(width: 0.5),
-              right: pw.BorderSide(width: 0.5),
-              bottom: pw.BorderSide(width: 0.5),
-              verticalInside: pw.BorderSide(width: 0.5),
+              left: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
+              right: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
+              bottom: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
+              verticalInside: pw.BorderSide(
+                width: 0.5,
+                color: PdfColors.grey600,
+              ),
             ),
             columnWidths: {
               0: const pw.FlexColumnWidth(2),
-              1: const pw.FlexColumnWidth(8),
+              1: const pw.FlexColumnWidth(9),
             },
             children: [
               pw.TableRow(
                 children: [
                   celda("TRIPULANTES", isHeader: true, bg: gris),
                   pw.Container(
-                    padding: const pw.EdgeInsets.all(5),
+                    padding: const pw.EdgeInsets.all(6),
                     child: pw.Text(
                       tripulantes.isEmpty
-                          ? "Sin tripulantes extra."
-                          : tripulantes.join('\n'),
+                          ? "Sin tripulantes extra registrados."
+                          : tripulantes.join('   |   '),
                       style: const pw.TextStyle(fontSize: 8),
                     ),
                   ),
@@ -1189,30 +1247,29 @@ class PdfGeneratorService {
             ],
           ),
 
-          // Tabla 4: Firmas
+          // 🟢 TABLA 4: FIRMAS/CONTACTO
           pw.Table(
             border: const pw.TableBorder(
-              left: pw.BorderSide(width: 0.5),
-              right: pw.BorderSide(width: 0.5),
-              bottom: pw.BorderSide(width: 0.5),
-              verticalInside: pw.BorderSide(width: 0.5),
+              left: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
+              right: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
+              bottom: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
+              verticalInside: pw.BorderSide(
+                width: 0.5,
+                color: PdfColors.grey600,
+              ),
             ),
             columnWidths: {
               0: const pw.FlexColumnWidth(3.5),
-              1: const pw.FlexColumnWidth(2.5),
+              1: const pw.FlexColumnWidth(3.5),
               2: const pw.FlexColumnWidth(2.5),
-              3: const pw.FlexColumnWidth(1.5),
+              3: const pw.FlexColumnWidth(3),
             },
             children: [
               pw.TableRow(
                 children: [
-                  celda(
-                    "PROFESIONAL QUE EMITE INFORME",
-                    isHeader: true,
-                    bg: gris,
-                  ),
+                  celda("PROFESIONAL QUE EMITE", isHeader: true, bg: gris),
                   celda(data.profesional ?? "N/A"),
-                  celda("CORREO EMPRESA SERVICIOS", isHeader: true, bg: gris),
+                  celda("CORREO SERVICIOS", isHeader: true, bg: gris),
                   celda(data.correoEmpresaServicios ?? "N/A"),
                 ],
               ),
