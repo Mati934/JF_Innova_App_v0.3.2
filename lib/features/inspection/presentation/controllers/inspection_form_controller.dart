@@ -868,6 +868,20 @@ class InspectionFormController extends ChangeNotifier {
     } catch (e) {
       debugPrint("❌ Error PDF Preview: $e");
       _errorMessage = "Error generando PDF: $e";
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Error Crítico PDF: $e",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: Colors.red.shade800,
+            duration: const Duration(seconds: 10),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
