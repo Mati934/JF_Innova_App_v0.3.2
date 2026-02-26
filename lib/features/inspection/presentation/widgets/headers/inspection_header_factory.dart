@@ -34,7 +34,6 @@ class EmbarcacionTecnicoWidget extends StatelessWidget {
 
   const EmbarcacionTecnicoWidget({super.key, required this.controller});
 
-  // Helper local para llamar al TimePicker
   Future<void> _seleccionarHora(BuildContext context, bool isInicio) async {
     final initial = controller.getHoraInicialReloj(isInicio);
     final TimeOfDay? picked = await showTimePicker(
@@ -73,7 +72,7 @@ class EmbarcacionTecnicoWidget extends StatelessWidget {
             const Divider(),
             const SizedBox(height: 10),
 
-            // 🟢 NUEVO: SELECTOR DE HORARIOS
+            // HORARIOS
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -138,6 +137,80 @@ class EmbarcacionTecnicoWidget extends StatelessWidget {
               ),
               keyboardType: TextInputType.emailAddress,
               onChanged: (_) => controller.guardarBorrador(silent: true),
+            ),
+
+            const SizedBox(height: 15),
+
+            // 🟢 NUEVO: SELECTOR DE ESTADO FINAL DE FAENA
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: (controller.estadoManualEmbarcacion == 'SUSPENDIDO')
+                    ? Colors.red.shade50
+                    : ((controller.estadoManualEmbarcacion == 'APROBADO')
+                          ? Colors.green.shade50
+                          : Colors.blueGrey.shade50),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: (controller.estadoManualEmbarcacion == 'SUSPENDIDO')
+                      ? Colors.red.shade200
+                      : ((controller.estadoManualEmbarcacion == 'APROBADO')
+                            ? Colors.green.shade200
+                            : Colors.grey.shade300),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    controller.estadoManualEmbarcacion == 'SUSPENDIDO'
+                        ? Icons.warning_amber
+                        : Icons.verified_user,
+                    color: controller.estadoManualEmbarcacion == 'SUSPENDIDO'
+                        ? Colors.red
+                        : Colors.green,
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      "Estado Final de Faena:",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  DropdownButton<String?>(
+                    value: controller.estadoManualEmbarcacion,
+                    hint: const Text("Automático"),
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(value: null, child: Text("Automático")),
+                      DropdownMenuItem(
+                        value: "APROBADO",
+                        child: Text(
+                          "Forzar APROBACIÓN",
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: "SUSPENDIDO",
+                        child: Text(
+                          "Forzar SUSPENSIÓN",
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      controller.setEstadoManualEmbarcacion(val);
+                      // 🟢 CORRECCIÓN: Quitamos el silent: true para que la UI sepa cuándo destrabarse
+                      controller.guardarBorrador();
+                    },
+                  ),
+                ],
+              ),
             ),
           ],
         ),

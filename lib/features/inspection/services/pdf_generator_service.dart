@@ -109,9 +109,7 @@ class PdfGeneratorService {
         footer: (context) => _buildFooter(context, data),
         build: (context) => [
           // 1. EL ENCABEZADO (Buceo o Embarcación)
-          data.tipoFaena.contains('EMBARCACIÓN')
-              ? _buildHeaderEmbarcacion(data, logoImage)
-              : _buildHeaderBuceo(data, logoImage),
+          _buildHeader(data, logoImage),
 
           pw.SizedBox(height: 15),
 
@@ -422,7 +420,7 @@ class PdfGeneratorService {
     );
   }
 
-  // pw.Widget _buildHeaderDense(InspectionReportData data, pw.MemoryImage? logo) {
+  // pw.Widget _buildHeaderBuceo(InspectionReportData data, pw.MemoryImage? logo) {
   //   return pw.Container(
   //     decoration: pw.BoxDecoration(
   //       border: pw.Border.all(color: PdfColors.black, width: 0.5),
@@ -535,214 +533,6 @@ class PdfGeneratorService {
   //   );
   // }
 
-  pw.Widget _buildHeaderBuceo(InspectionReportData data, pw.MemoryImage? logo) {
-    // Helper para datos en formato "Label encima, Valor abajo"
-    pw.Widget infoDato(String label, String value) {
-      return pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            label,
-            style: pw.TextStyle(
-              fontSize: 7,
-              fontWeight: pw.FontWeight.bold,
-              color: PdfColors.grey700,
-            ),
-          ),
-          pw.SizedBox(height: 2),
-          pw.Text(
-            value.isEmpty ? "N/A" : value,
-            style: pw.TextStyle(
-              fontSize: 9,
-              fontWeight: pw.FontWeight.bold,
-              color: PdfColors.black,
-            ),
-          ),
-        ],
-      );
-    }
-
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        // 🟢 SEPARACIÓN DEL TECHO
-        pw.SizedBox(height: 25),
-
-        // 🟢 1. TÍTULO, LOGO Y FOLIO (Estilo unificado)
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(left: 10),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text(
-                    "INFORME TÉCNICO",
-                    style: pw.TextStyle(
-                      fontSize: 18,
-                      fontWeight: pw.FontWeight.bold,
-                      color: PdfColors.blue900,
-                    ),
-                  ),
-                  pw.Text(
-                    data.tipoFaena,
-                    style: pw.TextStyle(
-                      fontSize: 11,
-                      fontWeight: pw.FontWeight.bold,
-                      color: PdfColors.grey700,
-                    ),
-                  ),
-                  pw.SizedBox(height: 6),
-
-                  // ETIQUETA ROJA: FOLIO
-                  pw.Container(
-                    padding: const pw.EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: pw.BoxDecoration(
-                      color: PdfColors.red50,
-                      border: pw.Border.all(color: PdfColors.red200),
-                      borderRadius: const pw.BorderRadius.all(
-                        pw.Radius.circular(4),
-                      ),
-                    ),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          "Informe N° ${data.numeroReporte}",
-                          style: pw.TextStyle(
-                            fontSize: 10,
-                            fontWeight: pw.FontWeight.bold,
-                            color: PdfColors.red900,
-                          ),
-                        ),
-                        pw.Text(
-                          data.esConsecutiva ? "(CONSECUTIVA)" : "(INICIAL)",
-                          style: pw.TextStyle(
-                            fontSize: 7,
-                            fontWeight: pw.FontWeight.bold,
-                            color: PdfColors.red700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (logo != null)
-              pw.Container(
-                height: 50,
-                child: pw.Image(logo, fit: pw.BoxFit.contain),
-              ),
-          ],
-        ),
-        pw.SizedBox(height: 15),
-
-        // 🟢 2. TARJETA DE DATOS GENERALES
-        pw.Container(
-          padding: const pw.EdgeInsets.all(12),
-          decoration: pw.BoxDecoration(
-            color: PdfColors.grey100,
-            border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
-            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-          ),
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                "DATOS GENERALES DE LA AUDITORÍA",
-                style: pw.TextStyle(
-                  fontSize: 9,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.blue800,
-                ),
-              ),
-              pw.Divider(color: PdfColors.grey400, thickness: 0.5),
-              pw.SizedBox(height: 6),
-              pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Expanded(flex: 2, child: infoDato("ÁREA", data.area)),
-                  pw.Expanded(flex: 2, child: infoDato("CENTRO", data.centro)),
-                  pw.Expanded(
-                    flex: 2,
-                    child: infoDato("EMPRESA CONT.", data.empresaContratista),
-                  ),
-                ],
-              ),
-              pw.SizedBox(height: 10),
-              pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Expanded(flex: 2, child: infoDato("FECHA", data.fecha)),
-                  pw.Expanded(
-                    flex: 2,
-                    child: infoDato(
-                      "HORARIO",
-                      "${data.horaInicio ?? '--:--'} a ${data.horaTermino ?? '--:--'}",
-                    ),
-                  ),
-                  pw.Expanded(
-                    flex: 2,
-                    child: infoDato(
-                      "PROFESIONAL A CARGO",
-                      data.profesional ?? "N/A",
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        pw.SizedBox(height: 10),
-
-        // 🟢 3. TARJETA DE RESPONSABLES DE FAENA
-        pw.Container(
-          padding: const pw.EdgeInsets.all(12),
-          decoration: pw.BoxDecoration(
-            color: PdfColors.white,
-            border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
-            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-          ),
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                "RESPONSABLES DE FAENA",
-                style: pw.TextStyle(
-                  fontSize: 9,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.blue800,
-                ),
-              ),
-              pw.Divider(color: PdfColors.grey400, thickness: 0.5),
-              pw.SizedBox(height: 6),
-              pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Expanded(
-                    child: infoDato(
-                      "ENCARGADO DE CENTRO",
-                      data.encargadoCentro ?? "N/A",
-                    ),
-                  ),
-                  pw.Expanded(
-                    child: infoDato("SUPERVISOR CONTRATISTA", data.supervisor),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   pw.Widget _buildTechnicalDetails(InspectionReportData data) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(5),
@@ -819,31 +609,6 @@ class PdfGeneratorService {
     );
   }
 
-  pw.Widget _rowInfo(String label, String value) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 2),
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.SizedBox(
-            width: 70,
-            child: pw.Text(
-              label,
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7),
-            ),
-          ),
-          pw.Expanded(
-            child: pw.Text(
-              value.toUpperCase(),
-              style: const pw.TextStyle(fontSize: 7),
-              maxLines: 2,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   pw.Widget _buildStatusAndStats(InspectionReportData data) {
     final estadoUpper = data.estadoGlobal.toUpperCase();
     final bool esCritico = estadoUpper.contains("SUSPENDIDA");
@@ -852,15 +617,19 @@ class PdfGeneratorService {
         : PdfColors.green800;
     final PdfColor bgEstado = esCritico ? PdfColors.red100 : PdfColors.green100;
 
-    // MATEMÁTICAS PARA PORCENTAJES
-    int total = data.totalCumple + data.totalNoCumple + data.totalNoAplica;
-    String pct(int count) =>
-        total > 0 ? "${((count / total) * 100).round()}%" : "0%";
+    // 🟢 MATEMÁTICAS ESTRICTAS: Solo evaluar lo aplicable
+    int totalAplicable = data.totalCumple + data.totalNoCumple;
 
-    // Helper para dibujar cada cajita individual
+    String pct(int count) {
+      if (totalAplicable == 0) return "0%";
+      return "${((count / totalAplicable) * 100).round()}%";
+    }
+
+    // Helper ajustado para recibir el texto del porcentaje directamente
     pw.Widget statBox(
       String label,
       int count,
+      String pctText,
       PdfColor bg,
       PdfColor borderCol,
       PdfColor textCol,
@@ -887,7 +656,7 @@ class PdfGeneratorService {
               ),
               pw.SizedBox(height: 2),
               pw.Text(
-                "$count  (${pct(count)})",
+                "$count  ($pctText)",
                 style: pw.TextStyle(
                   fontSize: 10,
                   fontWeight: pw.FontWeight.bold,
@@ -901,12 +670,9 @@ class PdfGeneratorService {
     }
 
     return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(
-        horizontal: 10,
-      ), // 🟢 Despegado de ambas paredes
+      padding: const pw.EdgeInsets.symmetric(horizontal: 10),
       child: pw.Row(
         children: [
-          // 🟢 CAJA PRINCIPAL: ESTADO FINAL
           pw.Expanded(
             flex: 3,
             child: pw.Container(
@@ -944,10 +710,11 @@ class PdfGeneratorService {
           ),
           pw.SizedBox(width: 8),
 
-          // 🟢 CAJITAS DE ESTADÍSTICAS
+          // 🟢 CAJITAS CON EL NUEVO CÁLCULO
           statBox(
             "CUMPLE",
             data.totalCumple,
+            pct(data.totalCumple),
             PdfColors.green50,
             PdfColors.green200,
             PdfColors.green800,
@@ -955,6 +722,7 @@ class PdfGeneratorService {
           statBox(
             "NO CUMPLE",
             data.totalNoCumple,
+            pct(data.totalNoCumple),
             PdfColors.orange50,
             PdfColors.orange200,
             PdfColors.orange900,
@@ -962,6 +730,7 @@ class PdfGeneratorService {
           statBox(
             "NO APLICA",
             data.totalNoAplica,
+            "-",
             PdfColors.grey100,
             PdfColors.grey300,
             PdfColors.grey700,
@@ -1481,7 +1250,7 @@ class PdfGeneratorService {
 
     List<pw.Widget> widgets = [
       pw.Text(
-        "FOTOGRAFÍAS CON OBSERVACIÓN DETALLADA",
+        "     OBSERVACIONES NO ESPECIFICADAS EN DPR 24",
         style: pw.TextStyle(
           fontSize: 10,
           fontWeight: pw.FontWeight.bold,
@@ -1554,278 +1323,283 @@ class PdfGeneratorService {
   }
   // Header Nuevo - Más limpio, diseño nuevo
 
-  pw.Widget _buildHeaderEmbarcacion(
-    InspectionReportData data,
-    pw.MemoryImage? logo,
-  ) {
-    // Filtrar roles
-    String patron = data.equipo
-        .where((p) => p.cargo.toUpperCase().contains('PATR'))
-        .map((p) => p.nombre)
-        .join(', ');
-    String maquinista = data.equipo
-        .where((p) => p.cargo.toUpperCase().contains('MAQUINISTA'))
-        .map((p) => p.nombre)
-        .join(', ');
-    List<String> tripulantes = data.equipo
-        .where(
-          (p) =>
-              !p.cargo.toUpperCase().contains('PATR') &&
-              !p.cargo.toUpperCase().contains('MAQUINISTA'),
-        )
-        .map((p) => "${p.nombre} (${p.rut})")
-        .toList();
+  // pw.Widget _buildHeaderEmbarcacion(
+  //   InspectionReportData data,
+  //   pw.MemoryImage? logo,
+  // ) {
+  //   // Filtrar roles
+  //   String patron = data.equipo
+  //       .where((p) => p.cargo.toUpperCase().contains('PATR'))
+  //       .map((p) => p.nombre)
+  //       .join(', ');
+  //   String maquinista = data.equipo
+  //       .where((p) => p.cargo.toUpperCase().contains('MAQUINISTA'))
+  //       .map((p) => p.nombre)
+  //       .join(', ');
+  //   List<String> tripulantes = data.equipo
+  //       .where(
+  //         (p) =>
+  //             !p.cargo.toUpperCase().contains('PATR') &&
+  //             !p.cargo.toUpperCase().contains('MAQUINISTA'),
+  //       )
+  //       .map((p) => "${p.nombre} (${p.rut})")
+  //       .toList();
 
-    // Helper para datos en formato "Label encima, Valor abajo" (Más moderno)
-    pw.Widget infoDato(String label, String value) {
-      return pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            label,
-            style: pw.TextStyle(
-              fontSize: 7,
-              fontWeight: pw.FontWeight.bold,
-              color: PdfColors.grey700,
-            ),
-          ),
-          pw.SizedBox(height: 2),
-          pw.Text(
-            value.isEmpty ? "N/A" : value,
-            style: pw.TextStyle(
-              fontSize: 9,
-              fontWeight: pw.FontWeight.bold,
-              color: PdfColors.black,
-            ),
-          ),
-        ],
-      );
-    }
+  //   // Helper para datos en formato "Label encima, Valor abajo" (Más moderno)
+  //   pw.Widget infoDato(String label, String value) {
+  //     return pw.Column(
+  //       crossAxisAlignment: pw.CrossAxisAlignment.start,
+  //       children: [
+  //         pw.Text(
+  //           label,
+  //           style: pw.TextStyle(
+  //             fontSize: 7,
+  //             fontWeight: pw.FontWeight.bold,
+  //             color: PdfColors.grey700,
+  //           ),
+  //         ),
+  //         pw.SizedBox(height: 2),
+  //         pw.Text(
+  //           value.isEmpty ? "N/A" : value,
+  //           style: pw.TextStyle(
+  //             fontSize: 9,
+  //             fontWeight: pw.FontWeight.bold,
+  //             color: PdfColors.black,
+  //           ),
+  //         ),
+  //       ],
+  //     );
+  //   }
 
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.SizedBox(height: 25),
-        // 🟢 1. TÍTULO, LOGO Y FOLIO
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            // --- LADO IZQUIERDO: Títulos ---
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(
-                left: 10,
-              ), // Separación pared izquierda
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text(
-                    "INFORME TÉCNICO",
-                    style: pw.TextStyle(
-                      fontSize: 18,
-                      fontWeight: pw.FontWeight.bold,
-                      color: PdfColors.blue900,
-                    ),
-                  ),
-                  pw.SizedBox(height: 2),
-                  pw.Text(
-                    data.tipoFaena,
-                    style: pw.TextStyle(
-                      fontSize: 11,
-                      fontWeight: pw.FontWeight.bold,
-                      color: PdfColors.grey700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+  //   return pw.Column(
+  //     crossAxisAlignment: pw.CrossAxisAlignment.start,
+  //     children: [
+  //       pw.SizedBox(height: 25),
+  //       pw.Row(
+  //         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+  //         crossAxisAlignment: pw.CrossAxisAlignment.start,
+  //         children: [
+  //           // --- LADO IZQUIERDO ---
+  //           pw.Padding(
+  //             padding: const pw.EdgeInsets.only(left: 10),
+  //             child: pw.Column(
+  //               crossAxisAlignment: pw.CrossAxisAlignment.start,
+  //               children: [
+  //                 pw.Text(
+  //                   "INFORME TÉCNICO",
+  //                   style: pw.TextStyle(
+  //                     fontSize: 18,
+  //                     fontWeight: pw.FontWeight.bold,
+  //                     color: PdfColors.blue900,
+  //                   ),
+  //                 ),
+  //                 pw.Text(
+  //                   data.tipoFaena,
+  //                   style: pw.TextStyle(
+  //                     fontSize: 11,
+  //                     fontWeight: pw.FontWeight.bold,
+  //                     color: PdfColors.grey700,
+  //                   ),
+  //                 ),
+  //                 pw.SizedBox(height: 10),
+  //                 // 🟢 EL PROFESIONAL AHORA VIVE AQUÍ
+  //                 pw.Text(
+  //                   "PROFESIONAL A CARGO:",
+  //                   style: pw.TextStyle(
+  //                     fontSize: 9,
+  //                     fontWeight: pw.FontWeight.bold,
+  //                     color: PdfColors.grey500,
+  //                   ),
+  //                 ),
+  //                 pw.Text(
+  //                   data.profesional ?? "N/A",
+  //                   style: pw.TextStyle(
+  //                     fontSize: 12,
+  //                     fontWeight: pw.FontWeight.bold,
+  //                     color: PdfColors.black,
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
 
-            // --- LADO DERECHO: Logo y Folio ---
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(
-                right: 10,
-              ), // 👈 SEPARACIÓN DE LA PARED DERECHA
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.end,
-                children: [
-                  if (logo != null) ...[
-                    pw.Container(
-                      height: 45,
-                      child: pw.Image(logo, fit: pw.BoxFit.contain),
-                    ),
-                    pw.SizedBox(height: 8), // Espacio entre logo y folio
-                  ],
+  //           // --- LADO DERECHO ---
+  //           pw.Padding(
+  //             padding: const pw.EdgeInsets.only(right: 10),
+  //             child: pw.Column(
+  //               crossAxisAlignment: pw.CrossAxisAlignment.end,
+  //               children: [
+  //                 if (logo != null) ...[
+  //                   pw.Container(
+  //                     height: 45,
+  //                     child: pw.Image(logo, fit: pw.BoxFit.contain),
+  //                   ),
+  //                   pw.SizedBox(height: 8),
+  //                 ],
+  //                 // 🟢 FOLIO Y ESTADO ALINEADOS A LA DERECHA
+  //                 pw.Container(
+  //                   padding: const pw.EdgeInsets.symmetric(
+  //                     horizontal: 10,
+  //                     vertical: 4,
+  //                   ),
+  //                   decoration: pw.BoxDecoration(
+  //                     color: PdfColors.red50,
+  //                     border: pw.Border.all(color: PdfColors.red200),
+  //                     borderRadius: const pw.BorderRadius.all(
+  //                       pw.Radius.circular(4),
+  //                     ),
+  //                   ),
+  //                   child: pw.Column(
+  //                     crossAxisAlignment: pw.CrossAxisAlignment.center,
+  //                     children: [
+  //                       pw.Text(
+  //                         "Informe N° ${data.numeroReporte}",
+  //                         style: pw.TextStyle(
+  //                           fontSize: 11,
+  //                           fontWeight: pw.FontWeight.bold,
+  //                           color: PdfColors.red900,
+  //                         ),
+  //                       ),
+  //                       pw.Text(
+  //                         data.esConsecutiva ? "(CONSECUTIVA)" : "(INICIAL)",
+  //                         style: pw.TextStyle(
+  //                           fontSize: 7,
+  //                           fontWeight: pw.FontWeight.bold,
+  //                           color: PdfColors.red700,
+  //                         ),
+  //                       ),
+  //                     ],
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+  //       pw.SizedBox(height: 15),
 
-                  // ETIQUETA ROJA: FOLIO
-                  pw.Container(
-                    padding: const pw.EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: pw.BoxDecoration(
-                      color: PdfColors.red50,
-                      border: pw.Border.all(color: PdfColors.red200),
-                      borderRadius: const pw.BorderRadius.all(
-                        pw.Radius.circular(4),
-                      ),
-                    ),
-                    child: pw.Column(
-                      crossAxisAlignment:
-                          pw.CrossAxisAlignment.center, // Centrado interno
-                      children: [
-                        pw.Text(
-                          "Informe N° ${data.numeroReporte}",
-                          style: pw.TextStyle(
-                            fontSize:
-                                11, // Un pelín más grande para que destaque
-                            fontWeight: pw.FontWeight.bold,
-                            color: PdfColors.red900,
-                          ),
-                        ),
-                        pw.Text(
-                          data.esConsecutiva ? "(CONSECUTIVA)" : "(INICIAL)",
-                          style: pw.TextStyle(
-                            fontSize: 7,
-                            fontWeight: pw.FontWeight.bold,
-                            color: PdfColors.red700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        pw.SizedBox(height: 15),
+  //       // 🟢 2. TARJETA DE DATOS GENERALES (Diseño Dashboard)
+  //       pw.Container(
+  //         padding: const pw.EdgeInsets.all(12),
+  //         decoration: pw.BoxDecoration(
+  //           color: PdfColors.grey100,
+  //           border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+  //           borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+  //         ),
+  //         child: pw.Column(
+  //           crossAxisAlignment: pw.CrossAxisAlignment.start,
+  //           children: [
+  //             pw.Text(
+  //               "DATOS GENERALES DE LA AUDITORÍA",
+  //               style: pw.TextStyle(
+  //                 fontSize: 9,
+  //                 fontWeight: pw.FontWeight.bold,
+  //                 color: PdfColors.blue800,
+  //               ),
+  //             ),
+  //             pw.Divider(color: PdfColors.grey400, thickness: 0.5),
+  //             pw.SizedBox(height: 6),
 
-        // 🟢 2. TARJETA DE DATOS GENERALES (Diseño Dashboard)
-        pw.Container(
-          padding: const pw.EdgeInsets.all(12),
-          decoration: pw.BoxDecoration(
-            color: PdfColors.grey100,
-            border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
-            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-          ),
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                "DATOS GENERALES DE LA AUDITORÍA",
-                style: pw.TextStyle(
-                  fontSize: 9,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.blue800,
-                ),
-              ),
-              pw.Divider(color: PdfColors.grey400, thickness: 0.5),
-              pw.SizedBox(height: 6),
+  //             // Fila 1: Nave
+  //             pw.Row(
+  //               crossAxisAlignment: pw.CrossAxisAlignment.start,
+  //               children: [
+  //                 pw.Expanded(
+  //                   flex: 2,
+  //                   child: infoDato("EMBARCACIÓN", data.embarcacion),
+  //                 ),
+  //                 pw.Expanded(
+  //                   flex: 2,
+  //                   child: infoDato("MATRÍCULA", data.matricula),
+  //                 ),
+  //                 pw.Expanded(
+  //                   flex: 3,
+  //                   child: infoDato("EMPRESA CONT.", data.empresaContratista),
+  //                 ),
+  //               ],
+  //             ),
+  //             pw.SizedBox(height: 10),
 
-              // Fila 1: Nave
-              pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Expanded(
-                    flex: 2,
-                    child: infoDato("EMBARCACIÓN", data.embarcacion),
-                  ),
-                  pw.Expanded(
-                    flex: 2,
-                    child: infoDato("MATRÍCULA", data.matricula),
-                  ),
-                  pw.Expanded(
-                    flex: 3,
-                    child: infoDato("EMPRESA CONT.", data.empresaContratista),
-                  ),
-                ],
-              ),
-              pw.SizedBox(height: 10),
+  //             // Fila 2: Ubicación y Correo
+  //             pw.Row(
+  //               crossAxisAlignment: pw.CrossAxisAlignment.start,
+  //               children: [
+  //                 pw.Expanded(flex: 2, child: infoDato("ÁREA", data.area)),
+  //                 pw.Expanded(flex: 2, child: infoDato("CENTRO", data.centro)),
+  //                 pw.Expanded(
+  //                   flex: 3,
+  //                   child: infoDato(
+  //                     "CORREO",
+  //                     data.correoEmpresaServicios ?? "-",
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //             pw.SizedBox(height: 10),
 
-              // Fila 2: Ubicación y Correo
-              pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Expanded(flex: 2, child: infoDato("ÁREA", data.area)),
-                  pw.Expanded(flex: 2, child: infoDato("CENTRO", data.centro)),
-                  pw.Expanded(
-                    flex: 3,
-                    child: infoDato(
-                      "CORREO",
-                      data.correoEmpresaServicios ?? "-",
-                    ),
-                  ),
-                ],
-              ),
-              pw.SizedBox(height: 10),
+  //             // 🟢 Fila 3: Tiempos y el Prevencionista que faltaba
+  //             pw.Row(
+  //               crossAxisAlignment: pw.CrossAxisAlignment.start,
+  //               children: [
+  //                 pw.Expanded(flex: 2, child: infoDato("FECHA", data.fecha)),
+  //                 pw.Expanded(
+  //                   flex: 2,
+  //                   child: infoDato(
+  //                     "HORARIO",
+  //                     "${data.horaInicio ?? '--:--'} a ${data.horaTermino ?? '--:--'}",
+  //                   ),
+  //                 ),
+  //                 // 🟢 EL TRUCO: Un contenedor vacío que ocupa el espacio del Profesional
+  //                 // para obligar a la fecha y al horario a respetar la cuadrícula de arriba.
+  //                 pw.Expanded(flex: 3, child: pw.SizedBox()),
+  //               ],
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //       pw.SizedBox(height: 10),
 
-              // 🟢 Fila 3: Tiempos y el Prevencionista que faltaba
-              pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Expanded(flex: 2, child: infoDato("FECHA", data.fecha)),
-                  pw.Expanded(
-                    flex: 2,
-                    child: infoDato(
-                      "HORARIO",
-                      "${data.horaInicio ?? '--:--'} a ${data.horaTermino ?? '--:--'}",
-                    ),
-                  ),
-                  pw.Expanded(
-                    flex: 3,
-                    child: infoDato(
-                      "PROFESIONAL A CARGO",
-                      data.profesional ?? "N/A",
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        pw.SizedBox(height: 10),
-
-        // 🟢 3. TARJETA DE DOTACIÓN (Sigue el mismo estilo)
-        pw.Container(
-          padding: const pw.EdgeInsets.all(12),
-          decoration: pw.BoxDecoration(
-            color: PdfColors.white,
-            border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
-            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-          ),
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                "DOTACIÓN DE LA EMBARCACIÓN",
-                style: pw.TextStyle(
-                  fontSize: 9,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.blue800,
-                ),
-              ),
-              pw.Divider(color: PdfColors.grey400, thickness: 0.5),
-              pw.SizedBox(height: 6),
-              pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Expanded(child: infoDato("PATRÓN", patron)),
-                  pw.Expanded(child: infoDato("MAQUINISTA", maquinista)),
-                ],
-              ),
-              pw.SizedBox(height: 10),
-              infoDato(
-                "TRIPULANTES",
-                tripulantes.isEmpty
-                    ? "Sin tripulantes extra registrados."
-                    : tripulantes.join('   |   '),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+  //       // 🟢 3. TARJETA DE DOTACIÓN (Sigue el mismo estilo)
+  //       pw.Container(
+  //         padding: const pw.EdgeInsets.all(12),
+  //         decoration: pw.BoxDecoration(
+  //           color: PdfColors.white,
+  //           border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+  //           borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+  //         ),
+  //         child: pw.Column(
+  //           crossAxisAlignment: pw.CrossAxisAlignment.start,
+  //           children: [
+  //             pw.Text(
+  //               "DOTACIÓN DE LA EMBARCACIÓN",
+  //               style: pw.TextStyle(
+  //                 fontSize: 9,
+  //                 fontWeight: pw.FontWeight.bold,
+  //                 color: PdfColors.blue800,
+  //               ),
+  //             ),
+  //             pw.Divider(color: PdfColors.grey400, thickness: 0.5),
+  //             pw.SizedBox(height: 6),
+  //             pw.Row(
+  //               crossAxisAlignment: pw.CrossAxisAlignment.start,
+  //               children: [
+  //                 pw.Expanded(child: infoDato("PATRÓN", patron)),
+  //                 pw.Expanded(child: infoDato("MAQUINISTA", maquinista)),
+  //               ],
+  //             ),
+  //             pw.SizedBox(height: 10),
+  //             infoDato(
+  //               "TRIPULANTES",
+  //               tripulantes.isEmpty
+  //                   ? "Sin tripulantes extra registrados."
+  //                   : tripulantes.join('   |   '),
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //     ],
+  //   );
+  // }
 
   // Header Exactamente como en PDF Embarcación, pero con código limpio y organizado
 
@@ -2088,4 +1862,523 @@ class PdfGeneratorService {
   //     ),
   //   );
   // }
+  // 🟢 HELPER ESTÁTICO: Fuera del scope del renderizado para no saturar memoria RAM
+  static pw.Widget _infoDato(String label, String value) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          label,
+          style: pw.TextStyle(
+            fontSize: 7,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.grey700,
+          ),
+        ),
+        pw.SizedBox(height: 2),
+        pw.Text(
+          value.isEmpty ? "N/A" : value,
+          style: pw.TextStyle(
+            fontSize: 9,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.black,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 🟢 1. ENRUTADOR PRINCIPAL
+  pw.Widget _buildHeader(InspectionReportData data, pw.MemoryImage? logo) {
+    if (data.tipoFaena.contains('EMBARCACIÓN')) {
+      // Usa la arquitectura moderna modular (Dashboard)
+      return _buildUniversalHeader(
+        data: data,
+        logo: logo,
+        tarjetaDatosGenerales: _buildDatosGeneralesEmbarcacion(data),
+        tarjetaResponsables: _buildDotacionEmbarcacion(data),
+      );
+    } else {
+      // Usa la vista Legacy (Clásica) que solicitaste para Buceo
+      return _buildHeaderBuceoLegacy(data, logo);
+    }
+  }
+
+  // 🟢 2. TU DISEÑO CLÁSICO DE BUCEO
+  pw.Widget _buildHeaderBuceoLegacy(
+    InspectionReportData data,
+    pw.MemoryImage? logo,
+  ) {
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 0.5),
+      ),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      margin: const pw.EdgeInsets.only(bottom: 10),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Expanded(
+            flex: 4,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  "INFORME TÉCNICO",
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                pw.Text(
+                  data.tipoFaena,
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 9,
+                    color: PdfColors.blue900,
+                  ),
+                ),
+                pw.Text(
+                  "JF INNOVA",
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 8,
+                    color: PdfColors.grey500,
+                  ),
+                ),
+                pw.SizedBox(height: 5),
+                _rowInfo("ÁREA:", data.area),
+                _rowInfo("CENTRO:", data.centro),
+                _rowInfo("ENCARGADO C.:", data.encargadoCentro ?? "N/A"),
+                _rowInfo("PROFESIONAL:", data.profesional ?? "N/A"),
+                _rowInfo("FECHA:", data.fecha),
+              ],
+            ),
+          ),
+          pw.SizedBox(width: 10),
+          pw.Expanded(
+            flex: 4,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.SizedBox(height: 28),
+                _rowInfo("EMPRESA:", data.empresaContratista),
+                _rowInfo("EMBARCACIÓN:", data.embarcacion),
+                _rowInfo("MATRÍCULA:", data.matricula),
+                _rowInfo("SUPERVISOR:", data.supervisor),
+              ],
+            ),
+          ),
+          pw.Expanded(
+            flex: 3,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Container(
+                  height: 35,
+                  alignment: pw.Alignment.topRight,
+                  child: logo != null
+                      ? pw.Image(logo, fit: pw.BoxFit.contain)
+                      : pw.Text(""),
+                ),
+                pw.SizedBox(height: 5),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(width: 1),
+                      ),
+                      child: pw.Text(
+                        "N° INFORME: ${data.numeroReporte}",
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 9,
+                        ),
+                      ),
+                    ),
+                    pw.SizedBox(height: 2),
+                    pw.Text(
+                      data.esConsecutiva ? "(CONSECUTIVA)" : "(INICIAL)",
+                      style: pw.TextStyle(
+                        fontSize: 8,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.grey700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🟢 3. NO OLVIDES MANTENER TU HELPER
+  pw.Widget _rowInfo(String label, String value) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 2),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.SizedBox(
+            width: 70,
+            child: pw.Text(
+              label,
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7),
+            ),
+          ),
+          pw.Expanded(
+            child: pw.Text(
+              value.toUpperCase(),
+              style: const pw.TextStyle(fontSize: 7),
+              maxLines: 2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🟢 2. SKELETON UNIVERSAL (Adiós DRY)
+  pw.Widget _buildUniversalHeader({
+    required InspectionReportData data,
+    required pw.MemoryImage? logo,
+    required pw.Widget tarjetaDatosGenerales,
+    required pw.Widget tarjetaResponsables,
+  }) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.SizedBox(height: 25),
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            // --- LADO IZQUIERDO ---
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(left: 10),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    "INFORME TÉCNICO",
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue900,
+                    ),
+                  ),
+                  pw.Text(
+                    data.tipoFaena,
+                    style: pw.TextStyle(
+                      fontSize: 11,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.grey700,
+                    ),
+                  ),
+                  pw.SizedBox(height: 10),
+                  pw.Text(
+                    "PROFESIONAL A CARGO:",
+                    style: pw.TextStyle(
+                      fontSize: 9,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.grey500,
+                    ),
+                  ),
+                  pw.Text(
+                    data.profesional ?? "N/A",
+                    style: pw.TextStyle(
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.black,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // --- LADO DERECHO ---
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(right: 10),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                children: [
+                  if (logo != null) ...[
+                    pw.Container(
+                      height: 45,
+                      child: pw.Image(logo, fit: pw.BoxFit.contain),
+                    ),
+                    pw.SizedBox(height: 8),
+                  ],
+                  pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.red50,
+                      border: pw.Border.all(color: PdfColors.red200),
+                      borderRadius: const pw.BorderRadius.all(
+                        pw.Radius.circular(4),
+                      ),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      children: [
+                        pw.Text(
+                          "Informe N° ${data.numeroReporte}",
+                          style: pw.TextStyle(
+                            fontSize: 11,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.red900,
+                          ),
+                        ),
+                        pw.Text(
+                          data.esConsecutiva ? "(CONSECUTIVA)" : "(INICIAL)",
+                          style: pw.TextStyle(
+                            fontSize: 7,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.red700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 15),
+        // INYECCIÓN DE COMPONENTES ESPECÍFICOS
+        tarjetaDatosGenerales,
+        pw.SizedBox(height: 10),
+        tarjetaResponsables,
+      ],
+    );
+  }
+
+  // 🟢 3. IMPLEMENTACIONES ESPECÍFICAS (Copia el contenido interior de tus contenedores originales aquí)
+
+  // -- EMBARCACIÓN --
+  pw.Widget _buildDatosGeneralesEmbarcacion(InspectionReportData data) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(12),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.grey100,
+        border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+        borderRadius: pw.BorderRadius.circular(8),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            "DATOS GENERALES DE LA AUDITORÍA",
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blue800,
+            ),
+          ),
+          pw.Divider(color: PdfColors.grey400, thickness: 0.5),
+          pw.SizedBox(height: 6),
+          pw.Row(
+            children: [
+              pw.Expanded(
+                flex: 2,
+                child: _infoDato("EMBARCACIÓN", data.embarcacion),
+              ),
+              pw.Expanded(
+                flex: 2,
+                child: _infoDato("MATRÍCULA", data.matricula),
+              ),
+              pw.Expanded(
+                flex: 3,
+                child: _infoDato("EMPRESA CONT.", data.empresaContratista),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 10),
+          pw.Row(
+            children: [
+              pw.Expanded(flex: 2, child: _infoDato("ÁREA", data.area)),
+              pw.Expanded(flex: 2, child: _infoDato("CENTRO", data.centro)),
+              pw.Expanded(
+                flex: 3,
+                child: _infoDato("CORREO", data.correoEmpresaServicios ?? "-"),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 10),
+          pw.Row(
+            children: [
+              pw.Expanded(flex: 2, child: _infoDato("FECHA", data.fecha)),
+              pw.Expanded(
+                flex: 2,
+                child: _infoDato(
+                  "HORARIO",
+                  "${data.horaInicio ?? '--:--'} a ${data.horaTermino ?? '--:--'}",
+                ),
+              ),
+              pw.Expanded(flex: 3, child: pw.SizedBox()),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildDotacionEmbarcacion(InspectionReportData data) {
+    // Filtros de Roles
+    String patron = data.equipo
+        .where((p) => p.cargo.toUpperCase().contains('PATR'))
+        .map((p) => p.nombre)
+        .join(', ');
+    String maquinista = data.equipo
+        .where((p) => p.cargo.toUpperCase().contains('MAQUINISTA'))
+        .map((p) => p.nombre)
+        .join(', ');
+    List<String> tripulantes = data.equipo
+        .where(
+          (p) =>
+              !p.cargo.toUpperCase().contains('PATR') &&
+              !p.cargo.toUpperCase().contains('MAQUINISTA'),
+        )
+        .map((p) => "${p.nombre} (${p.rut})")
+        .toList();
+
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(12),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.white,
+        border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+        borderRadius: pw.BorderRadius.circular(8),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            "DOTACIÓN DE LA EMBARCACIÓN",
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blue800,
+            ),
+          ),
+          pw.Divider(color: PdfColors.grey400, thickness: 0.5),
+          pw.SizedBox(height: 6),
+          pw.Row(
+            children: [
+              pw.Expanded(child: _infoDato("PATRÓN", patron)),
+              pw.Expanded(child: _infoDato("MAQUINISTA", maquinista)),
+            ],
+          ),
+          pw.SizedBox(height: 10),
+          _infoDato(
+            "TRIPULANTES",
+            tripulantes.isEmpty
+                ? "Sin tripulantes extra registrados."
+                : tripulantes.join('   |   '),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // -- BUCEO --
+  pw.Widget _buildDatosGeneralesBuceo(InspectionReportData data) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(12),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.grey100,
+        border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+        borderRadius: pw.BorderRadius.circular(8),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            "DATOS GENERALES DE LA AUDITORÍA",
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blue800,
+            ),
+          ),
+          pw.Divider(color: PdfColors.grey400, thickness: 0.5),
+          pw.SizedBox(height: 6),
+          pw.Row(
+            children: [
+              pw.Expanded(flex: 2, child: _infoDato("ÁREA", data.area)),
+              pw.Expanded(flex: 2, child: _infoDato("CENTRO", data.centro)),
+              pw.Expanded(
+                flex: 2,
+                child: _infoDato("EMPRESA CONT.", data.empresaContratista),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 10),
+          pw.Row(
+            children: [
+              pw.Expanded(flex: 2, child: _infoDato("FECHA", data.fecha)),
+              pw.Expanded(
+                flex: 2,
+                child: _infoDato(
+                  "HORARIO",
+                  "${data.horaInicio ?? '--:--'} a ${data.horaTermino ?? '--:--'}",
+                ),
+              ),
+              pw.Expanded(flex: 3, child: pw.SizedBox()),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildResponsablesBuceo(InspectionReportData data) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(12),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.white,
+        border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+        borderRadius: pw.BorderRadius.circular(8),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            "RESPONSABLES DE FAENA",
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blue800,
+            ),
+          ),
+          pw.Divider(color: PdfColors.grey400, thickness: 0.5),
+          pw.SizedBox(height: 6),
+          pw.Row(
+            children: [
+              pw.Expanded(
+                child: _infoDato(
+                  "ENCARGADO DE CENTRO",
+                  data.encargadoCentro ?? "N/A",
+                ),
+              ),
+              pw.Expanded(
+                child: _infoDato("SUPERVISOR CONTRATISTA", data.supervisor),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

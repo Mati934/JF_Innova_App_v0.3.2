@@ -58,6 +58,7 @@ class InspectionFormController extends ChangeNotifier {
 
   final TextEditingController correoEmpresaServiciosCtrl =
       TextEditingController();
+  String? estadoManualEmbarcacion;
 
   List<File> fotosGenerales = [];
 
@@ -218,6 +219,8 @@ class InspectionFormController extends ChangeNotifier {
           if (verificacionesEmbarcacion != null) {
             correoEmpresaServiciosCtrl.text =
                 verificacionesEmbarcacion!['correo_empresa'] ?? '';
+            estadoManualEmbarcacion =
+                verificacionesEmbarcacion!['estado_manual'];
           }
         }
         // Asignamos horas base si necesitas trazabilidad en embarcación también
@@ -292,6 +295,12 @@ class InspectionFormController extends ChangeNotifier {
       verificacionesBuceo = BuceoVerificacionModel(actividadId: activityId);
     }
     updates(verificacionesBuceo!);
+    notifyListeners();
+  }
+
+  // 🟢 NUEVO: Método para cambiar el estado manual de embarcación
+  void setEstadoManualEmbarcacion(String? nuevoEstado) {
+    estadoManualEmbarcacion = nuevoEstado;
     notifyListeners();
   }
 
@@ -732,6 +741,7 @@ class InspectionFormController extends ChangeNotifier {
         embarcacionMap = {
           'actividad_id': activityId,
           'correo_empresa': correoEmpresaServiciosCtrl.text.trim(),
+          'estado_manual': estadoManualEmbarcacion,
         };
       }
       if (participantes.isNotEmpty) {
@@ -1138,9 +1148,30 @@ class InspectionFormController extends ChangeNotifier {
       );
     }).toList();
 
-    final bool aprobado =
-        countIntolerables == 0 &&
-        (verificacionesBuceo?.faenaHabilitada ?? true);
+    // 🟢 LÓGICA DE APROBACIÓN CON CORTAFUEGOS DE SEGURIDAD
+    bool aprobadoFinal = false;
+
+    if (tipoActividad == 'INSPECCION_BUCEO') {
+      aprobadoFinal =
+          countIntolerables == 0 &&
+          (verificacionesBuceo?.faenaHabilitada ?? true);
+    } else {
+      // INSPECCION_EMBARCACION
+      if (countIntolerables > 0) {
+        // CORTAFUEGOS: Un hallazgo intolerable anula cualquier forzado manual a "APROBADO".
+        aprobadoFinal = false;
+      } else {
+        if (estadoManualEmbarcacion == 'SUSPENDIDO') {
+          aprobadoFinal = false; // Suspensión forzada por el usuario
+        } else {
+          aprobadoFinal = true; // 'APROBADO' manual o null (Automático)
+        }
+      }
+    }
+
+    final String estadoGlobalFinal = aprobadoFinal
+        ? "HABILITADA"
+        : "SUSPENDIDA";
 
     String fmtDate(DateTime? dt) {
       if (dt == null) return "-";
@@ -1210,8 +1241,8 @@ class InspectionFormController extends ChangeNotifier {
       compresor2Vigencia: fmtDate(verificacionesBuceo?.compresor2Vigencia),
       compresor2PH: fmtDate(verificacionesBuceo?.compresor2VigenciaPH),
       compresor2Buzos: verificacionesBuceo?.compresor2BuzosCargo?.toString(),
-      estadoGlobal: aprobado ? "HABILITADA" : "SUSPENDIDA",
-      esAprobado: aprobado,
+      estadoGlobal: estadoGlobalFinal,
+      esAprobado: aprobadoFinal,
       equipo: equipoDto,
       items: itemsProcesados,
       fotosGeneralesPaths:
