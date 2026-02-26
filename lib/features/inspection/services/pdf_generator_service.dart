@@ -108,17 +108,18 @@ class PdfGeneratorService {
         // 👇 ELIMINAMOS EL PARAMETRO 'header:' QUE LO REPETÍA EN TODAS LAS PÁGINAS 👇
         footer: (context) => _buildFooter(context, data),
         build: (context) => [
-          // 👇 LO PONEMOS AQUÍ COMO EL PRIMER ELEMENTO DEL REPORTE 👇
+          // 1. EL ENCABEZADO (Buceo o Embarcación)
           data.tipoFaena.contains('EMBARCACIÓN')
               ? _buildHeaderEmbarcacion(data, logoImage)
               : _buildHeaderDense(data, logoImage),
 
-          pw.SizedBox(height: 15), // Espacio entre el encabezado y el contenido
+          pw.SizedBox(height: 15),
 
+          // 2. ESTADÍSTICAS GENERALES
           _buildStatusAndStats(data),
           pw.SizedBox(height: 10),
 
-          // CONDICIONAL: Solo mostramos datos técnicos y checklist si ES BUCEO
+          // 3. CONDICIONAL: SI ES BUCEO MOSTRAMOS SUS TABLAS
           if (data.tipoFaena.contains('BUCEO')) ...[
             _buildTechnicalDetails(data),
             pw.SizedBox(height: 10),
@@ -132,10 +133,63 @@ class PdfGeneratorService {
                 children: safetyPhotoWidgets,
               ),
             ],
+            pw.SizedBox(height: 15),
           ],
 
-          pw.SizedBox(height: 15),
+          // 4. OBSERVACIONES GENERALES (Para embarcación sirve para rellenar bien la hoja 1)
           _buildGeneralObservations(data),
+          pw.SizedBox(height: 30),
+
+          // // 5. NUEVO: BLOQUE DE FIRMAS FORMAL (Rellena el final de la primera hoja)
+          // pw.Row(
+          //   mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+          //   children: [
+          //     pw.Column(
+          //       children: [
+          //         pw.Container(width: 150, height: 1, color: PdfColors.black),
+          //         pw.SizedBox(height: 5),
+          //         pw.Text(
+          //           data.profesional ?? "Profesional a Cargo",
+          //           style: pw.TextStyle(
+          //             fontSize: 9,
+          //             fontWeight: pw.FontWeight.bold,
+          //           ),
+          //         ),
+          //         pw.Text(
+          //           "Prevencionista de Riesgos",
+          //           style: const pw.TextStyle(
+          //             fontSize: 8,
+          //             color: PdfColors.grey700,
+          //           ),
+          //         ),
+          //       ],
+          //     ),
+          //     pw.Column(
+          //       children: [
+          //         pw.Container(width: 150, height: 1, color: PdfColors.black),
+          //         pw.SizedBox(height: 5),
+          //         pw.Text(
+          //           data.tipoFaena.contains('EMBARCACIÓN')
+          //               ? "Firma Patrón"
+          //               : "Firma Supervisor",
+          //           style: pw.TextStyle(
+          //             fontSize: 9,
+          //             fontWeight: pw.FontWeight.bold,
+          //           ),
+          //         ),
+          //         pw.Text(
+          //           "Responsable de Faena",
+          //           style: const pw.TextStyle(
+          //             fontSize: 8,
+          //             color: PdfColors.grey700,
+          //           ),
+          //         ),
+          //       ],
+          //     ),
+          //   ],
+          // ),
+
+          // 6. SALTO DE PÁGINA PARA EL DETALLE
           pw.NewPage(),
           pw.Center(
             child: pw.Text(
@@ -144,10 +198,13 @@ class PdfGeneratorService {
                 fontSize: 12,
                 fontWeight: pw.FontWeight.bold,
                 decoration: pw.TextDecoration.underline,
+                color: PdfColors.blue900, // Un toque de color
               ),
             ),
           ),
           pw.SizedBox(height: 10),
+
+          // 7. LAS TABLAS DE PREGUNTAS Y FOTOS
           ..._buildCategorizedChecklists(data),
 
           if (data.fotosExtraObservaciones.isNotEmpty) ...[
@@ -159,9 +216,7 @@ class PdfGeneratorService {
             pw.SizedBox(height: 20),
             pw.Divider(),
             pw.SizedBox(height: 10),
-            ..._buildGeneralGallery(
-              data.fotosGeneralesPaths,
-            ), // Actualizado a String
+            ..._buildGeneralGallery(data.fotosGeneralesPaths),
             pw.SizedBox(height: 15),
           ],
         ],
@@ -170,17 +225,6 @@ class PdfGeneratorService {
 
     return pdf.save();
   }
-
-  // Uint8List _optimizarImagen(Uint8List rawBytes) {
-  //   try {
-  //     final img.Image? original = img.decodeImage(rawBytes);
-  //     if (original == null) return rawBytes;
-  //     final resized = img.copyResize(original, width: 600);
-  //     return Uint8List.fromList(img.encodeJpg(resized, quality: 60));
-  //   } catch (e) {
-  //     return rawBytes;
-  //   }
-  // }
 
   List<pw.Widget> _buildCategorizedChecklists(InspectionReportData data) {
     Map<String, List<dynamic>> groupedItems = {};
@@ -1059,7 +1103,7 @@ class PdfGeneratorService {
     InspectionReportData data,
     pw.MemoryImage? logo,
   ) {
-    // Filtrar roles de la cuadrilla
+    // Filtrar roles
     String patron = data.equipo
         .where((p) => p.cargo.toUpperCase().contains('PATR'))
         .map((p) => p.nombre)
@@ -1077,206 +1121,306 @@ class PdfGeneratorService {
         .map((p) => "${p.nombre} (${p.rut})")
         .toList();
 
-    // Helper para celdas
-    pw.Widget celda(
-      String txt, {
-      bool isHeader = false,
-      PdfColor bg = PdfColors.white,
-    }) {
-      return pw.Container(
-        color: bg,
-        padding: const pw.EdgeInsets.all(6),
-        alignment: pw.Alignment.centerLeft,
-        child: pw.Text(
-          txt,
-          style: pw.TextStyle(
-            fontSize: 8,
-            fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
+    // Helper para datos en formato "Label encima, Valor abajo" (Más moderno)
+    pw.Widget infoDato(String label, String value) {
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            label,
+            style: pw.TextStyle(
+              fontSize: 7,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.grey700,
+            ),
           ),
-        ),
+          pw.SizedBox(height: 2),
+          pw.Text(
+            value.isEmpty ? "N/A" : value,
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.black,
+            ),
+          ),
+        ],
       );
     }
 
-    final gris = PdfColors.grey200;
-
-    return pw.Container(
-      margin: const pw.EdgeInsets.only(bottom: 5),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          // 🟢 FILA SUPERIOR: TÍTULOS Y LOGO
-          pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Column(
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.SizedBox(height: 25),
+        // 🟢 1. TÍTULO, LOGO Y FOLIO (Con separación izquierda)
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(
+                left: 10,
+              ), // 👈 AQUÍ SEPARA DE LA PARED IZQUIERDA
+              child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
                     "INFORME TÉCNICO",
                     style: pw.TextStyle(
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue900,
                     ),
                   ),
                   pw.Text(
                     data.tipoFaena,
                     style: pw.TextStyle(
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: pw.FontWeight.bold,
-                      color: PdfColors.blue900,
+                      color: PdfColors.grey700,
                     ),
                   ),
-                ],
-              ),
-              if (logo != null)
-                pw.Container(
-                  height: 35,
-                  child: pw.Image(logo, fit: pw.BoxFit.contain),
-                ),
-            ],
-          ),
-          pw.SizedBox(height: 12),
-
-          // 🟢 TABLA 1: CORRELATIVO
-          pw.Table(
-            border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.5),
-            columnWidths: {
-              0: const pw.FlexColumnWidth(7),
-              1: const pw.FlexColumnWidth(2),
-              2: const pw.FlexColumnWidth(1.5),
-            },
-            children: [
-              pw.TableRow(
-                children: [
-                  pw.Container(), // Espacio vacío a la izquierda
-                  celda("CORRELATIVO N°", isHeader: true, bg: gris),
+                  pw.SizedBox(height: 6),
                   pw.Container(
-                    color: PdfColors.white,
-                    alignment: pw.Alignment.center,
-                    padding: const pw.EdgeInsets.all(6),
+                    padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.red50,
+                      border: pw.Border.all(color: PdfColors.red200),
+                      borderRadius: const pw.BorderRadius.all(
+                        pw.Radius.circular(4),
+                      ),
+                    ),
                     child: pw.Text(
-                      data.numeroReporte,
+                      "FOLIO N° ${data.numeroReporte}",
                       style: pw.TextStyle(
                         fontSize: 10,
                         fontWeight: pw.FontWeight.bold,
-                        color: PdfColors.red800,
+                        color: PdfColors.red900,
                       ),
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
-
-          // 🟢 TABLA 2: DATOS PRINCIPALES
-          pw.Table(
-            border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.5),
-            columnWidths: {
-              0: const pw.FlexColumnWidth(2),
-              1: const pw.FlexColumnWidth(3.5),
-              2: const pw.FlexColumnWidth(2),
-              3: const pw.FlexColumnWidth(3.5),
-            },
-            children: [
-              pw.TableRow(
-                children: [
-                  celda("EMBARCACIÓN", isHeader: true, bg: gris),
-                  celda(data.embarcacion),
-                  celda("FECHA", isHeader: true, bg: gris),
-                  celda(data.fecha),
-                ],
-              ),
-              pw.TableRow(
-                children: [
-                  celda("ÁREA", isHeader: true, bg: gris),
-                  celda(data.area),
-                  celda("CENTRO", isHeader: true, bg: gris),
-                  celda(data.centro),
-                ],
-              ),
-              pw.TableRow(
-                children: [
-                  celda("EMPRESA", isHeader: true, bg: gris),
-                  celda(data.empresaContratista),
-                  celda("PATRÓN", isHeader: true, bg: gris),
-                  celda(patron.isEmpty ? "N/A" : patron),
-                ],
-              ),
-              pw.TableRow(
-                children: [
-                  celda("MAQUINISTA", isHeader: true, bg: gris),
-                  celda(maquinista.isEmpty ? "N/A" : maquinista),
-                  celda("MATRÍCULA", isHeader: true, bg: gris),
-                  celda(data.matricula),
-                ],
-              ),
-            ],
-          ),
-
-          // 🟢 TABLA 3: TRIPULANTES
-          pw.Table(
-            border: const pw.TableBorder(
-              left: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
-              right: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
-              bottom: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
-              verticalInside: pw.BorderSide(
-                width: 0.5,
-                color: PdfColors.grey600,
-              ),
             ),
-            columnWidths: {
-              0: const pw.FlexColumnWidth(2),
-              1: const pw.FlexColumnWidth(9),
-            },
+            if (logo != null)
+              pw.Container(
+                height: 50,
+                child: pw.Image(logo, fit: pw.BoxFit.contain),
+              ),
+          ],
+        ),
+        pw.SizedBox(height: 15),
+
+        // 🟢 2. TARJETA DE DATOS GENERALES (Diseño Dashboard)
+        pw.Container(
+          padding: const pw.EdgeInsets.all(12),
+          decoration: pw.BoxDecoration(
+            color: PdfColors.grey100,
+            border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.TableRow(
+              pw.Text(
+                "DATOS GENERALES DE LA AUDITORÍA",
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.blue800,
+                ),
+              ),
+              pw.Divider(color: PdfColors.grey400, thickness: 0.5),
+              pw.SizedBox(height: 6),
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  celda("TRIPULANTES", isHeader: true, bg: gris),
-                  pw.Container(
-                    padding: const pw.EdgeInsets.all(6),
-                    child: pw.Text(
-                      tripulantes.isEmpty
-                          ? "Sin tripulantes extra registrados."
-                          : tripulantes.join('   |   '),
-                      style: const pw.TextStyle(fontSize: 8),
+                  pw.Expanded(
+                    flex: 2,
+                    child: infoDato("EMBARCACIÓN", data.embarcacion),
+                  ),
+                  pw.Expanded(
+                    flex: 2,
+                    child: infoDato("MATRÍCULA", data.matricula),
+                  ),
+                  pw.Expanded(
+                    flex: 2,
+                    child: infoDato("EMPRESA CONT.", data.empresaContratista),
+                  ),
+                  pw.Expanded(
+                    flex: 2,
+                    child: infoDato(
+                      "CORREO",
+                      data.correoEmpresaServicios ?? "-",
+                    ),
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 10),
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Expanded(flex: 2, child: infoDato("ÁREA", data.area)),
+                  pw.Expanded(flex: 2, child: infoDato("CENTRO", data.centro)),
+                  pw.Expanded(flex: 2, child: infoDato("FECHA", data.fecha)),
+                  pw.Expanded(
+                    flex: 2,
+                    child: infoDato(
+                      "HORARIO",
+                      "${data.horaInicio ?? '--:--'} a ${data.horaTermino ?? '--:--'}",
                     ),
                   ),
                 ],
               ),
             ],
           ),
+        ),
+        pw.SizedBox(height: 10),
 
-          // 🟢 TABLA 4: FIRMAS/CONTACTO
-          pw.Table(
-            border: const pw.TableBorder(
-              left: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
-              right: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
-              bottom: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
-              verticalInside: pw.BorderSide(
-                width: 0.5,
-                color: PdfColors.grey600,
-              ),
-            ),
-            columnWidths: {
-              0: const pw.FlexColumnWidth(3.5),
-              1: const pw.FlexColumnWidth(3.5),
-              2: const pw.FlexColumnWidth(2.5),
-              3: const pw.FlexColumnWidth(3),
-            },
+        // 🟢 3. TARJETA DE DOTACIÓN (Sigue el mismo estilo)
+        pw.Container(
+          padding: const pw.EdgeInsets.all(12),
+          decoration: pw.BoxDecoration(
+            color: PdfColors.white,
+            border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.TableRow(
+              pw.Text(
+                "DOTACIÓN DE LA EMBARCACIÓN",
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.blue800,
+                ),
+              ),
+              pw.Divider(color: PdfColors.grey400, thickness: 0.5),
+              pw.SizedBox(height: 6),
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  celda("PROFESIONAL QUE EMITE", isHeader: true, bg: gris),
-                  celda(data.profesional ?? "N/A"),
-                  celda("CORREO SERVICIOS", isHeader: true, bg: gris),
-                  celda(data.correoEmpresaServicios ?? "N/A"),
+                  pw.Expanded(child: infoDato("PATRÓN", patron)),
+                  pw.Expanded(child: infoDato("MAQUINISTA", maquinista)),
                 ],
+              ),
+              pw.SizedBox(height: 10),
+              infoDato(
+                "TRIPULANTES",
+                tripulantes.isEmpty
+                    ? "Sin tripulantes extra registrados."
+                    : tripulantes.join('   |   '),
               ),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
+  // pw.Widget _buildHeaderEmbarcacion(InspectionReportData data, pw.MemoryImage? logo) {
+  //   // Filtrar roles de la cuadrilla
+  //   String patron = data.equipo.where((p) => p.cargo.toUpperCase().contains('PATR')).map((p) => p.nombre).join(', ');
+  //   String maquinista = data.equipo.where((p) => p.cargo.toUpperCase().contains('MAQUINISTA')).map((p) => p.nombre).join(', ');
+  //   List<String> tripulantes = data.equipo.where((p) => !p.cargo.toUpperCase().contains('PATR') && !p.cargo.toUpperCase().contains('MAQUINISTA')).map((p) => "${p.nombre} (${p.rut})").toList();
+
+  //   // Helper para celdas
+  //   pw.Widget celda(String txt, {bool isHeader = false, PdfColor bg = PdfColors.white}) {
+  //     return pw.Container(
+  //       color: bg,
+  //       padding: const pw.EdgeInsets.all(6),
+  //       alignment: pw.Alignment.centerLeft,
+  //       child: pw.Text(txt, style: pw.TextStyle(fontSize: 8, fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal)),
+  //     );
+  //   }
+
+  //   final gris = PdfColors.grey200;
+
+  //   return pw.Container(
+  //     margin: const pw.EdgeInsets.only(bottom: 5),
+  //     child: pw.Column(
+  //       crossAxisAlignment: pw.CrossAxisAlignment.start,
+  //       children: [
+  //         // 🟢 FILA SUPERIOR: TÍTULOS Y LOGO
+  //         pw.Row(
+  //           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+  //           crossAxisAlignment: pw.CrossAxisAlignment.start,
+  //           children: [
+  //             pw.Column(
+  //               crossAxisAlignment: pw.CrossAxisAlignment.start,
+  //               children: [
+  //                 pw.Text("INFORME TÉCNICO", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+  //                 pw.Text(
+  //                   data.tipoFaena,
+  //                   style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900),
+  //                 ),
+  //               ],
+  //             ),
+  //             if (logo != null) pw.Container(height: 35, child: pw.Image(logo, fit: pw.BoxFit.contain)),
+  //           ],
+  //         ),
+  //         pw.SizedBox(height: 12),
+
+  //         // 🟢 TABLA 1: CORRELATIVO
+  //         pw.Table(
+  //           border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.5),
+  //           columnWidths: { 0: const pw.FlexColumnWidth(7), 1: const pw.FlexColumnWidth(2), 2: const pw.FlexColumnWidth(1.5) },
+  //           children: [
+  //             pw.TableRow(children: [
+  //               pw.Container(), // Espacio vacío a la izquierda
+  //               celda("CORRELATIVO N°", isHeader: true, bg: gris),
+  //               pw.Container(
+  //                 color: PdfColors.white,
+  //                 alignment: pw.Alignment.center,
+  //                 padding: const pw.EdgeInsets.all(6),
+  //                 child: pw.Text(data.numeroReporte, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.red800)),
+  //               ),
+  //             ])
+  //           ]
+  //         ),
+
+  //         // 🟢 TABLA 2: DATOS PRINCIPALES
+  //         pw.Table(
+  //           border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.5),
+  //           columnWidths: { 0: const pw.FlexColumnWidth(2), 1: const pw.FlexColumnWidth(3.5), 2: const pw.FlexColumnWidth(2), 3: const pw.FlexColumnWidth(3.5) },
+  //           children: [
+  //             pw.TableRow(children: [celda("EMBARCACIÓN", isHeader: true, bg: gris), celda(data.embarcacion), celda("FECHA", isHeader: true, bg: gris), celda(data.fecha)]),
+  //             pw.TableRow(children: [celda("ÁREA", isHeader: true, bg: gris), celda(data.area), celda("CENTRO", isHeader: true, bg: gris), celda(data.centro)]),
+  //             pw.TableRow(children: [celda("EMPRESA", isHeader: true, bg: gris), celda(data.empresaContratista), celda("PATRÓN", isHeader: true, bg: gris), celda(patron.isEmpty ? "N/A" : patron)]),
+  //             pw.TableRow(children: [celda("MAQUINISTA", isHeader: true, bg: gris), celda(maquinista.isEmpty ? "N/A" : maquinista), celda("MATRÍCULA", isHeader: true, bg: gris), celda(data.matricula)]),
+  //           ]
+  //         ),
+
+  //         // 🟢 TABLA 3: TRIPULANTES
+  //         pw.Table(
+  //           border: const pw.TableBorder(left: pw.BorderSide(width: 0.5, color: PdfColors.grey600), right: pw.BorderSide(width: 0.5, color: PdfColors.grey600), bottom: pw.BorderSide(width: 0.5, color: PdfColors.grey600), verticalInside: pw.BorderSide(width: 0.5, color: PdfColors.grey600)),
+  //           columnWidths: { 0: const pw.FlexColumnWidth(2), 1: const pw.FlexColumnWidth(9) },
+  //           children: [
+  //             pw.TableRow(children: [
+  //               celda("TRIPULANTES", isHeader: true, bg: gris),
+  //               pw.Container(
+  //                 padding: const pw.EdgeInsets.all(6),
+  //                 child: pw.Text(tripulantes.isEmpty ? "Sin tripulantes extra registrados." : tripulantes.join('   |   '), style: const pw.TextStyle(fontSize: 8))
+  //               )
+  //             ])
+  //           ]
+  //         ),
+
+  //         // 🟢 TABLA 4: FIRMAS/CONTACTO
+  //         pw.Table(
+  //           border: const pw.TableBorder(left: pw.BorderSide(width: 0.5, color: PdfColors.grey600), right: pw.BorderSide(width: 0.5, color: PdfColors.grey600), bottom: pw.BorderSide(width: 0.5, color: PdfColors.grey600), verticalInside: pw.BorderSide(width: 0.5, color: PdfColors.grey600)),
+  //           columnWidths: { 0: const pw.FlexColumnWidth(3.5), 1: const pw.FlexColumnWidth(3.5), 2: const pw.FlexColumnWidth(2.5), 3: const pw.FlexColumnWidth(3) },
+  //           children: [
+  //             pw.TableRow(children: [
+  //               celda("PROFESIONAL QUE EMITE", isHeader: true, bg: gris), celda(data.profesional ?? "N/A"),
+  //               celda("CORREO SERVICIOS", isHeader: true, bg: gris), celda(data.correoEmpresaServicios ?? "N/A")
+  //             ])
+  //           ]
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }

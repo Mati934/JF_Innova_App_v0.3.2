@@ -266,12 +266,19 @@ class InspectionFormController extends ChangeNotifier {
     if (esInicio) {
       _timeInicio = picked;
       horaInicioController.text = formatted;
-      updateVerificacion((m) => m.horaInicio = formatted);
+      // Solo actualizamos el modelo de buceo si corresponde
+      if (tipoActividad == 'INSPECCION_BUCEO') {
+        updateVerificacion((m) => m.horaInicio = formatted);
+      }
     } else {
       _timeTermino = picked;
       horaTerminoController.text = formatted;
-      updateVerificacion((m) => m.horaTermino = formatted);
+      if (tipoActividad == 'INSPECCION_BUCEO') {
+        updateVerificacion((m) => m.horaTermino = formatted);
+      }
     }
+    // Forzamos a la UI a redibujar los relojes
+    notifyListeners();
   }
 
   // Helper para que el widget sepa qué hora mostrar en el reloj
@@ -1175,8 +1182,12 @@ class InspectionFormController extends ChangeNotifier {
           ? "INSPECCIÓN DE EMBARCACIÓN"
           : "INSPECCIÓN DE BUCEO",
       supervisor: verificacionesBuceo?.supervisorNombre ?? "No asignado",
-      horaInicio: verificacionesBuceo?.horaInicio ?? "--:--",
-      horaTermino: verificacionesBuceo?.horaTermino ?? "--:--",
+      horaInicio: horaInicioController.text.isNotEmpty
+          ? horaInicioController.text
+          : "--:--",
+      horaTermino: horaTerminoController.text.isNotEmpty
+          ? horaTerminoController.text
+          : "--:--",
       compresor1Matricula: verificacionesBuceo?.compresor1Matricula,
       compresor1Vigencia: fmtDate(verificacionesBuceo?.compresor1Vigencia),
       compresor1PH: fmtDate(verificacionesBuceo?.compresor1VigenciaPH),

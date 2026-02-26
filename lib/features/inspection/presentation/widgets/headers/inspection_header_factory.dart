@@ -29,12 +29,28 @@ class InspectionHeaderFactory {
   }
 }
 
-// NUEVO WIDGET ESPECÍFICO PARA EMBARCACIONES
 class EmbarcacionTecnicoWidget extends StatelessWidget {
   final InspectionFormController controller;
 
-  const EmbarcacionTecnicoWidget({Key? key, required this.controller})
-    : super(key: key);
+  const EmbarcacionTecnicoWidget({super.key, required this.controller});
+
+  // Helper local para llamar al TimePicker
+  Future<void> _seleccionarHora(BuildContext context, bool isInicio) async {
+    final initial = controller.getHoraInicialReloj(isInicio);
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: initial,
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      controller.actualizarHora(isInicio, picked);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,10 +72,67 @@ class EmbarcacionTecnicoWidget extends StatelessWidget {
             ),
             const Divider(),
             const SizedBox(height: 10),
+
+            // 🟢 NUEVO: SELECTOR DE HORARIOS
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.access_time, color: Colors.blueGrey),
+                  const SizedBox(width: 10),
+                  const Text(
+                    "Horario de Auditoría:",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  InkWell(
+                    onTap: () => _seleccionarHora(context, true),
+                    child: Text(
+                      controller.horaInicioController.text.isEmpty
+                          ? "--:--"
+                          : controller.horaInicioController.text,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8.0),
+                    child: Text(
+                      " - ",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => _seleccionarHora(context, false),
+                    child: Text(
+                      controller.horaTerminoController.text.isEmpty
+                          ? "--:--"
+                          : controller.horaTerminoController.text,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // CAMPO DE CORREO
             TextFormField(
               controller: controller.correoEmpresaServiciosCtrl,
               decoration: const InputDecoration(
-                labelText: 'Correo Empresa de Servicios (Para envío de PDF)',
+                labelText: 'Correo Empresa de Servicios',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.email),
               ),

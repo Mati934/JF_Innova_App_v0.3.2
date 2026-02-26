@@ -6,7 +6,7 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
-  static const int _dbVersion = 15;
+  static const int _dbVersion = 16;
   static const String _dbName = 'jfinnova_v17_local.db';
 
   DatabaseHelper._init();
