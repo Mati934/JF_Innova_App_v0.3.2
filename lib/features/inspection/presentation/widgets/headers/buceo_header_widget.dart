@@ -134,10 +134,23 @@ class BuceoCuadrillaWidget extends StatelessWidget {
   }
 
   void _mostrarModalAgregarBuzo(BuildContext context) {
+    // 1. Lógica dinámica de cargos según el tipo de inspección
+    final bool esEmbarcacion =
+        controller.tipoActividad == 'INSPECCION_EMBARCACION';
+
+    final List<String> listaCargos = esEmbarcacion
+        ? ["Patrón", "Maquinista", "Tripulante", "Cocinero", "Otro"]
+        : ["Supervisor", "Buzo", "Asistente"];
+
+    final String cargoInicial =
+        listaCargos.first; // Toma el primero por defecto
+
     final nombreCtrl = TextEditingController();
     final rutCtrl = TextEditingController();
     final matriculaCtrl = TextEditingController();
-    final cargoNotifier = ValueNotifier<String>('Buzo');
+    final cargoNotifier = ValueNotifier<String>(
+      cargoInicial,
+    ); // 👈 Usa el dinámico
 
     // CONTROL DE INTEGRIDAD: Guardamos el ID histórico si lo encontramos
     String? existingPersonalId;
@@ -216,11 +229,7 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                               nombreCtrl.text = encontrado.nombreCompleto;
                               matriculaCtrl.text = encontrado.matricula;
                               // Evitamos setear un cargo vacío que rompa el Dropdown
-                              if ([
-                                "Supervisor",
-                                "Buzo",
-                                "Asistente",
-                              ].contains(encontrado.cargo)) {
+                              if (listaCargos.contains(encontrado.cargo)) {
                                 cargoNotifier.value = encontrado.cargo;
                               }
                               existingPersonalId = encontrado
@@ -278,7 +287,7 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                   builder: (context, cargoActual, _) {
                     return CustomDropdown(
                       label: "Cargo",
-                      items: const ["Supervisor", "Buzo", "Asistente"],
+                      items: listaCargos, // 👈 INYECTA LA LISTA DINÁMICA
                       value: cargoActual,
                       onChanged: (val) {
                         if (val != null) cargoNotifier.value = val;
@@ -330,6 +339,7 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                     ),
                   ),
                 ),
+                const SizedBox(height: 200),
               ],
             ),
           ),
