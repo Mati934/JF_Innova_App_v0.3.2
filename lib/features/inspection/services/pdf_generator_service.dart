@@ -105,24 +105,29 @@ class PdfGeneratorService {
             ),
           ),
         ),
-        header: (context) => _buildHeaderDense(data, logoImage),
+        header: (context) => data.tipoFaena.contains('EMBARCACIÓN')
+            ? _buildHeaderEmbarcacion(data, logoImage)
+            : _buildHeaderDense(data, logoImage),
         footer: (context) => _buildFooter(context, data),
         build: (context) => [
           pw.SizedBox(height: 5),
           _buildStatusAndStats(data),
           pw.SizedBox(height: 10),
-          _buildTechnicalDetails(data),
-          pw.SizedBox(height: 10),
-          _buildPersonnelTable(data),
-          pw.SizedBox(height: 10),
-          _buildSafetyChecklist(data),
 
-          if (safetyPhotoWidgets.isNotEmpty) ...[
+          // CONDICIONAL: Solo mostramos datos técnicos y checklist si ES BUCEO
+          if (data.tipoFaena.contains('BUCEO')) ...[
+            _buildTechnicalDetails(data),
             pw.SizedBox(height: 10),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.center,
-              children: safetyPhotoWidgets,
-            ),
+            _buildPersonnelTable(data),
+            pw.SizedBox(height: 10),
+            _buildSafetyChecklist(data),
+            if (safetyPhotoWidgets.isNotEmpty) ...[
+              pw.SizedBox(height: 10),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.center,
+                children: safetyPhotoWidgets,
+              ),
+            ],
           ],
 
           pw.SizedBox(height: 15),
@@ -1036,5 +1041,185 @@ class PdfGeneratorService {
       }
     }
     return widgets;
+  }
+
+  pw.Widget _buildHeaderEmbarcacion(
+    InspectionReportData data,
+    pw.MemoryImage? logo,
+  ) {
+    // Filtrar roles de la cuadrilla (Clean Code)
+    String patron = data.equipo
+        .where((p) => p.cargo.toUpperCase().contains('PATR'))
+        .map((p) => p.nombre)
+        .join(', ');
+    String maquinista = data.equipo
+        .where((p) => p.cargo.toUpperCase().contains('MAQUINISTA'))
+        .map((p) => p.nombre)
+        .join(', ');
+    List<String> tripulantes = data.equipo
+        .where(
+          (p) =>
+              !p.cargo.toUpperCase().contains('PATR') &&
+              !p.cargo.toUpperCase().contains('MAQUINISTA'),
+        )
+        .map((p) => "${p.nombre} (${p.rut})")
+        .toList();
+
+    // Helper para celdas de tabla
+    pw.Widget celda(
+      String txt, {
+      bool isHeader = false,
+      PdfColor bg = PdfColors.white,
+    }) {
+      return pw.Container(
+        color: bg,
+        padding: const pw.EdgeInsets.all(5),
+        child: pw.Text(
+          txt,
+          style: pw.TextStyle(
+            fontSize: 8,
+            fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
+          ),
+        ),
+      );
+    }
+
+    final gris = PdfColors.grey200;
+
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(bottom: 10),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.end,
+        children: [
+          // Logo superior
+          if (logo != null) pw.Container(height: 40, child: pw.Image(logo)),
+          pw.SizedBox(height: 5),
+
+          // Tabla 1: Correlativo (Alineado a la derecha simulado)
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.black, width: 0.5),
+            columnWidths: {
+              0: const pw.FlexColumnWidth(6),
+              1: const pw.FlexColumnWidth(2),
+              2: const pw.FlexColumnWidth(2),
+            },
+            children: [
+              pw.TableRow(
+                children: [
+                  pw.Container(),
+                  celda("CORRELATIVO N°", isHeader: true, bg: gris),
+                  celda(data.numeroReporte),
+                ],
+              ),
+            ],
+          ),
+
+          // Tabla 2: Datos Principales
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.black, width: 0.5),
+            columnWidths: {
+              0: const pw.FlexColumnWidth(2),
+              1: const pw.FlexColumnWidth(3),
+              2: const pw.FlexColumnWidth(2),
+              3: const pw.FlexColumnWidth(3),
+            },
+            children: [
+              pw.TableRow(
+                children: [
+                  celda("EMBARCACIÓN", isHeader: true, bg: gris),
+                  celda(data.embarcacion),
+                  celda("FECHA", isHeader: true, bg: gris),
+                  celda(data.fecha),
+                ],
+              ),
+              pw.TableRow(
+                children: [
+                  celda("ÁREA", isHeader: true, bg: gris),
+                  celda(data.area),
+                  celda("CENTRO", isHeader: true, bg: gris),
+                  celda(data.centro),
+                ],
+              ),
+              pw.TableRow(
+                children: [
+                  celda("EMPRESA", isHeader: true, bg: gris),
+                  celda(data.empresaContratista),
+                  celda("PATRÓN", isHeader: true, bg: gris),
+                  celda(patron.isEmpty ? "N/A" : patron),
+                ],
+              ),
+              pw.TableRow(
+                children: [
+                  celda("MAQUINISTA", isHeader: true, bg: gris),
+                  celda(maquinista.isEmpty ? "N/A" : maquinista),
+                  celda("MATRÍCULA", isHeader: true, bg: gris),
+                  celda(data.matricula),
+                ],
+              ),
+            ],
+          ),
+
+          // Tabla 3: Tripulantes (Simula Colspan)
+          pw.Table(
+            border: const pw.TableBorder(
+              left: pw.BorderSide(width: 0.5),
+              right: pw.BorderSide(width: 0.5),
+              bottom: pw.BorderSide(width: 0.5),
+              verticalInside: pw.BorderSide(width: 0.5),
+            ),
+            columnWidths: {
+              0: const pw.FlexColumnWidth(2),
+              1: const pw.FlexColumnWidth(8),
+            },
+            children: [
+              pw.TableRow(
+                children: [
+                  celda("TRIPULANTES", isHeader: true, bg: gris),
+                  pw.Container(
+                    padding: const pw.EdgeInsets.all(5),
+                    child: pw.Text(
+                      tripulantes.isEmpty
+                          ? "Sin tripulantes extra."
+                          : tripulantes.join('\n'),
+                      style: const pw.TextStyle(fontSize: 8),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          // Tabla 4: Firmas
+          pw.Table(
+            border: const pw.TableBorder(
+              left: pw.BorderSide(width: 0.5),
+              right: pw.BorderSide(width: 0.5),
+              bottom: pw.BorderSide(width: 0.5),
+              verticalInside: pw.BorderSide(width: 0.5),
+            ),
+            columnWidths: {
+              0: const pw.FlexColumnWidth(3.5),
+              1: const pw.FlexColumnWidth(2.5),
+              2: const pw.FlexColumnWidth(2.5),
+              3: const pw.FlexColumnWidth(1.5),
+            },
+            children: [
+              pw.TableRow(
+                children: [
+                  celda(
+                    "PROFESIONAL QUE EMITE INFORME",
+                    isHeader: true,
+                    bg: gris,
+                  ),
+                  celda(data.profesional ?? "N/A"),
+                  celda("CORREO EMPRESA SERVICIOS", isHeader: true, bg: gris),
+                  celda(data.correoEmpresaServicios ?? "N/A"),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

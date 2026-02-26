@@ -165,6 +165,15 @@ class DatabaseHelper {
       )
     ''');
 
+    // --- TABLA ESPECÍFICA DE EMBARCACIONES ---
+    await db.execute('''
+      CREATE TABLE verificaciones_embarcacion (
+        actividad_id TEXT PRIMARY KEY,
+        correo_empresa TEXT,
+        observaciones_cierre TEXT
+      )
+    ''');
+
     // Tabla Maestra de Personal Externo (CORREGIDA: nombre_completo)
     await db.execute('''
       CREATE TABLE personal_externo (
@@ -351,6 +360,17 @@ class DatabaseHelper {
       debugPrint("🚀 Aplicando parche v14 (Info Adicional en Items)...");
       await _safeAddColumn(db, "formulario_items", "info_adicional", "TEXT");
       debugPrint("✅ Parche v14 aplicado.");
+    }
+    if (oldVersion < 16) {
+      debugPrint("🚀 Aplicando parche v16 (Inspecciones Embarcación)...");
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS verificaciones_embarcacion (
+          actividad_id TEXT PRIMARY KEY,
+          correo_empresa TEXT,
+          observaciones_cierre TEXT
+        )
+      ''');
+      debugPrint("✅ Parche v16 aplicado.");
     }
   }
 

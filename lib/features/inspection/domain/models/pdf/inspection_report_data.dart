@@ -56,6 +56,8 @@ class InspectionReportData {
   final int totalNoAplica;
   final int totalIntolerables;
 
+  final String? correoEmpresaServicios;
+
   InspectionReportData({
     required this.empresaContratista,
     required this.cliente,
@@ -99,6 +101,8 @@ class InspectionReportData {
     this.compresor2Vigencia,
     this.compresor2PH,
     this.compresor2Buzos,
+
+    this.correoEmpresaServicios,
   });
 }
 

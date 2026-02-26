@@ -331,6 +331,7 @@ class LocalInspectionRepository implements InspectionRepository {
     required bool esBorrador, // 👈 PARAMETRO CLAVE
     List<Map<String, dynamic>>? participantes,
     Map<String, dynamic>? verificacionesBuceo,
+    Map<String, dynamic>? verificacionesEmbarcacion,
     List<Map<String, dynamic>>? fotos,
   }) async {
     final db = await dbHelper.database;
@@ -367,7 +368,7 @@ class LocalInspectionRepository implements InspectionRepository {
         batch.insert('inspeccion_respuestas_pendientes', respuestaConFlag);
       }
 
-      // 3. VERIFICACIONES BUCEO
+      // 3. VERIFICACIONES (Buceo o Embarcación)
       if (verificacionesBuceo != null) {
         if (!verificacionesBuceo.containsKey('actividad_id')) {
           verificacionesBuceo['actividad_id'] = actividad['id'];
@@ -375,6 +376,17 @@ class LocalInspectionRepository implements InspectionRepository {
         batch.insert(
           'verificaciones_buceo',
           verificacionesBuceo,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      if (verificacionesEmbarcacion != null) {
+        if (!verificacionesEmbarcacion.containsKey('actividad_id')) {
+          verificacionesEmbarcacion['actividad_id'] = actividad['id'];
+        }
+        batch.insert(
+          'verificaciones_embarcacion',
+          verificacionesEmbarcacion,
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       }
@@ -438,15 +450,15 @@ class LocalInspectionRepository implements InspectionRepository {
     });
   }
 
-  Future<String?> sugerirSiguienteNumeroReporte(String centroId) async {
+  Future<String?> sugerirSiguienteNumeroReporte(String tipoActividad) async {
     final db = await dbHelper.database;
     try {
       final result = await db.rawQuery(
         '''
         SELECT numero_reporte FROM actividades_pendientes 
-        WHERE centro_id = ? AND numero_reporte IS NOT NULL AND numero_reporte != ""
+        WHERE tipo_actividad = ? AND numero_reporte IS NOT NULL AND numero_reporte != ""
         ''',
-        [centroId],
+        [tipoActividad], // Ya no filtramos por centro_id
       );
       int maxNum = 0;
       for (var row in result) {
@@ -485,5 +497,31 @@ class LocalInspectionRepository implements InspectionRepository {
       );
     }
     return null;
+  }
+
+  // --- MÉTODOS ESPECÍFICOS DE EMBARCACIONES ---
+  Future<void> guardarVerificacionesEmbarcacion(
+    String activityId,
+    Map<String, dynamic> data,
+  ) async {
+    final db = await dbHelper.database;
+    data['actividad_id'] = activityId; // Seguro de integridad
+    await db.insert(
+      'verificaciones_embarcacion',
+      data,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<Map<String, dynamic>?> getVerificacionesEmbarcacion(
+    String activityId,
+  ) async {
+    final db = await dbHelper.database;
+    final res = await db.query(
+      'verificaciones_embarcacion',
+      where: 'actividad_id = ?',
+      whereArgs: [activityId],
+    );
+    return res.isNotEmpty ? res.first : null;
   }
 }

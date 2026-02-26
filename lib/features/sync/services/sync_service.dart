@@ -181,11 +181,15 @@ class SyncService {
           );
         }
 
-        // --- 2. SUBIDA DE DATOS HIJOS (SOLO INSPECCIONES) ---
+        // --- 2. SUBIDA DE DATOS HIJOS ---
         if (tipoActividad == 'INSPECCION_BUCEO') {
           await _sincronizarVerificaciones(db, activityId);
-          await _sincronizarParticipantes(db, activityId);
+        } else if (tipoActividad == 'INSPECCION_EMBARCACION') {
+          await _sincronizarVerificacionesEmbarcacion(db, activityId);
         }
+
+        // ¡IMPORTANTE! Los participantes aplican para AMBOS tipos de inspección
+        await _sincronizarParticipantes(db, activityId);
 
         // --- 3. MARCAR COMO SUBIDO LOCALMENTE ---
         await db.update(
@@ -202,6 +206,31 @@ class SyncService {
       }
     }
     return count;
+  }
+
+  Future<void> _sincronizarVerificacionesEmbarcacion(
+    DatabaseExecutor db,
+    String activityId,
+  ) async {
+    final results = await db.query(
+      'verificaciones_embarcacion',
+      where: 'actividad_id = ?',
+      whereArgs: [activityId],
+    );
+
+    if (results.isNotEmpty) {
+      try {
+        final data = Map<String, dynamic>.from(results.first);
+        await _supabase
+            .from('verificaciones_embarcacion')
+            .upsert(data, onConflict: 'actividad_id');
+        debugPrint(
+          "✅ Verificaciones de embarcación sincronizadas para $activityId",
+        );
+      } catch (e) {
+        debugPrint("⚠️ Error subiendo verificaciones embarcación: $e");
+      }
+    }
   }
 
   // --- 🟢 NUEVO MÉTODO EXCLUSIVO PARA VISITAS (DDD) ---

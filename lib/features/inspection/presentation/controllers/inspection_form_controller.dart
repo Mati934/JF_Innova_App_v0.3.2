@@ -56,10 +56,14 @@ class InspectionFormController extends ChangeNotifier {
   final TextEditingController supervisorRutController = TextEditingController();
   final List<Map<String, dynamic>> fotosConObservacion = [];
 
+  final TextEditingController correoEmpresaServiciosCtrl =
+      TextEditingController();
+
   List<File> fotosGenerales = [];
 
   // --- VARIABLES ESPECÍFICAS DE BUCEO ---
   BuceoVerificacionModel? verificacionesBuceo;
+  Map<String, dynamic>? verificacionesEmbarcacion;
   List<ParticipanteModel> participantes = [];
 
   // Para guardar la hora real y poder manipularla
@@ -189,60 +193,68 @@ class InspectionFormController extends ChangeNotifier {
   }
 
   Future<void> cargarDatosEspecificos() async {
-    if (tipoActividad == 'INSPECCION_BUCEO') {
-      try {
+    try {
+      participantes = await _repo.getParticipantes(activityId);
+
+      // Bifurcación Limpia (SOLID)
+      if (tipoActividad == 'INSPECCION_BUCEO') {
         final datosBuceo = await _repo.getVerificacionesBuceo(activityId);
         if (datosBuceo != null) {
           verificacionesBuceo = datosBuceo;
-
-          // 🟢 CARGA DE DATOS A LA UI (Aquí faltaban los nuevos)
           encargadoCentroController.text = datosBuceo.encargadoCentro ?? '';
-          // ✅ CORRECCIÓN: Cargar los datos del Supervisor Contratista
           supervisorNombreController.text = datosBuceo.supervisorNombre ?? '';
           supervisorRutController.text = datosBuceo.supervisorRut ?? '';
         } else {
           verificacionesBuceo = BuceoVerificacionModel(actividadId: activityId);
         }
-
-        participantes = await _repo.getParticipantes(activityId);
-
-        // --- LÓGICA DE HORAS ---
-        // 1. Hora Inicio
-        if (verificacionesBuceo?.horaInicio != null &&
-            verificacionesBuceo!.horaInicio!.isNotEmpty) {
-          horaInicioController.text = verificacionesBuceo!.horaInicio!;
-          try {
-            final parts = verificacionesBuceo!.horaInicio!.split(":");
-            _timeInicio = TimeOfDay(
-              hour: int.parse(parts[0]),
-              minute: int.parse(parts[1]),
-            );
-          } catch (_) {}
-        } else {
-          // Automática
-          final now = TimeOfDay.now();
-          _timeInicio = now;
-          final horaStr =
-              "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
-          horaInicioController.text = horaStr;
-          verificacionesBuceo?.horaInicio = horaStr;
+        _manejarHoras(
+          verificacionesBuceo?.horaInicio,
+          verificacionesBuceo?.horaTermino,
+        );
+      } else if (tipoActividad == 'INSPECCION_EMBARCACION') {
+        if (_repo is LocalInspectionRepository) {
+          verificacionesEmbarcacion = await (_repo as LocalInspectionRepository)
+              .getVerificacionesEmbarcacion(activityId);
+          if (verificacionesEmbarcacion != null) {
+            correoEmpresaServiciosCtrl.text =
+                verificacionesEmbarcacion!['correo_empresa'] ?? '';
+          }
         }
-
-        // 2. Hora Término
-        if (verificacionesBuceo?.horaTermino != null &&
-            verificacionesBuceo!.horaTermino!.isNotEmpty) {
-          horaTerminoController.text = verificacionesBuceo!.horaTermino!;
-          try {
-            final parts = verificacionesBuceo!.horaTermino!.split(":");
-            _timeTermino = TimeOfDay(
-              hour: int.parse(parts[0]),
-              minute: int.parse(parts[1]),
-            );
-          } catch (_) {}
-        }
-      } catch (e) {
-        debugPrint("Error cargando datos buceo: $e");
+        // Asignamos horas base si necesitas trazabilidad en embarcación también
+        _manejarHoras(null, null);
       }
+    } catch (e) {
+      debugPrint("Error cargando datos específicos: $e");
+    }
+  }
+
+  // Refactor DRY para no repetir la lógica de horas
+  void _manejarHoras(String? hInicio, String? hTermino) {
+    if (hInicio != null && hInicio.isNotEmpty) {
+      horaInicioController.text = hInicio;
+      try {
+        final parts = hInicio.split(":");
+        _timeInicio = TimeOfDay(
+          hour: int.parse(parts[0]),
+          minute: int.parse(parts[1]),
+        );
+      } catch (_) {}
+    } else {
+      final now = TimeOfDay.now();
+      _timeInicio = now;
+      horaInicioController.text =
+          "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+    }
+
+    if (hTermino != null && hTermino.isNotEmpty) {
+      horaTerminoController.text = hTermino;
+      try {
+        final parts = hTermino.split(":");
+        _timeTermino = TimeOfDay(
+          hour: int.parse(parts[0]),
+          minute: int.parse(parts[1]),
+        );
+      } catch (_) {}
     }
   }
 
@@ -695,6 +707,7 @@ class InspectionFormController extends ChangeNotifier {
 
     // 4. Datos Buceo & Participantes
     Map<String, dynamic>? verificacionesMap;
+    Map<String, dynamic>? embarcacionMap;
     List<Map<String, dynamic>>? participantesMap;
 
     if (tipoActividad == 'INSPECCION_BUCEO') {
@@ -708,6 +721,11 @@ class InspectionFormController extends ChangeNotifier {
         verificacionesBuceo!.horaInicio = horaInicioController.text.trim();
         verificacionesBuceo!.horaTermino = horaTerminoController.text.trim();
         verificacionesMap = verificacionesBuceo!.toMap();
+      } else if (tipoActividad == 'INSPECCION_EMBARCACION') {
+        embarcacionMap = {
+          'actividad_id': activityId,
+          'correo_empresa': correoEmpresaServiciosCtrl.text.trim(),
+        };
       }
       if (participantes.isNotEmpty) {
         participantesMap = participantes.map((p) {
@@ -733,6 +751,7 @@ class InspectionFormController extends ChangeNotifier {
         respuestas: loteRespuestas,
         participantes: participantesMap,
         verificacionesBuceo: verificacionesMap,
+        verificacionesEmbarcacion: embarcacionMap,
         fotos: listaFotosParaRepo,
         esBorrador: esBorrador,
       );
@@ -1150,8 +1169,11 @@ class InspectionFormController extends ChangeNotifier {
         'VIII': verificacionesBuceo?.obsExamenes,
       },
       encargadoCentro: verificacionesBuceo?.encargadoCentro,
+      correoEmpresaServicios: correoEmpresaServiciosCtrl.text.trim(),
       profesional: nombreProfesional,
-      tipoFaena: "INSPECCIÓN DE BUCEO",
+      tipoFaena: tipoActividad == 'INSPECCION_EMBARCACION'
+          ? "INSPECCIÓN DE EMBARCACIÓN"
+          : "INSPECCIÓN DE BUCEO",
       supervisor: verificacionesBuceo?.supervisorNombre ?? "No asignado",
       horaInicio: verificacionesBuceo?.horaInicio ?? "--:--",
       horaTermino: verificacionesBuceo?.horaTermino ?? "--:--",
