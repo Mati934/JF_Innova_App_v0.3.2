@@ -140,6 +140,9 @@ class PdfGeneratorService {
           _buildGeneralObservations(data),
           pw.SizedBox(height: 30),
 
+          // 🟢 4.5 NUEVO: RESUMEN EJECUTIVO (Aplica a ambos)
+          _buildResumenNoCumple(data),
+
           // // 5. NUEVO: BLOQUE DE FIRMAS FORMAL (Rellena el final de la primera hoja)
           // pw.Row(
           //   mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
@@ -641,78 +644,122 @@ class PdfGeneratorService {
         : PdfColors.green800;
     final PdfColor bgEstado = esCritico ? PdfColors.red100 : PdfColors.green100;
 
-    return pw.Row(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Expanded(
-          flex: 4,
-          child: pw.Container(
-            height: 45,
-            padding: const pw.EdgeInsets.all(4),
-            decoration: pw.BoxDecoration(
-              color: bgEstado,
-              border: pw.Border.all(color: colorEstado, width: 1),
-            ),
-            child: pw.Column(
-              mainAxisAlignment: pw.MainAxisAlignment.center,
-              children: [
-                pw.Text(
-                  "ESTADO FINAL DE FAENA",
-                  style: pw.TextStyle(fontSize: 7, color: colorEstado),
-                ),
-                pw.Text(
-                  data.estadoGlobal.toUpperCase(),
-                  style: pw.TextStyle(
-                    fontSize: 12,
-                    fontWeight: pw.FontWeight.bold,
-                    color: colorEstado,
-                  ),
-                  textAlign: pw.TextAlign.center,
-                ),
-              ],
-            ),
+    // MATEMÁTICAS PARA PORCENTAJES
+    int total = data.totalCumple + data.totalNoCumple + data.totalNoAplica;
+    String pct(int count) =>
+        total > 0 ? "${((count / total) * 100).round()}%" : "0%";
+
+    // Helper para dibujar cada cajita individual
+    pw.Widget statBox(
+      String label,
+      int count,
+      PdfColor bg,
+      PdfColor borderCol,
+      PdfColor textCol,
+    ) {
+      return pw.Expanded(
+        child: pw.Container(
+          height: 45,
+          margin: const pw.EdgeInsets.symmetric(horizontal: 4),
+          decoration: pw.BoxDecoration(
+            color: bg,
+            borderRadius: pw.BorderRadius.circular(6),
+            border: pw.Border.all(color: borderCol, width: 0.5),
           ),
-        ),
-        pw.SizedBox(width: 10),
-        pw.Expanded(
-          flex: 6,
-          child: pw.Table(
-            border: pw.TableBorder.all(width: 0.5),
+          child: pw.Column(
+            mainAxisAlignment: pw.MainAxisAlignment.center,
             children: [
-              pw.TableRow(
-                decoration: const pw.BoxDecoration(color: PdfColors.grey200),
-                children: ["CUMPLE", "NO CUMPLE", "INTOLERABLE", "N/A"]
-                    .map(
-                      (e) => pw.Padding(
-                        padding: const pw.EdgeInsets.all(3),
-                        child: pw.Text(
-                          e,
-                          style: pw.TextStyle(
-                            fontSize: 7,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                          textAlign: pw.TextAlign.center,
-                        ),
-                      ),
-                    )
-                    .toList(),
+              pw.Text(
+                label,
+                style: pw.TextStyle(
+                  fontSize: 6,
+                  fontWeight: pw.FontWeight.bold,
+                  color: textCol,
+                ),
               ),
-              pw.TableRow(
-                children: [
-                  _statCell(data.totalCumple.toString(), PdfColors.black),
-                  _statCell(data.totalNoCumple.toString(), PdfColors.red),
-                  _statCell(
-                    data.totalIntolerables.toString(),
-                    PdfColors.red900,
-                    isBold: true,
-                  ),
-                  _statCell(data.totalNoAplica.toString(), PdfColors.grey),
-                ],
+              pw.SizedBox(height: 2),
+              pw.Text(
+                "$count  (${pct(count)})",
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                  color: textCol,
+                ),
               ),
             ],
           ),
         ),
-      ],
+      );
+    }
+
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(
+        horizontal: 10,
+      ), // 🟢 Despegado de ambas paredes
+      child: pw.Row(
+        children: [
+          // 🟢 CAJA PRINCIPAL: ESTADO FINAL
+          pw.Expanded(
+            flex: 3,
+            child: pw.Container(
+              height: 45,
+              padding: const pw.EdgeInsets.all(4),
+              decoration: pw.BoxDecoration(
+                color: bgEstado,
+                border: pw.Border.all(color: colorEstado, width: 1),
+                borderRadius: pw.BorderRadius.circular(6),
+              ),
+              child: pw.Column(
+                mainAxisAlignment: pw.MainAxisAlignment.center,
+                children: [
+                  pw.Text(
+                    "ESTADO FINAL DE FAENA",
+                    style: pw.TextStyle(
+                      fontSize: 6,
+                      color: colorEstado,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    estadoUpper,
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                      color: colorEstado,
+                    ),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          pw.SizedBox(width: 8),
+
+          // 🟢 CAJITAS DE ESTADÍSTICAS
+          statBox(
+            "CUMPLE",
+            data.totalCumple,
+            PdfColors.green50,
+            PdfColors.green200,
+            PdfColors.green800,
+          ),
+          statBox(
+            "NO CUMPLE",
+            data.totalNoCumple,
+            PdfColors.orange50,
+            PdfColors.orange200,
+            PdfColors.orange900,
+          ),
+          statBox(
+            "NO APLICA",
+            data.totalNoAplica,
+            PdfColors.grey100,
+            PdfColors.grey300,
+            PdfColors.grey700,
+          ),
+        ],
+      ),
     );
   }
 
@@ -1019,6 +1066,205 @@ class PdfGeneratorService {
     );
   }
 
+  pw.Widget _buildResumenNoCumple(InspectionReportData data) {
+    // 🟢 LÓGICA DE AGRUPAMIENTO Y NUMERACIÓN (Se mantiene igual)
+    Map<String, List<InspectionItemDto>> groupedItems = {};
+    final categoryOrder = [
+      'EQUIPO PERSONAL',
+      'EQUIPO DE BUCEO',
+      'SEGURIDAD Y APOYO',
+    ];
+
+    for (var item in data.items) {
+      if (!groupedItems.containsKey(item.categoria))
+        groupedItems[item.categoria] = [];
+      groupedItems[item.categoria]!.add(item);
+    }
+
+    final categoriesToRender = categoryOrder
+        .where((c) => groupedItems.containsKey(c))
+        .toList();
+    for (var k in groupedItems.keys) {
+      if (!categoriesToRender.contains(k)) categoriesToRender.add(k);
+    }
+
+    int globalCounter = 1;
+    List<Map<String, dynamic>> hallazgosNC = [];
+
+    for (var category in categoriesToRender) {
+      for (var item in groupedItems[category]!) {
+        if (item.respuesta == 'NC') {
+          hallazgosNC.add({'numero': globalCounter, 'item': item});
+        }
+        globalCounter++;
+      }
+    }
+
+    // 🟢 HELPER: MAPEO DE COLORES SEGÚN CRITICIDAD
+    PdfColor getColorCriticidad(String criticidad) {
+      final crit = criticidad.toLowerCase();
+      if (crit.contains('intolerable') || crit.contains('alto'))
+        return PdfColors.red700;
+      if (crit.contains('moderado') || crit.contains('medio'))
+        return PdfColors.orange600;
+      if (crit.contains('tolerable') || crit.contains('bajo'))
+        return PdfColors.amber600;
+      return PdfColors.grey600; // Fallback
+    }
+
+    if (hallazgosNC.isEmpty) {
+      return pw.Container(
+        width: double.infinity,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 10),
+        padding: const pw.EdgeInsets.all(12),
+        decoration: pw.BoxDecoration(
+          color: PdfColors.grey50,
+          border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+        ),
+        child: pw.Text(
+          "Sin hallazgos 'No Cumple' registrados en esta auditoría.",
+          style: pw.TextStyle(
+            fontSize: 9,
+            color: PdfColors.grey700,
+            fontWeight: pw.FontWeight.bold,
+          ),
+        ),
+      );
+    }
+
+    return pw.Container(
+      width: double.infinity,
+      margin: const pw.EdgeInsets.symmetric(horizontal: 10),
+      padding: const pw.EdgeInsets.all(12),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.white,
+        border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            "RESUMEN DE HALLAZGOS (NO CUMPLE)",
+            style: pw.TextStyle(
+              fontSize: 10,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.black,
+            ),
+          ),
+          pw.SizedBox(height: 12),
+
+          ...hallazgosNC.map((map) {
+            final int num = map['numero'];
+            final InspectionItemDto item = map['item'];
+            final String criticidadStr = item.criticidad.toUpperCase();
+            final PdfColor colorCrit = getColorCriticidad(item.criticidad);
+            final bool tieneFotos =
+                item.fotosPaths.isNotEmpty; // 🟢 Verificamos si hay fotos
+
+            return pw.Container(
+              margin: const pw.EdgeInsets.only(bottom: 10),
+              padding: const pw.EdgeInsets.only(left: 8),
+              decoration: pw.BoxDecoration(
+                border: pw.Border(
+                  left: pw.BorderSide(color: colorCrit, width: 3),
+                ),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  // 🟢 1. CATEGORÍA Y ETIQUETA DE CRITICIDAD
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        item.categoria.toUpperCase(),
+                        style: pw.TextStyle(
+                          fontSize: 6,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.grey600,
+                        ),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: pw.BoxDecoration(
+                          color: PdfColors.white,
+                          borderRadius: pw.BorderRadius.circular(4),
+                          border: pw.Border.all(color: colorCrit, width: 0.5),
+                        ),
+                        child: pw.Text(
+                          criticidadStr,
+                          style: pw.TextStyle(
+                            fontSize: 6,
+                            fontWeight: pw.FontWeight.bold,
+                            color: colorCrit,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.SizedBox(height: 2),
+
+                  // 🟢 2. PREGUNTA
+                  pw.Text(
+                    "N° $num: ${item.pregunta}",
+                    style: pw.TextStyle(
+                      fontSize: 8,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.black,
+                    ),
+                  ),
+                  pw.SizedBox(height: 3),
+
+                  // 🟢 3. OBSERVACIÓN
+                  pw.Text(
+                    "Obs: ${(item.comentario == null || item.comentario!.isEmpty) ? 'Sin observación registrada.' : item.comentario!}",
+                    style: pw.TextStyle(
+                      fontSize: 8,
+                      fontStyle: pw.FontStyle.italic,
+                      color: PdfColors.grey800,
+                    ),
+                  ),
+
+                  // 🟢 4. INDICADOR DE EVIDENCIA (Solo aparece si sacaste foto)
+                  if (tieneFotos)
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(top: 4),
+                      child: pw.Row(
+                        children: [
+                          // Simulamos un icono de cámara con texto/símbolos
+                          pw.Text(
+                            "[+] ",
+                            style: pw.TextStyle(
+                              fontSize: 7,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.blue700,
+                            ),
+                          ),
+                          pw.Text(
+                            "Contiene evidencia fotográfica en el anexo.",
+                            style: pw.TextStyle(
+                              fontSize: 7,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.blue800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
   // REEMPLAZA ESTE MÉTODO COMPLETO
   List<pw.Widget> _buildFotosObservacion(
     List<Map<String, String>> fotosExtras,
@@ -1098,6 +1344,7 @@ class PdfGeneratorService {
     }
     return widgets;
   }
+  // Header Nuevo - Más limpio, diseño nuevo
 
   pw.Widget _buildHeaderEmbarcacion(
     InspectionReportData data,
@@ -1192,13 +1439,26 @@ class PdfGeneratorService {
                         pw.Radius.circular(4),
                       ),
                     ),
-                    child: pw.Text(
-                      "FOLIO N° ${data.numeroReporte}",
-                      style: pw.TextStyle(
-                        fontSize: 10,
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfColors.red900,
-                      ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          "Informe N° ${data.numeroReporte}",
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.red900,
+                          ),
+                        ),
+                        pw.Text(
+                          data.esConsecutiva ? "(CONSECUTIVA)" : "(INICIAL)",
+                          style: pw.TextStyle(
+                            fontSize: 7,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.red700,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -1320,29 +1580,63 @@ class PdfGeneratorService {
       ],
     );
   }
-  // pw.Widget _buildHeaderEmbarcacion(InspectionReportData data, pw.MemoryImage? logo) {
+
+  // Header Exactamente como en PDF Embarcación, pero con código limpio y organizado
+
+  // pw.Widget _buildHeaderEmbarcacion(
+  //   InspectionReportData data,
+  //   pw.MemoryImage? logo,
+  // ) {
   //   // Filtrar roles de la cuadrilla
-  //   String patron = data.equipo.where((p) => p.cargo.toUpperCase().contains('PATR')).map((p) => p.nombre).join(', ');
-  //   String maquinista = data.equipo.where((p) => p.cargo.toUpperCase().contains('MAQUINISTA')).map((p) => p.nombre).join(', ');
-  //   List<String> tripulantes = data.equipo.where((p) => !p.cargo.toUpperCase().contains('PATR') && !p.cargo.toUpperCase().contains('MAQUINISTA')).map((p) => "${p.nombre} (${p.rut})").toList();
+  //   String patron = data.equipo
+  //       .where((p) => p.cargo.toUpperCase().contains('PATR'))
+  //       .map((p) => p.nombre)
+  //       .join(', ');
+  //   String maquinista = data.equipo
+  //       .where((p) => p.cargo.toUpperCase().contains('MAQUINISTA'))
+  //       .map((p) => p.nombre)
+  //       .join(', ');
+  //   List<String> tripulantes = data.equipo
+  //       .where(
+  //         (p) =>
+  //             !p.cargo.toUpperCase().contains('PATR') &&
+  //             !p.cargo.toUpperCase().contains('MAQUINISTA'),
+  //       )
+  //       .map((p) => "${p.nombre} (${p.rut})")
+  //       .toList();
 
   //   // Helper para celdas
-  //   pw.Widget celda(String txt, {bool isHeader = false, PdfColor bg = PdfColors.white}) {
+  //   pw.Widget celda(
+  //     String txt, {
+  //     bool isHeader = false,
+  //     PdfColor bg = PdfColors.white,
+  //   }) {
   //     return pw.Container(
   //       color: bg,
   //       padding: const pw.EdgeInsets.all(6),
   //       alignment: pw.Alignment.centerLeft,
-  //       child: pw.Text(txt, style: pw.TextStyle(fontSize: 8, fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal)),
+  //       child: pw.Text(
+  //         txt,
+  //         style: pw.TextStyle(
+  //           fontSize: 8,
+  //           fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
+  //         ),
+  //       ),
   //     );
   //   }
 
   //   final gris = PdfColors.grey200;
 
-  //   return pw.Container(
-  //     margin: const pw.EdgeInsets.only(bottom: 5),
+  //   return pw.Padding(
+  //     padding: const pw.EdgeInsets.only(
+  //       left: 10,
+  //     ), // 🟢 1. Separación de la pared izquierda
   //     child: pw.Column(
   //       crossAxisAlignment: pw.CrossAxisAlignment.start,
   //       children: [
+  //         pw.SizedBox(
+  //           height: 25,
+  //         ), // 🟢 2. Bajar un poquito el encabezado del techo de la hoja
   //         // 🟢 FILA SUPERIOR: TÍTULOS Y LOGO
   //         pw.Row(
   //           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -1351,74 +1645,199 @@ class PdfGeneratorService {
   //             pw.Column(
   //               crossAxisAlignment: pw.CrossAxisAlignment.start,
   //               children: [
-  //                 pw.Text("INFORME TÉCNICO", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+  //                 pw.Text(
+  //                   "INFORME TÉCNICO",
+  //                   style: pw.TextStyle(
+  //                     fontSize: 16,
+  //                     fontWeight: pw.FontWeight.bold,
+  //                   ),
+  //                 ),
   //                 pw.Text(
   //                   data.tipoFaena,
-  //                   style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900),
+  //                   style: pw.TextStyle(
+  //                     fontSize: 10,
+  //                     fontWeight: pw.FontWeight.bold,
+  //                     color: PdfColors.blue900,
+  //                   ),
   //                 ),
   //               ],
   //             ),
-  //             if (logo != null) pw.Container(height: 35, child: pw.Image(logo, fit: pw.BoxFit.contain)),
+  //             if (logo != null)
+  //               pw.Container(
+  //                 height: 50,
+  //                 child: pw.Image(logo, fit: pw.BoxFit.contain),
+  //               ),
   //           ],
   //         ),
   //         pw.SizedBox(height: 12),
 
-  //         // 🟢 TABLA 1: CORRELATIVO
+  //         // 🟢 TABLA 1: CORRELATIVO (Con Inicial/Consecutiva)
   //         pw.Table(
   //           border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.5),
-  //           columnWidths: { 0: const pw.FlexColumnWidth(7), 1: const pw.FlexColumnWidth(2), 2: const pw.FlexColumnWidth(1.5) },
+  //           columnWidths: {
+  //             0: const pw.FlexColumnWidth(7),
+  //             1: const pw.FlexColumnWidth(2),
+  //             2: const pw.FlexColumnWidth(1.5),
+  //           },
   //           children: [
-  //             pw.TableRow(children: [
-  //               pw.Container(), // Espacio vacío a la izquierda
-  //               celda("CORRELATIVO N°", isHeader: true, bg: gris),
-  //               pw.Container(
-  //                 color: PdfColors.white,
-  //                 alignment: pw.Alignment.center,
-  //                 padding: const pw.EdgeInsets.all(6),
-  //                 child: pw.Text(data.numeroReporte, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.red800)),
-  //               ),
-  //             ])
-  //           ]
+  //             pw.TableRow(
+  //               children: [
+  //                 pw.Container(), // Espacio vacío a la izquierda
+  //                 celda("CORRELATIVO N°", isHeader: true, bg: gris),
+  //                 pw.Container(
+  //                   color: PdfColors.white,
+  //                   alignment: pw.Alignment.center,
+  //                   padding: const pw.EdgeInsets.symmetric(
+  //                     vertical: 4,
+  //                     horizontal: 2,
+  //                   ),
+  //                   child: pw.Column(
+  //                     mainAxisAlignment: pw.MainAxisAlignment.center,
+  //                     children: [
+  //                       pw.Text(
+  //                         data.numeroReporte,
+  //                         style: pw.TextStyle(
+  //                           fontSize: 10,
+  //                           fontWeight: pw.FontWeight.bold,
+  //                           color: PdfColors.red800,
+  //                         ),
+  //                       ),
+  //                       pw.SizedBox(height: 2),
+  //                       pw.Text(
+  //                         data.esConsecutiva ? "(CONSECUTIVA)" : "(INICIAL)",
+  //                         style: pw.TextStyle(
+  //                           fontSize: 6,
+  //                           fontWeight: pw.FontWeight.bold,
+  //                           color: PdfColors.grey700,
+  //                         ),
+  //                       ),
+  //                     ],
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //           ],
   //         ),
 
-  //         // 🟢 TABLA 2: DATOS PRINCIPALES
+  //         // 🟢 TABLA 2: DATOS PRINCIPALES (AHORA CON HORARIO)
   //         pw.Table(
   //           border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.5),
-  //           columnWidths: { 0: const pw.FlexColumnWidth(2), 1: const pw.FlexColumnWidth(3.5), 2: const pw.FlexColumnWidth(2), 3: const pw.FlexColumnWidth(3.5) },
+  //           columnWidths: {
+  //             0: const pw.FlexColumnWidth(2),
+  //             1: const pw.FlexColumnWidth(3.5),
+  //             2: const pw.FlexColumnWidth(2),
+  //             3: const pw.FlexColumnWidth(3.5),
+  //           },
   //           children: [
-  //             pw.TableRow(children: [celda("EMBARCACIÓN", isHeader: true, bg: gris), celda(data.embarcacion), celda("FECHA", isHeader: true, bg: gris), celda(data.fecha)]),
-  //             pw.TableRow(children: [celda("ÁREA", isHeader: true, bg: gris), celda(data.area), celda("CENTRO", isHeader: true, bg: gris), celda(data.centro)]),
-  //             pw.TableRow(children: [celda("EMPRESA", isHeader: true, bg: gris), celda(data.empresaContratista), celda("PATRÓN", isHeader: true, bg: gris), celda(patron.isEmpty ? "N/A" : patron)]),
-  //             pw.TableRow(children: [celda("MAQUINISTA", isHeader: true, bg: gris), celda(maquinista.isEmpty ? "N/A" : maquinista), celda("MATRÍCULA", isHeader: true, bg: gris), celda(data.matricula)]),
-  //           ]
+  //             pw.TableRow(
+  //               children: [
+  //                 celda("EMBARCACIÓN", isHeader: true, bg: gris),
+  //                 celda(data.embarcacion),
+  //                 celda("FECHA", isHeader: true, bg: gris),
+  //                 celda(data.fecha),
+  //               ],
+  //             ),
+  //             pw.TableRow(
+  //               children: [
+  //                 celda("ÁREA", isHeader: true, bg: gris),
+  //                 celda(data.area),
+  //                 celda("CENTRO", isHeader: true, bg: gris),
+  //                 celda(data.centro),
+  //               ],
+  //             ),
+  //             pw.TableRow(
+  //               children: [
+  //                 celda("EMPRESA", isHeader: true, bg: gris),
+  //                 celda(data.empresaContratista),
+  //                 celda("PATRÓN", isHeader: true, bg: gris),
+  //                 celda(patron.isEmpty ? "N/A" : patron),
+  //               ],
+  //             ),
+  //             pw.TableRow(
+  //               children: [
+  //                 celda("MAQUINISTA", isHeader: true, bg: gris),
+  //                 celda(maquinista.isEmpty ? "N/A" : maquinista),
+  //                 celda("MATRÍCULA", isHeader: true, bg: gris),
+  //                 celda(data.matricula),
+  //               ],
+  //             ),
+  //             // 🟢 3. SE AGREGÓ LA FILA DEL HORARIO
+  //             pw.TableRow(
+  //               children: [
+  //                 celda("HORARIO", isHeader: true, bg: gris),
+  //                 celda(
+  //                   "${data.horaInicio ?? '--:--'} a ${data.horaTermino ?? '--:--'}",
+  //                 ),
+  //                 celda("", bg: gris),
+  //                 celda(""), // Celdas vacías para equilibrar la tabla
+  //               ],
+  //             ),
+  //           ],
   //         ),
 
   //         // 🟢 TABLA 3: TRIPULANTES
   //         pw.Table(
-  //           border: const pw.TableBorder(left: pw.BorderSide(width: 0.5, color: PdfColors.grey600), right: pw.BorderSide(width: 0.5, color: PdfColors.grey600), bottom: pw.BorderSide(width: 0.5, color: PdfColors.grey600), verticalInside: pw.BorderSide(width: 0.5, color: PdfColors.grey600)),
-  //           columnWidths: { 0: const pw.FlexColumnWidth(2), 1: const pw.FlexColumnWidth(9) },
+  //           border: const pw.TableBorder(
+  //             left: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
+  //             right: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
+  //             bottom: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
+  //             verticalInside: pw.BorderSide(
+  //               width: 0.5,
+  //               color: PdfColors.grey600,
+  //             ),
+  //           ),
+  //           columnWidths: {
+  //             0: const pw.FlexColumnWidth(2),
+  //             1: const pw.FlexColumnWidth(9),
+  //           },
   //           children: [
-  //             pw.TableRow(children: [
-  //               celda("TRIPULANTES", isHeader: true, bg: gris),
-  //               pw.Container(
-  //                 padding: const pw.EdgeInsets.all(6),
-  //                 child: pw.Text(tripulantes.isEmpty ? "Sin tripulantes extra registrados." : tripulantes.join('   |   '), style: const pw.TextStyle(fontSize: 8))
-  //               )
-  //             ])
-  //           ]
+  //             pw.TableRow(
+  //               children: [
+  //                 celda("TRIPULANTES", isHeader: true, bg: gris),
+  //                 pw.Container(
+  //                   padding: const pw.EdgeInsets.all(6),
+  //                   child: pw.Text(
+  //                     tripulantes.isEmpty
+  //                         ? "Sin tripulantes extra registrados."
+  //                         : tripulantes.join('   |   '),
+  //                     style: const pw.TextStyle(fontSize: 8),
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //           ],
   //         ),
 
   //         // 🟢 TABLA 4: FIRMAS/CONTACTO
   //         pw.Table(
-  //           border: const pw.TableBorder(left: pw.BorderSide(width: 0.5, color: PdfColors.grey600), right: pw.BorderSide(width: 0.5, color: PdfColors.grey600), bottom: pw.BorderSide(width: 0.5, color: PdfColors.grey600), verticalInside: pw.BorderSide(width: 0.5, color: PdfColors.grey600)),
-  //           columnWidths: { 0: const pw.FlexColumnWidth(3.5), 1: const pw.FlexColumnWidth(3.5), 2: const pw.FlexColumnWidth(2.5), 3: const pw.FlexColumnWidth(3) },
+  //           border: const pw.TableBorder(
+  //             left: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
+  //             right: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
+  //             bottom: pw.BorderSide(width: 0.5, color: PdfColors.grey600),
+  //             verticalInside: pw.BorderSide(
+  //               width: 0.5,
+  //               color: PdfColors.grey600,
+  //             ),
+  //           ),
+  //           columnWidths: {
+  //             0: const pw.FlexColumnWidth(3.5),
+  //             1: const pw.FlexColumnWidth(3.5),
+  //             2: const pw.FlexColumnWidth(2.5),
+  //             3: const pw.FlexColumnWidth(3),
+  //           },
   //           children: [
-  //             pw.TableRow(children: [
-  //               celda("PROFESIONAL QUE EMITE", isHeader: true, bg: gris), celda(data.profesional ?? "N/A"),
-  //               celda("CORREO SERVICIOS", isHeader: true, bg: gris), celda(data.correoEmpresaServicios ?? "N/A")
-  //             ])
-  //           ]
+  //             pw.TableRow(
+  //               children: [
+  //                 celda("PROFESIONAL QUE EMITE", isHeader: true, bg: gris),
+  //                 celda(data.profesional ?? "N/A"),
+  //                 celda("CORREO SERVICIOS", isHeader: true, bg: gris),
+  //                 celda(data.correoEmpresaServicios ?? "N/A"),
+  //               ],
+  //             ),
+  //           ],
   //         ),
+
+  //         pw.SizedBox(height: 10), // Margen inferior antes del bloque de estado
   //       ],
   //     ),
   //   );

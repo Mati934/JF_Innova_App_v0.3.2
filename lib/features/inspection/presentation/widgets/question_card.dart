@@ -311,33 +311,68 @@ class _QuestionCardState extends State<QuestionCard>
   }
 
   Widget _buildCriticidadBadge() {
+    // 🟢 HELPER DE COLORES DINÁMICOS (Semáforo)
+    Color getColor(String nivel) {
+      if (nivel == 'Intolerable') return const Color.fromARGB(255, 222, 68, 7);
+      if (nivel == 'Moderado') return const Color.fromARGB(255, 248, 164, 8);
+      return const Color.fromARGB(255, 159, 250, 13); // Tolerable
+    }
+
+    Color getBgColor(String nivel) {
+      if (nivel == 'Intolerable') return Colors.red.shade50;
+      if (nivel == 'Moderado') return Colors.orange.shade50;
+      return const Color.fromARGB(255, 227, 255, 239); // Tolerable
+    }
+
+    // Asegurar que el valor actual sea válido
+    final valorSeguro = _nivelesCriticidad.contains(_criticidadActual)
+        ? _criticidadActual
+        : _nivelesCriticidad[0];
+
+    final colorPrincipal = getColor(valorSeguro);
+    final colorFondo = getBgColor(valorSeguro);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
+        color: colorFondo,
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colorPrincipal.withOpacity(0.5), width: 1),
       ),
       child: DropdownButton<String>(
-        value: _nivelesCriticidad.contains(_criticidadActual)
-            ? _criticidadActual
-            : _nivelesCriticidad[0],
+        value: valorSeguro,
         underline: const SizedBox(),
-        icon: const Icon(Icons.arrow_drop_down, color: Colors.red),
-        items: _nivelesCriticidad
-            .map(
-              (v) => DropdownMenuItem(
-                value: v,
-                child: Text(
+        icon: Icon(Icons.arrow_drop_down, color: colorPrincipal),
+        dropdownColor: Colors.white, // Fondo del menú desplegable
+        items: _nivelesCriticidad.map((v) {
+          final colorOpcion = getColor(v);
+          return DropdownMenuItem(
+            value: v,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Un pequeño punto de color al lado de la palabra en la lista
+                Container(
+                  width: 8,
+                  height: 8,
+                  margin: const EdgeInsets.only(right: 6),
+                  decoration: BoxDecoration(
+                    color: colorOpcion,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Text(
                   v,
-                  style: const TextStyle(
-                    color: Colors.red,
+                  style: TextStyle(
+                    color: colorOpcion,
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-            )
-            .toList(),
+              ],
+            ),
+          );
+        }).toList(),
         onChanged: (v) {
           if (v != null) {
             setState(() => _criticidadActual = v);
