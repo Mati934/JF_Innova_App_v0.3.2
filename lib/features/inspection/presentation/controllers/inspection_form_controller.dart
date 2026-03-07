@@ -58,7 +58,7 @@ class InspectionFormController extends ChangeNotifier {
 
   final TextEditingController correoEmpresaServiciosCtrl =
       TextEditingController();
-  String? estadoManualEmbarcacion;
+  final TextEditingController numeroZarpeCtrl = TextEditingController();
 
   List<File> fotosGenerales = [];
 
@@ -87,6 +87,8 @@ class InspectionFormController extends ChangeNotifier {
     supervisorNombreController.dispose();
     supervisorRutController.dispose(); // 🟢 Limpieza
     //supervisorCentroController.dispose(); // 🟢 Limpieza
+    numeroZarpeCtrl.dispose(); // 🟢 Limpieza
+    correoEmpresaServiciosCtrl.dispose();
     _disposed = true;
     super.dispose();
   }
@@ -219,11 +221,10 @@ class InspectionFormController extends ChangeNotifier {
           if (verificacionesEmbarcacion != null) {
             correoEmpresaServiciosCtrl.text =
                 verificacionesEmbarcacion!['correo_empresa'] ?? '';
-            estadoManualEmbarcacion =
-                verificacionesEmbarcacion!['estado_manual'];
+            numeroZarpeCtrl.text =
+                verificacionesEmbarcacion!['numero_zarpe'] ?? ''; // 👈 NUEVO
           }
         }
-        // Asignamos horas base si necesitas trazabilidad en embarcación también
         _manejarHoras(null, null);
       }
     } catch (e) {
@@ -298,11 +299,11 @@ class InspectionFormController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 🟢 NUEVO: Método para cambiar el estado manual de embarcación
-  void setEstadoManualEmbarcacion(String? nuevoEstado) {
-    estadoManualEmbarcacion = nuevoEstado;
-    notifyListeners();
-  }
+  // // 🟢 NUEVO: Método para cambiar el estado manual de embarcación
+  // void setEstadoManualEmbarcacion(String? nuevoEstado) {
+  //   estadoManualEmbarcacion = nuevoEstado;
+  //   notifyListeners();
+  // }
 
   void agregarParticipante(ParticipanteModel participante) {
     if (!participantes.any((p) => p.personalId == participante.personalId)) {
@@ -741,7 +742,7 @@ class InspectionFormController extends ChangeNotifier {
         embarcacionMap = {
           'actividad_id': activityId,
           'correo_empresa': correoEmpresaServiciosCtrl.text.trim(),
-          'estado_manual': estadoManualEmbarcacion,
+          'numero_zarpe': numeroZarpeCtrl.text.trim(), // 👈 NUEVO
         };
       }
       if (participantes.isNotEmpty) {
@@ -1149,29 +1150,21 @@ class InspectionFormController extends ChangeNotifier {
     }).toList();
 
     // 🟢 LÓGICA DE APROBACIÓN CON CORTAFUEGOS DE SEGURIDAD
-    bool aprobadoFinal = false;
+    bool aprobadoFinal = true;
+    String estadoGlobalFinal = "FINALIZADA"; // Por defecto para Embarcación
 
     if (tipoActividad == 'INSPECCION_BUCEO') {
       aprobadoFinal =
           countIntolerables == 0 &&
           (verificacionesBuceo?.faenaHabilitada ?? true);
-    } else {
-      // INSPECCION_EMBARCACION
-      if (countIntolerables > 0) {
-        // CORTAFUEGOS: Un hallazgo intolerable anula cualquier forzado manual a "APROBADO".
-        aprobadoFinal = false;
-      } else {
-        if (estadoManualEmbarcacion == 'SUSPENDIDO') {
-          aprobadoFinal = false; // Suspensión forzada por el usuario
-        } else {
-          aprobadoFinal = true; // 'APROBADO' manual o null (Automático)
-        }
-      }
-    }
 
-    final String estadoGlobalFinal = aprobadoFinal
-        ? "HABILITADA"
-        : "SUSPENDIDA";
+      estadoGlobalFinal = aprobadoFinal ? "HABILITADA" : "SUSPENDIDA";
+    } else {
+      // INSPECCION_EMBARCACION: NO SE SUSPENDE
+      aprobadoFinal = true;
+      estadoGlobalFinal =
+          "REALIZADA"; // O "FINALIZADA", elige la palabra técnica correcta para JF Innova
+    }
 
     String fmtDate(DateTime? dt) {
       if (dt == null) return "-";
@@ -1204,6 +1197,9 @@ class InspectionFormController extends ChangeNotifier {
       area: nombreArea,
       embarcacion: nombreEmbarcacion,
       matricula: matriculaEmbarcacion,
+      numeroZarpe: numeroZarpeCtrl.text.isNotEmpty
+          ? numeroZarpeCtrl.text.trim()
+          : "S/N",
 
       // Pasamos un Map<String, String?> con las RUTAS
       safetyPhotosPaths: {

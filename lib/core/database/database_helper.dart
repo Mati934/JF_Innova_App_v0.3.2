@@ -6,8 +6,8 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
-  static const int _dbVersion = 16;
-  static const String _dbName = 'jfinnova_v17_local.db';
+  static const int _dbVersion = 17;
+  static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
 
@@ -170,7 +170,8 @@ class DatabaseHelper {
       CREATE TABLE verificaciones_embarcacion (
         actividad_id TEXT PRIMARY KEY,
         correo_empresa TEXT,
-        observaciones_cierre TEXT
+        observaciones_cierre TEXT,
+        numero_zarpe TEXT
       )
     ''');
 
@@ -371,6 +372,16 @@ class DatabaseHelper {
         )
       ''');
       debugPrint("✅ Parche v16 aplicado.");
+    }
+    if (oldVersion < 17) {
+      debugPrint("🚀 Aplicando parche v17 (Numero de Zarpe Embarcación)...");
+      await _safeAddColumn(
+        db,
+        "verificaciones_embarcacion",
+        "numero_zarpe",
+        "TEXT",
+      );
+      debugPrint("✅ Parche v17 aplicado.");
     }
   }
 

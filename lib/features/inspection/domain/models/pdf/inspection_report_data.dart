@@ -11,6 +11,7 @@ class InspectionReportData {
   final String area;
   final String embarcacion;
   final String matricula;
+  final String? numeroZarpe;
 
   final bool esConsecutiva;
   final String appVersion;
@@ -68,6 +69,7 @@ class InspectionReportData {
     required this.area,
     required this.embarcacion,
     required this.matricula,
+    this.numeroZarpe,
 
     // Inicializamos con mapas/listas vacías para evitar nulls
     this.safetyPhotosPaths = const {},

@@ -1250,7 +1250,7 @@ class PdfGeneratorService {
 
     List<pw.Widget> widgets = [
       pw.Text(
-        "     OBSERVACIONES NO ESPECIFICADAS EN DPR 24",
+        "     Fotografias con observación detallada o no especificadas en DPR24",
         style: pw.TextStyle(
           fontSize: 10,
           fontWeight: pw.FontWeight.bold,
@@ -2190,6 +2190,7 @@ class PdfGeneratorService {
           pw.Divider(color: PdfColors.grey400, thickness: 0.5),
           pw.SizedBox(height: 6),
           pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Expanded(
                 flex: 2,
@@ -2207,9 +2208,15 @@ class PdfGeneratorService {
           ),
           pw.SizedBox(height: 10),
           pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Expanded(flex: 2, child: _infoDato("ÁREA", data.area)),
               pw.Expanded(flex: 2, child: _infoDato("CENTRO", data.centro)),
+              // 🟢 NUEVO CAMPO AÑADIDO A LA GRILLA
+              pw.Expanded(
+                flex: 2,
+                child: _infoDato("N° ZARPE", data.numeroZarpe ?? "S/N"),
+              ),
               pw.Expanded(
                 flex: 3,
                 child: _infoDato("CORREO", data.correoEmpresaServicios ?? "-"),
@@ -2218,6 +2225,7 @@ class PdfGeneratorService {
           ),
           pw.SizedBox(height: 10),
           pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Expanded(flex: 2, child: _infoDato("FECHA", data.fecha)),
               pw.Expanded(
@@ -2227,7 +2235,10 @@ class PdfGeneratorService {
                   "${data.horaInicio ?? '--:--'} a ${data.horaTermino ?? '--:--'}",
                 ),
               ),
-              pw.Expanded(flex: 3, child: pw.SizedBox()),
+              pw.Expanded(
+                flex: 5,
+                child: pw.SizedBox(),
+              ), // Ajuste de flex para empujar
             ],
           ),
         ],
