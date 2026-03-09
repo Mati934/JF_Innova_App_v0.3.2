@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 class VisitModel {
   String activityId;
   String? region; // Cambiado a ID para buenas prácticas relacionales
@@ -21,6 +23,7 @@ class VisitModel {
   bool checkOtro;
   String? otroActividadTexto;
   String? apuntesObservaciones;
+  Uint8List? signatureImage;
 
   VisitModel({
     required this.activityId,
@@ -43,6 +46,7 @@ class VisitModel {
     this.checkOtro = false,
     this.otroActividadTexto,
     this.apuntesObservaciones,
+    this.signatureImage,
   });
 
   Map<String, dynamic> toMap() {
@@ -67,6 +71,7 @@ class VisitModel {
       'check_otro': checkOtro ? 1 : 0,
       'otro_actividad_texto': otroActividadTexto,
       'apuntes_observaciones': apuntesObservaciones,
+      'signature_image': signatureImage,
     };
   }
 
@@ -103,6 +108,7 @@ class VisitModel {
       checkOtro: map['check_otro'] == 1 || map['check_otro'] == true,
       otroActividadTexto: map['otro_actividad_texto'],
       apuntesObservaciones: map['apuntes_observaciones'],
+      signatureImage: map['signature_image'] as Uint8List?,
     );
   }
 }

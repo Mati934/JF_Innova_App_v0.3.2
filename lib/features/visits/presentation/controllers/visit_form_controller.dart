@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:signature/signature.dart';
 import 'package:jf_innova_app/core/database/database_helper.dart';
 import 'package:jf_innova_app/features/visits/domain/models/pdf/visit_report_data.dart';
 import 'package:jf_innova_app/features/visits/services/visit_pdf_generator_service.dart';
@@ -35,6 +36,11 @@ class VisitFormController extends ChangeNotifier {
   final otroActividadCtrl = TextEditingController();
   final observacionesCtrl = TextEditingController();
 
+  final signatureController = SignatureController(
+    penStrokeWidth: 3,
+    penColor: Colors.black,
+  );
+
   final _debouncer = Debouncer(
     milliseconds: 1000,
   ); // Espera 1 seg antes de guardar
@@ -46,6 +52,8 @@ class VisitFormController extends ChangeNotifier {
 
   List<String> fotosPaths = [];
   List<File> fotos = [];
+
+  Uint8List? signatureImage;
 
   TimeOfDay? timeInicio;
   TimeOfDay? timeTermino;
@@ -83,6 +91,7 @@ class VisitFormController extends ChangeNotifier {
     email2Ctrl.text = model.emailEmpresa2 ?? '';
     otroActividadCtrl.text = model.otroActividadTexto ?? '';
     observacionesCtrl.text = model.apuntesObservaciones ?? '';
+    signatureImage = model.signatureImage;
 
     if (model.horaInicio != null && model.horaInicio != "--:--") {
       final p = model.horaInicio!.split(':');
@@ -155,6 +164,7 @@ class VisitFormController extends ChangeNotifier {
       'check_otro': model.checkOtro ? 1 : 0,
       'otro_actividad_texto': otroActividadCtrl.text.trim(),
       'apuntes_observaciones': observacionesCtrl.text.trim(),
+      'signature_image': signatureImage,
     };
   }
 
@@ -322,6 +332,7 @@ class VisitFormController extends ChangeNotifier {
       otroActividadTexto: otroActividadCtrl.text.trim(),
       apuntesObservaciones: observacionesCtrl.text.trim(),
       fotosPaths: galeriaPaths,
+      signatureImage: signatureImage,
     );
   }
 

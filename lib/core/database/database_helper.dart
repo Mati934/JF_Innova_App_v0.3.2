@@ -6,7 +6,7 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
-  static const int _dbVersion = 17;
+  static const int _dbVersion = 18;
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -382,6 +382,16 @@ class DatabaseHelper {
         "TEXT",
       );
       debugPrint("✅ Parche v17 aplicado.");
+    }
+    if (oldVersion < 18) {
+      debugPrint("🚀 Aplicando parche v18 (Firma Digital Visitas)...");
+      await _safeAddColumn(
+        db,
+        "visitas_tecnicas_pendientes",
+        "signature_image",
+        "BLOB",
+      );
+      debugPrint("✅ Parche v18 aplicado.");
     }
   }
 

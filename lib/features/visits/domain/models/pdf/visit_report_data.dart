@@ -30,6 +30,8 @@ class VisitReportData {
   // CLEAN CODE: Replicando Inspecciones - Usamos rutas de disco
   final List<String> fotosPaths;
 
+  final Uint8List? signatureImage;
+
   VisitReportData({
     required this.region,
     required this.centro,
@@ -55,5 +57,6 @@ class VisitReportData {
     this.otroActividadTexto,
     required this.apuntesObservaciones,
     required this.fotosPaths, // Cambiado
+    required this.signatureImage,
   });
 }

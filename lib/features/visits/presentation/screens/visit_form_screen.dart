@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:signature/signature.dart';
 import 'package:provider/provider.dart';
 import '../../../../shared/widgets/form_inputs/gallery_input.dart'; // 👈 IMPORTANTE: Agregada la importación
 import '../../../../core/theme/app_theme.dart';
@@ -287,7 +288,29 @@ class _VisitFormView extends StatelessWidget {
 
                     const SizedBox(height: 20),
 
-                    const _SectionHeader("6. Anexo Fotográfico"),
+                    const _SectionHeader("6. Firma Digital"),
+                    const SizedBox(height: 10),
+                    GestureDetector(
+                      onTap: () => _showSignatureDialog(context, ctrl),
+                      child: Container(
+                        width: double.infinity,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(10),
+                          color: Colors.grey.shade50,
+                        ),
+                        child: ctrl.signatureImage != null
+                            ? Image.memory(ctrl.signatureImage!)
+                            : const Center(
+                                child: Text("Toca aquí para firmar"),
+                              ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    const _SectionHeader("7. Anexo Fotográfico"),
                     const SizedBox(height: 10),
                     GalleryInput(
                       images: ctrl.fotos,
@@ -371,6 +394,56 @@ class _VisitFormView extends StatelessWidget {
                   ],
                 ),
               ),
+      ),
+    );
+  }
+
+  void _showSignatureDialog(BuildContext context, VisitFormController ctrl) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
+        child: SizedBox(
+          width: double.infinity,
+          height: 400,
+          child: Column(
+            children: [
+              Expanded(
+                child: Signature(
+                  controller: ctrl.signatureController,
+                  backgroundColor: Colors.white,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        ctrl.signatureController.clear();
+                      },
+                      icon: const Icon(Icons.clear),
+                      tooltip: "Borrar",
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        final signature = await ctrl.signatureController
+                            .toPngBytes();
+                        if (signature != null) {
+                          ctrl.signatureImage = signature;
+                          ctrl.notifyListeners();
+                        }
+                        Navigator.pop(context);
+                      },
+                      child: const Text("Confirmar"),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

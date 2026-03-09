@@ -63,8 +63,8 @@ class VisitPdfGeneratorService {
           _buildActividades(data),
           pw.SizedBox(height: 15),
           _buildObservaciones(data),
-          pw.SizedBox(height: 40),
-          pw.Center(child: _buildFirma()),
+          pw.SizedBox(height: 20),
+          _buildFirma(data),
 
           // 🖼️ ANEXO FOTOGRÁFICO CON ALGORITMO DE CHUNKING (Clonado de Inspecciones)
           ..._buildGalleryChunked(data.fotosPaths),
@@ -80,7 +80,7 @@ class VisitPdfGeneratorService {
     if (paths.isEmpty) return [];
 
     List<pw.Widget> widgets = [
-      pw.SizedBox(height: 20),
+      pw.SizedBox(height: 10),
       pw.Text(
         "ANEXO FOTOGRÁFICO",
         style: pw.TextStyle(
@@ -374,16 +374,40 @@ class VisitPdfGeneratorService {
     );
   }
 
-  pw.Widget _buildFirma() {
-    return pw.Column(
-      children: [
-        pw.Container(width: 150, height: 1, color: PdfColors.black),
-        pw.SizedBox(height: 5),
-        pw.Text(
-          "Firma del profesional",
-          style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-        ),
-      ],
+  pw.Widget _buildFirma(VisitReportData data) {
+    return pw.Center(
+      // Forzamos la alineación central respecto a la página
+      child: pw.Column(
+        mainAxisSize: pw.MainAxisSize.min, // Solo ocupa el espacio necesario
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          pw.SizedBox(height: 10),
+
+          // 1. Zona de la firma (Imagen o espacio vacío)
+          if (data.signatureImage != null)
+            pw.Image(
+              pw.MemoryImage(data.signatureImage!),
+              width: 150,
+              height: 50,
+              fit: pw.BoxFit.contain,
+            )
+          else
+            pw.SizedBox(width: 150, height: 50), // Espacio reservado
+          // 2. Línea separadora (Reemplaza al Stack ineficiente)
+          pw.Container(
+            width: 150,
+            height: 1,
+            color: PdfColors.black,
+            margin: const pw.EdgeInsets.only(top: 5, bottom: 5),
+          ),
+
+          // 3. Etiqueta
+          pw.Text(
+            "Firma",
+            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+          ),
+        ],
+      ),
     );
   }
 
