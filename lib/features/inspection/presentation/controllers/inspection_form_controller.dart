@@ -738,12 +738,6 @@ class InspectionFormController extends ChangeNotifier {
         verificacionesBuceo!.horaInicio = horaInicioController.text.trim();
         verificacionesBuceo!.horaTermino = horaTerminoController.text.trim();
         verificacionesMap = verificacionesBuceo!.toMap();
-      } else if (tipoActividad == 'INSPECCION_EMBARCACION') {
-        embarcacionMap = {
-          'actividad_id': activityId,
-          'correo_empresa': correoEmpresaServiciosCtrl.text.trim(),
-          'numero_zarpe': numeroZarpeCtrl.text.trim(), // 👈 NUEVO
-        };
       }
       if (participantes.isNotEmpty) {
         participantesMap = participantes.map((p) {
@@ -760,6 +754,12 @@ class InspectionFormController extends ChangeNotifier {
           };
         }).toList();
       }
+    } else if (tipoActividad == 'INSPECCION_EMBARCACION') {
+      embarcacionMap = {
+        'actividad_id': activityId,
+        'correo_empresa': correoEmpresaServiciosCtrl.text.trim(),
+        'numero_zarpe': numeroZarpeCtrl.text.trim(),
+      };
     }
 
     // 5. LLAMADA MAESTRA

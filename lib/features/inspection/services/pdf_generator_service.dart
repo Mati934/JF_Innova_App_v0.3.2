@@ -673,42 +673,44 @@ class PdfGeneratorService {
       padding: const pw.EdgeInsets.symmetric(horizontal: 10),
       child: pw.Row(
         children: [
-          pw.Expanded(
-            flex: 3,
-            child: pw.Container(
-              height: 45,
-              padding: const pw.EdgeInsets.all(4),
-              decoration: pw.BoxDecoration(
-                color: bgEstado,
-                border: pw.Border.all(color: colorEstado, width: 1),
-                borderRadius: pw.BorderRadius.circular(6),
-              ),
-              child: pw.Column(
-                mainAxisAlignment: pw.MainAxisAlignment.center,
-                children: [
-                  pw.Text(
-                    "ESTADO FINAL DE FAENA",
-                    style: pw.TextStyle(
-                      fontSize: 6,
-                      color: colorEstado,
-                      fontWeight: pw.FontWeight.bold,
+          if (!data.tipoFaena.contains('EMBARCACIÓN')) ...[
+            pw.Expanded(
+              flex: 3,
+              child: pw.Container(
+                height: 45,
+                padding: const pw.EdgeInsets.all(4),
+                decoration: pw.BoxDecoration(
+                  color: bgEstado,
+                  border: pw.Border.all(color: colorEstado, width: 1),
+                  borderRadius: pw.BorderRadius.circular(6),
+                ),
+                child: pw.Column(
+                  mainAxisAlignment: pw.MainAxisAlignment.center,
+                  children: [
+                    pw.Text(
+                      "ESTADO FINAL DE FAENA",
+                      style: pw.TextStyle(
+                        fontSize: 6,
+                        color: colorEstado,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  pw.SizedBox(height: 2),
-                  pw.Text(
-                    estadoUpper,
-                    style: pw.TextStyle(
-                      fontSize: 10,
-                      fontWeight: pw.FontWeight.bold,
-                      color: colorEstado,
+                    pw.SizedBox(height: 2),
+                    pw.Text(
+                      estadoUpper,
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                        color: colorEstado,
+                      ),
+                      textAlign: pw.TextAlign.center,
                     ),
-                    textAlign: pw.TextAlign.center,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          pw.SizedBox(width: 8),
+            pw.SizedBox(width: 8),
+          ],
 
           // 🟢 CAJITAS CON EL NUEVO CÁLCULO
           statBox(
@@ -2193,52 +2195,44 @@ class PdfGeneratorService {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Expanded(
-                flex: 2,
-                child: _infoDato("EMBARCACIÓN", data.embarcacion),
-              ),
-              pw.Expanded(
-                flex: 2,
-                child: _infoDato("MATRÍCULA", data.matricula),
-              ),
-              pw.Expanded(
-                flex: 3,
-                child: _infoDato("EMPRESA CONT.", data.empresaContratista),
-              ),
-            ],
-          ),
-          pw.SizedBox(height: 10),
-          pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Expanded(flex: 2, child: _infoDato("ÁREA", data.area)),
-              pw.Expanded(flex: 2, child: _infoDato("CENTRO", data.centro)),
-              // 🟢 NUEVO CAMPO AÑADIDO A LA GRILLA
-              pw.Expanded(
-                flex: 2,
-                child: _infoDato("N° ZARPE", data.numeroZarpe ?? "S/N"),
-              ),
-              pw.Expanded(
-                flex: 3,
-                child: _infoDato("CORREO", data.correoEmpresaServicios ?? "-"),
-              ),
-            ],
-          ),
-          pw.SizedBox(height: 10),
-          pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Expanded(flex: 2, child: _infoDato("FECHA", data.fecha)),
-              pw.Expanded(
-                flex: 2,
-                child: _infoDato(
-                  "HORARIO",
-                  "${data.horaInicio ?? '--:--'} a ${data.horaTermino ?? '--:--'}",
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    _infoDato("EMBARCACIÓN", data.embarcacion),
+                    pw.SizedBox(height: 8),
+                    _infoDato("ÁREA", data.area),
+                    pw.SizedBox(height: 8),
+                    _infoDato("FECHA", data.fecha),
+                  ],
                 ),
               ),
               pw.Expanded(
-                flex: 5,
-                child: pw.SizedBox(),
-              ), // Ajuste de flex para empujar
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    _infoDato("MATRÍCULA", data.matricula),
+                    pw.SizedBox(height: 8),
+                    _infoDato("CENTRO", data.centro),
+                    pw.SizedBox(height: 8),
+                    _infoDato(
+                      "HORARIO",
+                      "${data.horaInicio ?? '--:--'} a ${data.horaTermino ?? '--:--'}",
+                    ),
+                  ],
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    _infoDato("EMPRESA CONT.", data.empresaContratista),
+                    pw.SizedBox(height: 8),
+                    _infoDato("CORREO", data.correoEmpresaServicios ?? "-"),
+                    pw.SizedBox(height: 8),
+                    _infoDato("N° ZARPE", data.numeroZarpe ?? "S/N"),
+                  ],
+                ),
+              ),
             ],
           ),
         ],
