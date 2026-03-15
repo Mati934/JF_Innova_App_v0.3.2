@@ -4,6 +4,7 @@ class FormularioItem {
   final String categoria;
   final String criticidad;
   final String? infoAdicional;
+  final String? urlImagenReferencia;
 
   FormularioItem({
     required this.id,
@@ -11,6 +12,7 @@ class FormularioItem {
     required this.categoria,
     required this.criticidad,
     this.infoAdicional,
+    this.urlImagenReferencia,
   });
 
   factory FormularioItem.fromJson(Map<String, dynamic> json) {
@@ -20,6 +22,7 @@ class FormularioItem {
       categoria: json['categoria'],
       criticidad: json['criticidad'] ?? 'Bajo',
       infoAdicional: json['info_adicional'] ?? json['infoAdicional'],
+      urlImagenReferencia: json['url_imagen_referencia'],
     );
   }
 }

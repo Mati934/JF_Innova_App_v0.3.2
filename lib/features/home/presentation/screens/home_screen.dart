@@ -7,6 +7,7 @@ import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../inspection/presentation/screens/inspection_setup_screen.dart';
 import '../../../history/presentation/screens/history_screen.dart';
 import '../../../visits/presentation/screens/visit_form_screen.dart'; // Importa la pantalla de visitas
+import '../../../tickets/presentation/screens/ticket_list_screen.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -177,7 +178,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
 
-                        SizedBox(height: estaVacio ? 50 : 30),
+                        SizedBox(height: estaVacio ? 50 : 20),
+
+                        _buildTicketsPanel(context),
+
+                        SizedBox(height: estaVacio ? 26 : 16),
 
                         // --- AQUÍ ESTÁ EL CAMBIO: LA NUEVA GRILLA ---
                         ModuleSelectorGrid(
@@ -220,6 +225,102 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Panel de acceso rápido al módulo de Tickets
+  // ---------------------------------------------------------------------------
+
+  Widget _buildTicketsPanel(BuildContext context) {
+    final count = _controller.ticketsAbiertos;
+    final hasTickets = count > 0;
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.hardEdge,
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const TicketListScreen()),
+        ).then((_) => _controller.cargarNotificacionesTickets()),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: hasTickets ? Colors.red.shade50 : Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: hasTickets ? Colors.red.shade200 : Colors.grey.shade200,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: hasTickets
+                        ? Colors.red.shade100
+                        : AppTheme.primaryBlue.withOpacity(0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.confirmation_number_outlined,
+                    color:
+                        hasTickets ? Colors.red.shade700 : AppTheme.primaryBlue,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Tickets',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        hasTickets
+                            ? '$count ticket(s) abierto(s)'
+                            : 'Sin tickets pendientes',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (hasTickets) ...[
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade600,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 

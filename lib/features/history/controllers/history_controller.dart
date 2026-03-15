@@ -4,6 +4,8 @@ import '../data/repositories/supabase_history_repository.dart';
 class HistoryController extends ChangeNotifier {
   final _cloudRepo = SupabaseHistoryRepository();
 
+  bool _disposed = false;
+
   // Renombrado a 'records' porque ahora mezcla Inspecciones y Visitas
   List<Map<String, dynamic>> records = [];
   bool isLoading = true;
@@ -22,9 +24,19 @@ class HistoryController extends ChangeNotifier {
     _init();
   }
 
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
+  }
+
   Future<void> _init() async {
     isLoading = true;
-    notifyListeners();
+    _safeNotify();
 
     try {
       // 1. Verificamos Rol
@@ -46,13 +58,13 @@ class HistoryController extends ChangeNotifier {
     } catch (e) {
       debugPrint("⚠️ Error crítico inicializando historial: $e");
       isLoading = false;
-      notifyListeners();
+      _safeNotify();
     }
   }
 
   Future<void> cargarHistorial() async {
     isLoading = true;
-    notifyListeners();
+    _safeNotify();
 
     try {
       records = await _cloudRepo.getHistorialGlobal(
@@ -67,7 +79,7 @@ class HistoryController extends ChangeNotifier {
       records = []; // Vaciamos para no mostrar datos fantasma
     } finally {
       isLoading = false;
-      notifyListeners();
+      _safeNotify();
     }
   }
 

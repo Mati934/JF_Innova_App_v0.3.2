@@ -3,10 +3,12 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/database/database_helper.dart';
+import '../../../features/tickets/data/repositories/supabase_ticket_repository.dart';
 
 class SyncService {
   final _supabase = Supabase.instance.client;
   final _dbHelper = DatabaseHelper.instance;
+  final _ticketRepo = SupabaseTicketRepository();
 
   // // --- 1. DESCARGAR DATOS MAESTROS (Down-Sync) ---
   // --- 1. DESCARGAR DATOS MAESTROS (Down-Sync) ---
@@ -21,6 +23,14 @@ class SyncService {
             .select('id, nombre, contratista_id, matricula'),
         _supabase.from('formulario_items').select().eq('activo', true),
         _supabase.from('personal_externo').select(),
+        _supabase.from('empresas').select('id, nombre'),
+        _supabase
+            .from('ticket_categorias')
+            .select('id, nombre, activo')
+            .eq('activo', true),
+        _supabase
+            .from('usuarios')
+            .select('id, rut, nombre_completo, email, rol_id, telefono'),
       ]);
 
       await _dbHelper.guardarMaestros(
@@ -46,6 +56,21 @@ class SyncService {
         'personal_externo',
         List<Map<String, dynamic>>.from(results[5]),
       );
+      await _dbHelper.guardarMaestros(
+        'empresas',
+        List<Map<String, dynamic>>.from(results[6]),
+      );
+      await _dbHelper.guardarMaestros(
+        'ticket_categorias',
+        List<Map<String, dynamic>>.from(results[7]),
+      );
+      await _dbHelper.guardarMaestros(
+        'usuarios',
+        List<Map<String, dynamic>>.from(results[8]),
+      );
+
+      // Descargar tickets abiertos/en proceso desde Supabase
+      await _ticketRepo.descargarTicketsDesdeSupabase();
 
       debugPrint(
         "✅ Datos maestros actualizados offline (Sin tocar al usuario).",
@@ -70,6 +95,9 @@ class SyncService {
       // 3. Subir Hijos (Respuestas y Fotos)
       await _sincronizarRespuestas();
       await _sincronizarFotos();
+
+      // 4. Subir Tickets pendientes
+      await _ticketRepo.syncTicketsHaciaSupabase();
 
       return actividadesSubidas + visitasSubidas;
     } catch (e) {

@@ -6,7 +6,7 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
-  static const int _dbVersion = 18;
+  static const int _dbVersion = 23;
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -54,7 +54,8 @@ class DatabaseHelper {
         criticidad TEXT,
         orden INTEGER,
         activo INTEGER,
-        info_adicional TEXT
+        info_adicional TEXT,
+        url_imagen_referencia TEXT
       )
     ''');
 
@@ -90,6 +91,9 @@ class DatabaseHelper {
     );
     await db.execute(
       'CREATE TABLE contratistas (id TEXT PRIMARY KEY, nombre TEXT)',
+    );
+    await db.execute(
+      'CREATE TABLE empresas (id TEXT PRIMARY KEY, nombre TEXT)',
     );
     // Agregamos matricula aquí también por si acaso
     await db.execute(
@@ -228,6 +232,38 @@ class DatabaseHelper {
         apuntes_observaciones TEXT,
         pdf_path_local TEXT,
         pdf_url TEXT
+      )
+    ''');
+
+    // --- MÓDULO TICKETS DE REQUERIMIENTOS ---
+    await db.execute('''
+      CREATE TABLE ticket_categorias (
+        id TEXT PRIMARY KEY,
+        nombre TEXT,
+        activo INTEGER DEFAULT 1
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE tickets_pendientes (
+        id TEXT PRIMARY KEY,
+        codigo_ticket TEXT,
+        empresa_id TEXT,
+        area_id TEXT,
+        centro_id TEXT,
+        embarcacion_id TEXT,
+        actividad_id TEXT,
+        categoria_id TEXT,
+        categoria_otro TEXT,
+        descripcion TEXT,
+        solicitante_id TEXT,
+        responsable_id TEXT,
+        estado TEXT,
+        criticidad TEXT,
+        fecha_tentativa_cierre TEXT,
+        created_at TEXT,
+        subido INTEGER DEFAULT 0,
+        eliminado INTEGER DEFAULT 0
       )
     ''');
 
@@ -393,6 +429,71 @@ class DatabaseHelper {
       );
       debugPrint("✅ Parche v18 aplicado.");
     }
+    if (oldVersion < 19) {
+      debugPrint("🚀 Aplicando parche v19 (URL Imagen Referencia en Items)...");
+      await _safeAddColumn(
+        db,
+        "formulario_items",
+        "url_imagen_referencia",
+        "TEXT",
+      );
+      debugPrint("✅ Parche v19 aplicado.");
+    }
+    if (oldVersion < 20) {
+      debugPrint(
+        "🚀 Aplicando parche v20 (Módulo Tickets de Requerimientos)...",
+      );
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS ticket_categorias (
+          id TEXT PRIMARY KEY,
+          nombre TEXT,
+          activo INTEGER DEFAULT 1
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS tickets_pendientes (
+          id TEXT PRIMARY KEY,
+          codigo_ticket TEXT,
+          empresa_id TEXT,
+          area_id TEXT,
+          actividad_id TEXT,
+          categoria_id TEXT,
+          categoria_otro TEXT,
+          descripcion TEXT,
+          solicitante_id TEXT,
+          responsable_id TEXT,
+          estado TEXT,
+          criticidad TEXT,
+          fecha_tentativa_cierre TEXT,
+          subido INTEGER DEFAULT 0,
+          eliminado INTEGER DEFAULT 0
+        )
+      ''');
+      debugPrint("✅ Parche v20 aplicado.");
+    }
+    if (oldVersion < 21) {
+      debugPrint("🚀 Aplicando parche v21 (Tabla Empresas)...");
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS empresas (
+          id TEXT PRIMARY KEY,
+          nombre TEXT
+        )
+      ''');
+      debugPrint("✅ Parche v21 aplicado.");
+    }
+    if (oldVersion < 22) {
+      debugPrint(
+        "🚀 Aplicando parche v22 (Centro y Embarcación en Tickets)...",
+      );
+      await _safeAddColumn(db, "tickets_pendientes", "centro_id", "TEXT");
+      await _safeAddColumn(db, "tickets_pendientes", "embarcacion_id", "TEXT");
+      debugPrint("✅ Parche v22 aplicado.");
+    }
+    if (oldVersion < 23) {
+      debugPrint("🚀 Aplicando parche v23 (Fecha creación en Tickets)...");
+      await _safeAddColumn(db, "tickets_pendientes", "created_at", "TEXT");
+      debugPrint("✅ Parche v23 aplicado.");
+    }
   }
 
   // Helper seguro para migraciones
@@ -445,6 +546,12 @@ class DatabaseHelper {
           row['cargo'] = item['cargo'];
           row['matricula'] = item['matricula'];
           row['contratista_id'] = item['contratista_id'];
+        } else if (tabla == 'usuarios') {
+          row['rut'] = item['rut'];
+          row['nombre_completo'] = item['nombre_completo'];
+          row['email'] = item['email'];
+          row['telefono'] = item['telefono'];
+          row['rol_id'] = item['rol_id'];
         } else if (tabla == 'embarcaciones') {
           row['nombre'] = item['nombre'];
           if (item.containsKey('contratista_id'))
@@ -480,6 +587,11 @@ class DatabaseHelper {
     );
   }
 
+  Future<List<Map<String, dynamic>>> getAllCentros() async {
+    final db = await instance.database;
+    return await db.query('centros', orderBy: 'nombre');
+  }
+
   Future<List<Map<String, dynamic>>> getContratistas() async {
     final db = await instance.database;
     return await db.query('contratistas', orderBy: 'nombre');
@@ -511,6 +623,7 @@ class DatabaseHelper {
         'orden': item['orden'],
         'activo': (item['activo'] == true) ? 1 : 0,
         'info_adicional': item['info_adicional'],
+        'url_imagen_referencia': item['url_imagen_referencia'],
       });
     }
     await batch.commit(noResult: true);
@@ -522,6 +635,34 @@ class DatabaseHelper {
       'actividades_pendientes',
       actividad,
       conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getAllEmpresas() async {
+    final db = await instance.database;
+    return await db.query('empresas', orderBy: 'nombre');
+  }
+
+  Future<List<Map<String, dynamic>>> getAllUsuarios() async {
+    final db = await instance.database;
+    return await db.query('usuarios', orderBy: 'nombre_completo');
+  }
+
+  Future<List<Map<String, dynamic>>> getAllEmbarcaciones() async {
+    final db = await instance.database;
+    return await db.query('embarcaciones', orderBy: 'nombre');
+  }
+
+  /// Devuelve todas las actividades no eliminadas que tienen número de reporte,
+  /// ordenadas por fecha de realización descendente.
+  Future<List<Map<String, dynamic>>> getAllActividades() async {
+    final db = await instance.database;
+    return await db.query(
+      'actividades_pendientes',
+      columns: ['id', 'numero_reporte', 'tipo_actividad', 'fecha_realizacion'],
+      where:
+          'eliminado = 0 AND numero_reporte IS NOT NULL AND numero_reporte != ""',
+      orderBy: 'fecha_realizacion DESC',
     );
   }
 }

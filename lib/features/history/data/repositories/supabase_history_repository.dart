@@ -64,9 +64,11 @@ class SupabaseHistoryRepository {
         'fecha_realizacion': item['fecha_realizacion'],
         'numero_reporte': item['numero_reporte'],
         'pdf_url': item['pdf_url'],
-        // 🔥 2. Lo leemos directamente del JSON plano
         'inspector_nombre': item['inspector_nombre'] ?? 'Desconocido',
         'numero_seguimiento': item['numero_seguimiento'] ?? 0,
+        // IDs de contexto usados para pre-rellenar el formulario de tickets
+        'centro_id': item['centro_id'],
+        'embarcacion_id': item['embarcacion_id'],
         'subido': 1,
       };
     }).toList();

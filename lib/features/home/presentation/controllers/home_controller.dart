@@ -4,11 +4,13 @@ import '../../../sync/services/sync_service.dart';
 import '../../../inspection/data/repositories/local_inspection_repository.dart';
 import '../../../../core/database/database_helper.dart';
 import '../../../visits/data/repositories/local_visit_repository.dart';
+import '../../../tickets/data/repositories/local_ticket_repository.dart';
 
 class HomeController extends ChangeNotifier {
   final _syncService = SyncService();
   final _localRepo = LocalInspectionRepository();
   final _visitRepo = LocalVisitRepository();
+  final _ticketRepo = LocalTicketRepository();
 
   final User? user = Supabase.instance.client.auth.currentUser;
 
@@ -23,13 +25,17 @@ class HomeController extends ChangeNotifier {
   List<Map<String, dynamic>> borradores = [];
   bool isLoadingBorradores = true;
 
+  // Variables de Notificaciones
+  int _ticketsAbiertos = 0;
+  int get ticketsAbiertos => _ticketsAbiertos;
+
   HomeController() {
     _inicializarDatos();
   }
 
   Future<void> _inicializarDatos() async {
     await _cargarPerfil(); // 100% Offline
-    await cargarBorradores();
+    await Future.wait([cargarBorradores(), cargarNotificacionesTickets()]);
     _sincronizarSilencioso(); // Background sync para maestros y subidas
   }
 
@@ -64,6 +70,18 @@ class HomeController extends ChangeNotifier {
       borradores = [];
     } finally {
       isLoadingBorradores = false;
+      notifyListeners();
+    }
+  }
+
+  // --- LÓGICA DE NOTIFICACIONES DE TICKETS ---
+  Future<void> cargarNotificacionesTickets() async {
+    try {
+      _ticketsAbiertos = await _ticketRepo.getCantidadTicketsAbiertos();
+    } catch (e) {
+      debugPrint('❌ [HomeController] Error al cargar tickets abiertos: $e');
+      _ticketsAbiertos = 0;
+    } finally {
       notifyListeners();
     }
   }
@@ -157,6 +175,7 @@ class HomeController extends ChangeNotifier {
       }
 
       await cargarBorradores(); // Refresca UI si se eliminaron zombies
+      await cargarNotificacionesTickets(); // Refresca badge de tickets
       await _syncService.descargarDatosMaestros();
     } catch (e) {
       isError = true;

@@ -80,8 +80,10 @@ class _QuestionCardState extends State<QuestionCard>
     super.build(context);
     final esNC = _estadoSeleccionado == 'NC';
     final tieneInfo =
-        widget.item.infoAdicional != null &&
-        widget.item.infoAdicional!.isNotEmpty;
+        (widget.item.infoAdicional != null &&
+            widget.item.infoAdicional!.isNotEmpty) ||
+        (widget.item.urlImagenReferencia != null &&
+            widget.item.urlImagenReferencia!.isNotEmpty);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -126,7 +128,7 @@ class _QuestionCardState extends State<QuestionCard>
                             behavior: HitTestBehavior.opaque,
                             onTap: () => _mostrarMensajeInformativo(
                               context,
-                              widget.item.infoAdicional!,
+                              widget.item.infoAdicional ?? '',
                             ),
                             child: Container(
                               width: 45,
@@ -406,26 +408,122 @@ class _QuestionCardState extends State<QuestionCard>
 
   // --- LÓGICA DEL MENSAJE INFORMATIVO FLOTANTE (Optimizado y Moderno) ---
   void _mostrarMensajeInformativo(BuildContext context, String mensaje) {
+    final urlImagen = widget.item.urlImagenReferencia;
+    final tieneImagen = urlImagen != null && urlImagen.isNotEmpty;
+
+    if (tieneImagen) {
+      showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 40,
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Botón de cerrar en la esquina superior derecha
+                Align(
+                  alignment: Alignment.topRight,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.white70,
+                    ),
+                    onPressed: () => Navigator.of(ctx).pop(),
+                  ),
+                ),
+
+                // Imagen centrada con indicador de carga
+                Flexible(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        urlImagen,
+                        fit: BoxFit.contain,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return SizedBox(
+                            height: 200,
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                value:
+                                    loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                    : null,
+                                color: const Color(0xFFE2B93B),
+                              ),
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) =>
+                            const SizedBox(
+                              height: 120,
+                              child: Center(
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  color: Colors.white54,
+                                  size: 40,
+                                ),
+                              ),
+                            ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Texto del infoAdicional
+                if (mensaje.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                    child: Text(
+                      mensaje,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        height: 1.4,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  )
+                else
+                  const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Comportamiento original: SnackBar flotante
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        // Hacemos el fondo nativo transparente para dibujar nuestro propio contenedor con sombra
         backgroundColor: Colors.transparent,
         elevation: 0,
         behavior: SnackBarBehavior.floating,
-        // Mantengo tu posición flotante en la parte superior/media de la pantalla
         margin: EdgeInsets.only(
           bottom: MediaQuery.of(context).size.height * 0.70,
           left: 20,
           right: 20,
         ),
-        duration: const Duration(seconds: 4), // 4 segundos es el estándar UX
+        duration: const Duration(seconds: 4),
         content: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: const Color(
-              0xFF1E293B,
-            ), // Un azul pizarra oscuro muy elegante (Slate)
+            color: const Color(0xFF1E293B),
             borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
@@ -434,25 +532,20 @@ class _QuestionCardState extends State<QuestionCard>
                 offset: const Offset(0, 5),
               ),
             ],
-            // Un borde sutil para darle ese toque "Premium"
             border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Icono distintivo
               const Padding(
                 padding: EdgeInsets.only(top: 2),
                 child: Icon(
                   Icons.info_outline_rounded,
-                  color: Color(
-                    0xFFE2B93B,
-                  ), // El amarillo/dorado que estabas usando
+                  color: Color(0xFFE2B93B),
                   size: 22,
                 ),
               ),
               const SizedBox(width: 12),
-              // Texto expandido para que no desborde si es muy largo
               Expanded(
                 child: Text(
                   mensaje,
@@ -460,7 +553,7 @@ class _QuestionCardState extends State<QuestionCard>
                     color: Colors.white,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    height: 1.4, // Interlineado para mejor legibilidad
+                    height: 1.4,
                     letterSpacing: 0.2,
                   ),
                 ),
