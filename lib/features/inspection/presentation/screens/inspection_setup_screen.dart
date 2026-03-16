@@ -300,7 +300,9 @@ class _InspectionSetupView extends StatelessWidget {
                             if (val != null) {
                               final selected = controller.embarcaciones
                                   .firstWhere((e) => e['nombre'] == val);
-                              controller.setEmbarcacion(selected['id']);
+                              controller.setEmbarcacion(
+                                selected['id']?.toString(),
+                              );
                             }
                           },
                           // Opcional: Aquí podrías activar el "onAddNew" si quisieras crear barcos

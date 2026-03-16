@@ -168,7 +168,7 @@ class InspectionSetupController extends ChangeNotifier {
   }
 
   void setEmbarcacion(String? v) {
-    embarcacionId = v;
+    embarcacionId = v?.toString();
     notifyListeners();
   }
 

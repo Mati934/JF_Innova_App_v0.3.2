@@ -118,10 +118,10 @@ class InspectionFormController extends ChangeNotifier {
         );
 
         if (data != null) {
-          centroId = data['centro_id'] as String?;
-          usuarioId = data['usuario_id'] as String?;
-          contratistaId = data['contratista_id'] as String?;
-          embarcacionId = data['embarcacion_id'] as String?;
+          centroId = data['centro_id']?.toString();
+          usuarioId = data['usuario_id']?.toString();
+          contratistaId = data['contratista_id']?.toString();
+          embarcacionId = data['embarcacion_id']?.toString();
           _numeroSeguimiento = data['numero_seguimiento'] as int? ?? 0;
 
           final numeroReal = data['numero_reporte']?.toString();
@@ -510,13 +510,31 @@ class InspectionFormController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      debugPrint("🚀 FINALIZAR: Iniciando proceso optimizado con Isolates...");
+      debugPrint("🚀 FINALIZAR: Iniciando proceso...");
 
       // ---------------------------------------------------------
-      // PASO 1: CARGAR ASSETS EN EL HILO PRINCIPAL (MAIN THREAD)
+      // PASO 1: PERSISTIR DATOS LOCALMENTE (para que estén listos para sync)
       // ---------------------------------------------------------
-      // Los Isolates no tienen acceso a los assets de la app, así que
-      // debemos cargarlos aquí y pasárselos como bytes crudos.
+      await _persistirDatos(esBorrador: false, pdfUrlFinal: null);
+
+      // ---------------------------------------------------------
+      // PASO 2: SINCRONIZAR PARA OBTENER NUMERO DE INFORME
+      // ---------------------------------------------------------
+      // Sincronizamos ANTES de generar el PDF para que Supabase
+      // asigne el numero_informe real y lo tengamos disponible.
+      debugPrint("🔄 Sincronizando para obtener N° de Informe...");
+      try {
+        await _syncService.sincronizarTodo();
+        await recargarNumeroDesdeDB();
+        debugPrint("✅ N° Informe obtenido: ${numeroInformeController.text}");
+      } catch (e) {
+        debugPrint("⚠️ Sync previo al PDF falló (offline?): $e");
+        // Continuamos igual, el PDF saldrá con "Pendiente..." si no hay número
+      }
+
+      // ---------------------------------------------------------
+      // PASO 3: CARGAR ASSETS EN EL HILO PRINCIPAL (MAIN THREAD)
+      // ---------------------------------------------------------
       final fontReg = await rootBundle.load(
         "assets/fonts/OpenSans-Regular.ttf",
       );
@@ -536,17 +554,13 @@ class InspectionFormController extends ChangeNotifier {
       }
 
       // ---------------------------------------------------------
-      // PASO 2: PREPARAR DATOS (DTO)
+      // PASO 4: PREPARAR DATOS (DTO) - ahora con número real
       // ---------------------------------------------------------
-      // Aquí llamamos a _buildReportData.
-      // IMPORTANTE: Asegúrate de que _buildReportData use '_pathToCompressedBytes'
-      // para que las fotos ya vayan ligeras.
       bool esConsecutivaFinal = (_numeroSeguimiento == 1);
       final reportData = await _buildReportData(
         esConsecutiva: esConsecutivaFinal,
       );
 
-      // Empaquetamos todo en la clase que creamos en el paso anterior
       final params = PdfIsolateParams(
         data: reportData,
         fontRegular: fontReg.buffer.asUint8List(),
@@ -556,10 +570,8 @@ class InspectionFormController extends ChangeNotifier {
       );
 
       // ---------------------------------------------------------
-      // PASO 3: GENERAR PDF EN ISOLATE (OTRO HILO) 🧵
+      // PASO 5: GENERAR PDF EN ISOLATE (OTRO HILO)
       // ---------------------------------------------------------
-      // 'compute' lanza la función 'generatePdfEntryPoint' en otro núcleo del CPU.
-      // Esto evita que la UI se congele y usa memoria RAM independiente.
       debugPrint("🧵 ISOLATE: Generando PDF en segundo plano...");
 
       final pdfBytes = await compute(generatePdfEntryPoint, params);
@@ -567,7 +579,7 @@ class InspectionFormController extends ChangeNotifier {
       debugPrint("✅ PDF Generado (${pdfBytes.lengthInBytes / 1024} KB).");
 
       // ---------------------------------------------------------
-      // PASO 4: SUBIDA A SUPABASE (NUBE)
+      // PASO 6: SUBIDA PDF A SUPABASE STORAGE
       // ---------------------------------------------------------
       String? pdfUrlSubido;
       try {
@@ -596,13 +608,13 @@ class InspectionFormController extends ChangeNotifier {
       }
 
       // ---------------------------------------------------------
-      // PASO 5: PERSISTENCIA LOCAL Y SYNC
+      // PASO 7: ACTUALIZAR URL DEL PDF EN LOCAL Y NUBE
       // ---------------------------------------------------------
       await _persistirDatos(esBorrador: false, pdfUrlFinal: pdfUrlSubido);
 
-      // Intentamos sincronizar en segundo plano (sin await para no bloquear)
+      // Sync final para subir la URL del PDF
       _syncService.sincronizarTodo().catchError(
-        (e) => debugPrint("Sync Error: $e"),
+        (e) => debugPrint("Sync final Error: $e"),
       );
 
       // ---------------------------------------------------------
@@ -1071,10 +1083,15 @@ class InspectionFormController extends ChangeNotifier {
         where: 'id = ?',
         whereArgs: [embarcacionId],
       );
+      debugPrint(
+        "🚢 [PDF] embarcacionId=$embarcacionId | resultados=${resNave.length}",
+      );
       if (resNave.isNotEmpty) {
-        nombreEmbarcacion = resNave.first['nombre'] as String;
-        matriculaEmbarcacion = (resNave.first['matricula'] as String?) ?? "S/N";
+        nombreEmbarcacion = resNave.first['nombre']?.toString() ?? "NAVE S/N";
+        matriculaEmbarcacion = resNave.first['matricula']?.toString() ?? "S/N";
       }
+    } else {
+      debugPrint("⚠️ [PDF] embarcacionId es NULL, usando fallback NAVE S/N");
     }
 
     int countC = 0, countNC = 0, countNA = 0, countIntolerables = 0;
