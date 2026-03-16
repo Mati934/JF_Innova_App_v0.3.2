@@ -57,6 +57,7 @@ sigamos con la app, # CONTEXTO DEL PROYECTO: APP JF INNOVA (Inspecciones & Preve
 4.  **Módulos Adicionales:**
     * `ast_registros` / `ast_detalles`: Análisis Seguro de Trabajo (Pasos, peligros, controles).
     * `capacitaciones_registros` / `capacitaciones_asistentes`: Registro de charlas y firmas.
+    * `tickets`: Incidencias/solicitudes visibles para todos los usuarios autenticados. Campos: `titulo`, `descripcion`, `estado` (Abierto/En Progreso/Cerrado), `prioridad` (Baja/Media/Alta), `creado_por` (FK auth.users), `nombre_creador`. **RLS habilitado**: SELECT para todos los autenticados; INSERT/UPDATE/DELETE solo para el creador.
 
 ## 4. Reglas de Negocio Críticas
 1.  **Offline-First:** El usuario debe poder completar todo el flujo sin internet. Los datos se guardan en local y se suben al detectar conexión.

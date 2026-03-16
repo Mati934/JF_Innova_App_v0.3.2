@@ -3,6 +3,7 @@ import '../controllers/home_controller.dart';
 import '../widgets/draft_list_widget.dart'; // Importamos el widget de borradores
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../inspection/presentation/screens/inspection_setup_screen.dart';
+import '../../../tickets/presentation/screens/tickets_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -167,6 +168,26 @@ class _HomeScreenState extends State<HomeScreen> {
                             textStyle: const TextStyle(fontSize: 18),
                             // Opcional: Si quieres que el botón destaque más cuando es lo único en pantalla
                             elevation: estaVacio ? 4 : 2,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // --- BOTÓN TICKETS ---
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const TicketsScreen(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.confirmation_number_outlined),
+                          label: const Text("Ver Tickets"),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 50),
+                            textStyle: const TextStyle(fontSize: 16),
                           ),
                         ),
 
