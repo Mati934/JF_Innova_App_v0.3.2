@@ -324,6 +324,7 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                         rut: rutCtrl.text.trim(),
                         cargo: cargoNotifier.value,
                         matricula: matriculaCtrl.text.trim(),
+                        contratistaId: controller.contratistaId, // <--- USAR CONTRATISTA DEL CONTROLLER
                         condicionesOptimas: true,
                       );
 
@@ -901,19 +902,19 @@ class BuceoTecnicoWidget extends StatelessWidget {
                   ),
                 ),
 
-                // const SizedBox(height: 10),
+                const SizedBox(height: 10),
 
-                // // CAMPO 2: SUPERVISOR (Usamos el controller, NO _TextInput)
-                // TextFormField(
-                //   controller: controller
-                //       .supervisorCentroController, // <--- ESTA ES LA CLAVE
-                //   decoration: const InputDecoration(
-                //     labelText: "Supervisor de Centro",
-                //     isDense: true,
-                //     border: OutlineInputBorder(),
-                //     prefixIcon: Icon(Icons.person_outline, size: 20),
-                //   ),
-                // ),
+                // CAMPO 2: SUPERVISOR (Usamos el controller, NO _TextInput)
+                TextFormField(
+                  controller: controller
+                      .supervisorCentroController, // <--- ESTA ES LA CLAVE
+                  decoration: const InputDecoration(
+                    labelText: "Supervisor de Centro",
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person_outline, size: 20),
+                  ),
+                ),
 
                 // -----------------------------------------------------------
                 const Divider(height: 30, thickness: 1),

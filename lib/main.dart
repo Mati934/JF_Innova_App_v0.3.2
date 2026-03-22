@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/config/supabase_config.dart';
 import 'core/theme/app_theme.dart';
 import 'core/database/database_helper.dart'; // Para el chequeo de supervivencia offline
+import 'core/services/connectivity_service.dart';
 import 'features/home/presentation/screens/home_screen.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/sync/services/sync_service.dart';
@@ -42,6 +43,26 @@ void main() async {
     url: SupabaseConfig.url,
     anonKey: SupabaseConfig.anonKey,
   );
+
+  // 5. Inicializar servicio de conectividad
+  await ConnectivityService().init();
+
+  // 6. Registrar auto-sync cuando vuelve la conexión
+  ConnectivityService().onReconnect(() {
+    debugPrint("🔄 Auto-sync al recuperar conexión...");
+    SyncService()
+        .sincronizarTodo()
+        .then((count) {
+          if (count > 0) {
+            debugPrint(
+              "✅ Auto-sync completado: $count registros sincronizados",
+            );
+          }
+        })
+        .catchError((e) {
+          debugPrint("⚠️ Auto-sync falló: $e");
+        });
+  });
 
   runApp(const MyApp());
 }

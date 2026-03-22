@@ -101,6 +101,7 @@ class SupabaseInspectionRepository implements InspectionRepository {
             'nombre_completo': p.nombreCompleto,
             'rut': p.rut,
             'cargo': p.cargo,
+            'matricula': p.matricula,
             'activo': true,
           },
         )
@@ -144,6 +145,8 @@ class SupabaseInspectionRepository implements InspectionRepository {
         nombreCompleto: personal['nombre_completo'] ?? '',
         rut: personal['rut'] ?? '',
         cargo: item['rol_en_faena'], // El rol específico de esta faena
+        matricula: personal['matricula'] ?? '', // <--- AGREGAR MATRICULA
+        contratistaId: personal['contratista_id'], // <--- AGREGAR CONTRATISTA_ID
         condicionesOptimas: item['condiciones_optimas'] == true,
       );
     }).toList();

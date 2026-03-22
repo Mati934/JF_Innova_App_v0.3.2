@@ -290,6 +290,7 @@ class LocalInspectionRepository implements InspectionRepository {
       );
 
       for (var p in participantes) {
+        // CAMBIO: Usamos replace para actualizar matrícula si el buzo ya existe
         await txn.insert('personal_externo', {
           'id': p.personalId,
           'nombre_completo': p.nombreCompleto,
@@ -297,7 +298,7 @@ class LocalInspectionRepository implements InspectionRepository {
           'cargo': p.cargo,
           'activo': 1,
           'matricula': p.matricula,
-        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
 
         await txn.insert('actividad_participantes', {
           'actividad_id': activityId,
@@ -399,6 +400,7 @@ class LocalInspectionRepository implements InspectionRepository {
           whereArgs: [actividad['id']],
         );
         for (var p in participantes) {
+          // CAMBIO: Usamos replace para actualizar matrícula si el buzo ya existe
           batch.insert('personal_externo', {
             'id': p['personal_id'],
             'nombre_completo': p['nombre_completo'],
@@ -407,7 +409,7 @@ class LocalInspectionRepository implements InspectionRepository {
             'activo': 1,
             'matricula': p['matricula'],
             'contratista_id': p['contratista_id'],
-          }, conflictAlgorithm: ConflictAlgorithm.ignore);
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
 
           batch.insert('actividad_participantes', {
             'actividad_id': actividad['id'],
@@ -493,6 +495,7 @@ class LocalInspectionRepository implements InspectionRepository {
         rut: map['rut'] as String,
         cargo: map['cargo'] as String? ?? 'Buzo',
         matricula: map['matricula'] as String? ?? '',
+        contratistaId: map['contratista_id'] as String?, // <--- AGREGAR CONTRATISTA_ID
         condicionesOptimas: true, // Default por negocio
       );
     }

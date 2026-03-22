@@ -70,9 +70,14 @@ class SupabaseTicketRepository implements TicketRepository {
   /// de subir (subido = 0).
   Future<void> descargarTicketsDesdeSupabase() async {
     try {
+      // Estados activos + Cerrado para validaciones
       final response = await _client.from('tickets').select().inFilter(
         'estado',
-        ['Abierto', 'En Proceso', 'En Progreso'],
+        ['Abierto', 'En Progreso', 'Cerrado'],
+      );
+
+      debugPrint(
+        '🔍 [SupabaseTicketRepo] Tickets encontrados en Supabase: ${response.length}',
       );
 
       if (response.isEmpty) {

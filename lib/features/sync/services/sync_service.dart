@@ -137,19 +137,26 @@ class SyncService {
             whereArgs: [activityId],
           );
 
-          // Limpieza de tablas hijas (SOLO INSPECCIONES AHORA)
+          // Limpieza de tablas hijas (BUCEO y EMBARCACIÓN)
           if (tipoActividad == 'INSPECCION_BUCEO') {
             await db.delete(
               'verificaciones_buceo',
               where: 'actividad_id = ?',
               whereArgs: [activityId],
             );
+          } else if (tipoActividad == 'INSPECCION_EMBARCACION') {
             await db.delete(
-              'actividad_participantes',
+              'verificaciones_embarcacion',
               where: 'actividad_id = ?',
               whereArgs: [activityId],
             );
           }
+          // Participantes aplica a AMBOS tipos
+          await db.delete(
+            'actividad_participantes',
+            where: 'actividad_id = ?',
+            whereArgs: [activityId],
+          );
 
           await db.delete(
             'fotos_pendientes',
@@ -218,6 +225,54 @@ class SyncService {
 
         // ¡IMPORTANTE! Los participantes aplican para AMBOS tipos de inspección
         await _sincronizarParticipantes(db, activityId);
+
+        // --- 2.5. SUBIR PDF PENDIENTE SI HAY UNO LOCAL ---
+        final pdfPathLocal = row['pdf_path_local'] as String?;
+        final pdfUrlActual = row['pdf_url'] as String?;
+
+        if (pdfPathLocal != null &&
+            pdfPathLocal.isNotEmpty &&
+            (pdfUrlActual == null || pdfUrlActual.isEmpty)) {
+          try {
+            final file = File(pdfPathLocal);
+            if (file.existsSync()) {
+              final pdfBytes = await file.readAsBytes();
+              final nombreArchivo = "reporte_${row['numero_reporte']}.pdf";
+              final pathStorage = "$activityId/$nombreArchivo";
+
+              debugPrint("☁️ Subiendo PDF pendiente a Storage...");
+              await _supabase.storage
+                  .from('reportes')
+                  .uploadBinary(
+                    pathStorage,
+                    pdfBytes,
+                    fileOptions: const FileOptions(upsert: true),
+                  );
+
+              final pdfUrl = _supabase.storage
+                  .from('reportes')
+                  .getPublicUrl(pathStorage);
+
+              // Actualizar URL en local y en Supabase
+              await db.update(
+                'actividades_pendientes',
+                {'pdf_url': pdfUrl, 'pdf_path_local': null},
+                where: 'id = ?',
+                whereArgs: [activityId],
+              );
+
+              await _supabase
+                  .from('actividades')
+                  .update({'pdf_url': pdfUrl})
+                  .eq('id', activityId);
+
+              debugPrint("✅ PDF pendiente subido: $pdfUrl");
+            }
+          } catch (e) {
+            debugPrint("⚠️ Error subiendo PDF pendiente (se reintentará): $e");
+            // No fallamos, el PDF se subirá en el próximo sync
+          }
+        }
 
         // --- 3. MARCAR COMO SUBIDO LOCALMENTE ---
         await db.update(
@@ -404,13 +459,22 @@ class SyncService {
           }
         }
 
-        // 2.C. Marcamos como subido localmente y guardamos la URL para la caché
-        await db.update(
-          'visitas_tecnicas_pendientes',
-          {'subido': 1, if (pdfUrlNube != null) 'pdf_url': pdfUrlNube},
-          where: 'id = ?',
-          whereArgs: [id],
-        );
+        // 2.C. Marcamos como subido localmente SOLO si:
+        // - No había PDF local que subir, O
+        // - El PDF se subió correctamente (pdfUrlNube != null)
+        final pdfPendiente = pdfPathLocal != null && pdfUrlNube == null;
+        if (!pdfPendiente) {
+          await db.update(
+            'visitas_tecnicas_pendientes',
+            {'subido': 1, if (pdfUrlNube != null) 'pdf_url': pdfUrlNube},
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+        } else {
+          debugPrint(
+            "⚠️ PDF pendiente de subir para visita $id, no se marca como subido",
+          );
+        }
 
         count++;
         debugPrint("✅ Visita Técnica (y artefactos) sincronizada OK: $id");

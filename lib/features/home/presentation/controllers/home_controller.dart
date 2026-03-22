@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../sync/services/sync_service.dart';
 import '../../../inspection/data/repositories/local_inspection_repository.dart';
 import '../../../../core/database/database_helper.dart';
+import '../../../../core/services/connectivity_service.dart';
 import '../../../visits/data/repositories/local_visit_repository.dart';
 import '../../../tickets/data/repositories/local_ticket_repository.dart';
 
@@ -11,6 +13,7 @@ class HomeController extends ChangeNotifier {
   final _localRepo = LocalInspectionRepository();
   final _visitRepo = LocalVisitRepository();
   final _ticketRepo = LocalTicketRepository();
+  final _connectivity = ConnectivityService();
 
   final User? user = Supabase.instance.client.auth.currentUser;
 
@@ -29,8 +32,19 @@ class HomeController extends ChangeNotifier {
   int _ticketsAbiertos = 0;
   int get ticketsAbiertos => _ticketsAbiertos;
 
+  // Estado de conectividad
+  bool get isOnline => _connectivity.isOnline;
+  StreamSubscription<bool>? _connectivitySubscription;
+
   HomeController() {
     _inicializarDatos();
+    _setupConnectivityListener();
+  }
+
+  void _setupConnectivityListener() {
+    _connectivitySubscription = _connectivity.onStatusChange.listen((online) {
+      notifyListeners(); // Actualiza UI cuando cambia la conexión
+    });
   }
 
   Future<void> _inicializarDatos() async {
@@ -148,14 +162,30 @@ class HomeController extends ChangeNotifier {
 
   // --- SINCRONIZACIÓN ---
   Future<void> _sincronizarSilencioso() async {
+    if (!isOnline) {
+      debugPrint("📴 Sin conexión, omitiendo sync silencioso");
+      return;
+    }
+
     isSyncing = true;
     notifyListeners();
 
-    // Solo descarga áreas, barcos, contratistas. YA NO TOCA AL USUARIO.
-    await _syncService.descargarDatosMaestros();
+    try {
+      // 1. Subir pendientes silenciosamente
+      final subidos = await _syncService.sincronizarTodo();
+      if (subidos > 0) {
+        debugPrint("✅ Sync silencioso: $subidos registros subidos");
+        await cargarBorradores(); // Actualizar lista si se subieron borradores
+      }
 
-    isSyncing = false;
-    notifyListeners();
+      // 2. Descargar datos maestros
+      await _syncService.descargarDatosMaestros();
+    } catch (e) {
+      debugPrint("⚠️ Error en sync silencioso: $e");
+    } finally {
+      isSyncing = false;
+      notifyListeners();
+    }
   }
 
   Future<void> ejecutarSincronizacion() async {
@@ -197,5 +227,11 @@ class HomeController extends ChangeNotifier {
     } catch (e) {
       debugPrint("❌ Error cerrando sesión: $e");
     }
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
   }
 }

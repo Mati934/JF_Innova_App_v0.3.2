@@ -6,7 +6,7 @@ import 'package:jf_innova_app/features/inspection/domain/models/pdf/inspection_r
 import 'package:jf_innova_app/features/inspection/services/pdf_generator_service.dart';
 import 'package:jf_innova_app/features/sync/services/sync_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:pdf/pdf.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:uuid/uuid.dart';
 import '../../domain/models/buceo_verificacion_model.dart';
@@ -17,10 +17,9 @@ import '../../data/repositories/local_inspection_repository.dart';
 import 'dart:typed_data';
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'dart:typed_data'; // Necesario para Uint8List
-import 'package:jf_innova_app/shared/services/image_service.dart'; // Tu servicio de imágenes
-import 'package:flutter/services.dart' show rootBundle; // Para leer fuentes
-import 'package:flutter/foundation.dart'; // Para compute
+import 'package:jf_innova_app/shared/services/image_service.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/foundation.dart';
 
 class InspectionFormController extends ChangeNotifier {
   final InspectionRepository _repo;
@@ -50,6 +49,8 @@ class InspectionFormController extends ChangeNotifier {
 
   // 🟢 NUEVOS: Para capturar lo que el usuario escribe
   final TextEditingController encargadoCentroController =
+      TextEditingController();
+  final TextEditingController supervisorCentroController =
       TextEditingController();
   final TextEditingController supervisorNombreController =
       TextEditingController();
@@ -86,7 +87,7 @@ class InspectionFormController extends ChangeNotifier {
     encargadoCentroController.dispose();
     supervisorNombreController.dispose();
     supervisorRutController.dispose(); // 🟢 Limpieza
-    //supervisorCentroController.dispose(); // 🟢 Limpieza
+    supervisorCentroController.dispose(); // 🟢 Limpieza
     numeroZarpeCtrl.dispose(); // 🟢 Limpieza
     correoEmpresaServiciosCtrl.dispose();
     _disposed = true;
@@ -205,6 +206,7 @@ class InspectionFormController extends ChangeNotifier {
         if (datosBuceo != null) {
           verificacionesBuceo = datosBuceo;
           encargadoCentroController.text = datosBuceo.encargadoCentro ?? '';
+          supervisorCentroController.text = datosBuceo.supervisorCentro ?? '';
           supervisorNombreController.text = datosBuceo.supervisorNombre ?? '';
           supervisorRutController.text = datosBuceo.supervisorRut ?? '';
         } else {
@@ -222,10 +224,14 @@ class InspectionFormController extends ChangeNotifier {
             correoEmpresaServiciosCtrl.text =
                 verificacionesEmbarcacion!['correo_empresa'] ?? '';
             numeroZarpeCtrl.text =
-                verificacionesEmbarcacion!['numero_zarpe'] ?? ''; // 👈 NUEVO
+                verificacionesEmbarcacion!['numero_zarpe'] ?? '';
           }
         }
-        _manejarHoras(null, null);
+        // Cargar horas guardadas de embarcación
+        _manejarHoras(
+          verificacionesEmbarcacion?['hora_inicio'],
+          verificacionesEmbarcacion?['hora_termino'],
+        );
       }
     } catch (e) {
       debugPrint("Error cargando datos específicos: $e");
@@ -311,7 +317,7 @@ class InspectionFormController extends ChangeNotifier {
 
       // --- BLOQUE DE AUTOMATIZACIÓN ---
       // Verificamos si el cargo contiene la palabra "Supervisor" (insensible a mayúsculas)
-      final cargo = participante.cargo?.toLowerCase() ?? '';
+      final cargo = participante.cargo.toLowerCase();
 
       if (cargo.contains('supervisor')) {
         debugPrint(
@@ -513,23 +519,34 @@ class InspectionFormController extends ChangeNotifier {
       debugPrint("🚀 FINALIZAR: Iniciando proceso...");
 
       // ---------------------------------------------------------
-      // PASO 1: PERSISTIR DATOS LOCALMENTE (para que estén listos para sync)
+      // PASO 1: GUARDAR COMO BORRADOR PRIMERO (protege los datos)
       // ---------------------------------------------------------
-      await _persistirDatos(esBorrador: false, pdfUrlFinal: null);
+      // Guardamos como borrador para no perder datos si falla algo después
+      await _persistirDatos(esBorrador: true, pdfUrlFinal: null);
 
       // ---------------------------------------------------------
       // PASO 2: SINCRONIZAR PARA OBTENER NUMERO DE INFORME
       // ---------------------------------------------------------
-      // Sincronizamos ANTES de generar el PDF para que Supabase
-      // asigne el numero_informe real y lo tengamos disponible.
+      // Intentamos sincronizar para obtener el número de informe real.
+      // Si falla (sin conexión), usamos un número provisional.
       debugPrint("🔄 Sincronizando para obtener N° de Informe...");
+      bool syncExitoso = false;
       try {
         await _syncService.sincronizarTodo();
         await recargarNumeroDesdeDB();
+        syncExitoso = true;
         debugPrint("✅ N° Informe obtenido: ${numeroInformeController.text}");
       } catch (e) {
-        debugPrint("⚠️ Sync previo al PDF falló (offline?): $e");
-        // Continuamos igual, el PDF saldrá con "Pendiente..." si no hay número
+        debugPrint("⚠️ Sync falló (modo offline): $e");
+        // Continuamos con número provisional
+      }
+
+      // Si no hay número de informe (offline), usar provisional
+      if (numeroInformeController.text.isEmpty ||
+          numeroInformeController.text == "Pendiente...") {
+        final provisional = "PROV-${activityId.substring(0, 8).toUpperCase()}";
+        numeroInformeController.text = provisional;
+        debugPrint("📋 Usando número provisional: $provisional");
       }
 
       // ---------------------------------------------------------
@@ -579,9 +596,28 @@ class InspectionFormController extends ChangeNotifier {
       debugPrint("✅ PDF Generado (${pdfBytes.lengthInBytes / 1024} KB).");
 
       // ---------------------------------------------------------
-      // PASO 6: SUBIDA PDF A SUPABASE STORAGE
+      // PASO 6: GUARDAR PDF LOCALMENTE Y SUBIR A STORAGE
       // ---------------------------------------------------------
       String? pdfUrlSubido;
+      String? pdfPathLocal;
+
+      // 6.1 Guardar PDF localmente primero (siempre funciona)
+      try {
+        final directory = await getApplicationDocumentsDirectory();
+        final nombreArchivo = "reporte_${reportData.numeroReporte}.pdf";
+        final localFile = File('${directory.path}/$nombreArchivo');
+        await localFile.writeAsBytes(pdfBytes);
+        pdfPathLocal = localFile.path;
+        debugPrint("💾 PDF guardado localmente: $pdfPathLocal");
+      } catch (e) {
+        debugPrint("❌ Error guardando PDF local: $e");
+        _errorMessage = "No se pudo guardar el PDF localmente.";
+        _isSaving = false;
+        notifyListeners();
+        return false;
+      }
+
+      // 6.2 Intentar subir a Storage (puede fallar sin conexión)
       try {
         final supabase = Supabase.instance.client;
         final nombreArchivo = "reporte_${reportData.numeroReporte}.pdf";
@@ -601,24 +637,31 @@ class InspectionFormController extends ChangeNotifier {
             .getPublicUrl(pathStorage);
         debugPrint("🔗 URL PDF: $pdfUrlSubido");
       } catch (e) {
-        debugPrint(
-          "⚠️ Subida falló (Posiblemente Offline). Se guardará localmente sin URL.",
-        );
-        pdfUrlSubido = null;
+        debugPrint("⚠️ Error subiendo PDF (modo offline): $e");
+        // PDF se subirá después con el sync automático
+        // pdfUrlSubido queda null, pero tenemos pdfPathLocal
       }
 
       // ---------------------------------------------------------
-      // PASO 7: ACTUALIZAR URL DEL PDF EN LOCAL Y NUBE
+      // PASO 7: MARCAR COMO FINALIZADO
       // ---------------------------------------------------------
-      await _persistirDatos(esBorrador: false, pdfUrlFinal: pdfUrlSubido);
-
-      // Sync final para subir la URL del PDF
-      _syncService.sincronizarTodo().catchError(
-        (e) => debugPrint("Sync final Error: $e"),
+      // Guardamos con la URL si la tenemos, o con path local si no
+      await _persistirDatos(
+        esBorrador: false,
+        pdfUrlFinal: pdfUrlSubido,
+        pdfPathLocal: pdfUrlSubido == null ? pdfPathLocal : null,
       );
 
+      // Sync final para subir el estado finalizado a la nube
+      if (syncExitoso) {
+        _syncService.sincronizarTodo().catchError((e) {
+          debugPrint("Sync final Error: $e");
+          return 0; // Se retorna int para coincidir con la firma de sincronizarTodo y evitar error
+        });
+      }
+
       // ---------------------------------------------------------
-      // PASO 6: LIMPIEZA DE MEMORIA (GARBAGE COLLECTION MANUAL)
+      // PASO 8: LIMPIEZA DE MEMORIA (GARBAGE COLLECTION MANUAL)
       // ---------------------------------------------------------
       // Solo limpiamos si todo salió bien. Así liberamos RAM agresivamente.
       debugPrint("🧹 ÉXITO: Liberando memoria de fotos...");
@@ -645,6 +688,7 @@ class InspectionFormController extends ChangeNotifier {
   Future<void> _persistirDatos({
     required bool esBorrador,
     String? pdfUrlFinal,
+    String? pdfPathLocal,
   }) async {
     debugPrint(
       "💾 PERSISTIR: Iniciando guardado completo (Borrador: $esBorrador)...",
@@ -660,11 +704,11 @@ class InspectionFormController extends ChangeNotifier {
               numeroEnDB.isNotEmpty &&
               numeroEnDB != "null")) {
         numeroFinal = numeroEnDB;
-        numeroInformeController.text = numeroFinal!;
+        numeroInformeController.text = numeroFinal;
       }
     }
 
-    // 1. Datos Actividad (AHORA INCLUYE PDF_URL)
+    // 1. Datos Actividad (AHORA INCLUYE PDF_URL y PDF_PATH_LOCAL)
     final actividadMap = {
       'id': activityId,
       'tipo_actividad': tipoActividad,
@@ -675,8 +719,8 @@ class InspectionFormController extends ChangeNotifier {
       'fecha_realizacion': DateTime.now().toIso8601String(),
       'numero_reporte': numeroFinal,
       'numero_seguimiento': _numeroSeguimiento,
-      'pdf_url':
-          pdfUrlFinal, // <--- CAMBIO IMPORTANTE: Guardamos la URL si existe
+      'pdf_url': pdfUrlFinal,
+      'pdf_path_local': pdfPathLocal, // Para sync posterior cuando no hay red
     };
 
     // 2. Respuestas
@@ -743,6 +787,8 @@ class InspectionFormController extends ChangeNotifier {
       if (verificacionesBuceo != null) {
         verificacionesBuceo!.encargadoCentro = encargadoCentroController.text
             .trim();
+        verificacionesBuceo!.supervisorCentro = supervisorCentroController.text
+            .trim();
         verificacionesBuceo!.supervisorNombre = supervisorNombreController.text
             .trim();
         verificacionesBuceo!.supervisorRut = supervisorRutController.text
@@ -751,27 +797,32 @@ class InspectionFormController extends ChangeNotifier {
         verificacionesBuceo!.horaTermino = horaTerminoController.text.trim();
         verificacionesMap = verificacionesBuceo!.toMap();
       }
-      if (participantes.isNotEmpty) {
-        participantesMap = participantes.map((p) {
-          return {
-            'actividad_id': activityId,
-            'personal_id': p.personalId,
-            'rol_en_faena': p.cargo,
-            'condiciones_optimas': p.condicionesOptimas ? 1 : 0,
-            'nombre_completo': p.nombreCompleto,
-            'rut': p.rut,
-            'cargo': p.cargo,
-            'activo': 1,
-            'matricula': p.matricula,
-          };
-        }).toList();
-      }
     } else if (tipoActividad == 'INSPECCION_EMBARCACION') {
       embarcacionMap = {
         'actividad_id': activityId,
         'correo_empresa': correoEmpresaServiciosCtrl.text.trim(),
         'numero_zarpe': numeroZarpeCtrl.text.trim(),
+        'hora_inicio': horaInicioController.text.trim(),
+        'hora_termino': horaTerminoController.text.trim(),
       };
+    }
+
+    // Participantes: común a BUCEO y EMBARCACIÓN
+    if (participantes.isNotEmpty) {
+      participantesMap = participantes.map((p) {
+        return {
+          'actividad_id': activityId,
+          'personal_id': p.personalId,
+          'rol_en_faena': p.cargo,
+          'condiciones_optimas': p.condicionesOptimas ? 1 : 0,
+          'nombre_completo': p.nombreCompleto,
+          'rut': p.rut,
+          'cargo': p.cargo,
+          'activo': 1,
+          'matricula': p.matricula,
+          'contratista_id': p.contratistaId, // <--- INCLUIR CONTRATISTA_ID
+        };
+      }).toList();
     }
 
     // 5. LLAMADA MAESTRA
@@ -807,6 +858,7 @@ class InspectionFormController extends ChangeNotifier {
         // 🟢 ¡AQUÍ FALTABA ESTA LÍNEA!
         // Tenemos que copiar la matrícula antigua al nuevo objeto
         matricula: p.matricula,
+        contratistaId: p.contratistaId, // <--- COPIAR CONTRATISTA_ID
 
         condicionesOptimas: valor,
       );

@@ -84,16 +84,33 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
 
   void _finalizar() async {
     final exito = await _controller.finalizarInspeccion();
-    if (exito && mounted) {
+    if (mounted) {
       ScaffoldMessenger.of(context).clearSnackBars();
-      setState(() => _canPop = true);
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Inspección finalizada.'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      if (exito) {
+        setState(() => _canPop = true);
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '✅ Inspección finalizada y PDF subido correctamente.',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        // El error ya se muestra via el listener, pero reforzamos con color rojo
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _controller.errorMessage ??
+                  '❌ No se pudo finalizar. Verifica tu conexión e intenta de nuevo.',
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+        _controller.clearError();
+      }
     }
   }
 

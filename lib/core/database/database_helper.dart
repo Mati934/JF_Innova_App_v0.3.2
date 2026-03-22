@@ -6,7 +6,7 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
-  static const int _dbVersion = 23;
+  static const int _dbVersion = 25;
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -26,7 +26,12 @@ class DatabaseHelper {
       version: _dbVersion,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
+      onOpen: _onOpen,
     );
+  }
+
+  Future<void> _onOpen(Database db) async {
+    await _repairCriticalSchema(db);
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -110,12 +115,13 @@ class DatabaseHelper {
         embarcacion_id TEXT,
         tipo_actividad TEXT,
         fecha_realizacion TEXT,
-        puerto_abierto INTEGER, 
+        puerto_abierto INTEGER,
         observaciones_generales TEXT,
         estado_final TEXT,
         numero_reporte TEXT,
         numero_seguimiento INTEGER DEFAULT 0,
         pdf_url TEXT,
+        pdf_path_local TEXT,
         eliminado INTEGER DEFAULT 0,
         subido INTEGER DEFAULT 0,
         app_version TEXT
@@ -175,7 +181,9 @@ class DatabaseHelper {
         actividad_id TEXT PRIMARY KEY,
         correo_empresa TEXT,
         observaciones_cierre TEXT,
-        numero_zarpe TEXT
+        numero_zarpe TEXT,
+        hora_inicio TEXT,
+        hora_termino TEXT
       )
     ''');
 
@@ -230,6 +238,7 @@ class DatabaseHelper {
         check_otro INTEGER DEFAULT 0,
         otro_actividad_texto TEXT,
         apuntes_observaciones TEXT,
+        signature_image BLOB,
         pdf_path_local TEXT,
         pdf_url TEXT
       )
@@ -494,20 +503,99 @@ class DatabaseHelper {
       await _safeAddColumn(db, "tickets_pendientes", "created_at", "TEXT");
       debugPrint("✅ Parche v23 aplicado.");
     }
+
+    if (oldVersion < 24) {
+      debugPrint(
+        "🚀 Aplicando parche v24 (Horas en Embarcación + PDF offline)...",
+      );
+      await _safeAddColumn(
+        db,
+        "verificaciones_embarcacion",
+        "hora_inicio",
+        "TEXT",
+      );
+      await _safeAddColumn(
+        db,
+        "verificaciones_embarcacion",
+        "hora_termino",
+        "TEXT",
+      );
+      await _safeAddColumn(
+        db,
+        "actividades_pendientes",
+        "pdf_path_local",
+        "TEXT",
+      );
+      debugPrint("✅ Parche v24 aplicado.");
+    }
+
+    if (oldVersion < 25) {
+      await _migrateToV25(db);
+    }
+  }
+
+  Future<void> _migrateToV25(Database db) async {
+    debugPrint("🚀 Aplicando parche v25 (Firma Digital en Visitas)...");
+    try {
+      await db.transaction((txn) async {
+        await _safeAddColumn(
+          txn,
+          "visitas_tecnicas_pendientes",
+          "signature_image",
+          "BLOB",
+        );
+      });
+      debugPrint("✅ Parche v25 aplicado.");
+    } catch (e, st) {
+      debugPrint("❌ Error en parche v25: $e\n$st");
+      rethrow;
+    }
+  }
+
+  Future<void> _repairCriticalSchema(Database db) async {
+    try {
+      await _safeAddColumn(
+        db,
+        "visitas_tecnicas_pendientes",
+        "signature_image",
+        "BLOB",
+      );
+    } catch (e, st) {
+      debugPrint("❌ Error reparando esquema crítico: $e\n$st");
+      rethrow;
+    }
   }
 
   // Helper seguro para migraciones
   Future<void> _safeAddColumn(
-    Database db,
+    DatabaseExecutor db,
     String table,
     String column,
     String type,
   ) async {
     try {
+      final exists = await _columnExists(db, table, column);
+      if (exists) {
+        return;
+      }
+
       await db.execute("ALTER TABLE $table ADD COLUMN $column $type");
-    } catch (_) {
-      // Ignoramos si ya existe
+    } on DatabaseException catch (e) {
+      // Ignoramos si se intenta agregar una columna ya existente.
+      if (e.toString().toLowerCase().contains("duplicate column name")) {
+        return;
+      }
+      rethrow;
     }
+  }
+
+  Future<bool> _columnExists(
+    DatabaseExecutor db,
+    String table,
+    String column,
+  ) async {
+    final columns = await db.rawQuery("PRAGMA table_info($table)");
+    return columns.any((c) => c['name'] == column);
   }
 
   // --- MÉTODOS CRUD GENÉRICOS ---
@@ -525,51 +613,46 @@ class DatabaseHelper {
       return;
     }
 
-    final db = await database; // Usa el getter, no instance.database directo
+    final db = await database;
 
-    await db.transaction((txn) async {
-      final batch = txn.batch();
+    // Usamos UPSERT (replace) en lugar de DELETE + INSERT
+    // Esto es más seguro: si fallan algunos registros, no se pierden los demás
+    final batch = db.batch();
 
-      // Ahora sí, borramos porque traemos datos frescos seguros
-      batch.delete(tabla);
+    for (var item in datos) {
+      Map<String, dynamic> row = {};
 
-      for (var item in datos) {
-        Map<String, dynamic> row = {};
-
-        // ... (Tu lógica de mapeo está perfecta, déjala igual) ...
-        // ... Copia y pega tu switch/if de mapeo aquí ...
-        row['id'] = item['id'];
-        if (tabla == 'personal_externo') {
-          row['nombre_completo'] =
-              item['nombre_completo'] ?? item['nombre'] ?? 'Sin Nombre';
-          row['rut'] = item['rut'];
-          row['cargo'] = item['cargo'];
-          row['matricula'] = item['matricula'];
-          row['contratista_id'] = item['contratista_id'];
-        } else if (tabla == 'usuarios') {
-          row['rut'] = item['rut'];
-          row['nombre_completo'] = item['nombre_completo'];
-          row['email'] = item['email'];
-          row['telefono'] = item['telefono'];
-          row['rol_id'] = item['rol_id'];
-        } else if (tabla == 'embarcaciones') {
-          row['nombre'] = item['nombre'];
-          if (item.containsKey('contratista_id'))
-            row['contratista_id'] = item['contratista_id'];
-          if (item.containsKey('matricula'))
-            row['matricula'] = item['matricula'];
-        } else if (tabla == 'centros') {
-          row['nombre'] = item['nombre'];
-          if (item.containsKey('area_id')) row['area_id'] = item['area_id'];
-        } else {
-          row['nombre'] = item['nombre'];
-        }
-
-        batch.insert(tabla, row);
+      row['id'] = item['id'];
+      if (tabla == 'personal_externo') {
+        row['nombre_completo'] =
+            item['nombre_completo'] ?? item['nombre'] ?? 'Sin Nombre';
+        row['rut'] = item['rut'];
+        row['cargo'] = item['cargo'];
+        row['matricula'] = item['matricula'];
+        row['contratista_id'] = item['contratista_id'];
+        row['activo'] = (item['activo'] == true || item['activo'] == 1) ? 1 : 0;
+      } else if (tabla == 'usuarios') {
+        row['rut'] = item['rut'];
+        row['nombre_completo'] = item['nombre_completo'];
+        row['email'] = item['email'];
+        row['telefono'] = item['telefono'];
+        row['rol_id'] = item['rol_id'];
+      } else if (tabla == 'embarcaciones') {
+        row['nombre'] = item['nombre'];
+        row['contratista_id'] = item['contratista_id'];
+        row['matricula'] = item['matricula'];
+      } else if (tabla == 'centros') {
+        row['nombre'] = item['nombre'];
+        row['area_id'] = item['area_id'];
+      } else {
+        row['nombre'] = item['nombre'];
       }
 
-      await batch.commit(noResult: true);
-    });
+      batch.insert(tabla, row, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    await batch.commit(noResult: true);
+    debugPrint("✅ Maestros guardados en $tabla: ${datos.length} registros");
   }
 
   Future<List<Map<String, dynamic>>> getAreas() async {
@@ -610,9 +693,17 @@ class DatabaseHelper {
   }
 
   Future<void> guardarItemsOffline(List<Map<String, dynamic>> items) async {
+    // BLINDAJE: Si la lista está vacía, NO toques la base de datos
+    if (items.isEmpty) {
+      debugPrint(
+        "⚠️ Advertencia: Se intentó guardar lista vacía en formulario_items. Operación cancelada.",
+      );
+      return;
+    }
+
     final db = await instance.database;
     final batch = db.batch();
-    batch.delete('formulario_items');
+
     for (var item in items) {
       batch.insert('formulario_items', {
         'id': item['id'],
@@ -624,9 +715,10 @@ class DatabaseHelper {
         'activo': (item['activo'] == true) ? 1 : 0,
         'info_adicional': item['info_adicional'],
         'url_imagen_referencia': item['url_imagen_referencia'],
-      });
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
     await batch.commit(noResult: true);
+    debugPrint("✅ Formulario items guardados: ${items.length} registros");
   }
 
   Future<void> saveActividadOffline(Map<String, dynamic> actividad) async {

@@ -124,7 +124,7 @@ class LocalTicketRepository implements TicketRepository {
       final db = await _db;
       final result = await db.rawQuery(
         "SELECT COUNT(*) AS cnt FROM tickets_pendientes "
-        "WHERE estado = 'Abierto' AND eliminado = 0",
+        "WHERE LOWER(estado) = 'abierto' AND eliminado = 0",
       );
       return Sqflite.firstIntValue(result) ?? 0;
     } catch (e) {

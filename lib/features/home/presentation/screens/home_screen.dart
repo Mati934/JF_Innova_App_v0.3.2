@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:jf_innova_app/core/theme/app_theme.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/draft_list_widget.dart';
@@ -20,6 +21,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final HomeController _controller = HomeController();
 
+  Future<String> _getVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    return "v${info.version} (b${info.buildNumber})";
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -33,6 +39,30 @@ class _HomeScreenState extends State<HomeScreen> {
             backgroundColor: AppTheme.primaryBlue,
             foregroundColor: Colors.white,
             actions: [
+              // Indicador de estado de conexión
+              if (!_controller.isOnline)
+                Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade700,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.cloud_off, size: 14, color: Colors.white),
+                      SizedBox(width: 4),
+                      Text(
+                        'Offline',
+                        style: TextStyle(fontSize: 11, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
               IconButton(
                 icon: const Icon(Icons.history),
                 tooltip: 'Historial e Informes',
@@ -158,6 +188,21 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
 
+                        const SizedBox(height: 8),
+                        FutureBuilder<String>(
+                          future: _getVersion(),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) return const SizedBox();
+                            return Text(
+                              snapshot.data!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade500,
+                              ),
+                            );
+                          },
+                        ),
+
                         const SizedBox(height: 20),
 
                         Text(
@@ -179,10 +224,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
 
                         SizedBox(height: estaVacio ? 50 : 20),
-
-                        _buildTicketsPanel(context),
-
-                        SizedBox(height: estaVacio ? 26 : 16),
 
                         // --- AQUÍ ESTÁ EL CAMBIO: LA NUEVA GRILLA ---
                         ModuleSelectorGrid(
@@ -267,8 +308,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   child: Icon(
                     Icons.confirmation_number_outlined,
-                    color:
-                        hasTickets ? Colors.red.shade700 : AppTheme.primaryBlue,
+                    color: hasTickets
+                        ? Colors.red.shade700
+                        : AppTheme.primaryBlue,
                     size: 20,
                   ),
                 ),
@@ -298,8 +340,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 if (hasTickets) ...[
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.red.shade600,
                       borderRadius: BorderRadius.circular(12),
