@@ -3,13 +3,13 @@
 /// Representa una entidad maestra en estado de borrador antes del batch upload.
 /// Incluye metadatos para rastrear dependencias y estado temporal.
 class DraftEntity {
-  final String tempId;           // ID temporal único
-  final String entityType;      // Tipo: 'empresa', 'area', 'centro', etc.
+  final String tempId; // ID temporal único
+  final String entityType; // Tipo: 'empresa', 'area', 'centro', etc.
   final Map<String, dynamic> data; // Datos del formulario
-  final String? parentTempId;    // ID temporal del padre (para FKs)
-  final String? parentField;     // Campo FK (ejemplo: 'area_id')
-  final bool isNew;              // Siempre true para batch creation
-  final DateTime createdAt;      // Timestamp de creación local
+  final String? parentTempId; // ID temporal del padre (para FKs)
+  final String? parentField; // Campo FK (ejemplo: 'area_id')
+  final bool isNew; // Siempre true para batch creation
+  final DateTime createdAt; // Timestamp de creación local
 
   const DraftEntity({
     required this.tempId,
@@ -19,9 +19,7 @@ class DraftEntity {
     this.parentField,
     this.isNew = true,
     DateTime? createdAt,
-  }) : createdAt = createdAt ?? const Duration(seconds: 0).inMilliseconds != 0
-         ? DateTime.fromMillisecondsSinceEpoch(0)
-         : DateTime.now();
+  }) : createdAt = createdAt ?? DateTime.now();
 
   /// Crea una copia con modificaciones
   DraftEntity copyWith({
@@ -56,7 +54,7 @@ class DraftEntity {
         insertData[parentField!] = realParentId;
       } else {
         throw Exception(
-          'No se encontró ID real para dependencia: $parentTempId → $parentField'
+          'No se encontró ID real para dependencia: $parentTempId → $parentField',
         );
       }
     }
@@ -73,8 +71,8 @@ class DraftEntity {
   /// Obtiene el nombre para mostrar en UI
   String get displayName {
     return data['nombre']?.toString() ??
-           data['nombre_completo']?.toString() ??
-           'Sin nombre';
+        data['nombre_completo']?.toString() ??
+        'Sin nombre';
   }
 
   /// Verifica si tiene dependencias
