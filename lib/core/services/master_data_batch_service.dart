@@ -1,95 +1,109 @@
-import 'dart:collection';
-import 'package:uuid/uuid.dart';
+import 'package:jf_innova_app/features/admin/domain/models/draft_entity.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
+// Ajusta esta ruta según la ubicación real en tu proyecto
 
+/// 🎯 SERVICIO DE BATCH UPLOAD (Master Data)
+///
+/// Se encarga EXCLUSIVAMENTE de transformar el borrador local ordenado topológicamente
+/// y enviarlo al RPC de PostgreSQL para su procesamiento transaccional atómico.
 class MasterDataBatchService {
   final SupabaseClient supabaseClient;
 
   MasterDataBatchService(this.supabaseClient);
 
-  /// Topological Sort for Directed Acyclic Graph (DAG)
-  List<String> topologicalSort(Map<String, List<String>> graph) {
-    final inDegree = <String, int>{};
-    final queue = Queue<String>();
-    final sorted = <String>[];
+  /// Ejecuta la inserción o actualización masiva en una sola petición RPC.
+  Future<void> executeOrderedBatchInsert(
+    List<DraftEntity> orderedEntities, {
+    required Function(String, String) onTempIdResolved,
+    required Function(int, int) onProgress,
+  }) async {
+    try {
+      debugPrint(
+        '🚀 Iniciando preparación del payload para ${orderedEntities.length} entidades...',
+      );
 
-    // Initialize in-degree map
-    graph.forEach((node, edges) {
-      inDegree.putIfAbsent(node, () => 0);
-      for (final edge in edges) {
-        inDegree[edge] = (inDegree[edge] ?? 0) + 1;
+      // 1. Transformar las entidades al formato exacto que espera el RPC
+      final List<Map<String, dynamic>> payload = orderedEntities.map((entity) {
+        // Determinamos la acción:
+        // Si es nuevo, es un INSERT y su tempId es temporal (ej. temp_embarcacion_123).
+        // Si NO es nuevo, es un UPDATE y su tempId es en realidad el UUID real en la BD.
+        final action = entity.isNew ? 'INSERT' : 'UPDATE';
+
+        return {
+          'action': action,
+          'entityType': entity.entityType,
+          'tempId': entity.tempId,
+          'parentTempId': entity.parentTempId,
+          'parentField': entity.parentField,
+          'data': entity.data,
+        };
+      }).toList();
+
+      // 2. Llamada única al RPC (Garantiza Atomicidad y Rollback automático si algo falla)
+      debugPrint('📤 Enviando payload a Supabase...');
+      final response = await supabaseClient.rpc(
+        'fn_batch_insert_master_data',
+        params: {'payload': payload},
+      );
+
+      // 3. Procesar el mapeo de respuesta (TempID -> UUID real)
+      if (response != null) {
+        final Map<String, dynamic> idMapping = response as Map<String, dynamic>;
+
+        idMapping.forEach((tempId, realId) {
+          onTempIdResolved(tempId, realId.toString());
+        });
       }
-    });
 
-    // Add nodes with in-degree 0 to the queue
-    inDegree.forEach((node, degree) {
-      if (degree == 0) {
-        queue.add(node);
-      }
-    });
-
-    // Process the graph
-    while (queue.isNotEmpty) {
-      final node = queue.removeFirst();
-      sorted.add(node);
-
-      for (final neighbor in graph[node] ?? []) {
-        inDegree[neighbor] = inDegree[neighbor]! - 1;
-        if (inDegree[neighbor] == 0) {
-          queue.add(neighbor);
-        }
-      }
+      // 4. Reportar finalización
+      onProgress(orderedEntities.length, orderedEntities.length);
+      debugPrint('✅ Batch Upload completado con éxito.');
+    } on PostgrestException catch (e) {
+      debugPrint('❌ Error de PostgreSQL en Batch Upload: ${e.message}');
+      throw Exception('Fallo en la base de datos: ${e.message}');
+    } catch (e) {
+      debugPrint('❌ Error crítico en Batch Upload: $e');
+      throw Exception('Error inesperado al sincronizar los datos maestros: $e');
     }
-
-    // Check for cycles
-    if (sorted.length != graph.length) {
-      throw Exception('Graph contains a cycle, topological sort not possible.');
-    }
-
-    return sorted;
   }
 
-  /// Executes an ordered batch insert into Supabase
-  Future<void> executeOrderedBatchInsert(
-    Map<String, dynamic> records,
-    Map<String, List<String>> dependencies,
-  ) async {
-    final tempIdMapping = <String, String>{};
-    final sortedKeys = topologicalSort(dependencies);
-
-    // Start a transaction
-    final transaction = supabaseClient.from('your_table_name');
+  /// Valida que el usuario actual tenga los permisos necesarios antes de subir.
+  Future<void> validateUserPermissions() async {
+    final user = supabaseClient.auth.currentUser;
+    if (user == null) {
+      throw Exception('Denegado: Usuario no autenticado en Supabase.');
+    }
 
     try {
-      for (final key in sortedKeys) {
-        final record = records[key];
-        if (record == null) {
-          throw Exception('Record for key $key not found.');
-        }
+      // Consultamos el esquema real que me enviaste (usuarios -> roles)
+      final response = await supabaseClient
+          .from('usuarios')
+          .select('''
+            roles (
+              nombre
+            )
+          ''')
+          .eq('id', user.id)
+          .single();
 
-        // Replace temporary IDs with real IDs in foreign key fields
-        record.forEach((field, value) {
-          if (value is String && tempIdMapping.containsKey(value)) {
-            record[field] = tempIdMapping[value];
-          }
-        });
+      // Extracción segura mapeando la respuesta
+      final rolData = response['roles'];
+      final String? nombreRol = rolData != null
+          ? rolData['nombre'] as String?
+          : null;
 
-        // Insert the record into Supabase
-        final response = await transaction.insert(record).execute();
-
-        if (response.error != null) {
-          throw Exception(
-            'Failed to insert record for key $key: ${response.error!.message}',
-          );
-        }
-
-        // Map the temporary ID to the real ID
-        final realId = response.data[0]['id'];
-        tempIdMapping[key] = realId;
+      // Ajusta 'Administrador' al string exacto que uses en tu tabla roles
+      if (nombreRol != 'ADMINISTRADOR' && nombreRol != 'Admin') {
+        throw Exception(
+          'Acceso denegado: Requiere rol de Administrador. Rol actual: $nombreRol',
+        );
       }
+
+      debugPrint('✅ Permisos validados: El usuario es $nombreRol');
     } catch (e) {
-      // Rollback logic (Supabase does not support transactions directly, so handle manually)
-      throw Exception('Batch insert failed: $e');
+      debugPrint('❌ Error validando rol: $e');
+      throw Exception('No se pudo verificar el nivel de acceso del usuario.');
     }
   }
 }

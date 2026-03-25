@@ -11,7 +11,8 @@ class DraftEntity {
   final bool isNew; // Siempre true para batch creation
   final DateTime createdAt; // Timestamp de creación local
 
-  const DraftEntity({
+  // Se elimina el 'const' porque DateTime.now() ocurre en runtime
+  DraftEntity({
     required this.tempId,
     required this.entityType,
     required this.data,
@@ -42,31 +43,8 @@ class DraftEntity {
     );
   }
 
-  /// Convierte a Map para inserción en base de datos
-  /// Reemplaza IDs temporales por reales usando el mapping
-  Map<String, dynamic> toInsertMap(Map<String, String> tempIdMapping) {
-    final insertData = Map<String, dynamic>.from(data);
-
-    // Reemplazar FK temporal por real si existe
-    if (parentTempId != null && parentField != null) {
-      final realParentId = tempIdMapping[parentTempId];
-      if (realParentId != null) {
-        insertData[parentField!] = realParentId;
-      } else {
-        throw Exception(
-          'No se encontró ID real para dependencia: $parentTempId → $parentField',
-        );
-      }
-    }
-
-    // Remover campos que no van a la BD
-    insertData.remove('tempId');
-    insertData.remove('entityType');
-    insertData.remove('parentTempId');
-    insertData.remove('parentField');
-
-    return insertData;
-  }
+  // NOTA MENTOR: El método toInsertMap se eliminó porque el mapeo
+  // ahora lo hace PostgreSQL atómicamente en la función RPC.
 
   /// Obtiene el nombre para mostrar en UI
   String get displayName {

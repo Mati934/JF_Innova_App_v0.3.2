@@ -6,7 +6,7 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
-  static const int _dbVersion = 25;
+  static const int _dbVersion = 27;
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -45,7 +45,8 @@ class DatabaseHelper {
         nombre_completo TEXT,
         email TEXT,
         telefono TEXT,
-        rol_id TEXT
+        rol_id TEXT,
+        nombre_rol TEXT
       )
     ''');
 
@@ -90,7 +91,9 @@ class DatabaseHelper {
     ''');
 
     // --- TABLAS DE DATOS MAESTROS (OFFLINE) ---
-    await db.execute('CREATE TABLE areas (id TEXT PRIMARY KEY, nombre TEXT)');
+    await db.execute(
+      'CREATE TABLE areas (id TEXT PRIMARY KEY, nombre TEXT, empresa_id TEXT)',
+    );
     await db.execute(
       'CREATE TABLE centros (id TEXT PRIMARY KEY, nombre TEXT, area_id TEXT)',
     );
@@ -532,6 +535,16 @@ class DatabaseHelper {
     if (oldVersion < 25) {
       await _migrateToV25(db);
     }
+    if (oldVersion < 26) {
+      debugPrint("🚀 Aplicando parche v26 (Relación Área-Empresa)...");
+      await _safeAddColumn(db, "areas", "empresa_id", "TEXT");
+      debugPrint("✅ Parche v26 aplicado.");
+    }
+    if (oldVersion < 27) {
+      debugPrint("🚀 Aplicando parche v27 (Desnormalizar Rol)...");
+      await _safeAddColumn(db, "usuarios", "nombre_rol", "TEXT");
+      debugPrint("✅ Parche v27 aplicado.");
+    }
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -637,6 +650,11 @@ class DatabaseHelper {
         row['email'] = item['email'];
         row['telefono'] = item['telefono'];
         row['rol_id'] = item['rol_id'];
+        if (item['roles'] != null && item['roles'] is Map) {
+          row['nombre_rol'] = item['roles']['nombre'];
+        } else {
+          row['nombre_rol'] = null;
+        }
       } else if (tabla == 'embarcaciones') {
         row['nombre'] = item['nombre'];
         row['contratista_id'] = item['contratista_id'];
@@ -644,6 +662,10 @@ class DatabaseHelper {
       } else if (tabla == 'centros') {
         row['nombre'] = item['nombre'];
         row['area_id'] = item['area_id'];
+      } else if (tabla == 'areas') {
+        // <-- AGREGAR ESTO
+        row['nombre'] = item['nombre'];
+        row['empresa_id'] = item['empresa_id'];
       } else {
         row['nombre'] = item['nombre'];
       }

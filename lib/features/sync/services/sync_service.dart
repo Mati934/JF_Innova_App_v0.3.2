@@ -15,7 +15,7 @@ class SyncService {
   Future<void> descargarDatosMaestros() async {
     try {
       final results = await Future.wait([
-        _supabase.from('areas').select('id, nombre'),
+        _supabase.from('areas').select('id, nombre, empresa_id'),
         _supabase.from('centros').select('id, nombre, area_id'),
         _supabase.from('contratistas').select('id, nombre'),
         _supabase
@@ -30,7 +30,9 @@ class SyncService {
             .eq('activo', true),
         _supabase
             .from('usuarios')
-            .select('id, rut, nombre_completo, email, rol_id, telefono'),
+            .select(
+              'id, rut, nombre_completo, email, rol_id, telefono, roles (nombre)',
+            ),
       ]);
 
       await _dbHelper.guardarMaestros(
@@ -778,12 +780,17 @@ class SyncService {
       // 1. OBTENER PERFIL DEL USUARIO (Evita que el PDF salga en blanco)
       final userData = await _supabase
           .from('usuarios')
-          .select('id, rut, nombre_completo, email, rol_id, telefono')
+          .select(
+            'id, rut, nombre_completo, email, rol_id, telefono, roles(nombre)',
+          )
           .eq('id', userId)
           .maybeSingle();
 
       if (userData != null) {
         final db = await _dbHelper.database;
+        final String? nombreRol = userData['roles'] != null
+            ? userData['roles']['nombre']
+            : null;
         await db.insert('usuarios', {
           'id': userData['id'],
           'rut': userData['rut'],
@@ -791,7 +798,13 @@ class SyncService {
           'email': userData['email'],
           'rol_id': userData['rol_id'],
           'telefono': userData['telefono'],
+          'nombre_rol': nombreRol,
         }, conflictAlgorithm: ConflictAlgorithm.replace);
+
+        debugPrint(
+          "✅ Perfil hidratado en SQLite. Rol detectado: ${nombreRol ?? 'Ninguno'}",
+        );
+
         debugPrint(
           "✅ Perfil de usuario hidratado en SQLite desde SyncService.",
         );

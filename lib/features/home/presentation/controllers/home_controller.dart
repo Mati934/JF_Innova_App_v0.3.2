@@ -17,6 +17,10 @@ class HomeController extends ChangeNotifier {
 
   final User? user = Supabase.instance.client.auth.currentUser;
 
+  bool _isAdminUser = false;
+
+  bool get esAdmin => _isAdminUser;
+
   String nombreUsuario = 'Cargando...';
 
   // Variables de Sincronización
@@ -131,30 +135,54 @@ class HomeController extends ChangeNotifier {
   Future<void> _cargarPerfil() async {
     if (user == null) {
       nombreUsuario = 'Usuario';
+      _isAdminUser = false; // Seguridad por defecto
       notifyListeners();
       return;
     }
 
     try {
       final db = await DatabaseHelper.instance.database;
+
+      // Query ultra-rápida y directa a SQLite. Nada de JOINs.
       final List<Map<String, dynamic>> localUser = await db.query(
         'usuarios',
-        columns: ['nombre_completo'],
+        columns: ['nombre_completo', 'nombre_rol'],
         where: 'id = ?',
         whereArgs: [user!.id],
         limit: 1,
       );
 
-      if (localUser.isNotEmpty && localUser.first['nombre_completo'] != null) {
-        nombreUsuario = localUser.first['nombre_completo'];
+      if (localUser.isNotEmpty) {
+        final userData = localUser.first;
+
+        // 1. Asignar Nombre
+        nombreUsuario =
+            userData['nombre_completo'] ??
+            user!.userMetadata?['nombre_completo'] ??
+            user!.email ??
+            'Usuario';
+
+        // 2. Asignar Rol (Normalizamos a minúsculas y sin espacios extra para evitar errores tontos de tipeo en BD)
+        final String nombreRol = (userData['nombre_rol']?.toString() ?? '')
+            .toLowerCase()
+            .trim();
+
+        // 3. Validación de permisos
+        _isAdminUser = (nombreRol == 'administrador' || nombreRol == 'admin');
+
+        debugPrint(
+          '👤 Perfil cargado (Offline): $nombreUsuario | Admin: $_isAdminUser ($nombreRol)',
+        );
       } else {
-        // Fallback al token si algo rarísimo pasó y SQLite falló
+        // Fallback si SQLite no tiene al usuario aún (ej. app recién instalada y sync en proceso)
         nombreUsuario =
             user!.userMetadata?['nombre_completo'] ?? user!.email ?? 'Usuario';
+        _isAdminUser = false;
       }
     } catch (e) {
       debugPrint("⚠️ Error leyendo perfil desde SQLite: $e");
       nombreUsuario = user!.email ?? 'Usuario';
+      _isAdminUser = false; // Ante la duda, se bloquea el acceso
     } finally {
       notifyListeners();
     }

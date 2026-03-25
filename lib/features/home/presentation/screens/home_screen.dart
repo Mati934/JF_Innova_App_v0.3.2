@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:jf_innova_app/features/admin/presentation/screens/master_data_admin_screen.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:jf_innova_app/core/theme/app_theme.dart';
 import '../controllers/home_controller.dart';
@@ -254,6 +255,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         // --------------------------------------------
                         const SizedBox(height: 40),
 
+                        // BOTÓN DE ADMINISTRACIÓN (RENDERIZADO CONDICIONAL - RBAC)
+                        // Asume que agregas 'bool get esAdmin => true;' (por ahora) en HomeController
+                        if (_controller.esAdmin) ...[
+                          _buildAdminButton(context),
+                          const SizedBox(height: 40),
+                        ],
+
                         DraftListWidget(controller: _controller),
 
                         const SizedBox(height: 80),
@@ -266,6 +274,39 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Panel de Administración (Visible solo para administradores)
+  // ---------------------------------------------------------------------------
+  Widget _buildAdminButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () {
+          // NAVEGACIÓN REAL AL MÓDULO DE ADMIN
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const MasterDataAdminScreen(),
+            ),
+          );
+        },
+        icon: const Icon(Icons.admin_panel_settings),
+        label: const Text(
+          'Administración de Datos Maestros',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.red.shade700,
+          side: BorderSide(color: Colors.red.shade200, width: 2),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
     );
   }
 
