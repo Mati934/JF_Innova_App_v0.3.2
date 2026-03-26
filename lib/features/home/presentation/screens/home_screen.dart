@@ -255,13 +255,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         // --------------------------------------------
                         const SizedBox(height: 40),
 
-                        // BOTÓN DE ADMINISTRACIÓN (RENDERIZADO CONDICIONAL - RBAC)
-                        // Asume que agregas 'bool get esAdmin => true;' (por ahora) en HomeController
-                        if (_controller.esAdmin) ...[
-                          _buildAdminButton(context),
-                          const SizedBox(height: 40),
-                        ],
-
+                        // // BOTÓN DE ADMINISTRACIÓN (RENDERIZADO CONDICIONAL - RBAC)
+                        // // Asume que agregas 'bool get esAdmin => true;' (por ahora) en HomeController
+                        // if (_controller.esAdmin) ...[
+                        //   _buildAdminButton(context),
+                        //   const SizedBox(height: 40),
+                        // ],
                         DraftListWidget(controller: _controller),
 
                         const SizedBox(height: 80),
