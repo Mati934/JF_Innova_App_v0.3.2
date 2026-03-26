@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:jf_innova_app/features/inspection/data/repositories/local_inspection_repository.dart';
+import 'package:jf_innova_app/features/inspection/domain/models/formulario_item.dart';
+import 'package:jf_innova_app/features/visits/domain/models/visita_respuesta.dart';
 import 'package:signature/signature.dart';
 import 'package:jf_innova_app/core/database/database_helper.dart';
 import 'package:jf_innova_app/features/visits/domain/models/pdf/visit_report_data.dart';
@@ -18,7 +21,80 @@ import 'package:flutter/services.dart' show rootBundle; // Para las fuentes
 import 'package:printing/printing.dart'; // Para mostrar el visor PDF
 import '../../../../shared/utils/debouncer.dart';
 
+// Nota: Ajusta el nombre exacto de la clase y archivo si lo llamaste distinto.
+// Nota: Ajusta el nombre exacto de la clase y archivo si lo llamaste distinto.
 class VisitFormController extends ChangeNotifier {
+  // --- Checklist Dinámico ---
+  String? selectedTipoActividad;
+  List<FormularioItem> preguntasActivas = [];
+  Map<String, VisitaRespuesta> respuestasMap = {};
+  bool isLoadingPreguntas = false;
+  List<Map<String, dynamic>> tiposChecklistDisponibles = [];
+  // Instanciamos el repositorio para poder consultar el catálogo
+  final LocalInspectionRepository inspectionRepository =
+      LocalInspectionRepository();
+  // Método para cargar preguntas cuando cambian el Dropdown
+  Future<void> loadPreguntas(String tipoActividad) async {
+    selectedTipoActividad = tipoActividad;
+    isLoadingPreguntas = true;
+    notifyListeners();
+    try {
+      preguntasActivas = await inspectionRepository.getItems(tipoActividad);
+      respuestasMap.clear();
+      // Restaurar respuestas previas si existen en el borrador
+      await _restoreChecklistRespuestas();
+    } catch (e) {
+      errorMessage = 'Error al cargar el checklist: $e';
+    } finally {
+      isLoadingPreguntas = false;
+      notifyListeners();
+    }
+  }
+
+  void clearChecklist() {
+    selectedTipoActividad = null;
+    preguntasActivas = [];
+    respuestasMap.clear();
+    notifyListeners();
+  }
+
+  Map<String, List<FormularioItem>> agruparPorCategoria() {
+    final Map<String, List<FormularioItem>> map = {};
+    for (var item in preguntasActivas) {
+      if (!map.containsKey(item.categoria)) map[item.categoria] = [];
+      map[item.categoria]!.add(item);
+    }
+    return map;
+  }
+
+  // Método unificado y seguro para actualizar cualquier parte de la respuesta
+  void updateRespuestaData({
+    required String itemId,
+    String? estado,
+    String? observacion,
+    String? criticidad,
+    String? fotoPath,
+  }) {
+    final actual = respuestasMap[itemId];
+    respuestasMap[itemId] = VisitaRespuesta(
+      id: actual?.id ?? const Uuid().v4(),
+      visitaId: _currentVisitId,
+      itemId: itemId,
+      estado: estado ?? actual?.estado ?? '',
+      observacion: observacion ?? actual?.observacion ?? '',
+      criticidad: criticidad ?? actual?.criticidad ?? 'Tolerable',
+      fotoPath: fotoPath ?? actual?.fotoPath,
+    );
+    notifyListeners();
+  }
+
+  // Método simulado para la foto (conecta aquí tu ImageService)
+  Future<void> tomarFotoRespuesta(String itemId) async {
+    // final path = await imageService.tomarFoto();
+    // if (path != null) {
+    //    updateRespuestaData(itemId: itemId, fotoPath: path);
+    // }
+  }
   final _repository = LocalVisitRepository();
   final _syncService = SyncService();
 
@@ -109,6 +185,9 @@ class VisitFormController extends ChangeNotifier {
     timeInicio ??= TimeOfDay.now();
     await _loadHistorialAutocomplete();
 
+    // Cargar tipos de checklist disponibles
+    tiposChecklistDisponibles = await _repository.getTiposChecklistVisita();
+
     // 🚨 PARCHE DE HIDRATACIÓN DE FOTOS (Faltaba esto)
     if (_currentVisitId.isNotEmpty) {
       final fotosGuardadas = await _repository.getFotosPendientes(
@@ -124,6 +203,9 @@ class VisitFormController extends ChangeNotifier {
           }
         }
       }
+
+      // Restaurar checklist del borrador si existe
+      await _restoreChecklistFromBorrador();
     }
 
     // Activamos listeners al final
@@ -165,6 +247,7 @@ class VisitFormController extends ChangeNotifier {
       'otro_actividad_texto': otroActividadCtrl.text.trim(),
       'apuntes_observaciones': observacionesCtrl.text.trim(),
       'signature_image': signatureImage,
+      'tipo_actividad': selectedTipoActividad,
     };
   }
 
@@ -307,6 +390,23 @@ class VisitFormController extends ChangeNotifier {
         .where((p) => File(p).existsSync())
         .toList();
 
+    // Construir checklist items para el PDF
+    final List<VisitChecklistItemDto> checklistItemsPdf = [];
+    if (selectedTipoActividad != null) {
+      for (var item in preguntasActivas) {
+        final resp = respuestasMap[item.id];
+        checklistItemsPdf.add(
+          VisitChecklistItemDto(
+            categoria: item.categoria,
+            pregunta: item.pregunta,
+            respuesta: resp?.estado ?? '-',
+            criticidad: resp?.criticidad,
+            observacion: resp?.observacion,
+          ),
+        );
+      }
+    }
+
     return VisitReportData(
       region: regionCtrl.text.trim().toUpperCase(),
       centro: centroCtrl.text.trim().toUpperCase(),
@@ -333,6 +433,8 @@ class VisitFormController extends ChangeNotifier {
       apuntesObservaciones: observacionesCtrl.text.trim(),
       fotosPaths: galeriaPaths,
       signatureImage: signatureImage,
+      tipoChecklist: selectedTipoActividad,
+      checklistItems: checklistItemsPdf,
     );
   }
 
@@ -421,6 +523,8 @@ class VisitFormController extends ChangeNotifier {
         visitaMap: visitaMap,
         fotosPaths: fotosListPaths,
         esBorrador: false,
+        tipoChecklist: selectedTipoActividad,
+        respuestasChecklist: _buildRespuestasJson(),
       );
 
       _syncService.sincronizarTodo().catchError(
@@ -487,7 +591,9 @@ class VisitFormController extends ChangeNotifier {
       await _repository.saveVisitaCompleta(
         visitaMap: visitaMap,
         fotosPaths: fotosListPaths,
-        esBorrador: true, // Centralizado en el Repo
+        esBorrador: true,
+        tipoChecklist: selectedTipoActividad,
+        respuestasChecklist: _buildRespuestasJson(),
       );
       debugPrint("💾 Borrador [En Progreso] autoguardado");
     } catch (e) {
@@ -569,5 +675,58 @@ class VisitFormController extends ChangeNotifier {
     // en tu lista 'fotosPaths'. Pero esto estabiliza los textos y checkboxes.
 
     notifyListeners();
+  }
+
+  // --- Helpers de Checklist ---
+
+  Map<String, dynamic>? _buildRespuestasJson() {
+    if (respuestasMap.isEmpty) return null;
+    final Map<String, dynamic> json = {};
+    for (var entry in respuestasMap.entries) {
+      json[entry.key] = entry.value.toMap();
+    }
+    return json;
+  }
+
+  Future<void> _restoreChecklistFromBorrador() async {
+    final checklistData = await _repository.getChecklistPorVisita(
+      _currentVisitId,
+    );
+    if (checklistData != null) {
+      final tipo = checklistData['tipo_checklist'] as String;
+      selectedTipoActividad = tipo;
+      preguntasActivas = await inspectionRepository.getItems(tipo);
+      _parseRespuestasFromJson(
+        checklistData['respuestas'] as Map<String, dynamic>,
+      );
+    }
+  }
+
+  Future<void> _restoreChecklistRespuestas() async {
+    final checklistData = await _repository.getChecklistPorVisita(
+      _currentVisitId,
+    );
+    if (checklistData != null &&
+        checklistData['tipo_checklist'] == selectedTipoActividad) {
+      _parseRespuestasFromJson(
+        checklistData['respuestas'] as Map<String, dynamic>,
+      );
+    }
+  }
+
+  void _parseRespuestasFromJson(Map<String, dynamic> respuestas) {
+    respuestasMap.clear();
+    for (var entry in respuestas.entries) {
+      final data = entry.value as Map<String, dynamic>;
+      respuestasMap[entry.key] = VisitaRespuesta(
+        id: data['id']?.toString() ?? const Uuid().v4(),
+        visitaId: _currentVisitId,
+        itemId: entry.key,
+        estado: data['estado']?.toString() ?? '',
+        observacion: data['observacion']?.toString() ?? '',
+        criticidad: data['criticidad']?.toString(),
+        fotoPath: data['foto_path']?.toString(),
+      );
+    }
   }
 }

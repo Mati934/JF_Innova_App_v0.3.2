@@ -18,6 +18,7 @@ class HomeController extends ChangeNotifier {
   final User? user = Supabase.instance.client.auth.currentUser;
 
   bool _isAdminUser = false;
+  bool _disposed = false;
 
   bool get esAdmin => _isAdminUser;
 
@@ -47,7 +48,7 @@ class HomeController extends ChangeNotifier {
 
   void _setupConnectivityListener() {
     _connectivitySubscription = _connectivity.onStatusChange.listen((online) {
-      notifyListeners(); // Actualiza UI cuando cambia la conexión
+      _safeNotify();
     });
   }
 
@@ -60,7 +61,7 @@ class HomeController extends ChangeNotifier {
   // --- LÓGICA DE BORRADORES ---
   Future<void> cargarBorradores() async {
     isLoadingBorradores = true;
-    notifyListeners();
+    _safeNotify();
 
     try {
       // CLEAN CODE: Ejecución en paralelo (Concurrencia)
@@ -88,7 +89,7 @@ class HomeController extends ChangeNotifier {
       borradores = [];
     } finally {
       isLoadingBorradores = false;
-      notifyListeners();
+      _safeNotify();
     }
   }
 
@@ -100,7 +101,7 @@ class HomeController extends ChangeNotifier {
       debugPrint('❌ [HomeController] Error al cargar tickets abiertos: $e');
       _ticketsAbiertos = 0;
     } finally {
-      notifyListeners();
+      _safeNotify();
     }
   }
 
@@ -136,7 +137,7 @@ class HomeController extends ChangeNotifier {
     if (user == null) {
       nombreUsuario = 'Usuario';
       _isAdminUser = false; // Seguridad por defecto
-      notifyListeners();
+      _safeNotify();
       return;
     }
 
@@ -184,7 +185,7 @@ class HomeController extends ChangeNotifier {
       nombreUsuario = user!.email ?? 'Usuario';
       _isAdminUser = false; // Ante la duda, se bloquea el acceso
     } finally {
-      notifyListeners();
+      _safeNotify();
     }
   }
 
@@ -196,7 +197,7 @@ class HomeController extends ChangeNotifier {
     }
 
     isSyncing = true;
-    notifyListeners();
+    _safeNotify();
 
     try {
       // 1. Subir pendientes silenciosamente
@@ -212,7 +213,7 @@ class HomeController extends ChangeNotifier {
       debugPrint("⚠️ Error en sync silencioso: $e");
     } finally {
       isSyncing = false;
-      notifyListeners();
+      _safeNotify();
     }
   }
 
@@ -222,7 +223,7 @@ class HomeController extends ChangeNotifier {
     isSyncing = true;
     syncMessage = "Sincronizando...";
     isError = false;
-    notifyListeners();
+    _safeNotify();
 
     try {
       final subidos = await _syncService.sincronizarTodo();
@@ -240,10 +241,10 @@ class HomeController extends ChangeNotifier {
       syncMessage = "Error de red al sincronizar.";
     } finally {
       isSyncing = false;
-      notifyListeners();
+      _safeNotify();
       Future.delayed(const Duration(seconds: 3), () {
         syncMessage = null;
-        notifyListeners();
+        _safeNotify();
       });
     }
   }
@@ -259,7 +260,12 @@ class HomeController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _connectivitySubscription?.cancel();
     super.dispose();
+  }
+
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
   }
 }

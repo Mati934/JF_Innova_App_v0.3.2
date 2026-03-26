@@ -62,6 +62,10 @@ class VisitPdfGeneratorService {
           pw.SizedBox(height: 15),
           _buildActividades(data),
           pw.SizedBox(height: 15),
+          if (data.checklistItems.isNotEmpty) ...[
+            ..._buildChecklistSection(data),
+            pw.SizedBox(height: 15),
+          ],
           _buildObservaciones(data),
           pw.SizedBox(height: 20),
           _buildFirma(data),
@@ -522,5 +526,116 @@ class VisitPdfGeneratorService {
     } catch (e) {
       return rawBytes;
     }
+  }
+
+  // === CHECKLIST DINÁMICO EN PDF ===
+  List<pw.Widget> _buildChecklistSection(VisitReportData data) {
+    // Agrupar items por categoría
+    final Map<String, List<VisitChecklistItemDto>> grouped = {};
+    for (var item in data.checklistItems) {
+      grouped.putIfAbsent(item.categoria, () => []);
+      grouped[item.categoria]!.add(item);
+    }
+
+    final List<pw.Widget> widgets = [
+      pw.Container(
+        width: double.infinity,
+        padding: const pw.EdgeInsets.all(6),
+        decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+        child: pw.Text(
+          'CHECKLIST: ${data.tipoChecklist ?? ""}',
+          style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+        ),
+      ),
+    ];
+
+    int counter = 1;
+    for (var category in grouped.keys) {
+      // Header de categoría
+      widgets.add(
+        pw.Container(
+          width: double.infinity,
+          padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          margin: const pw.EdgeInsets.only(top: 6),
+          decoration: const pw.BoxDecoration(color: PdfColors.blue50),
+          child: pw.Text(
+            category.toUpperCase(),
+            style: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold,
+              fontSize: 9,
+              color: PdfColors.blue900,
+            ),
+          ),
+        ),
+      );
+
+      // Tabla de items
+      widgets.add(
+        pw.Table(
+          border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey400),
+          columnWidths: {
+            0: const pw.FixedColumnWidth(25),
+            1: const pw.FlexColumnWidth(4),
+            2: const pw.FixedColumnWidth(35),
+            3: const pw.FlexColumnWidth(2),
+          },
+          children: [
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+              children: [
+                _cellPdf('N', bold: true),
+                _cellPdf('Item', bold: true),
+                _cellPdf('Est.', bold: true),
+                _cellPdf('Observación', bold: true),
+              ],
+            ),
+            ...grouped[category]!.map((item) {
+              final isNC = item.respuesta == 'NC';
+              final row = pw.TableRow(
+                decoration: isNC
+                    ? const pw.BoxDecoration(color: PdfColors.red50)
+                    : null,
+                children: [
+                  _cellPdf('$counter'),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(3),
+                    child: pw.Text(
+                      item.pregunta,
+                      style: const pw.TextStyle(fontSize: 7),
+                    ),
+                  ),
+                  _cellPdf(item.respuesta, color: isNC ? PdfColors.red : null),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(3),
+                    child: pw.Text(
+                      item.observacion ?? '',
+                      style: const pw.TextStyle(fontSize: 7),
+                    ),
+                  ),
+                ],
+              );
+              counter++;
+              return row;
+            }),
+          ],
+        ),
+      );
+    }
+    return widgets;
+  }
+
+  pw.Widget _cellPdf(String text, {bool bold = false, PdfColor? color}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(3),
+      child: pw.Text(
+        text,
+        textAlign: pw.TextAlign.center,
+        style: pw.TextStyle(
+          fontSize: 7,
+          fontWeight: bold ? pw.FontWeight.bold : null,
+          color: color,
+        ),
+      ),
+    );
   }
 }

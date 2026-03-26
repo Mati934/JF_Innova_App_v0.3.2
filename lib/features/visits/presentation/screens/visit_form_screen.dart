@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:signature/signature.dart';
 import 'package:provider/provider.dart';
-import '../../../../shared/widgets/form_inputs/gallery_input.dart'; // 👈 IMPORTANTE: Agregada la importación
+import 'dart:io';
+import '../../../../shared/widgets/form_inputs/gallery_input.dart';
+import '../../../../shared/services/image_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../controllers/visit_form_controller.dart';
+import '../../../inspection/presentation/widgets/question_card.dart';
+import '../../../inspection/presentation/widgets/category_header.dart';
 
 class VisitFormScreen extends StatelessWidget {
   // CLEAN CODE: Recibimos el mapa del borrador de SQLite (opcional)
@@ -270,6 +274,20 @@ class _VisitFormView extends StatelessWidget {
                       ),
                     ),
 
+                    // === SECCIÓN: TIPO DE ACTIVIDAD + CHECKLIST DINÁMICO ===
+                    const SizedBox(height: 20),
+                    const _SectionHeader("Tipo de Actividad"),
+                    const SizedBox(height: 10),
+                    _buildChecklistDropdown(context, ctrl),
+                    if (ctrl.isLoadingPreguntas)
+                      const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    if (ctrl.preguntasActivas.isNotEmpty &&
+                        !ctrl.isLoadingPreguntas)
+                      _buildChecklistCards(context, ctrl),
+
                     const SizedBox(height: 20),
                     const _SectionHeader("5. Apuntes / Observaciones"),
                     const SizedBox(height: 10),
@@ -533,6 +551,105 @@ class _VisitFormView extends StatelessWidget {
             },
       ),
     );
+  }
+
+  Widget _buildChecklistDropdown(
+    BuildContext context,
+    VisitFormController ctrl,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: DropdownButton<String?>(
+        value: ctrl.selectedTipoActividad,
+        isExpanded: true,
+        underline: const SizedBox(),
+        hint: const Text('Registro de Visita (Sin checklist)'),
+        items: [
+          const DropdownMenuItem<String?>(
+            value: null,
+            child: Text('Registro de Visita (Sin checklist)'),
+          ),
+          ...ctrl.tiposChecklistDisponibles.map((t) {
+            final tipo = t['tipo_actividad'] as String;
+            return DropdownMenuItem<String?>(
+              value: tipo,
+              child: Text(_formatTipoLabel(tipo)),
+            );
+          }),
+        ],
+        onChanged: (value) {
+          if (value == null) {
+            ctrl.clearChecklist();
+          } else {
+            ctrl.loadPreguntas(value);
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildChecklistCards(BuildContext context, VisitFormController ctrl) {
+    final grupos = ctrl.agruparPorCategoria();
+    final categorias = grupos.keys.toList();
+
+    return Column(
+      children: categorias.map((catNombre) {
+        final items = grupos[catNombre]!;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CategoryHeader(nombre: catNombre),
+            ...items.map((item) {
+              final respuesta = ctrl.respuestasMap[item.id];
+              return QuestionCard(
+                key: ValueKey(item.id),
+                item: item,
+                respuestaInicial: respuesta?.estado,
+                observacionInicial: respuesta?.observacion,
+                criticidadInicial: respuesta?.criticidad ?? item.criticidad,
+                fotoInicial: respuesta?.fotoPath != null
+                    ? File(respuesta!.fotoPath!)
+                    : null,
+                onRespuestaChanged: (val) =>
+                    ctrl.updateRespuestaData(itemId: item.id, estado: val),
+                onObservacionChanged: (val) =>
+                    ctrl.updateRespuestaData(itemId: item.id, observacion: val),
+                onCriticidadChanged: (val) =>
+                    ctrl.updateRespuestaData(itemId: item.id, criticidad: val),
+                onTomarFotoTap: () {
+                  ImageService.mostrarOpciones(
+                    context,
+                    soloUna: true,
+                    onFotoTomada: (file) => ctrl.updateRespuestaData(
+                      itemId: item.id,
+                      fotoPath: file.path,
+                    ),
+                    onGaleriaSeleccionada: (files) {
+                      if (files.isNotEmpty) {
+                        ctrl.updateRespuestaData(
+                          itemId: item.id,
+                          fotoPath: files.first.path,
+                        );
+                      }
+                    },
+                  );
+                },
+              );
+            }),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  String _formatTipoLabel(String tipo) {
+    const labels = {'VISITA_005': 'Condiciones Eléctricas Generales'};
+    return labels[tipo] ?? tipo.replaceAll('_', ' ');
   }
 }
 

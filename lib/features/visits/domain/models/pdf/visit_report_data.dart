@@ -32,6 +32,10 @@ class VisitReportData {
 
   final Uint8List? signatureImage;
 
+  // Checklist dinámico
+  final String? tipoChecklist;
+  final List<VisitChecklistItemDto> checklistItems;
+
   VisitReportData({
     required this.region,
     required this.centro,
@@ -56,7 +60,25 @@ class VisitReportData {
     required this.checkOtro,
     this.otroActividadTexto,
     required this.apuntesObservaciones,
-    required this.fotosPaths, // Cambiado
+    required this.fotosPaths,
     required this.signatureImage,
+    this.tipoChecklist,
+    this.checklistItems = const [],
+  });
+}
+
+class VisitChecklistItemDto {
+  final String categoria;
+  final String pregunta;
+  final String respuesta; // C, NC, N/A
+  final String? criticidad;
+  final String? observacion;
+
+  VisitChecklistItemDto({
+    required this.categoria,
+    required this.pregunta,
+    required this.respuesta,
+    this.criticidad,
+    this.observacion,
   });
 }

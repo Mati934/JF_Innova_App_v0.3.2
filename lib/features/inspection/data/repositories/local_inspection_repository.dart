@@ -315,7 +315,7 @@ class LocalInspectionRepository implements InspectionRepository {
     final db = await dbHelper.database;
     final res = await db.rawQuery(
       '''
-      SELECT ap.personal_id, p.nombre_completo, p.rut, p.matricula, ap.rol_en_faena, ap.condiciones_optimas
+      SELECT ap.personal_id, p.nombre_completo, p.rut, p.matricula, p.contratista_id, ap.rol_en_faena, ap.condiciones_optimas
       FROM actividad_participantes ap
       INNER JOIN personal_externo p ON ap.personal_id = p.id
       WHERE ap.actividad_id = ?
@@ -495,7 +495,8 @@ class LocalInspectionRepository implements InspectionRepository {
         rut: map['rut'] as String,
         cargo: map['cargo'] as String? ?? 'Buzo',
         matricula: map['matricula'] as String? ?? '',
-        contratistaId: map['contratista_id'] as String?, // <--- AGREGAR CONTRATISTA_ID
+        contratistaId:
+            map['contratista_id'] as String?, // <--- AGREGAR CONTRATISTA_ID
         condicionesOptimas: true, // Default por negocio
       );
     }

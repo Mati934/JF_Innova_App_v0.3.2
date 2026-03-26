@@ -17,6 +17,8 @@ class HistoryController extends ChangeNotifier {
   String?
   filtroModulo; // Puede ser 'Inspección', 'Visita Técnica' o null para todos
 
+  int _loadSequence = 0; // Evita race conditions en filtros rápidos
+
   List<Map<String, dynamic>> listaCentros = [];
   List<Map<String, dynamic>> listaUsuarios = [];
 
@@ -63,23 +65,29 @@ class HistoryController extends ChangeNotifier {
   }
 
   Future<void> cargarHistorial() async {
+    final seq = ++_loadSequence;
     isLoading = true;
     _safeNotify();
 
     try {
-      records = await _cloudRepo.getHistorialGlobal(
+      final result = await _cloudRepo.getHistorialGlobal(
         esAdmin: esAdmin,
         filtroCentroId: filtroCentroId,
         filtroUsuarioId: filtroUsuarioId,
         filtroModulo: filtroModulo,
       );
+      if (seq != _loadSequence) return; // Descarta resultado stale
+      records = result;
       debugPrint("☁️ Historial unificado cargado: ${records.length} registros");
     } catch (e) {
+      if (seq != _loadSequence) return;
       debugPrint("⚠️ Fallo al cargar historial desde Supabase: $e");
       records = []; // Vaciamos para no mostrar datos fantasma
     } finally {
-      isLoading = false;
-      _safeNotify();
+      if (seq == _loadSequence) {
+        isLoading = false;
+        _safeNotify();
+      }
     }
   }
 

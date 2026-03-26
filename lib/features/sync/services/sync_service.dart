@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/database/database_helper.dart';
 import '../../../features/tickets/data/repositories/supabase_ticket_repository.dart';
+import 'dart:convert';
 
 class SyncService {
   final _supabase = Supabase.instance.client;
@@ -352,6 +353,11 @@ class SyncService {
             where: 'actividad_id = ?',
             whereArgs: [id],
           );
+          await db.delete(
+            'visitas_checklists_pendientes',
+            where: 'visita_id = ?',
+            whereArgs: [id],
+          );
 
           debugPrint("✅ Visita zombie aniquilada.");
         } catch (e) {
@@ -418,6 +424,35 @@ class SyncService {
         await _supabase
             .from('visitas_tecnicas')
             .upsert(datosNube, onConflict: 'id');
+
+        // --- 2.A.2 Sincronizar Checklist Dinámico (JSONB) ---
+        final checklistResults = await db.query(
+          'visitas_checklists_pendientes',
+          where: 'visita_id = ?',
+          whereArgs: [id],
+        );
+
+        if (checklistResults.isNotEmpty) {
+          for (var chk in checklistResults) {
+            final String tipo = chk['tipo_checklist'] as String;
+            final String respuestasStr = chk['respuestas'] as String;
+
+            // Decodificamos el String de SQLite a un Map para que Supabase lo inserte como JSONB
+            final payloadChecklist = {
+              'visita_id': id,
+              'tipo_checklist': tipo,
+              'respuestas': jsonDecode(respuestasStr),
+            };
+
+            await _supabase
+                .from('visitas_checklists')
+                .upsert(
+                  payloadChecklist,
+                  onConflict: 'visita_id, tipo_checklist',
+                );
+          }
+          debugPrint("✅ Checklist dinámico sincronizado para visita: $id");
+        }
 
         // 2.B. MAGIA CAMINO B: Subida del PDF en Background
         String? pdfUrlNube = row['pdf_url'] as String?;

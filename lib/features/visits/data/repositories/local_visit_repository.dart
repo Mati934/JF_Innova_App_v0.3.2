@@ -2,6 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../../../core/database/database_helper.dart';
 import '../../domain/models/visit_model.dart';
+import '../../domain/models/visita_respuesta.dart';
+import 'package:uuid/uuid.dart';
+import 'dart:convert';
 
 class LocalVisitRepository {
   final dbHelper = DatabaseHelper.instance;
@@ -45,28 +48,48 @@ class LocalVisitRepository {
   Future<void> saveVisitaCompleta({
     required Map<String, dynamic> visitaMap,
     required List<String> fotosPaths,
-    required bool
-    esBorrador, // 👈 EL JEFE DEL ESTADO (Igual que en Inspecciones)
+    required bool esBorrador,
+    // 👈 NUEVOS PARÁMETROS OPCIONALES PARA EL DETALLE DINÁMICO
+    String? tipoChecklist,
+    Map<String, dynamic>? respuestasChecklist,
   }) async {
     final db = await dbHelper.database;
     final estadoFinal = esBorrador ? 'En Progreso' : 'Finalizada';
 
-    // Aseguramos el estado antes de insertar
     visitaMap['estado_final'] = estadoFinal;
-    visitaMap['subido'] = 0; // Forzamos sync al guardar cambios
+    visitaMap['subido'] = 0;
 
     await db.transaction((txn) async {
       debugPrint('💾 TXN: Guardando Visita Técnica (Borrador: $esBorrador)...');
 
+      // 1. Guardar Cabecera (Master)
       await txn.insert(
         'visitas_tecnicas_pendientes',
         visitaMap,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
 
-      // BLINDAJE ANTI FUGAS DE MEMORIA Y DUPLICADOS
+      // 2. Guardar Detalle Checklist (Detail) - NUEVO BLINDAJE
+      if (tipoChecklist != null && respuestasChecklist != null) {
+        // Limpiamos el checklist anterior de este tipo para evitar basura acumulada
+        await txn.delete(
+          'visitas_checklists_pendientes',
+          where: 'visita_id = ? AND tipo_checklist = ?',
+          whereArgs: [visitaMap['id'], tipoChecklist],
+        );
+
+        // Insertamos la versión fresca (Codificando el Map a String para SQLite)
+        await txn.insert('visitas_checklists_pendientes', {
+          'id': const Uuid().v4(),
+          'visita_id': visitaMap['id'],
+          'tipo_checklist': tipoChecklist,
+          'respuestas': jsonEncode(respuestasChecklist),
+          'subido': 0,
+        });
+      }
+
+      // 3. Guardar Fotos (Se mantiene igual)
       if (fotosPaths.isNotEmpty) {
-        // Regla de Inspecciones: Limpiamos antes de insertar para no acumular basura
         await txn.delete(
           'fotos_pendientes',
           where: 'actividad_id = ?',
@@ -89,7 +112,7 @@ class LocalVisitRepository {
     final db = await dbHelper.database;
     final result = await db.query(
       'visitas_tecnicas_pendientes',
-      where: 'estado_final = ? AND subido = 0 AND eliminado = 0',
+      where: 'estado_final = ? AND eliminado = 0',
       whereArgs: ['En Progreso'],
       orderBy: 'fecha_realizacion DESC',
     );
@@ -140,5 +163,66 @@ class LocalVisitRepository {
       limit: 1,
     );
     return result.isNotEmpty ? result.first : null;
+  }
+
+  // Recuperar el checklist dinámico para la UI
+  Future<Map<String, dynamic>?> getChecklistPorVisita(String visitaId) async {
+    final db = await dbHelper.database;
+    final result = await db.query(
+      'visitas_checklists_pendientes',
+      where: 'visita_id = ?',
+      whereArgs: [visitaId],
+      limit: 1, // Asumimos 1 checklist por visita por ahora
+    );
+
+    if (result.isNotEmpty) {
+      final row = result.first;
+      return {
+        'tipo_checklist': row['tipo_checklist'],
+        // Decodificamos el String de SQLite de vuelta a Map
+        'respuestas': jsonDecode(row['respuestas'] as String),
+      };
+    }
+    return null;
+  }
+
+  /// Tipos de checklist disponibles para visitas (ej: VISITA_005)
+  Future<List<Map<String, dynamic>>> getTiposChecklistVisita() async {
+    final db = await dbHelper.database;
+    return await db.rawQuery('''
+      SELECT DISTINCT tipo_actividad
+      FROM formulario_items
+      WHERE tipo_actividad LIKE 'VISITA_%' AND activo = 1
+      ORDER BY tipo_actividad ASC
+    ''');
+  }
+
+  /// Guarda respuestas individuales en visita_respuestas_pendientes
+  Future<void> saveVisitaRespuestas(
+    String visitaId,
+    List<VisitaRespuesta> respuestas,
+  ) async {
+    final db = await dbHelper.database;
+    await db.transaction((txn) async {
+      await txn.delete(
+        'visita_respuestas_pendientes',
+        where: 'visita_id = ?',
+        whereArgs: [visitaId],
+      );
+      for (var r in respuestas) {
+        await txn.insert('visita_respuestas_pendientes', r.toMap());
+      }
+    });
+  }
+
+  /// Carga respuestas individuales desde visita_respuestas_pendientes
+  Future<List<VisitaRespuesta>> getVisitaRespuestas(String visitaId) async {
+    final db = await dbHelper.database;
+    final result = await db.query(
+      'visita_respuestas_pendientes',
+      where: 'visita_id = ?',
+      whereArgs: [visitaId],
+    );
+    return result.map((m) => VisitaRespuesta.fromMap(m)).toList();
   }
 }

@@ -6,7 +6,8 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
-  static const int _dbVersion = 27;
+  static const int _dbVersion =
+      31; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -243,7 +244,32 @@ class DatabaseHelper {
         apuntes_observaciones TEXT,
         signature_image BLOB,
         pdf_path_local TEXT,
-        pdf_url TEXT
+        pdf_url TEXT,
+        tipo_actividad TEXT
+      )
+    ''');
+
+    // --- 6. CHECKLISTS DINÁMICOS PARA VISITAS ---
+    await db.execute('''
+      CREATE TABLE visitas_checklists_pendientes (
+        id TEXT PRIMARY KEY,
+        visita_id TEXT,
+        tipo_checklist TEXT,
+        respuestas TEXT, -- SQLite guarda el JSON como String
+        subido INTEGER DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE visita_respuestas_pendientes (
+        id TEXT PRIMARY KEY,
+        visita_id TEXT,
+        item_id TEXT,
+        estado TEXT,
+        observacion TEXT,
+        criticidad TEXT,
+        foto_path TEXT,
+        subido INTEGER DEFAULT 0
       )
     ''');
 
@@ -544,6 +570,72 @@ class DatabaseHelper {
       debugPrint("🚀 Aplicando parche v27 (Desnormalizar Rol)...");
       await _safeAddColumn(db, "usuarios", "nombre_rol", "TEXT");
       debugPrint("✅ Parche v27 aplicado.");
+    }
+    if (oldVersion < 28) {
+      debugPrint(
+        "🚀 Aplicando parche v28 (Checklists dinámicos de Visitas)...",
+      );
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS visitas_checklists_pendientes (
+          id TEXT PRIMARY KEY,
+          visita_id TEXT,
+          tipo_checklist TEXT,
+          respuestas TEXT,
+          subido INTEGER DEFAULT 0
+        )
+      ''');
+      debugPrint("✅ Parche v28 aplicado.");
+    }
+    // v29: Nueva tabla visita_respuestas_pendientes
+    if (oldVersion < 29) {
+      debugPrint(
+        "🚀 Aplicando parche v29 (Tabla visita_respuestas_pendientes)...",
+      );
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS visita_respuestas_pendientes (
+          id TEXT PRIMARY KEY,
+          visita_id TEXT,
+          item_id TEXT,
+          estado TEXT,
+          observacion TEXT,
+          subido INTEGER DEFAULT 0
+        )
+      ''');
+      debugPrint("✅ Parche v29 aplicado.");
+    }
+
+    // v30: Agregar criticidad y foto_path a visita_respuestas_pendientes
+    if (oldVersion < 30) {
+      debugPrint(
+        "🚀 Aplicando parche v30 (criticidad y foto_path en visita_respuestas_pendientes)...",
+      );
+      await _safeAddColumn(
+        db,
+        "visita_respuestas_pendientes",
+        "criticidad",
+        "TEXT",
+      );
+      await _safeAddColumn(
+        db,
+        "visita_respuestas_pendientes",
+        "foto_path",
+        "TEXT",
+      );
+      debugPrint("✅ Parche v30 aplicado.");
+    }
+
+    // v31: Agregar tipo_actividad a visitas_tecnicas_pendientes
+    if (oldVersion < 31) {
+      debugPrint(
+        "🚀 Aplicando parche v31 (tipo_actividad en visitas_tecnicas_pendientes)...",
+      );
+      await _safeAddColumn(
+        db,
+        "visitas_tecnicas_pendientes",
+        "tipo_actividad",
+        "TEXT",
+      );
+      debugPrint("✅ Parche v31 aplicado.");
     }
   }
 

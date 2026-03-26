@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:convert'; // Para parsear el JSON
 
 class VisitModel {
   String activityId;
@@ -10,6 +11,10 @@ class VisitModel {
   String? horaTermino;
   String? emailEmpresa1;
   String? emailEmpresa2;
+
+  // --- NUEVO: Checklist Dinámico (JSONB) ---
+  String? tipoChecklist; // Ej: 'ELECTRICIDAD_R005'
+  Map<String, dynamic>? respuestasChecklist;
 
   // Checkboxs
   bool checkReunion;
@@ -47,6 +52,8 @@ class VisitModel {
     this.otroActividadTexto,
     this.apuntesObservaciones,
     this.signatureImage,
+    this.tipoChecklist,
+    this.respuestasChecklist,
   });
 
   Map<String, dynamic> toMap() {

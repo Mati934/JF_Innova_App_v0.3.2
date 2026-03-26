@@ -22,6 +22,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final HomeController _controller = HomeController();
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   Future<String> _getVersion() async {
     final info = await PackageInfo.fromPlatform();
     return "v${info.version} (b${info.buildNumber})";

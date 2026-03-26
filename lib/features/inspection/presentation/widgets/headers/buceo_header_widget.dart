@@ -140,7 +140,7 @@ class BuceoCuadrillaWidget extends StatelessWidget {
 
     final List<String> listaCargos = esEmbarcacion
         ? ["Patrón", "Maquinista", "Tripulante", "Cocinero", "Otro"]
-        : ["Supervisor", "Buzo", "Asistente"];
+        : ["Supervisor", "Buzo", "Asistente", "Personal de Apoyo"];
 
     final String cargoInicial =
         listaCargos.first; // Toma el primero por defecto
@@ -324,7 +324,8 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                         rut: rutCtrl.text.trim(),
                         cargo: cargoNotifier.value,
                         matricula: matriculaCtrl.text.trim(),
-                        contratistaId: controller.contratistaId, // <--- USAR CONTRATISTA DEL CONTROLLER
+                        contratistaId: controller
+                            .contratistaId, // <--- USAR CONTRATISTA DEL CONTROLLER
                         condicionesOptimas: true,
                       );
 
