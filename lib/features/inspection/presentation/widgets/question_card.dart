@@ -62,6 +62,18 @@ class _QuestionCardState extends State<QuestionCard>
   }
 
   @override
+  void didUpdateWidget(QuestionCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Sincroniza la criticidad SOLO si el prop externo cambió Y el usuario
+    // no había hecho una selección propia (es decir, el estado local aún
+    // coincide con el prop anterior, no con una selección del usuario).
+    if (oldWidget.criticidadInicial != widget.criticidadInicial &&
+        _criticidadActual == oldWidget.criticidadInicial) {
+      setState(() => _criticidadActual = widget.criticidadInicial);
+    }
+  }
+
+  @override
   void dispose() {
     _obsController.dispose();
     super.dispose();

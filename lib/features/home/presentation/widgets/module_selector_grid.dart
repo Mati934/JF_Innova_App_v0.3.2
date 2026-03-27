@@ -4,12 +4,14 @@ import '../../../../core/theme/app_theme.dart';
 class ModuleSelectorGrid extends StatelessWidget {
   final VoidCallback onInspeccionTap;
   final VoidCallback onVisitaTap;
+  final VoidCallback onExtintoresTap;
   final VoidCallback onRendicionTap;
 
   const ModuleSelectorGrid({
     super.key,
     required this.onInspeccionTap,
     required this.onVisitaTap,
+    required this.onExtintoresTap,
     required this.onRendicionTap,
   });
 
@@ -54,18 +56,27 @@ class ModuleSelectorGrid extends StatelessWidget {
               title: "Registro de Visita",
               subtitle: "R-003",
               icon: Icons.location_city,
-              color: Colors.teal, // Color diferente para diferenciar
+              color: Colors.teal,
               onTap: onVisitaTap,
             ),
 
-            // 3. RENDICIONES (Deshabilitado por ahora)
+            // 3. EXTINTORES
+            _ModuleCard(
+              title: "Inspección Extintores",
+              subtitle: "VISITA-R004",
+              icon: Icons.fire_extinguisher,
+              color: Colors.red.shade700,
+              onTap: onExtintoresTap,
+            ),
+
+            // 4. RENDICIONES (Deshabilitado por ahora)
             _ModuleCard(
               title: "Rendiciones",
               subtitle: "Gastos",
               icon: Icons.receipt_long,
               color: Colors.orange,
               onTap: onRendicionTap,
-              isDisabled: true, // <--- Bloqueado
+              isDisabled: true,
             ),
           ],
         ),

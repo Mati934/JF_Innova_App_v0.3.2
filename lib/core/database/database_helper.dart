@@ -7,7 +7,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      31; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      32; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -302,6 +302,20 @@ class DatabaseHelper {
         created_at TEXT,
         subido INTEGER DEFAULT 0,
         eliminado INTEGER DEFAULT 0
+      )
+    ''');
+
+    // --- MÓDULO EXTINTORES ---
+    await db.execute('''
+      CREATE TABLE extintores_pendientes (
+        id TEXT PRIMARY KEY,
+        visita_id TEXT NOT NULL,
+        numero INTEGER NOT NULL,
+        matricula TEXT,
+        fotos_json TEXT,
+        respuestas_json TEXT,
+        subido INTEGER DEFAULT 0,
+        created_at TEXT
       )
     ''');
 
@@ -636,6 +650,24 @@ class DatabaseHelper {
         "TEXT",
       );
       debugPrint("✅ Parche v31 aplicado.");
+    }
+
+    // v32: Nueva tabla extintores_pendientes (Módulo Inspección Extintores)
+    if (oldVersion < 32) {
+      debugPrint("🚀 Aplicando parche v32 (Módulo Extintores)...");
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS extintores_pendientes (
+          id TEXT PRIMARY KEY,
+          visita_id TEXT NOT NULL,
+          numero INTEGER NOT NULL,
+          matricula TEXT,
+          fotos_json TEXT,
+          respuestas_json TEXT,
+          subido INTEGER DEFAULT 0,
+          created_at TEXT
+        )
+      ''');
+      debugPrint("✅ Parche v32 aplicado.");
     }
   }
 

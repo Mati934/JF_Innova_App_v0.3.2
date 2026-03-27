@@ -112,8 +112,9 @@ class LocalVisitRepository {
     final db = await dbHelper.database;
     final result = await db.query(
       'visitas_tecnicas_pendientes',
-      where: 'estado_final = ? AND eliminado = 0',
-      whereArgs: ['En Progreso'],
+      where:
+          'estado_final = ? AND eliminado = 0 AND (tipo_actividad IS NULL OR tipo_actividad != ?)',
+      whereArgs: ['En Progreso', 'VISITA_R004'],
       orderBy: 'fecha_realizacion DESC',
     );
 

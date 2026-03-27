@@ -454,6 +454,11 @@ class SyncService {
           debugPrint("✅ Checklist dinámico sincronizado para visita: $id");
         }
 
+        // --- 2.A.3 Sincronizar Extintores (solo si es inspección de extintores) ---
+        if (row['tipo_actividad'] == 'VISITA_R004') {
+          await _sincronizarExtintoresDe(db, id);
+        }
+
         // 2.B. MAGIA CAMINO B: Subida del PDF en Background
         String? pdfUrlNube = row['pdf_url'] as String?;
 
@@ -521,6 +526,49 @@ class SyncService {
       }
     }
     return count;
+  }
+
+  /// Sube los extintores de una inspección VISITA_R004 a Supabase
+  Future<void> _sincronizarExtintoresDe(
+    DatabaseExecutor db,
+    String visitaId,
+  ) async {
+    final extintores = await db.query(
+      'extintores_pendientes',
+      where: 'visita_id = ? AND subido = 0',
+      whereArgs: [visitaId],
+    );
+
+    if (extintores.isEmpty) return;
+
+    for (final row in extintores) {
+      try {
+        final payload = {
+          'id': row['id'],
+          'visita_id': row['visita_id'],
+          'numero': row['numero'],
+          'matricula': row['matricula'],
+          'fotos_json': row['fotos_json'] != null
+              ? jsonDecode(row['fotos_json'] as String)
+              : [],
+          'respuestas_json': row['respuestas_json'] != null
+              ? jsonDecode(row['respuestas_json'] as String)
+              : {},
+        };
+
+        await _supabase.from('extintores').upsert(payload, onConflict: 'id');
+
+        await db.update(
+          'extintores_pendientes',
+          {'subido': 1},
+          where: 'id = ?',
+          whereArgs: [row['id']],
+        );
+      } catch (e) {
+        debugPrint("⚠️ Error sincronizando extintor ${row['id']}: $e");
+      }
+    }
+    debugPrint("✅ Extintores sincronizados para visita $visitaId");
   }
 
   Future<void> _sincronizarVerificaciones(

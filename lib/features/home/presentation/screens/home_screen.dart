@@ -9,6 +9,7 @@ import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../inspection/presentation/screens/inspection_setup_screen.dart';
 import '../../../history/presentation/screens/history_screen.dart';
 import '../../../visits/presentation/screens/visit_form_screen.dart'; // Importa la pantalla de visitas
+import '../../../extintores/presentation/screens/extintor_form_screen.dart';
 import '../../../tickets/presentation/screens/ticket_list_screen.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
@@ -243,11 +244,18 @@ class _HomeScreenState extends State<HomeScreen> {
                             ).then((_) => _controller.cargarBorradores());
                           },
                           onVisitaTap: () {
-                            // Navegación al nuevo módulo
                             Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (_) => const VisitFormScreen(),
+                              ),
+                            ).then((_) => _controller.cargarBorradores());
+                          },
+                          onExtintoresTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ExtintorFormScreen(),
                               ),
                             ).then((_) => _controller.cargarBorradores());
                           },
