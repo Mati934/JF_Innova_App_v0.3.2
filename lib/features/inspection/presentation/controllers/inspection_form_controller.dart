@@ -18,12 +18,14 @@ import 'dart:typed_data';
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:jf_innova_app/shared/services/image_service.dart';
+import 'package:jf_innova_app/shared/utils/debouncer.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/foundation.dart';
 
 class InspectionFormController extends ChangeNotifier {
   final InspectionRepository _repo;
   final _syncService = SyncService();
+  final _autoSaveDebouncer = Debouncer(milliseconds: 2000);
   final String activityId;
   final String tipoActividad;
   String? usuarioId;
@@ -81,6 +83,7 @@ class InspectionFormController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _autoSaveDebouncer.cancel();
     numeroInformeController.dispose();
     horaInicioController.dispose(); // NUEVO
     horaTerminoController.dispose(); // NUEVO
@@ -105,6 +108,20 @@ class InspectionFormController extends ChangeNotifier {
     this.centroId,
   }) : _repo = LocalInspectionRepository() {
     _init();
+  }
+
+  /// Auto-guardado silencioso con debouncer (red de seguridad contra pérdida de datos)
+  void _triggerAutoSave() {
+    if (_isSaving || _isLoading) return;
+    _autoSaveDebouncer.run(() async {
+      if (_disposed || _isSaving) return;
+      try {
+        await _persistirDatos(esBorrador: true);
+        debugPrint("💾 Auto-guardado silencioso completado");
+      } catch (e) {
+        debugPrint("⚠️ Auto-guardado falló (no crítico): $e");
+      }
+    });
   }
 
   Future<void> _init() async {
@@ -289,6 +306,7 @@ class InspectionFormController extends ChangeNotifier {
     }
     // Forzamos a la UI a redibujar los relojes
     notifyListeners();
+    _triggerAutoSave();
   }
 
   // Helper para que el widget sepa qué hora mostrar en el reloj
@@ -337,26 +355,31 @@ class InspectionFormController extends ChangeNotifier {
       // -------------------------------
 
       notifyListeners();
+      _triggerAutoSave();
     }
   }
 
   void removerParticipante(String personalId) {
     participantes.removeWhere((p) => p.personalId == personalId);
     notifyListeners();
+    _triggerAutoSave();
   }
 
   void setRespuesta(String id, String val) {
     respuestas[id] = val;
     notifyListeners();
+    _triggerAutoSave();
   }
 
   void setObservacion(String id, String val) {
     observaciones[id] = val;
+    _triggerAutoSave();
   }
 
   void setCriticidad(String id, String val) {
     criticidades[id] = val;
     notifyListeners();
+    _triggerAutoSave();
   }
 
   void agregarFotosConObservacion(List<File> nuevasFotos) {
@@ -369,6 +392,7 @@ class InspectionFormController extends ChangeNotifier {
       });
     }
     notifyListeners();
+    _triggerAutoSave();
   }
 
   void actualizarTextoFotoObservacion(String id, String texto) {
@@ -383,6 +407,7 @@ class InspectionFormController extends ChangeNotifier {
   void eliminarFotoObservacion(String id) {
     fotosConObservacion.removeWhere((e) => e['id'] == id);
     notifyListeners();
+    _triggerAutoSave();
   }
 
   // --- MÉTODOS DE FOTO BLINDADOS (GUARDADO INMEDIATO) ---
@@ -530,11 +555,9 @@ class InspectionFormController extends ChangeNotifier {
       // Intentamos sincronizar para obtener el número de informe real.
       // Si falla (sin conexión), usamos un número provisional.
       debugPrint("🔄 Sincronizando para obtener N° de Informe...");
-      bool syncExitoso = false;
       try {
         await _syncService.sincronizarTodo();
         await recargarNumeroDesdeDB();
-        syncExitoso = true;
         debugPrint("✅ N° Informe obtenido: ${numeroInformeController.text}");
       } catch (e) {
         debugPrint("⚠️ Sync falló (modo offline): $e");
@@ -653,12 +676,16 @@ class InspectionFormController extends ChangeNotifier {
       );
 
       // Sync final para subir el estado finalizado a la nube
-      if (syncExitoso) {
-        _syncService.sincronizarTodo().catchError((e) {
-          debugPrint("Sync final Error: $e");
-          return 0; // Se retorna int para coincidir con la firma de sincronizarTodo y evitar error
-        });
-      }
+      // SIEMPRE intentar, incluso si el sync previo falló (puede haber conexión ahora)
+      _syncService
+          .sincronizarTodo()
+          .then((_) async {
+            // Después del sync, recargar el número por si Supabase lo generó
+            await recargarNumeroDesdeDB();
+          })
+          .catchError((e) {
+            debugPrint("Sync final Error: $e");
+          });
 
       // ---------------------------------------------------------
       // PASO 8: LIMPIEZA DE MEMORIA (GARBAGE COLLECTION MANUAL)
@@ -864,6 +891,7 @@ class InspectionFormController extends ChangeNotifier {
       );
 
       notifyListeners();
+      _triggerAutoSave();
     }
   }
 
