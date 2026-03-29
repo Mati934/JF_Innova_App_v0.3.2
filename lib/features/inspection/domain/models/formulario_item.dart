@@ -20,7 +20,7 @@ class FormularioItem {
       id: json['id'],
       pregunta: json['pregunta'],
       categoria: json['categoria'],
-      criticidad: json['criticidad'] ?? 'Bajo',
+      criticidad: json['criticidad'] ?? 'Tolerable',
       infoAdicional: json['info_adicional'] ?? json['infoAdicional'],
       urlImagenReferencia: json['url_imagen_referencia'],
     );

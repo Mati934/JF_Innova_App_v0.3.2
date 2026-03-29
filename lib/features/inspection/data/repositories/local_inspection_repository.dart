@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/buceo_verificacion_model.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/participante_model.dart';
+import 'package:jf_innova_app/core/utils/rut_utils.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/models/formulario_item.dart';
@@ -294,7 +295,7 @@ class LocalInspectionRepository implements InspectionRepository {
         await txn.insert('personal_externo', {
           'id': p.personalId,
           'nombre_completo': p.nombreCompleto,
-          'rut': p.rut,
+          'rut': RutUtils.normalize(p.rut),
           'cargo': p.cargo,
           'activo': 1,
           'matricula': p.matricula,
@@ -404,7 +405,7 @@ class LocalInspectionRepository implements InspectionRepository {
           batch.insert('personal_externo', {
             'id': p['personal_id'],
             'nombre_completo': p['nombre_completo'],
-            'rut': p['rut'],
+            'rut': RutUtils.normalize(p['rut'] ?? ''),
             'cargo': p['cargo'],
             'activo': 1,
             'matricula': p['matricula'],
@@ -480,11 +481,15 @@ class LocalInspectionRepository implements InspectionRepository {
   // Añadir dentro de LocalInspectionRepository
   Future<ParticipanteModel?> getPersonalByRut(String rut) async {
     final db = await dbHelper.database;
-    final res = await db.query(
-      'personal_externo',
-      where: 'rut = ?',
-      whereArgs: [rut],
-      limit: 1, // Optimización: Cortamos la búsqueda al primer match
+    final normalized = RutUtils.normalize(rut);
+    if (normalized.isEmpty) return null;
+
+    // Buscar por RUT normalizado (compatible con datos legacy sin normalizar)
+    final res = await db.rawQuery(
+      '''SELECT * FROM personal_externo
+         WHERE REPLACE(REPLACE(REPLACE(LOWER(rut), '.', ''), '-', ''), ' ', '') = ?
+         LIMIT 1''',
+      [normalized],
     );
 
     if (res.isNotEmpty) {

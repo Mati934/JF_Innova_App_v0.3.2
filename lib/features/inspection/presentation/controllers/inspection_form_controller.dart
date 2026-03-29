@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:jf_innova_app/core/database/database_helper.dart';
+import 'package:jf_innova_app/core/utils/rut_utils.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/pdf/inspection_report_data.dart';
 import 'package:jf_innova_app/features/inspection/services/pdf_generator_service.dart';
 import 'package:jf_innova_app/features/sync/services/sync_service.dart';
@@ -149,7 +150,8 @@ class InspectionFormController extends ChangeNotifier {
               numeroReal != "null") {
             numeroInformeController.text = numeroReal;
           } else {
-            numeroInformeController.text = "Pendiente...";
+            // Cargar número hipotético (estimado)
+            await _cargarNumeroHipotetico();
           }
         }
       }
@@ -564,12 +566,20 @@ class InspectionFormController extends ChangeNotifier {
         // Continuamos con número provisional
       }
 
-      // Si no hay número de informe (offline), usar provisional
+      // Si no hay número de informe definitivo (offline o aún no asignado),
+      // usar número hipotético para el PDF
       if (numeroInformeController.text.isEmpty ||
-          numeroInformeController.text == "Pendiente...") {
-        final provisional = "PROV-${activityId.substring(0, 8).toUpperCase()}";
-        numeroInformeController.text = provisional;
-        debugPrint("📋 Usando número provisional: $provisional");
+          numeroInformeController.text == "Pendiente..." ||
+          numeroInformeController.text.contains("estimado")) {
+        // Intentar calcular hipotético si no lo teníamos
+        await _cargarNumeroHipotetico();
+        // Si sigue sin número (totalmente offline), usar PROV
+        if (numeroInformeController.text.isEmpty ||
+            numeroInformeController.text == "Pendiente...") {
+          final provisional = "PROV-${activityId.substring(0, 8).toUpperCase()}";
+          numeroInformeController.text = provisional;
+          debugPrint("📋 Usando número provisional: $provisional");
+        }
       }
 
       // ---------------------------------------------------------
@@ -1039,6 +1049,27 @@ class InspectionFormController extends ChangeNotifier {
     }
   }
 
+  /// Calcula un número hipotético basado en MAX(numero_informe) + 1 de Supabase.
+  /// Se usa para mostrar un estimado al usuario antes de finalizar.
+  Future<void> _cargarNumeroHipotetico() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final result = await supabase
+          .from('actividades')
+          .select('numero_informe')
+          .not('numero_informe', 'is', null)
+          .order('numero_informe', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      final maxNum = result?['numero_informe'] as int? ?? 0;
+      numeroInformeController.text = "~${maxNum + 1} (estimado)";
+    } catch (e) {
+      debugPrint("⚠️ No se pudo cargar número hipotético: $e");
+      numeroInformeController.text = "Pendiente...";
+    }
+  }
+
   // MÉTODO PRIVADO EN InspectionFormController
   Future<InspectionReportData> _buildReportData({
     required bool esConsecutiva,
@@ -1374,14 +1405,14 @@ class InspectionFormController extends ChangeNotifier {
 
   // Añadir dentro de InspectionFormController
   Future<ParticipanteModel?> buscarBuzoPorRut(String rut) async {
-    final cleanRut = rut.trim();
-    if (cleanRut.isEmpty || cleanRut.length < 8)
+    final normalized = RutUtils.normalize(rut);
+    if (normalized.isEmpty || normalized.length < 8)
       return null; // Validación temprana
 
     if (_repo is LocalInspectionRepository) {
       try {
         return await (_repo as LocalInspectionRepository).getPersonalByRut(
-          cleanRut,
+          normalized,
         );
       } catch (e) {
         debugPrint("❌ Error buscando RUT en SQLite: $e");

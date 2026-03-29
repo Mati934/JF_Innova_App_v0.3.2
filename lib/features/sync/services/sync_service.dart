@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/database/database_helper.dart';
+import '../../../core/utils/rut_utils.dart';
 import '../../../features/tickets/data/repositories/supabase_ticket_repository.dart';
 import 'dart:convert';
 
@@ -202,6 +203,25 @@ class SyncService {
               .from('actividades')
               .update(datosParaNube)
               .eq('id', activityId);
+
+          // Si acabamos de finalizar (En Seguimiento), el trigger asignó número
+          final estadoActual = row['estado_final']?.toString();
+          if (estadoActual == 'En Seguimiento') {
+            final updatedRow = await _supabase
+                .from('actividades')
+                .select('numero_informe')
+                .eq('id', activityId)
+                .maybeSingle();
+            final numFromUpdate = updatedRow?['numero_informe'];
+            if (numFromUpdate != null) {
+              await db.update(
+                'actividades_pendientes',
+                {'numero_reporte': numFromUpdate.toString()},
+                where: 'id = ?',
+                whereArgs: [activityId],
+              );
+            }
+          }
         } else {
           datosParaNube.remove('numero_informe');
           final response = await _supabase
@@ -210,13 +230,16 @@ class SyncService {
               .select('numero_informe')
               .single();
 
+          // Solo guardar numero_informe si realmente se asignó (finalizados)
           final nuevoNumero = response['numero_informe'];
-          await db.update(
-            'actividades_pendientes',
-            {'numero_reporte': nuevoNumero.toString()},
-            where: 'id = ?',
-            whereArgs: [activityId],
-          );
+          if (nuevoNumero != null) {
+            await db.update(
+              'actividades_pendientes',
+              {'numero_reporte': nuevoNumero.toString()},
+              where: 'id = ?',
+              whereArgs: [activityId],
+            );
+          }
         }
 
         // --- 2. SUBIDA DE DATOS HIJOS ---
@@ -659,7 +682,7 @@ class SyncService {
         // 1. CREAMOS EL PAQUETE COMPLETO (Incluyendo contratista_id)
         final datosLimpios = {
           'id': raw['id'],
-          'rut': raw['rut'],
+          'rut': RutUtils.normalize(raw['rut'] as String?),
           'nombre_completo': raw['nombre_completo'],
           'cargo': raw['cargo'],
           'activo': (raw['activo'] == 1),

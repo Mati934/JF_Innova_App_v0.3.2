@@ -504,4 +504,128 @@ void main() {
       );
     });
   });
+
+  // ===================================================================
+  // TESTS DE TRIGGER: numero_informe solo al finalizar
+  // ===================================================================
+  group('Trigger numero_informe - solo al finalizar', () {
+    test('Borrador NO debe tener numero_informe en datos para nube', () {
+      final row = {
+        'id': 'act-borrador',
+        'tipo_actividad': 'INSPECCION_BUCEO',
+        'estado_final': 'En Progreso',
+        'numero_informe': null,
+        'subido': 0,
+      };
+
+      // Simula SyncService: no debe pedir numero_informe de vuelta si es borrador
+      final estadoActual = row['estado_final']?.toString();
+      final debeObtenerNumero = estadoActual == 'En Seguimiento';
+
+      expect(debeObtenerNumero, false,
+          reason: 'Borradores no deben obtener numero_informe del servidor');
+    });
+
+    test('Actividad finalizada SÍ debe obtener numero_informe', () {
+      final row = {
+        'id': 'act-final',
+        'tipo_actividad': 'INSPECCION_BUCEO',
+        'estado_final': 'En Seguimiento',
+        'numero_informe': null,
+        'subido': 0,
+      };
+
+      final estadoActual = row['estado_final']?.toString();
+      final debeObtenerNumero = estadoActual == 'En Seguimiento';
+
+      expect(debeObtenerNumero, true,
+          reason: 'Solo finalizadas deben recibir numero_informe');
+    });
+
+    test('INSERT response con numero_informe null no se guarda', () {
+      // Simula respuesta de Supabase para un borrador (trigger no asigna número)
+      final response = {'numero_informe': null};
+      final nuevoNumero = response['numero_informe'];
+
+      final debeGuardar = nuevoNumero != null;
+
+      expect(debeGuardar, false,
+          reason: 'No guardar numero_reporte si Supabase devuelve null');
+    });
+
+    test('INSERT response con numero_informe real sí se guarda', () {
+      // Simula respuesta de Supabase para una actividad finalizada
+      final response = {'numero_informe': 95};
+      final nuevoNumero = response['numero_informe'];
+
+      final debeGuardar = nuevoNumero != null;
+
+      expect(debeGuardar, true);
+      expect(nuevoNumero.toString(), '95');
+    });
+
+    test('UPDATE a En Seguimiento lee numero_informe de vuelta', () {
+      // Simula el nuevo flujo en SyncService: después de UPDATE,
+      // si estado es En Seguimiento, releer numero_informe
+      final row = {
+        'id': 'act-x',
+        'estado_final': 'En Seguimiento',
+      };
+
+      // Simula respuesta del SELECT posterior al UPDATE
+      final updatedRow = {'numero_informe': 338};
+
+      final estadoActual = row['estado_final']?.toString();
+      final numFromUpdate = updatedRow['numero_informe'];
+
+      if (estadoActual == 'En Seguimiento' && numFromUpdate != null) {
+        final updateMap = {'numero_reporte': numFromUpdate.toString()};
+        expect(updateMap['numero_reporte'], '338');
+      } else {
+        fail('Debería haber guardado el número');
+      }
+    });
+
+    test('Número hipotético se muestra como estimado', () {
+      // Simula _cargarNumeroHipotetico: MAX(numero_informe) + 1
+      final maxNum = 337;
+      final hipoText = "~${maxNum + 1} (estimado)";
+
+      expect(hipoText, '~338 (estimado)');
+      expect(hipoText.contains('estimado'), true);
+    });
+
+    test('Número estimado se reemplaza al obtener real', () {
+      // Simula: controller tiene "~338 (estimado)", sync trae número real
+      var controllerText = '~338 (estimado)';
+      final numDB = '338';
+
+      // La lógica de finalizarInspeccion: si contiene "estimado", recalcular
+      if (controllerText.contains('estimado')) {
+        controllerText = numDB;
+      }
+
+      expect(controllerText, '338');
+    });
+
+    test('Secuencias separadas por tipo (buceo vs embarcacion)', () {
+      // El trigger usa seq_inf_buceo para INSPECCION_BUCEO
+      // y seq_inf_embarcacion para INSPECCION_EMBARCACION
+      // Esto permite numeración independiente por tipo
+
+      final tiposBuceo = ['INSPECCION_BUCEO'];
+      final tiposEmb = ['INSPECCION_EMBARCACION'];
+
+      String? getSequenceName(String tipoActividad) {
+        if (tiposBuceo.contains(tipoActividad)) return 'seq_inf_buceo';
+        if (tiposEmb.contains(tipoActividad)) return 'seq_inf_embarcacion';
+        return null;
+      }
+
+      expect(getSequenceName('INSPECCION_BUCEO'), 'seq_inf_buceo');
+      expect(getSequenceName('INSPECCION_EMBARCACION'), 'seq_inf_embarcacion');
+      expect(getSequenceName('VISITA_TECNICA'), isNull,
+          reason: 'Visitas no usan numero_informe de actividades');
+    });
+  });
 }

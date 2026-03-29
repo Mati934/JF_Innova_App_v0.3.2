@@ -224,8 +224,8 @@ void main() {
 
       expect(
         item.criticidad,
-        'Bajo',
-        reason: 'criticidad default debe ser Bajo',
+        'Tolerable',
+        reason: 'criticidad default debe ser Tolerable (escala inspecciones)',
       );
       expect(item.infoAdicional, isNull);
       expect(item.urlImagenReferencia, isNull);

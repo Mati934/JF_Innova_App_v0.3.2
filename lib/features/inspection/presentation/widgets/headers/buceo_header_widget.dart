@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:jf_innova_app/shared/services/image_service.dart';
 import 'package:jf_innova_app/shared/utils/debouncer.dart';
+import 'package:jf_innova_app/core/utils/rut_utils.dart';
 import '../../controllers/inspection_form_controller.dart';
 import '../../../domain/models/participante_model.dart';
 import 'package:uuid/uuid.dart';
@@ -77,7 +78,7 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(
-                    "${p.cargo} - RUT: ${p.rut}\nMatrícula: ${p.matricula}",
+                    "${p.cargo} - RUT: ${RutUtils.format(p.rut)}\nMatrícula: ${p.matricula}",
                   ),
                   isThreeLine: true,
                   trailing: Row(
@@ -155,6 +156,7 @@ class BuceoCuadrillaWidget extends StatelessWidget {
     // CONTROL DE INTEGRIDAD: Guardamos el ID histórico si lo encontramos
     String? existingPersonalId;
     final debouncer = Debouncer(milliseconds: 500);
+    final rutErrorNotifier = ValueNotifier<String?>(null);
 
     showModalBottomSheet(
       context: context,
@@ -208,40 +210,54 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                   children: [
                     Expanded(
                       flex: 3,
-                      child: TextField(
-                        controller: rutCtrl,
-                        decoration: InputDecoration(
-                          labelText: "RUT (Búsqueda auto)",
-                          hintText: "12.345.678-9",
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          prefixIcon: const Icon(Icons.badge_outlined),
-                          filled: true,
-                          fillColor: Colors.white,
-                        ),
-                        onChanged: (val) {
-                          // <-- SOLUCIÓN LÓGICA: Debouncer + Autocompletado
-                          debouncer.run(() async {
-                            final encontrado = await controller
-                                .buscarBuzoPorRut(val);
-                            if (encontrado != null) {
-                              nombreCtrl.text = encontrado.nombreCompleto;
-                              matriculaCtrl.text = encontrado.matricula;
-                              // Evitamos setear un cargo vacío que rompa el Dropdown
-                              if (listaCargos.contains(encontrado.cargo)) {
-                                cargoNotifier.value = encontrado.cargo;
+                      child: ValueListenableBuilder<String?>(
+                        valueListenable: rutErrorNotifier,
+                        builder: (context, rutError, _) {
+                          return TextField(
+                            controller: rutCtrl,
+                            inputFormatters: [RutInputFormatter()],
+                            decoration: InputDecoration(
+                              labelText: "RUT (Búsqueda auto)",
+                              hintText: "12.345.678-9",
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              prefixIcon: const Icon(Icons.badge_outlined),
+                              filled: true,
+                              fillColor: Colors.white,
+                              errorText: rutError,
+                              errorMaxLines: 2,
+                            ),
+                            onChanged: (val) {
+                              // Validar formato RUT
+                              final normalized = RutUtils.normalize(val);
+                              if (normalized.length >= 8 &&
+                                  !RutUtils.isValid(val)) {
+                                rutErrorNotifier.value = "RUT inválido";
+                              } else {
+                                rutErrorNotifier.value = null;
                               }
-                              existingPersonalId = encontrado
-                                  .personalId; // Reciclamos el UUID histórico
-                              debugPrint(
-                                "✅ Buzo histórico encontrado y mapeado: ${encontrado.personalId}",
-                              );
-                            } else {
-                              existingPersonalId =
-                                  null; // Es un buzo realmente nuevo
-                            }
-                          });
+
+                              // Debouncer + Autocompletado
+                              debouncer.run(() async {
+                                final encontrado = await controller
+                                    .buscarBuzoPorRut(val);
+                                if (encontrado != null) {
+                                  nombreCtrl.text = encontrado.nombreCompleto;
+                                  matriculaCtrl.text = encontrado.matricula;
+                                  if (listaCargos.contains(encontrado.cargo)) {
+                                    cargoNotifier.value = encontrado.cargo;
+                                  }
+                                  existingPersonalId = encontrado.personalId;
+                                  debugPrint(
+                                    "✅ Buzo histórico encontrado y mapeado: ${encontrado.personalId}",
+                                  );
+                                } else {
+                                  existingPersonalId = null;
+                                }
+                              });
+                            },
+                          );
                         },
                       ),
                     ),
@@ -315,13 +331,20 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                           rutCtrl.text.trim().isEmpty)
                         return;
 
+                      // Validar RUT antes de guardar
+                      if (!RutUtils.isValid(rutCtrl.text)) {
+                        rutErrorNotifier.value =
+                            "RUT inválido, verifique el dígito verificador";
+                        return;
+                      }
+
                       // LÓGICA SENIOR: Reutilizamos ID si existe, sino generamos uno
                       final nuevoId = existingPersonalId ?? const Uuid().v4();
 
                       final nuevo = ParticipanteModel(
                         personalId: nuevoId,
                         nombreCompleto: nombreCtrl.text.trim(),
-                        rut: rutCtrl.text.trim(),
+                        rut: RutUtils.normalize(rutCtrl.text),
                         cargo: cargoNotifier.value,
                         matricula: matriculaCtrl.text.trim(),
                         contratistaId: controller

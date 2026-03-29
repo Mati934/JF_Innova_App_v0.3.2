@@ -7,7 +7,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      32; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      33; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -202,6 +202,10 @@ class DatabaseHelper {
         contratista_id TEXT,
         activo INTEGER DEFAULT 1
       )
+    ''');
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_personal_externo_rut
+      ON personal_externo(rut) WHERE rut IS NOT NULL AND rut != ''
     ''');
 
     // Tabla Intermedia
@@ -669,6 +673,71 @@ class DatabaseHelper {
       ''');
       debugPrint("✅ Parche v32 aplicado.");
     }
+
+    if (oldVersion < 33) {
+      debugPrint(
+        "🚀 Aplicando parche v33 (Normalización RUT + UNIQUE index)...",
+      );
+
+      // Paso 1: Normalizar todos los RUTs existentes
+      await db.execute("""
+        UPDATE personal_externo
+        SET rut = REPLACE(REPLACE(REPLACE(LOWER(TRIM(rut)), '.', ''), '-', ''), ' ', '')
+        WHERE rut IS NOT NULL AND rut != ''
+      """);
+
+      // Paso 2: Resolver duplicados (mantener el que tenga contratista_id)
+      final duplicados = await db.rawQuery("""
+        SELECT rut, GROUP_CONCAT(id) as ids, COUNT(*) as cnt
+        FROM personal_externo
+        WHERE rut IS NOT NULL AND rut != ''
+        GROUP BY rut HAVING COUNT(*) > 1
+      """);
+
+      for (var dup in duplicados) {
+        final ids = (dup['ids'] as String).split(',');
+        // Buscar el "ganador": preferir el que tenga contratista_id
+        String? winnerId;
+        for (var id in ids) {
+          final rows = await db.query(
+            'personal_externo',
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+          if (rows.isNotEmpty && rows.first['contratista_id'] != null) {
+            winnerId = id;
+            break;
+          }
+        }
+        winnerId ??=
+            ids.first; // Si ninguno tiene contratista_id, tomar el primero
+
+        // Reasignar referencias y eliminar perdedores
+        for (var id in ids) {
+          if (id != winnerId) {
+            await db.update(
+              'actividad_participantes',
+              {'personal_id': winnerId},
+              where: 'personal_id = ?',
+              whereArgs: [id],
+            );
+            await db.delete(
+              'personal_externo',
+              where: 'id = ?',
+              whereArgs: [id],
+            );
+          }
+        }
+      }
+
+      // Paso 3: Crear índice UNIQUE
+      await db.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_personal_externo_rut
+        ON personal_externo(rut) WHERE rut IS NOT NULL AND rut != ''
+      """);
+
+      debugPrint("✅ Parche v33 aplicado.");
+    }
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -763,7 +832,11 @@ class DatabaseHelper {
       if (tabla == 'personal_externo') {
         row['nombre_completo'] =
             item['nombre_completo'] ?? item['nombre'] ?? 'Sin Nombre';
-        row['rut'] = item['rut'];
+        final rawRut = (item['rut'] ?? '') as String;
+        row['rut'] = rawRut
+            .replaceAll(RegExp(r'[\.\-\s\r\n\t\u00AD]'), '')
+            .toLowerCase()
+            .trim();
         row['cargo'] = item['cargo'];
         row['matricula'] = item['matricula'];
         row['contratista_id'] = item['contratista_id'];
