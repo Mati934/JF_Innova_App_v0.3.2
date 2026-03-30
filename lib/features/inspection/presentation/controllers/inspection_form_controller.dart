@@ -150,8 +150,8 @@ class InspectionFormController extends ChangeNotifier {
               numeroReal != "null") {
             numeroInformeController.text = numeroReal;
           } else {
-            // Cargar número hipotético (estimado)
-            await _cargarNumeroHipotetico();
+            // Borrador: número se asigna al finalizar
+            numeroInformeController.text = "Pendiente";
           }
         }
       }
@@ -567,19 +567,14 @@ class InspectionFormController extends ChangeNotifier {
       }
 
       // Si no hay número de informe definitivo (offline o aún no asignado),
-      // usar número hipotético para el PDF
+      // usar número provisional para el PDF
       if (numeroInformeController.text.isEmpty ||
           numeroInformeController.text == "Pendiente..." ||
-          numeroInformeController.text.contains("estimado")) {
-        // Intentar calcular hipotético si no lo teníamos
-        await _cargarNumeroHipotetico();
-        // Si sigue sin número (totalmente offline), usar PROV
-        if (numeroInformeController.text.isEmpty ||
-            numeroInformeController.text == "Pendiente...") {
-          final provisional = "PROV-${activityId.substring(0, 8).toUpperCase()}";
-          numeroInformeController.text = provisional;
-          debugPrint("📋 Usando número provisional: $provisional");
-        }
+          numeroInformeController.text == "Pendiente") {
+        // Totalmente offline: usar PROV
+        final provisional = "PROV-${activityId.substring(0, 8).toUpperCase()}";
+        numeroInformeController.text = provisional;
+        debugPrint("📋 Usando número provisional: $provisional");
       }
 
       // ---------------------------------------------------------
@@ -1046,27 +1041,6 @@ class InspectionFormController extends ChangeNotifier {
         notifyListeners(); // ¡Esto actualiza la UI automáticamente!
         debugPrint("🔄 UI Actualizada con Folio: $numDB");
       }
-    }
-  }
-
-  /// Calcula un número hipotético basado en MAX(numero_informe) + 1 de Supabase.
-  /// Se usa para mostrar un estimado al usuario antes de finalizar.
-  Future<void> _cargarNumeroHipotetico() async {
-    try {
-      final supabase = Supabase.instance.client;
-      final result = await supabase
-          .from('actividades')
-          .select('numero_informe')
-          .not('numero_informe', 'is', null)
-          .order('numero_informe', ascending: false)
-          .limit(1)
-          .maybeSingle();
-
-      final maxNum = result?['numero_informe'] as int? ?? 0;
-      numeroInformeController.text = "~${maxNum + 1} (estimado)";
-    } catch (e) {
-      debugPrint("⚠️ No se pudo cargar número hipotético: $e");
-      numeroInformeController.text = "Pendiente...";
     }
   }
 
