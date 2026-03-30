@@ -28,7 +28,17 @@ class LocalExtintorRepository {
 
   Future<List<String>> getLugaresHistoricos() async {
     final db = await _dbHelper.database;
-    final maps = await db.rawQuery(
+    // Consultar tanto lugar_inspeccion (v34+) como lugar_visita (legacy) para backward compat
+    final maps1 = await db.rawQuery(
+      '''
+      SELECT DISTINCT lugar_inspeccion
+      FROM visitas_tecnicas_pendientes
+      WHERE tipo_actividad = ? AND lugar_inspeccion IS NOT NULL AND trim(lugar_inspeccion) != ''
+      ORDER BY lugar_inspeccion ASC
+    ''',
+      [_tipoActividad],
+    );
+    final maps2 = await db.rawQuery(
       '''
       SELECT DISTINCT lugar_visita
       FROM visitas_tecnicas_pendientes
@@ -37,7 +47,51 @@ class LocalExtintorRepository {
     ''',
       [_tipoActividad],
     );
+    final set = <String>{};
+    for (final m in maps1) {
+      set.add(m['lugar_inspeccion'] as String);
+    }
+    for (final m in maps2) {
+      set.add(m['lugar_visita'] as String);
+    }
+    return set.toList()..sort();
+  }
+
+  Future<List<String>> getRegionesHistoricas() async {
+    final db = await _dbHelper.database;
+    final maps = await db.rawQuery('''
+      SELECT DISTINCT region
+      FROM visitas_tecnicas_pendientes
+      WHERE region IS NOT NULL AND trim(region) != ''
+      ORDER BY region ASC
+    ''');
+    return maps.map((e) => e['region'] as String).toList();
+  }
+
+  Future<List<String>> getCentrosHistoricos() async {
+    final db = await _dbHelper.database;
+    final maps = await db.rawQuery(
+      '''
+      SELECT DISTINCT lugar_visita
+      FROM visitas_tecnicas_pendientes
+      WHERE lugar_visita IS NOT NULL AND trim(lugar_visita) != ''
+        AND (tipo_actividad IS NULL OR tipo_actividad != ?)
+      ORDER BY lugar_visita ASC
+    ''',
+      [_tipoActividad],
+    );
     return maps.map((e) => e['lugar_visita'] as String).toList();
+  }
+
+  Future<List<String>> getEmpresasHistoricas() async {
+    final db = await _dbHelper.database;
+    final maps = await db.rawQuery('''
+      SELECT DISTINCT empresa
+      FROM visitas_tecnicas_pendientes
+      WHERE empresa IS NOT NULL AND trim(empresa) != ''
+      ORDER BY empresa ASC
+    ''');
+    return maps.map((e) => e['empresa'] as String).toList();
   }
 
   /// Guarda la visita base + todos los extintores en una transacción atómica

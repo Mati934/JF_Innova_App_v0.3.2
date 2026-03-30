@@ -3,6 +3,7 @@ import 'dart:convert'; // Para parsear el JSON
 
 class VisitModel {
   String activityId;
+  String? empresa;
   String? region; // Cambiado a ID para buenas prácticas relacionales
   String? centro; // Cambiado a ID
   String? jefaturaCargo;
@@ -32,6 +33,7 @@ class VisitModel {
 
   VisitModel({
     required this.activityId,
+    this.empresa,
     this.region,
     this.centro,
     this.jefaturaCargo,
@@ -59,6 +61,7 @@ class VisitModel {
   Map<String, dynamic> toMap() {
     return {
       'activity_id': activityId,
+      'empresa': empresa,
       'region': region, // Guardamos el ID del Area
       'lugar_visita': centro, // Guardamos el ID del Centro
       'jefatura_a_cargo': jefaturaCargo,
@@ -86,6 +89,7 @@ class VisitModel {
     return VisitModel(
       // CLEAN CODE: Soporta la llave 'id' (nueva tabla) o 'activity_id' (tabla vieja)
       activityId: map['id'] ?? map['activity_id'] ?? '',
+      empresa: map['empresa'],
       region: map['region'],
       centro: map['lugar_visita'],
       jefaturaCargo: map['jefatura_a_cargo'],

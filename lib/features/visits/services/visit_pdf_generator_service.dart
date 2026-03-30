@@ -219,6 +219,7 @@ class VisitPdfGeneratorService {
             _tableRow("Profesional", data.profesional),
             _tableRow("Fono del profesional", data.fonoProfesional),
             _tableRow("Correo del profesional", data.correoProfesional),
+            if (data.empresa.isNotEmpty) _tableRow("Empresa", data.empresa),
             _tableRow("Región", data.region),
             _tableRow("Oficina / Área", data.centro),
             _tableRow(

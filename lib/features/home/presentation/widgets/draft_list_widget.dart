@@ -3,11 +3,26 @@ import 'package:intl/intl.dart';
 import 'package:jf_innova_app/features/visits/presentation/screens/visit_form_screen.dart';
 import '../controllers/home_controller.dart';
 import '../../../inspection/presentation/screens/inspection_form_screen.dart';
+import '../../../extintores/presentation/screens/extintor_form_screen.dart';
 
 class DraftListWidget extends StatelessWidget {
   final HomeController controller;
 
   const DraftListWidget({super.key, required this.controller});
+
+  IconData _iconData(Map<String, dynamic> item) {
+    final label = item['tipo_actividad_label']?.toString() ?? '';
+    if (label.contains('Extintores')) return Icons.fire_extinguisher;
+    if (label.contains('Visita')) return Icons.assignment;
+    return Icons.edit;
+  }
+
+  Color _iconColor(Map<String, dynamic> item) {
+    final label = item['tipo_actividad_label']?.toString() ?? '';
+    if (label.contains('Extintores')) return Colors.red.shade700;
+    if (label.contains('Visita')) return Colors.blue.shade700;
+    return Colors.orange.shade800;
+  }
 
   Future<void> _confirmarEliminar(BuildContext context, String id) async {
     final confirm = await showDialog<bool>(
@@ -108,11 +123,13 @@ class DraftListWidget extends StatelessWidget {
                   ),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: Colors.orange.shade100,
-                      child: Icon(Icons.edit, color: Colors.orange.shade800),
+                      backgroundColor: _iconColor(item).withValues(alpha: 0.15),
+                      child: Icon(_iconData(item), color: _iconColor(item)),
                     ),
                     title: Text(
-                      item['tipo_actividad'] ?? 'Inspección',
+                      item['tipo_actividad_label'] ??
+                          item['tipo_actividad'] ??
+                          'Inspección',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     subtitle: Text("$centro\n$fmtFecha"),
@@ -125,25 +142,31 @@ class DraftListWidget extends StatelessWidget {
                       onPressed: () => _confirmarEliminar(context, item['id']),
                     ),
                     onTap: () async {
-                      // Evaluamos qué tipo de actividad es para enrutar correctamente
+                      final tipoLabel =
+                          item['tipo_actividad_label']?.toString() ?? '';
                       final tipoActividad =
                           item['tipo_actividad']?.toString() ?? '';
+                      final esExtintor = tipoLabel == 'Inspección Extintores';
                       final esVisitaTecnica =
                           tipoActividad.contains('Visita') ||
+                          tipoLabel.contains('Visita') ||
                           item.containsKey('lugar_visita');
 
-                      if (esVisitaTecnica) {
-                        // 🚀 RUTA PARA VISITAS TÉCNICAS
+                      if (esExtintor) {
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => VisitFormScreen(
-                              borrador: item,
-                            ), // Pasamos el mapa completo
+                            builder: (_) => ExtintorFormScreen(borrador: item),
+                          ),
+                        );
+                      } else if (esVisitaTecnica) {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => VisitFormScreen(borrador: item),
                           ),
                         );
                       } else {
-                        // 🛠️ RUTA PARA INSPECCIONES (Mantenemos tu código original)
                         await Navigator.push(
                           context,
                           MaterialPageRoute(

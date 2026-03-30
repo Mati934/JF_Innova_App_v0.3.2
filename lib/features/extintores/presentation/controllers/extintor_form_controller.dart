@@ -31,11 +31,31 @@ class ExtintorFormController extends ChangeNotifier {
   String? errorMessage;
 
   // --- Campos base del formulario ---
+  final empresaCtrl = TextEditingController();
+  final regionCtrl = TextEditingController();
+  final oficinaCtrl = TextEditingController();
   final lugarCtrl = TextEditingController();
   final jefaturaCtrl = TextEditingController();
+  final origenCtrl = TextEditingController();
+  final email1Ctrl = TextEditingController();
+  final email2Ctrl = TextEditingController();
+  final otroActividadCtrl = TextEditingController();
+  final observacionesCtrl = TextEditingController();
+
   TimeOfDay? timeInicio;
   TimeOfDay? timeTermino;
   DateTime fechaVisita = DateTime.now();
+
+  // --- Checkboxes actividades ---
+  bool checkReunion = false;
+  bool checkSenaletica = false;
+  bool checkCapacitacion = false;
+  bool checkVisitaSso = false;
+  bool checkCharla = false;
+  bool checkInvestigacion = false;
+  bool checkInspeccionSso = false;
+  bool checkObsConductual = false;
+  bool checkOtro = false;
 
   String get fechaStr =>
       '${fechaVisita.day.toString().padLeft(2, '0')}-${fechaVisita.month.toString().padLeft(2, '0')}-${fechaVisita.year}';
@@ -48,12 +68,14 @@ class ExtintorFormController extends ChangeNotifier {
 
   // --- Historial autocomplete ---
   List<String> historialLugares = [];
+  List<String> historialRegiones = [];
+  List<String> historialCentros = [];
+  List<String> historialEmpresas = [];
 
   // --- Extintores ---
   List<ExtintorState> extintores = [];
   List<FormularioItem> _checklistItems = [];
 
-  // Cuántos puntos tiene cada extintor (basado en items cargados)
   int get totalPuntosPorExtintor => _checklistItems.length;
 
   ExtintorFormController({Map<String, dynamic>? borradorInicial}) {
@@ -67,8 +89,30 @@ class ExtintorFormController extends ChangeNotifier {
   }
 
   void _cargarDatosEnUI(Map<String, dynamic> data) {
-    lugarCtrl.text = data['lugar_visita'] as String? ?? '';
+    empresaCtrl.text = data['empresa'] as String? ?? '';
+    regionCtrl.text = data['region'] as String? ?? '';
+    oficinaCtrl.text = data['lugar_visita'] as String? ?? '';
+    // Backward compat: si lugar_inspeccion existe, usarlo; si no, usar lugar_visita
+    lugarCtrl.text =
+        data['lugar_inspeccion'] as String? ??
+        data['lugar_visita'] as String? ??
+        '';
     jefaturaCtrl.text = data['jefatura_a_cargo'] as String? ?? '';
+    origenCtrl.text = data['origen_visita'] as String? ?? '';
+    email1Ctrl.text = data['email_empresa_1'] as String? ?? '';
+    email2Ctrl.text = data['email_empresa_2'] as String? ?? '';
+    otroActividadCtrl.text = data['otro_actividad_texto'] as String? ?? '';
+    observacionesCtrl.text = data['apuntes_observaciones'] as String? ?? '';
+
+    checkReunion = data['check_reunion'] == 1;
+    checkSenaletica = data['check_instalacion_senaletica'] == 1;
+    checkCapacitacion = data['check_capacitacion'] == 1;
+    checkVisitaSso = data['check_visita_sso'] == 1;
+    checkCharla = data['check_charla'] == 1;
+    checkInvestigacion = data['check_investigacion_incidente'] == 1;
+    checkInspeccionSso = data['check_inspeccion_sso'] == 1;
+    checkObsConductual = data['check_obs_conductual'] == 1;
+    checkOtro = data['check_otro'] == 1;
 
     final fechaStr = data['fecha_realizacion'] as String?;
     if (fechaStr != null) {
@@ -93,13 +137,13 @@ class ExtintorFormController extends ChangeNotifier {
   Future<void> _init() async {
     timeInicio ??= TimeOfDay.now();
 
-    // 1. Cargar los 18 ítems del checklist
     _checklistItems = await _repository.getChecklistItems();
 
-    // 2. Historial de lugares para autocomplete
     historialLugares = await _repository.getLugaresHistoricos();
+    historialRegiones = await _repository.getRegionesHistoricas();
+    historialCentros = await _repository.getCentrosHistoricos();
+    historialEmpresas = await _repository.getEmpresasHistoricas();
 
-    // 3. Si es un borrador, restaurar sus extintores
     if (extintores.isEmpty) {
       final rows = await _repository.getExtintoresPorVisita(
         _currentVisitId,
@@ -108,14 +152,21 @@ class ExtintorFormController extends ChangeNotifier {
       if (rows.isNotEmpty) extintores = rows;
     }
 
-    // 4. Si es nuevo, agregar el primer extintor vacío
     if (extintores.isEmpty && _checklistItems.isNotEmpty) {
       extintores = [ExtintorState.nuevo(numero: 1, items: _checklistItems)];
     }
 
-    // 5. Activar listeners para auto-save
+    // Activar listeners para auto-save
+    empresaCtrl.addListener(_onFieldChanged);
+    regionCtrl.addListener(_onFieldChanged);
+    oficinaCtrl.addListener(_onFieldChanged);
     lugarCtrl.addListener(_onFieldChanged);
     jefaturaCtrl.addListener(_onFieldChanged);
+    origenCtrl.addListener(_onFieldChanged);
+    email1Ctrl.addListener(_onFieldChanged);
+    email2Ctrl.addListener(_onFieldChanged);
+    otroActividadCtrl.addListener(_onFieldChanged);
+    observacionesCtrl.addListener(_onFieldChanged);
 
     isLoading = false;
     _safeNotify();
@@ -125,6 +176,42 @@ class ExtintorFormController extends ChangeNotifier {
 
   void _safeNotify() {
     if (!_disposed) notifyListeners();
+  }
+
+  // ── CHECKBOXES ──────────────────────────────────────────────────────────────
+
+  void toggleCheck(String key, bool val) {
+    switch (key) {
+      case 'reunion':
+        checkReunion = val;
+        break;
+      case 'senaletica':
+        checkSenaletica = val;
+        break;
+      case 'capacitacion':
+        checkCapacitacion = val;
+        break;
+      case 'visita_sso':
+        checkVisitaSso = val;
+        break;
+      case 'charla':
+        checkCharla = val;
+        break;
+      case 'investigacion':
+        checkInvestigacion = val;
+        break;
+      case 'inspeccion_sso':
+        checkInspeccionSso = val;
+        break;
+      case 'obs_conductual':
+        checkObsConductual = val;
+        break;
+      case 'otro':
+        checkOtro = val;
+        break;
+    }
+    _debouncer.run(guardarBorradorSilencioso);
+    _safeNotify();
   }
 
   // ── GESTIÓN DE EXTINTORES ──────────────────────────────────────────────────
@@ -151,6 +238,7 @@ class ExtintorFormController extends ChangeNotifier {
         localId: lista[i].localId,
         numero: i + 1,
         matricula: lista[i].matricula,
+        tipoExtintor: lista[i].tipoExtintor,
         fotoPaths: lista[i].fotoPaths,
         puntos: lista[i].puntos,
         expandido: lista[i].expandido,
@@ -203,13 +291,19 @@ class ExtintorFormController extends ChangeNotifier {
         puntos: List.from(e.puntos)
           ..[pIndex] = e.puntos[pIndex].copyWith(observacion: obs),
       );
-    // No notifyListeners aquí — el TextField maneja su propio estado
     _debouncer.run(guardarBorradorSilencioso);
   }
 
   void updateMatricula(int index, String matricula) {
     extintores = List.from(extintores)
       ..[index] = extintores[index].copyWith(matricula: matricula);
+    _debouncer.run(guardarBorradorSilencioso);
+    _safeNotify();
+  }
+
+  void updateTipoExtintor(int index, String tipo) {
+    extintores = List.from(extintores)
+      ..[index] = extintores[index].copyWith(tipoExtintor: tipo);
     _debouncer.run(guardarBorradorSilencioso);
     _safeNotify();
   }
@@ -279,10 +373,27 @@ class ExtintorFormController extends ChangeNotifier {
       'id': _currentVisitId,
       'usuario_id': userId,
       'fecha_realizacion': fechaVisita.toIso8601String(),
-      'lugar_visita': lugarCtrl.text.trim().toUpperCase(),
+      'empresa': empresaCtrl.text.trim(),
+      'region': regionCtrl.text.trim().toUpperCase(),
+      'lugar_visita': oficinaCtrl.text.trim().toUpperCase(),
+      'lugar_inspeccion': lugarCtrl.text.trim().toUpperCase(),
       'jefatura_a_cargo': jefaturaCtrl.text.trim(),
+      'origen_visita': origenCtrl.text.trim(),
       'hora_inicio': horaInicioStr == '--:--' ? null : horaInicioStr,
       'hora_termino': horaTerminoStr == '--:--' ? null : horaTerminoStr,
+      'email_empresa_1': email1Ctrl.text.trim(),
+      'email_empresa_2': email2Ctrl.text.trim(),
+      'check_reunion': checkReunion ? 1 : 0,
+      'check_instalacion_senaletica': checkSenaletica ? 1 : 0,
+      'check_capacitacion': checkCapacitacion ? 1 : 0,
+      'check_visita_sso': checkVisitaSso ? 1 : 0,
+      'check_charla': checkCharla ? 1 : 0,
+      'check_investigacion_incidente': checkInvestigacion ? 1 : 0,
+      'check_inspeccion_sso': checkInspeccionSso ? 1 : 0,
+      'check_obs_conductual': checkObsConductual ? 1 : 0,
+      'check_otro': checkOtro ? 1 : 0,
+      'otro_actividad_texto': otroActividadCtrl.text.trim(),
+      'apuntes_observaciones': observacionesCtrl.text.trim(),
       'pdf_path_local': pdfPathLocal,
     };
   }
@@ -304,7 +415,7 @@ class ExtintorFormController extends ChangeNotifier {
   Future<bool> guardar(BuildContext context) async {
     if (isSaving) return false;
     if (lugarCtrl.text.trim().isEmpty) {
-      errorMessage = '❌ Debes ingresar el lugar de inspección.';
+      errorMessage = 'Debes ingresar el lugar de inspección.';
       _safeNotify();
       return false;
     }
@@ -314,7 +425,7 @@ class ExtintorFormController extends ChangeNotifier {
     _safeNotify();
 
     try {
-      final reportData = _buildReportData();
+      final reportData = await _buildReportData();
       final pdfBytes = await _generatePdfBytes(reportData);
       final directory = await getApplicationDocumentsDirectory();
       final pdfPath =
@@ -346,7 +457,7 @@ class ExtintorFormController extends ChangeNotifier {
     isLoading = true;
     _safeNotify();
     try {
-      final pdfBytes = await _generatePdfBytes(_buildReportData());
+      final pdfBytes = await _generatePdfBytes(await _buildReportData());
       if (context.mounted) {
         await Printing.layoutPdf(
           onLayout: (_) async => pdfBytes,
@@ -368,17 +479,48 @@ class ExtintorFormController extends ChangeNotifier {
 
   // ── PDF ───────────────────────────────────────────────────────────────────
 
-  ExtintorReportData _buildReportData() {
+  Future<ExtintorReportData> _buildReportData() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    String profesional = '';
+    String fonoProfesional = '';
+    String correoProfesional = user?.email ?? '';
+
+    if (user != null) {
+      try {
+        final userLocal = await _repository.getUsuarioLocal(user.id);
+        if (userLocal != null) {
+          profesional = userLocal['nombre_completo']?.toString() ?? '';
+          fonoProfesional = userLocal['telefono']?.toString() ?? '';
+        }
+      } catch (_) {}
+    }
+
     return ExtintorReportData(
-      region: '',
-      centro: lugarCtrl.text.trim().toUpperCase(),
-      profesional: '',
-      fonoProfesional: '',
-      correoProfesional: Supabase.instance.client.auth.currentUser?.email ?? '',
+      empresa: empresaCtrl.text.trim(),
+      region: regionCtrl.text.trim().toUpperCase(),
+      oficina: oficinaCtrl.text.trim().toUpperCase(),
+      lugarInspeccion: lugarCtrl.text.trim().toUpperCase(),
+      profesional: profesional,
+      fonoProfesional: fonoProfesional,
+      correoProfesional: correoProfesional,
       jefaturaCargo: jefaturaCtrl.text.trim(),
+      origenVisita: origenCtrl.text.trim(),
       fecha: fechaStr,
       horaInicio: horaInicioStr,
       horaTermino: horaTerminoStr,
+      emailEmpresa1: email1Ctrl.text.trim(),
+      emailEmpresa2: email2Ctrl.text.trim(),
+      checkReunion: checkReunion,
+      checkSenaletica: checkSenaletica,
+      checkCapacitacion: checkCapacitacion,
+      checkVisitaSso: checkVisitaSso,
+      checkCharla: checkCharla,
+      checkInvestigacion: checkInvestigacion,
+      checkInspeccionSso: checkInspeccionSso,
+      checkObsConductual: checkObsConductual,
+      checkOtro: checkOtro,
+      otroActividadTexto: otroActividadCtrl.text.trim(),
+      apuntesObservaciones: observacionesCtrl.text.trim(),
       extintores: extintores.map(ExtintorResumenItem.fromState).toList(),
     );
   }
@@ -407,8 +549,16 @@ class ExtintorFormController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _debouncer.cancel();
+    empresaCtrl.dispose();
+    regionCtrl.dispose();
+    oficinaCtrl.dispose();
     lugarCtrl.dispose();
     jefaturaCtrl.dispose();
+    origenCtrl.dispose();
+    email1Ctrl.dispose();
+    email2Ctrl.dispose();
+    otroActividadCtrl.dispose();
+    observacionesCtrl.dispose();
     super.dispose();
   }
 }

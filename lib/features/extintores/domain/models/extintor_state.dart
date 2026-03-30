@@ -65,6 +65,7 @@ class ExtintorState {
   final String localId;
   final int numero;
   final String? matricula;
+  final String? tipoExtintor;
   final List<String> fotoPaths;
   final List<PuntoExtintorState> puntos;
   final bool expandido;
@@ -73,6 +74,7 @@ class ExtintorState {
     required this.localId,
     required this.numero,
     this.matricula,
+    this.tipoExtintor,
     this.fotoPaths = const [],
     required this.puntos,
     this.expandido = true,
@@ -103,6 +105,7 @@ class ExtintorState {
 
   ExtintorState copyWith({
     String? matricula,
+    String? tipoExtintor,
     List<String>? fotoPaths,
     List<PuntoExtintorState>? puntos,
     bool? expandido,
@@ -110,6 +113,7 @@ class ExtintorState {
     localId: localId,
     numero: numero,
     matricula: matricula ?? this.matricula,
+    tipoExtintor: tipoExtintor ?? this.tipoExtintor,
     fotoPaths: fotoPaths ?? this.fotoPaths,
     puntos: puntos ?? this.puntos,
     expandido: expandido ?? this.expandido,
@@ -128,6 +132,7 @@ class ExtintorState {
       'visita_id': visitaId,
       'numero': numero,
       'matricula': matricula,
+      'tipo_extintor': tipoExtintor,
       'fotos_json': jsonEncode(fotoPaths),
       'respuestas_json': jsonEncode(respuestas),
       'created_at': DateTime.now().toIso8601String(),
@@ -158,6 +163,7 @@ class ExtintorState {
       localId: row['id'] as String,
       numero: row['numero'] as int,
       matricula: row['matricula'] as String?,
+      tipoExtintor: row['tipo_extintor'] as String?,
       fotoPaths: fotos,
       puntos: items.map((item) {
         final saved = respuestas[item.id] as Map<String, dynamic>?;

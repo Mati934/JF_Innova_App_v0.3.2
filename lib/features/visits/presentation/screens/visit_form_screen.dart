@@ -97,6 +97,13 @@ class _VisitFormView extends StatelessWidget {
                     const SizedBox(height: 15),
 
                     _buildAutocompleteInput(
+                      label: "Empresa",
+                      icon: Icons.business_center,
+                      controller: ctrl.empresaCtrl,
+                      opciones: ctrl.historialEmpresas,
+                    ),
+
+                    _buildAutocompleteInput(
                       label: "Región",
                       icon: Icons.map,
                       controller: ctrl.regionCtrl,

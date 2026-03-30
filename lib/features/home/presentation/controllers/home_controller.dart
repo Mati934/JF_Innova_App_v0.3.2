@@ -7,11 +7,13 @@ import '../../../../core/database/database_helper.dart';
 import '../../../../core/services/connectivity_service.dart';
 import '../../../visits/data/repositories/local_visit_repository.dart';
 import '../../../tickets/data/repositories/local_ticket_repository.dart';
+import '../../../extintores/data/repositories/local_extintor_repository.dart';
 
 class HomeController extends ChangeNotifier {
   final _syncService = SyncService();
   final _localRepo = LocalInspectionRepository();
   final _visitRepo = LocalVisitRepository();
+  final _extintorRepo = LocalExtintorRepository();
   final _ticketRepo = LocalTicketRepository();
   final _connectivity = ConnectivityService();
 
@@ -64,19 +66,18 @@ class HomeController extends ChangeNotifier {
     _safeNotify();
 
     try {
-      // CLEAN CODE: Ejecución en paralelo (Concurrencia)
-      // Disparamos ambas queries a SQLite al mismo tiempo.
       final resultados = await Future.wait([
         _localRepo.getBorradores(),
         _visitRepo.getBorradores(),
+        _extintorRepo.getBorradores(),
       ]);
 
       final inspecciones = resultados[0];
-      final visitas =
-          resultados[1]; // Ya vienen normalizadas desde el Repositorio
+      final visitas = resultados[1];
+      final extintores = resultados[2];
 
       // Fusionamos
-      borradores = [...inspecciones, ...visitas];
+      borradores = [...inspecciones, ...visitas, ...extintores];
 
       // Ordenamos por fecha (del más reciente al más antiguo)
       borradores.sort((a, b) {
@@ -113,10 +114,15 @@ class HomeController extends ChangeNotifier {
     );
 
     if (borrador.isNotEmpty) {
-      final esVisita = borrador['tipo_actividad'] == 'Visita Técnica';
+      final tipoLabel = borrador['tipo_actividad_label']?.toString() ?? '';
+      final esVisita =
+          borrador['tipo_actividad'] == 'Visita Técnica' ||
+          tipoLabel == 'Visita Tecnica';
+      final esExtintor = tipoLabel == 'Inspección Extintores';
 
-      // 2. Enrutamos la orden de eliminación al repositorio correcto
-      if (esVisita) {
+      if (esExtintor) {
+        await _extintorRepo.eliminarBorrador(id);
+      } else if (esVisita) {
         await _visitRepo.eliminarBorrador(id);
       } else {
         await _localRepo.eliminarBorrador(id);

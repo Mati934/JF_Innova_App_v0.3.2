@@ -103,6 +103,7 @@ class VisitFormController extends ChangeNotifier {
   String? errorMessage;
 
   // Controladores de Texto
+  final empresaCtrl = TextEditingController();
   final regionCtrl = TextEditingController();
   final centroCtrl = TextEditingController();
   final jefaturaCtrl = TextEditingController();
@@ -123,6 +124,7 @@ class VisitFormController extends ChangeNotifier {
   late String _currentVisitId;
 
   // Historial para Autocomplete
+  List<String> historialEmpresas = [];
   List<String> historialRegiones = [];
   List<String> historialCentros = [];
 
@@ -159,6 +161,7 @@ class VisitFormController extends ChangeNotifier {
   }
 
   void _cargarDatosEnUI() {
+    empresaCtrl.text = model.empresa ?? '';
     regionCtrl.text = model.region ?? '';
     centroCtrl.text = model.centro ?? '';
     jefaturaCtrl.text = model.jefaturaCargo ?? '';
@@ -209,6 +212,7 @@ class VisitFormController extends ChangeNotifier {
     }
 
     // Activamos listeners al final
+    empresaCtrl.addListener(_onFieldChanged);
     regionCtrl.addListener(_onFieldChanged);
     centroCtrl.addListener(_onFieldChanged);
     jefaturaCtrl.addListener(_onFieldChanged);
@@ -226,6 +230,7 @@ class VisitFormController extends ChangeNotifier {
       'usuario_id': userId,
       'fecha_realizacion': fechaVisita.toIso8601String(),
       'pdf_path_local': pdfPathLocal,
+      'empresa': empresaCtrl.text.trim(),
       'region': regionCtrl.text.trim().toUpperCase(),
       'lugar_visita': centroCtrl.text.trim().toUpperCase(),
       'jefatura_a_cargo': jefaturaCtrl.text.trim(),
@@ -256,6 +261,7 @@ class VisitFormController extends ChangeNotifier {
   }
 
   Future<void> _loadHistorialAutocomplete() async {
+    historialEmpresas = await _repository.getEmpresasHistoricas();
     historialRegiones = await _repository.getRegionesHistoricas();
     historialCentros = await _repository.getCentrosHistoricos();
   }
@@ -408,6 +414,7 @@ class VisitFormController extends ChangeNotifier {
     }
 
     return VisitReportData(
+      empresa: empresaCtrl.text.trim(),
       region: regionCtrl.text.trim().toUpperCase(),
       centro: centroCtrl.text.trim().toUpperCase(),
       profesional: profesional,

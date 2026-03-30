@@ -76,6 +76,9 @@ class _ExtintorFormView extends StatelessWidget {
             // ── Formulario base ──────────────────────────────────
             _SeccionFormBase(ctrl: ctrl),
 
+            // ── Actividades Realizadas ───────────────────────────
+            _SeccionActividades(ctrl: ctrl),
+
             // ── Extintores ───────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -95,7 +98,6 @@ class _ExtintorFormView extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  // Resumen rápido
                   _ResumenChip(extintores: ctrl.extintores),
                 ],
               ),
@@ -115,6 +117,10 @@ class _ExtintorFormView extends StatelessWidget {
                 onTodoCumple: () => ctrl.marcarTodoCumple(i),
                 onClonar: () => ctrl.clonarDelAnterior(i),
                 onMatriculaChanged: (m) => ctrl.updateMatricula(i, m),
+                onTipoExtintorChanged: (t) => ctrl.updateTipoExtintor(i, t),
+                onEliminar: () => ctrl.eliminarExtintor(i),
+                onFotoAdded: (path) => ctrl.addFotoExtintor(i, path),
+                onFotoRemoved: (fotoIdx) => ctrl.removeFotoExtintor(i, fotoIdx),
               );
             }),
 
@@ -132,6 +138,9 @@ class _ExtintorFormView extends StatelessWidget {
                 ),
               ),
             ),
+
+            // ── Observaciones generales ──────────────────────────
+            _SeccionObservaciones(ctrl: ctrl),
 
             // ── Error ────────────────────────────────────────────
             if (ctrl.errorMessage != null)
@@ -169,34 +178,30 @@ class _SeccionFormBase extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Lugar (Autocomplete)
-            Autocomplete<String>(
-              optionsBuilder: (v) => ctrl.historialLugares
-                  .where((l) => l.toLowerCase().contains(v.text.toLowerCase()))
-                  .toList(),
-              onSelected: (val) => ctrl.lugarCtrl.text = val,
-              fieldViewBuilder: (ctx, textCtrl, focusNode, onSubmit) {
-                // Sincronizar con el TextEditingController del controller
-                if (textCtrl.text.isEmpty && ctrl.lugarCtrl.text.isNotEmpty) {
-                  textCtrl.text = ctrl.lugarCtrl.text;
-                }
-                textCtrl.addListener(() {
-                  if (ctrl.lugarCtrl.text != textCtrl.text) {
-                    ctrl.lugarCtrl.text = textCtrl.text;
-                  }
-                });
-                return TextField(
-                  controller: textCtrl,
-                  focusNode: focusNode,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(
-                    labelText: 'Lugar de Inspección *',
-                    prefixIcon: Icon(Icons.location_on_outlined),
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                );
-              },
+            // Empresa (Autocomplete)
+            _AutocompleteField(
+              label: 'Empresa',
+              icon: Icons.business_center,
+              controller: ctrl.empresaCtrl,
+              opciones: ctrl.historialEmpresas,
+            ),
+            const SizedBox(height: 12),
+
+            // Región (Autocomplete)
+            _AutocompleteField(
+              label: 'Región',
+              icon: Icons.map,
+              controller: ctrl.regionCtrl,
+              opciones: ctrl.historialRegiones,
+            ),
+            const SizedBox(height: 12),
+
+            // Oficina / Área (Autocomplete)
+            _AutocompleteField(
+              label: 'Oficina / Área',
+              icon: Icons.business,
+              controller: ctrl.oficinaCtrl,
+              opciones: ctrl.historialCentros,
             ),
             const SizedBox(height: 12),
 
@@ -212,10 +217,55 @@ class _SeccionFormBase extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
+            // Lugar de Inspección (Autocomplete)
+            _AutocompleteField(
+              label: 'Lugar de Inspección *',
+              icon: Icons.location_on_outlined,
+              controller: ctrl.lugarCtrl,
+              opciones: ctrl.historialLugares,
+              uppercase: true,
+            ),
+            const SizedBox(height: 12),
+
+            // Origen de la visita
+            TextField(
+              controller: ctrl.origenCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Origen de la Visita',
+                prefixIcon: Icon(Icons.flag_outlined),
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Correos
+            TextField(
+              controller: ctrl.email1Ctrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'Correo Empresa 1',
+                prefixIcon: Icon(Icons.email_outlined),
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl.email2Ctrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'Correo Empresa 2 (Opcional)',
+                prefixIcon: Icon(Icons.email_outlined),
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 12),
+
             // Fecha y horas
             Row(
               children: [
-                // Fecha
                 Expanded(
                   child: _CampoFechaHora(
                     icon: Icons.calendar_today,
@@ -240,6 +290,204 @@ class _SeccionFormBase extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Autocomplete reutilizable ────────────────────────────────────────────────
+
+class _AutocompleteField extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final TextEditingController controller;
+  final List<String> opciones;
+  final bool uppercase;
+
+  const _AutocompleteField({
+    required this.label,
+    required this.icon,
+    required this.controller,
+    required this.opciones,
+    this.uppercase = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Autocomplete<String>(
+      optionsBuilder: (v) => opciones
+          .where((o) => o.toLowerCase().contains(v.text.toLowerCase()))
+          .toList(),
+      onSelected: (val) => controller.text = val,
+      fieldViewBuilder: (ctx, textCtrl, focusNode, onSubmit) {
+        if (textCtrl.text.isEmpty && controller.text.isNotEmpty) {
+          textCtrl.text = controller.text;
+        }
+        textCtrl.addListener(() {
+          if (controller.text != textCtrl.text) {
+            controller.text = textCtrl.text;
+          }
+        });
+        return TextField(
+          controller: textCtrl,
+          focusNode: focusNode,
+          textCapitalization: uppercase
+              ? TextCapitalization.characters
+              : TextCapitalization.sentences,
+          decoration: InputDecoration(
+            labelText: label,
+            prefixIcon: Icon(icon),
+            border: const OutlineInputBorder(),
+            isDense: true,
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Sección Actividades Realizadas ───────────────────────────────────────────
+
+class _SeccionActividades extends StatelessWidget {
+  final ExtintorFormController ctrl;
+
+  const _SeccionActividades({required this.ctrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Actividades Realizadas',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            _CheckItem(
+              'Reunión',
+              ctrl.checkReunion,
+              (v) => ctrl.toggleCheck('reunion', v!),
+            ),
+            _CheckItem(
+              'Instalación Señalética',
+              ctrl.checkSenaletica,
+              (v) => ctrl.toggleCheck('senaletica', v!),
+            ),
+            _CheckItem(
+              'Capacitación',
+              ctrl.checkCapacitacion,
+              (v) => ctrl.toggleCheck('capacitacion', v!),
+            ),
+            _CheckItem(
+              'Visita SSO',
+              ctrl.checkVisitaSso,
+              (v) => ctrl.toggleCheck('visita_sso', v!),
+            ),
+            _CheckItem(
+              'Charla(s)',
+              ctrl.checkCharla,
+              (v) => ctrl.toggleCheck('charla', v!),
+            ),
+            _CheckItem(
+              'Inv. Incidente',
+              ctrl.checkInvestigacion,
+              (v) => ctrl.toggleCheck('investigacion', v!),
+            ),
+            _CheckItem(
+              'Inspección SSO',
+              ctrl.checkInspeccionSso,
+              (v) => ctrl.toggleCheck('inspeccion_sso', v!),
+            ),
+            _CheckItem(
+              'Obs. Conductual',
+              ctrl.checkObsConductual,
+              (v) => ctrl.toggleCheck('obs_conductual', v!),
+            ),
+            _CheckItem(
+              'Otro',
+              ctrl.checkOtro,
+              (v) => ctrl.toggleCheck('otro', v!),
+            ),
+            if (ctrl.checkOtro)
+              Padding(
+                padding: const EdgeInsets.only(left: 32, top: 4),
+                child: TextField(
+                  controller: ctrl.otroActividadCtrl,
+                  decoration: const InputDecoration(
+                    hintText: 'Especifique...',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckItem extends StatelessWidget {
+  final String label;
+  final bool value;
+  final ValueChanged<bool?> onChanged;
+
+  const _CheckItem(this.label, this.value, this.onChanged);
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: CheckboxListTile(
+        title: Text(label, style: const TextStyle(fontSize: 13)),
+        value: value,
+        onChanged: onChanged,
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        controlAffinity: ListTileControlAffinity.leading,
+      ),
+    );
+  }
+}
+
+// ── Sección Observaciones ────────────────────────────────────────────────────
+
+class _SeccionObservaciones extends StatelessWidget {
+  final ExtintorFormController ctrl;
+
+  const _SeccionObservaciones({required this.ctrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Apuntes / Observaciones',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: ctrl.observacionesCtrl,
+              maxLines: 5,
+              decoration: const InputDecoration(
+                hintText: 'Observaciones generales de la inspección...',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
             ),
           ],
         ),
@@ -351,7 +599,6 @@ class _BottomActions extends StatelessWidget {
           onPressed: ctrl.isSaving
               ? null
               : () async {
-                  // Mostrar resumen antes de guardar
                   final confirmar = await _mostrarResumen(context, ctrl);
                   if (!confirmar) return;
                   if (!context.mounted) return;
@@ -359,7 +606,7 @@ class _BottomActions extends StatelessWidget {
                   if (ok && context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('✅ Inspección guardada correctamente'),
+                        content: Text('Inspección guardada correctamente'),
                         backgroundColor: Colors.green,
                       ),
                     );
@@ -430,7 +677,7 @@ class _BottomActions extends StatelessWidget {
                   const Padding(
                     padding: EdgeInsets.only(top: 8),
                     child: Text(
-                      '⚠️ Hay extintores sin completar. ¿Deseas guardar de todas formas?',
+                      'Hay extintores sin completar. Deseas guardar de todas formas?',
                       style: TextStyle(fontSize: 12, color: Colors.orange),
                     ),
                   ),

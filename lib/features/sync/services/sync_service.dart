@@ -33,7 +33,7 @@ class SyncService {
         _supabase
             .from('usuarios')
             .select(
-              'id, rut, nombre_completo, email, rol_id, telefono, roles (nombre)',
+              'id, rut, nombre_completo, email, rol_id, telefono, empresa_id, roles (nombre)',
             ),
       ]);
 
@@ -571,6 +571,7 @@ class SyncService {
           'visita_id': row['visita_id'],
           'numero': row['numero'],
           'matricula': row['matricula'],
+          'tipo_extintor': row['tipo_extintor'],
           'fotos_json': row['fotos_json'] != null
               ? jsonDecode(row['fotos_json'] as String)
               : [],
@@ -887,7 +888,7 @@ class SyncService {
       final userData = await _supabase
           .from('usuarios')
           .select(
-            'id, rut, nombre_completo, email, rol_id, telefono, roles(nombre)',
+            'id, rut, nombre_completo, email, rol_id, telefono, empresa_id, roles(nombre)',
           )
           .eq('id', userId)
           .maybeSingle();
@@ -904,6 +905,7 @@ class SyncService {
           'email': userData['email'],
           'rol_id': userData['rol_id'],
           'telefono': userData['telefono'],
+          'empresa_id': userData['empresa_id'],
           'nombre_rol': nombreRol,
         }, conflictAlgorithm: ConflictAlgorithm.replace);
 

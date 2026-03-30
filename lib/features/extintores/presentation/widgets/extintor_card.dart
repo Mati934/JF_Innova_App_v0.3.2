@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/form_inputs/gallery_input.dart';
 import '../../domain/models/extintor_state.dart';
 import 'punto_extintor_row.dart';
 
@@ -13,6 +15,10 @@ class ExtintorCard extends StatefulWidget {
   final VoidCallback onTodoCumple;
   final VoidCallback onClonar;
   final void Function(String matricula) onMatriculaChanged;
+  final void Function(String tipoExtintor) onTipoExtintorChanged;
+  final VoidCallback onEliminar;
+  final void Function(String path) onFotoAdded;
+  final void Function(int fotoIndex) onFotoRemoved;
 
   const ExtintorCard({
     super.key,
@@ -24,6 +30,10 @@ class ExtintorCard extends StatefulWidget {
     required this.onTodoCumple,
     required this.onClonar,
     required this.onMatriculaChanged,
+    required this.onTipoExtintorChanged,
+    required this.onEliminar,
+    required this.onFotoAdded,
+    required this.onFotoRemoved,
   });
 
   @override
@@ -32,6 +42,7 @@ class ExtintorCard extends StatefulWidget {
 
 class _ExtintorCardState extends State<ExtintorCard> {
   late final TextEditingController _matriculaCtrl;
+  late final TextEditingController _tipoExtintorCtrl;
 
   @override
   void initState() {
@@ -42,6 +53,12 @@ class _ExtintorCardState extends State<ExtintorCard> {
     _matriculaCtrl.addListener(
       () => widget.onMatriculaChanged(_matriculaCtrl.text),
     );
+    _tipoExtintorCtrl = TextEditingController(
+      text: widget.extintor.tipoExtintor ?? '',
+    );
+    _tipoExtintorCtrl.addListener(
+      () => widget.onTipoExtintorChanged(_tipoExtintorCtrl.text),
+    );
   }
 
   @override
@@ -51,10 +68,15 @@ class _ExtintorCardState extends State<ExtintorCard> {
         _matriculaCtrl.text != (widget.extintor.matricula ?? '')) {
       _matriculaCtrl.text = widget.extintor.matricula ?? '';
     }
+    if (old.extintor.tipoExtintor != widget.extintor.tipoExtintor &&
+        _tipoExtintorCtrl.text != (widget.extintor.tipoExtintor ?? '')) {
+      _tipoExtintorCtrl.text = widget.extintor.tipoExtintor ?? '';
+    }
   }
 
   @override
   void dispose() {
+    _tipoExtintorCtrl.dispose();
     _matriculaCtrl.dispose();
     super.dispose();
   }
@@ -107,7 +129,27 @@ class _ExtintorCardState extends State<ExtintorCard> {
                       controller: _matriculaCtrl,
                       style: const TextStyle(fontSize: 12),
                       decoration: InputDecoration(
-                        hintText: 'Matrícula / Código (opcional)',
+                        hintText: 'Identificatorio / Ubicación',
+                        hintStyle: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 0,
+                          vertical: 4,
+                        ),
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 28,
+                    child: TextField(
+                      controller: _tipoExtintorCtrl,
+                      style: const TextStyle(fontSize: 12),
+                      decoration: InputDecoration(
+                        hintText: 'Tipo Extintor',
                         hintStyle: TextStyle(
                           fontSize: 11,
                           color: Colors.grey.shade500,
@@ -167,6 +209,13 @@ class _ExtintorCardState extends State<ExtintorCard> {
                   onTap: widget.onClonar,
                 ),
               ],
+              const Spacer(),
+              _AccionBtn(
+                icon: Icons.delete_outline,
+                label: 'Eliminar',
+                color: Colors.red,
+                onTap: widget.onEliminar,
+              ),
             ],
           ),
         ),
@@ -185,6 +234,31 @@ class _ExtintorCardState extends State<ExtintorCard> {
                   widget.onObservacion(obs, punto.itemId),
             );
           }),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: GalleryInput(
+              images: widget.extintor.fotoPaths.map((p) => File(p)).toList(),
+              onImagesChanged: (newFiles) {
+                final newPaths = newFiles.map((f) => f.path).toSet();
+                final oldPaths = widget.extintor.fotoPaths.toSet();
+                for (
+                  int i = widget.extintor.fotoPaths.length - 1;
+                  i >= 0;
+                  i--
+                ) {
+                  if (!newPaths.contains(widget.extintor.fotoPaths[i])) {
+                    widget.onFotoRemoved(i);
+                  }
+                }
+                for (final f in newFiles) {
+                  if (!oldPaths.contains(f.path)) {
+                    widget.onFotoAdded(f.path);
+                  }
+                }
+              },
+            ),
+          ),
         ],
       ),
     );

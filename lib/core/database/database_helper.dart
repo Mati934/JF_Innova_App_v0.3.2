@@ -7,7 +7,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      33; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      35; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -47,7 +47,8 @@ class DatabaseHelper {
         email TEXT,
         telefono TEXT,
         rol_id TEXT,
-        nombre_rol TEXT
+        nombre_rol TEXT,
+        empresa_id TEXT
       )
     ''');
 
@@ -249,7 +250,9 @@ class DatabaseHelper {
         signature_image BLOB,
         pdf_path_local TEXT,
         pdf_url TEXT,
-        tipo_actividad TEXT
+        tipo_actividad TEXT,
+        empresa TEXT,
+        lugar_inspeccion TEXT
       )
     ''');
 
@@ -316,6 +319,7 @@ class DatabaseHelper {
         visita_id TEXT NOT NULL,
         numero INTEGER NOT NULL,
         matricula TEXT,
+        tipo_extintor TEXT,
         fotos_json TEXT,
         respuestas_json TEXT,
         subido INTEGER DEFAULT 0,
@@ -738,6 +742,37 @@ class DatabaseHelper {
 
       debugPrint("✅ Parche v33 aplicado.");
     }
+
+    if (oldVersion < 34) {
+      debugPrint(
+        "🚀 Aplicando parche v34 (Empresa, Lugar Inspeccion, Tipo Extintor)...",
+      );
+      await _safeAddColumn(
+        db,
+        'visitas_tecnicas_pendientes',
+        'empresa',
+        'TEXT',
+      );
+      await _safeAddColumn(
+        db,
+        'visitas_tecnicas_pendientes',
+        'lugar_inspeccion',
+        'TEXT',
+      );
+      await _safeAddColumn(
+        db,
+        'extintores_pendientes',
+        'tipo_extintor',
+        'TEXT',
+      );
+      debugPrint("✅ Parche v34 aplicado.");
+    }
+
+    if (oldVersion < 35) {
+      debugPrint("🚀 Aplicando parche v35 (empresa_id en usuarios)...");
+      await _safeAddColumn(db, 'usuarios', 'empresa_id', 'TEXT');
+      debugPrint("✅ Parche v35 aplicado.");
+    }
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -847,6 +882,7 @@ class DatabaseHelper {
         row['email'] = item['email'];
         row['telefono'] = item['telefono'];
         row['rol_id'] = item['rol_id'];
+        row['empresa_id'] = item['empresa_id'];
         if (item['roles'] != null && item['roles'] is Map) {
           row['nombre_rol'] = item['roles']['nombre'];
         } else {

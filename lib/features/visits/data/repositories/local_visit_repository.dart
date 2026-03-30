@@ -45,6 +45,19 @@ class LocalVisitRepository {
     return maps.map((e) => e['lugar_visita'] as String).toList();
   }
 
+  Future<List<String>> getEmpresasHistoricas() async {
+    final db = await dbHelper.database;
+
+    final List<Map<String, dynamic>> maps = await db.rawQuery('''
+      SELECT DISTINCT empresa
+      FROM visitas_tecnicas_pendientes
+      WHERE empresa IS NOT NULL AND trim(empresa) != ''
+      ORDER BY empresa ASC
+    ''');
+
+    return maps.map((e) => e['empresa'] as String).toList();
+  }
+
   Future<void> saveVisitaCompleta({
     required Map<String, dynamic> visitaMap,
     required List<String> fotosPaths,
@@ -187,13 +200,13 @@ class LocalVisitRepository {
     return null;
   }
 
-  /// Tipos de checklist disponibles para visitas (ej: VISITA_005)
+  /// Tipos de checklist disponibles para visitas (excluye VISITA_R004 que tiene módulo propio)
   Future<List<Map<String, dynamic>>> getTiposChecklistVisita() async {
     final db = await dbHelper.database;
     return await db.rawQuery('''
       SELECT DISTINCT tipo_actividad
       FROM formulario_items
-      WHERE tipo_actividad LIKE 'VISITA_%' AND activo = 1
+      WHERE tipo_actividad LIKE 'VISITA_%' AND tipo_actividad != 'VISITA_R004' AND activo = 1
       ORDER BY tipo_actividad ASC
     ''');
   }
