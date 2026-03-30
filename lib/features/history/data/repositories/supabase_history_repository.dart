@@ -52,6 +52,11 @@ class SupabaseHistoryRepository {
       query = query.eq('modulo', filtroModulo);
     }
 
+    // Excluir borradores y eliminados
+    query = query
+        .not('estado', 'eq', 'Eliminada')
+        .not('estado', 'eq', 'En Progreso');
+
     final response = await query.order('fecha_realizacion', ascending: false);
 
     return List<Map<String, dynamic>>.from(response).map((item) {
