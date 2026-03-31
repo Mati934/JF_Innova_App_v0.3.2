@@ -189,6 +189,7 @@ class SyncService {
         datosParaNube.remove('numero_reporte');
         datosParaNube.remove('subido');
         datosParaNube.remove('eliminado');
+        datosParaNube.remove('pdf_path_local');
 
         // --- 1. VERIFICACIÓN ESTRICTA EN LA NUBE ---
         final checkNube = await _supabase

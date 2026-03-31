@@ -907,6 +907,19 @@ class DatabaseHelper {
     }
 
     await batch.commit(noResult: true);
+
+    // Eliminar registros locales que ya no existen en Supabase
+    final idsRemoto = datos.map((e) => e['id'] as String).toList();
+    final placeholders = List.filled(idsRemoto.length, '?').join(',');
+    final borrados = await db.delete(
+      tabla,
+      where: 'id NOT IN ($placeholders)',
+      whereArgs: idsRemoto,
+    );
+    if (borrados > 0) {
+      debugPrint("🗑️ $tabla: $borrados registros obsoletos eliminados");
+    }
+
     debugPrint("✅ Maestros guardados en $tabla: ${datos.length} registros");
   }
 
@@ -958,6 +971,9 @@ class DatabaseHelper {
 
     final db = await instance.database;
     final batch = db.batch();
+
+    // DELETE + re-insert para eliminar items borrados en Supabase
+    batch.delete('formulario_items');
 
     for (var item in items) {
       batch.insert('formulario_items', {
