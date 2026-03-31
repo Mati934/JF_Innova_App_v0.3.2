@@ -68,7 +68,8 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
     _timerVerificacion = Timer.periodic(const Duration(seconds: 5), (
       timer,
     ) async {
-      if (_controller.numeroInformeController.text.isEmpty) {
+      final texto = _controller.numeroInformeController.text;
+      if (texto.isEmpty || texto.startsWith("~")) {
         await _controller.recargarNumeroDesdeDB();
       }
     });
@@ -89,12 +90,18 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
       if (exito) {
         setState(() => _canPop = true);
         Navigator.pop(context);
+
+        final String mensaje = _controller.pdfDiferido
+            ? 'Inspeccion guardada. El informe PDF se generara automaticamente al recuperar conexion.'
+            : 'Inspeccion finalizada y PDF generado correctamente.';
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              '✅ Inspección finalizada y PDF subido correctamente.',
-            ),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text(mensaje),
+            backgroundColor: _controller.pdfDiferido
+                ? Colors.orange.shade700
+                : Colors.green,
+            duration: Duration(seconds: _controller.pdfDiferido ? 5 : 3),
           ),
         );
       } else {

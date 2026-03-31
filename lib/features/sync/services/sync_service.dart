@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/database/database_helper.dart';
 import '../../../core/utils/rut_utils.dart';
 import '../../../features/tickets/data/repositories/supabase_ticket_repository.dart';
+import '../../../features/inspection/services/deferred_pdf_service.dart';
 import 'dart:convert';
 
 class SyncService {
@@ -103,6 +104,9 @@ class SyncService {
       // 4. Subir Tickets pendientes
       await _ticketRepo.syncTicketsHaciaSupabase();
 
+      // 5. Generar PDFs diferidos (inspecciones finalizadas offline)
+      await _generarPdfsDiferidos();
+
       return actividadesSubidas + visitasSubidas;
     } catch (e) {
       debugPrint("❌ Error en sincronización global: $e");
@@ -190,6 +194,7 @@ class SyncService {
         datosParaNube.remove('subido');
         datosParaNube.remove('eliminado');
         datosParaNube.remove('pdf_path_local');
+        datosParaNube.remove('app_version');
 
         // --- 1. VERIFICACIÓN ESTRICTA EN LA NUBE ---
         final checkNube = await _supabase
@@ -933,6 +938,42 @@ class SyncService {
     } catch (e) {
       debugPrint("🔥 Error crítico en hidratación inicial: $e");
       rethrow; // Lanzamos el error para que el AuthGate lo atrape y cierre sesión si es necesario
+    }
+  }
+
+  // --- 5. GENERACIÓN DE PDFs DIFERIDOS (Opción C) ---
+  Future<void> _generarPdfsDiferidos() async {
+    try {
+      final db = await _dbHelper.database;
+      final pendientes = await db.query(
+        'actividades_pendientes',
+        where: "estado_final = 'En Seguimiento' AND "
+            "(pdf_path_local IS NULL OR pdf_path_local = '') AND "
+            "(pdf_url IS NULL OR pdf_url = '') AND "
+            "eliminado = 0 AND "
+            "numero_reporte IS NOT NULL AND numero_reporte != ''",
+      );
+
+      if (pendientes.isEmpty) return;
+
+      debugPrint(
+        "📄 Detectadas ${pendientes.length} inspecciones con PDF pendiente.",
+      );
+
+      final pdfService = DeferredPdfService();
+      for (var row in pendientes) {
+        final activityId = row['id'] as String;
+        try {
+          final ok = await pdfService.generarPdfDiferido(activityId);
+          if (ok) {
+            debugPrint("✅ PDF diferido generado para $activityId");
+          }
+        } catch (e) {
+          debugPrint("⚠️ Error generando PDF diferido para $activityId: $e");
+        }
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error en _generarPdfsDiferidos: $e");
     }
   }
 }

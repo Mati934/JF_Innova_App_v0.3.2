@@ -36,6 +36,7 @@ class InspectionFormController extends ChangeNotifier {
   List<FormularioItem> _items = [];
   bool _isLoading = true;
   bool _isSaving = false;
+  bool pdfDiferido = false;
   String? _errorMessage;
   int _numeroSeguimiento = 0;
 
@@ -150,8 +151,8 @@ class InspectionFormController extends ChangeNotifier {
               numeroReal != "null") {
             numeroInformeController.text = numeroReal;
           } else {
-            // Borrador: número se asigna al finalizar
-            numeroInformeController.text = "Pendiente";
+            // Borrador sin número: estimar desde Supabase/SQLite
+            _cargarNumeroEstimado();
           }
         }
       }
@@ -567,15 +568,47 @@ class InspectionFormController extends ChangeNotifier {
       }
 
       // Si no hay número de informe definitivo (offline o aún no asignado),
-      // usar número provisional para el PDF
-      if (numeroInformeController.text.isEmpty ||
-          numeroInformeController.text == "Pendiente..." ||
-          numeroInformeController.text == "Pendiente") {
-        // Totalmente offline: usar PROV
-        final provisional = "PROV-${activityId.substring(0, 8).toUpperCase()}";
-        numeroInformeController.text = provisional;
-        debugPrint("📋 Usando número provisional: $provisional");
+      // diferir la generación del PDF hasta que haya conexión
+      final textoNumero = numeroInformeController.text;
+      final bool tieneNumeroReal =
+          textoNumero.isNotEmpty &&
+          !textoNumero.startsWith("PROV-") &&
+          !textoNumero.startsWith("~");
+
+      if (!tieneNumeroReal) {
+        // OFFLINE: Guardar como finalizado SIN PDF
+        debugPrint(
+          "📴 Sin número real. Guardando sin PDF (se generará al reconectar).",
+        );
+        pdfDiferido = true;
+
+        await _persistirDatos(
+          esBorrador: false,
+          pdfUrlFinal: null,
+          pdfPathLocal: null,
+        );
+
+        // Sync para subir el estado "En Seguimiento" a Supabase
+        // (el sync previo subió como "En Progreso", necesitamos re-sincronizar)
+        _syncService
+            .sincronizarTodo()
+            .then((_) async {
+              if (!_disposed) await recargarNumeroDesdeDB();
+            })
+            .catchError((e) {
+              debugPrint("⚠️ Sync post-finalización offline falló: $e");
+            });
+
+        // Limpieza de memoria
+        fotosPorPregunta.clear();
+        fotosGenerales.clear();
+        participantes.clear();
+
+        return true;
       }
+
+      // ONLINE: Continuar con generación de PDF (tiene número real)
+      pdfDiferido = false;
 
       // ---------------------------------------------------------
       // PASO 3: CARGAR ASSETS EN EL HILO PRINCIPAL (MAIN THREAD)
@@ -686,7 +719,7 @@ class InspectionFormController extends ChangeNotifier {
           .sincronizarTodo()
           .then((_) async {
             // Después del sync, recargar el número por si Supabase lo generó
-            await recargarNumeroDesdeDB();
+            if (!_disposed) await recargarNumeroDesdeDB();
           })
           .catchError((e) {
             debugPrint("Sync final Error: $e");
@@ -727,17 +760,28 @@ class InspectionFormController extends ChangeNotifier {
     );
 
     String? numeroFinal = numeroInformeController.text.trim();
+    // No guardar estimados (~) ni legacy como numero_reporte en SQLite
+    final bool esNumeroNoReal = numeroFinal.isEmpty ||
+        numeroFinal == "Pendiente..." ||
+        numeroFinal == "Pendiente" ||
+        numeroFinal.startsWith("~");
+
     if (_repo is LocalInspectionRepository) {
       final datosActualesDB = await (_repo as LocalInspectionRepository)
           .getActividad(activityId);
       final numeroEnDB = datosActualesDB?['numero_reporte']?.toString();
-      if ((numeroFinal.isEmpty || numeroFinal == "Pendiente...") &&
+      if (esNumeroNoReal &&
           (numeroEnDB != null &&
               numeroEnDB.isNotEmpty &&
               numeroEnDB != "null")) {
         numeroFinal = numeroEnDB;
         numeroInformeController.text = numeroFinal;
       }
+    }
+
+    // Si sigue siendo estimado o vacío, guardar null
+    if (esNumeroNoReal) {
+      numeroFinal = null;
     }
 
     // 1. Datos Actividad (AHORA INCLUYE PDF_URL y PDF_PATH_LOCAL)
@@ -749,7 +793,7 @@ class InspectionFormController extends ChangeNotifier {
       'contratista_id': contratistaId,
       'embarcacion_id': embarcacionId,
       'fecha_realizacion': DateTime.now().toIso8601String(),
-      'numero_reporte': numeroFinal,
+      'numero_reporte': (numeroFinal != null && numeroFinal.isNotEmpty) ? numeroFinal : null,
       'numero_seguimiento': _numeroSeguimiento,
       'pdf_url': pdfUrlFinal,
       'pdf_path_local': pdfPathLocal, // Para sync posterior cuando no hay red
@@ -1040,6 +1084,23 @@ class InspectionFormController extends ChangeNotifier {
         numeroInformeController.text = numDB;
         notifyListeners(); // ¡Esto actualiza la UI automáticamente!
         debugPrint("🔄 UI Actualizada con Folio: $numDB");
+      }
+    }
+  }
+
+  /// Estima el siguiente número de informe desde Supabase (online) o SQLite (offline).
+  /// Muestra con prefijo ~ para indicar que es estimado.
+  Future<void> _cargarNumeroEstimado() async {
+    if (_repo is LocalInspectionRepository) {
+      try {
+        final estimado = await (_repo as LocalInspectionRepository)
+            .estimarSiguienteNumeroInforme(tipoActividad);
+        if (estimado != null && !_disposed) {
+          numeroInformeController.text = "~$estimado";
+          notifyListeners();
+        }
+      } catch (e) {
+        debugPrint("⚠️ Error estimando número: $e");
       }
     }
   }

@@ -147,6 +147,25 @@ class InspectionSetupController extends ChangeNotifier {
     embarcacionId = null;
     _embarcaciones = [];
     notifyListeners();
+
+    // Estimar número de informe cuando se selecciona tipo
+    if (v != null) {
+      _cargarNumeroEstimado(v);
+    }
+  }
+
+  Future<void> _cargarNumeroEstimado(String tipoActividad) async {
+    try {
+      final estimado = await _localRepo.estimarSiguienteNumeroInforme(
+        tipoActividad,
+      );
+      if (estimado != null) {
+        numeroInformeController.text = "~$estimado";
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint("⚠️ Error estimando número: $e");
+    }
   }
 
   void setContratista(String? v) {
@@ -228,9 +247,7 @@ class InspectionSetupController extends ChangeNotifier {
         'estado_final': 'En Progreso',
         'numero_seguimiento': _esConsecutiva ? 1 : 0,
         'subido': 0,
-        'numero_reporte': numeroInformeController.text.trim().isEmpty
-            ? null
-            : numeroInformeController.text.trim(),
+        'numero_reporte': _obtenerNumeroParaGuardar(),
       };
 
       await _dbHelper.saveActividadOffline(datosActividad);
@@ -253,6 +270,14 @@ class InspectionSetupController extends ChangeNotifier {
       _isSaving = false;
       notifyListeners();
     }
+  }
+
+  /// Retorna null si el número es estimado (~) o vacío.
+  /// Solo guarda números reales en SQLite.
+  String? _obtenerNumeroParaGuardar() {
+    final texto = numeroInformeController.text.trim();
+    if (texto.isEmpty || texto.startsWith("~")) return null;
+    return texto;
   }
 
   // Validador manual simple para usar en el Controller

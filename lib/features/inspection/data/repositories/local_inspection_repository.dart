@@ -453,6 +453,41 @@ class LocalInspectionRepository implements InspectionRepository {
     });
   }
 
+  /// Estima el siguiente numero_informe consultando Supabase (online) o SQLite (offline).
+  /// Retorna el número estimado como String, o null si no hay datos.
+  Future<String?> estimarSiguienteNumeroInforme(String tipoActividad) async {
+    // 1. Intentar online: consultar MAX(numero_informe) de Supabase
+    try {
+      final supabase = Supabase.instance.client;
+      final result = await supabase
+          .from('actividades')
+          .select('numero_informe')
+          .eq('tipo_actividad', tipoActividad)
+          .not('numero_informe', 'is', null)
+          .order('numero_informe', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (result != null && result['numero_informe'] != null) {
+        final maxNum = result['numero_informe'];
+        if (maxNum is int) {
+          return (maxNum + 1).toString();
+        }
+        final parsed = int.tryParse(maxNum.toString());
+        if (parsed != null) {
+          return (parsed + 1).toString();
+        }
+      }
+      // Si no hay registros en Supabase, retornar "1"
+      return "1";
+    } catch (e) {
+      debugPrint("⚠️ Estimación online falló, usando SQLite: $e");
+    }
+
+    // 2. Fallback offline: usar SQLite local
+    return sugerirSiguienteNumeroReporte(tipoActividad);
+  }
+
   Future<String?> sugerirSiguienteNumeroReporte(String tipoActividad) async {
     final db = await dbHelper.database;
     try {
