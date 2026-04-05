@@ -108,6 +108,6 @@ class ModuleRegistry {
     'INSPECCION',
     'VISITA_R003',
     'VISITA_R004',
-    'TICKETS',
+    'RENDICIONES',
   ];
 }

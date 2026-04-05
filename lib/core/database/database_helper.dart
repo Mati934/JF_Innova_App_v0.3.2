@@ -7,7 +7,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      36; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      37; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -117,6 +117,16 @@ class DatabaseHelper {
     ''');
     await db.execute(
       'CREATE UNIQUE INDEX IF NOT EXISTS idx_empresa_modulo ON empresa_modulos(empresa_id, modulo_key)',
+    );
+    await db.execute('''
+      CREATE TABLE usuario_empresas (
+        id TEXT PRIMARY KEY,
+        usuario_id TEXT NOT NULL,
+        empresa_id TEXT NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_usuario_empresa ON usuario_empresas(usuario_id, empresa_id)',
     );
     // Agregamos matricula aquí también por si acaso
     await db.execute(
@@ -804,6 +814,28 @@ class DatabaseHelper {
       );
       debugPrint("✅ Parche v36 aplicado.");
     }
+
+    if (oldVersion < 37) {
+      debugPrint("🚀 Aplicando parche v37 (usuario_empresas multi-tenant)...");
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS usuario_empresas (
+          id TEXT PRIMARY KEY,
+          usuario_id TEXT NOT NULL,
+          empresa_id TEXT NOT NULL
+        )
+      ''');
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_usuario_empresa ON usuario_empresas(usuario_id, empresa_id)',
+      );
+      // Migrar datos existentes: usuarios con empresa_id → usuario_empresas
+      await db.execute('''
+        INSERT OR IGNORE INTO usuario_empresas (id, usuario_id, empresa_id)
+        SELECT id || '_emp', id, empresa_id
+        FROM usuarios
+        WHERE empresa_id IS NOT NULL AND empresa_id != ''
+      ''');
+      debugPrint("✅ Parche v37 aplicado.");
+    }
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -872,10 +904,16 @@ class DatabaseHelper {
 
   // --- MÉTODOS CRUD GENÉRICOS ---
 
+  /// [scopeWhere] y [scopeArgs] limitan el DELETE de huérfanos a un subconjunto.
+  /// Ejemplo: para areas filtradas por empresa, pasas
+  /// scopeWhere='empresa_id = ?' scopeArgs=['uuid-empresa']
+  /// Así solo borra areas de ESA empresa que ya no estén en el remote.
   Future<void> guardarMaestros(
     String tabla,
-    List<Map<String, dynamic>> datos,
-  ) async {
+    List<Map<String, dynamic>> datos, {
+    String? scopeWhere,
+    List<Object?>? scopeArgs,
+  }) async {
     // BLINDAJE: Si la lista está vacía, NO toques la base de datos.
     // Así evitamos borrar todo por un error de red que devuelva [].
     if (datos.isEmpty) {
@@ -937,6 +975,9 @@ class DatabaseHelper {
             (item['habilitado'] == true || item['habilitado'] == 1) ? 1 : 0;
         row['orden'] = item['orden'] ?? 0;
         row['subido'] = 1;
+      } else if (tabla == 'usuario_empresas') {
+        row['usuario_id'] = item['usuario_id'];
+        row['empresa_id'] = item['empresa_id'];
       } else {
         row['nombre'] = item['nombre'];
       }
@@ -947,12 +988,23 @@ class DatabaseHelper {
     await batch.commit(noResult: true);
 
     // Eliminar registros locales que ya no existen en Supabase
+    // Si hay scopeWhere, solo borramos huérfanos DENTRO de ese scope
+    // (ej: solo áreas de la empresa activa, no de otras empresas)
     final idsRemoto = datos.map((e) => e['id'] as String).toList();
     final placeholders = List.filled(idsRemoto.length, '?').join(',');
+
+    String whereClause = 'id NOT IN ($placeholders)';
+    List<Object?> whereArgs = [...idsRemoto];
+
+    if (scopeWhere != null) {
+      whereClause = '($whereClause) AND ($scopeWhere)';
+      if (scopeArgs != null) whereArgs.addAll(scopeArgs);
+    }
+
     final borrados = await db.delete(
       tabla,
-      where: 'id NOT IN ($placeholders)',
-      whereArgs: idsRemoto,
+      where: whereClause,
+      whereArgs: whereArgs,
     );
     if (borrados > 0) {
       debugPrint("🗑️ $tabla: $borrados registros obsoletos eliminados");

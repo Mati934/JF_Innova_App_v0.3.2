@@ -19,9 +19,10 @@ class SyncService {
   Future<void> descargarDatosMaestros() async {
     try {
       final empresaId = UserSession().empresaId;
+      final userId = UserSession().userId;
 
       final results = await Future.wait([
-        // Filtrar áreas por empresa si hay empresa_id
+        // Filtrar áreas por empresa activa si hay empresa_id
         empresaId != null
             ? _supabase
                   .from('areas')
@@ -45,18 +46,27 @@ class SyncService {
             .select(
               'id, rut, nombre_completo, email, rol_id, telefono, empresa_id, roles (nombre)',
             ),
-        // Descargar módulos habilitados para esta empresa
+        // Descargar módulos habilitados para la empresa activa
         empresaId != null
             ? _supabase
                   .from('empresa_modulos')
                   .select('id, empresa_id, modulo_key, habilitado, orden')
                   .eq('empresa_id', empresaId)
             : Future.value(<Map<String, dynamic>>[]),
+        // Descargar relaciones usuario-empresa del usuario actual
+        userId != null
+            ? _supabase
+                  .from('usuario_empresas')
+                  .select('id, usuario_id, empresa_id')
+                  .eq('usuario_id', userId)
+            : Future.value(<Map<String, dynamic>>[]),
       ]);
 
       await _dbHelper.guardarMaestros(
         'areas',
         List<Map<String, dynamic>>.from(results[0]),
+        scopeWhere: empresaId != null ? 'empresa_id = ?' : null,
+        scopeArgs: empresaId != null ? [empresaId] : null,
       );
       await _dbHelper.guardarMaestros(
         'centros',
@@ -96,7 +106,27 @@ class SyncService {
       // Guardar módulos habilitados por empresa
       final modulosData = List<Map<String, dynamic>>.from(results[9]);
       if (modulosData.isNotEmpty) {
-        await _dbHelper.guardarMaestros('empresa_modulos', modulosData);
+        await _dbHelper.guardarMaestros(
+          'empresa_modulos',
+          modulosData,
+          scopeWhere: empresaId != null ? 'empresa_id = ?' : null,
+          scopeArgs: empresaId != null ? [empresaId] : null,
+        );
+      }
+
+      // Guardar relaciones usuario-empresa
+      final ueData = List<Map<String, dynamic>>.from(results[10]);
+      if (ueData.isNotEmpty) {
+        await _dbHelper.guardarMaestros(
+          'usuario_empresas',
+          ueData,
+          scopeWhere: userId != null ? 'usuario_id = ?' : null,
+          scopeArgs: userId != null ? [userId] : null,
+        );
+        // Recargar empresas del usuario en UserSession
+        if (userId != null) {
+          await UserSession().loadFromSQLite(userId);
+        }
       }
 
       debugPrint(

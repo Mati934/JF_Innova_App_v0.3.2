@@ -2,23 +2,46 @@ import 'package:flutter/foundation.dart';
 import '../database/database_helper.dart';
 
 /// Singleton que mantiene el perfil del usuario logueado en memoria.
-/// Se carga una vez al login y se limpia al cerrar sesión.
+/// Soporta multi-empresa: un usuario puede pertenecer a varias empresas.
 class UserSession {
   static final UserSession _instance = UserSession._internal();
   factory UserSession() => _instance;
   UserSession._internal();
 
   String? _userId;
-  String? _empresaId;
   String? _nombreCompleto;
   String? _nombreRol;
   String? _email;
 
+  // Multi-empresa
+  List<EmpresaUsuario> _empresas = [];
+  String? _currentEmpresaId;
+
   String? get userId => _userId;
-  String? get empresaId => _empresaId;
   String? get nombreCompleto => _nombreCompleto;
   String? get nombreRol => _nombreRol;
   String? get email => _email;
+
+  /// La empresa actualmente seleccionada.
+  String? get empresaId => _currentEmpresaId;
+
+  /// Todas las empresas a las que tiene acceso el usuario.
+  List<EmpresaUsuario> get empresas => List.unmodifiable(_empresas);
+
+  /// Nombre de la empresa activa (para mostrar en UI).
+  String? get empresaNombre {
+    if (_currentEmpresaId == null) return null;
+    try {
+      return _empresas
+          .firstWhere((e) => e.id == _currentEmpresaId)
+          .nombre;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// true si el usuario tiene acceso a más de una empresa.
+  bool get tieneMultiEmpresa => _empresas.length > 1;
 
   bool get isLoaded => _userId != null;
 
@@ -40,12 +63,17 @@ class UserSession {
     if (rows.isNotEmpty) {
       final data = rows.first;
       _userId = authUserId;
-      _empresaId = data['empresa_id'] as String?;
       _nombreCompleto = data['nombre_completo'] as String?;
       _nombreRol = data['nombre_rol'] as String?;
       _email = data['email'] as String?;
+
+      // Cargar empresas del usuario
+      await _cargarEmpresas(authUserId);
+
       debugPrint(
-        '👤 UserSession cargado: $_nombreCompleto | empresa: $_empresaId | admin: $esAdmin',
+        '👤 UserSession cargado: $_nombreCompleto | '
+        'empresas: ${_empresas.map((e) => e.nombre).toList()} | '
+        'activa: $empresaNombre | admin: $esAdmin',
       );
     } else {
       _userId = authUserId;
@@ -53,13 +81,86 @@ class UserSession {
     }
   }
 
+  Future<void> _cargarEmpresas(String userId) async {
+    final db = await DatabaseHelper.instance.database;
+
+    // Cargar desde tabla usuario_empresas (JOIN con empresas)
+    final rows = await db.rawQuery('''
+      SELECT ue.empresa_id, e.nombre
+      FROM usuario_empresas ue
+      INNER JOIN empresas e ON e.id = ue.empresa_id
+      WHERE ue.usuario_id = ?
+      ORDER BY e.nombre
+    ''', [userId]);
+
+    if (rows.isNotEmpty) {
+      _empresas = rows
+          .map((r) => EmpresaUsuario(
+                id: r['empresa_id'] as String,
+                nombre: r['nombre'] as String? ?? 'Sin nombre',
+              ))
+          .toList();
+
+      // Si no hay empresa seleccionada, seleccionar la primera
+      if (_currentEmpresaId == null ||
+          !_empresas.any((e) => e.id == _currentEmpresaId)) {
+        _currentEmpresaId = _empresas.first.id;
+      }
+    } else {
+      // Fallback: usar empresa_id de la tabla usuarios (legacy)
+      final userRows = await db.query(
+        'usuarios',
+        columns: ['empresa_id'],
+        where: 'id = ?',
+        whereArgs: [userId],
+        limit: 1,
+      );
+      if (userRows.isNotEmpty) {
+        final legacyEmpresaId = userRows.first['empresa_id'] as String?;
+        if (legacyEmpresaId != null) {
+          // Buscar nombre de la empresa
+          final empresaRows = await db.query(
+            'empresas',
+            where: 'id = ?',
+            whereArgs: [legacyEmpresaId],
+            limit: 1,
+          );
+          final nombre =
+              empresaRows.isNotEmpty
+                  ? empresaRows.first['nombre'] as String? ?? 'Sin nombre'
+                  : 'Sin nombre';
+          _empresas = [EmpresaUsuario(id: legacyEmpresaId, nombre: nombre)];
+          _currentEmpresaId = legacyEmpresaId;
+        }
+      }
+    }
+  }
+
+  /// Cambia la empresa activa. Retorna true si cambió.
+  bool cambiarEmpresa(String empresaId) {
+    if (_empresas.any((e) => e.id == empresaId)) {
+      _currentEmpresaId = empresaId;
+      debugPrint('🏢 Empresa cambiada a: $empresaNombre');
+      return true;
+    }
+    return false;
+  }
+
   /// Limpia la sesión al cerrar sesión.
   void clear() {
     _userId = null;
-    _empresaId = null;
     _nombreCompleto = null;
     _nombreRol = null;
     _email = null;
+    _empresas = [];
+    _currentEmpresaId = null;
     debugPrint('🧹 UserSession limpiado');
   }
+}
+
+class EmpresaUsuario {
+  final String id;
+  final String nombre;
+
+  const EmpresaUsuario({required this.id, required this.nombre});
 }

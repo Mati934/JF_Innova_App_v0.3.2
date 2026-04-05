@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:jf_innova_app/core/theme/app_theme.dart';
+import '../../../../core/services/user_session.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/draft_list_widget.dart';
 import '../widgets/module_selector_grid.dart';
@@ -225,6 +226,22 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
 
+                        // Selector de empresa (solo si multi-empresa)
+                        if (UserSession().tieneMultiEmpresa) ...[
+                          const SizedBox(height: 12),
+                          _buildEmpresaSelector(context),
+                        ] else if (UserSession().empresaNombre != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            UserSession().empresaNombre!,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.primaryBlue.withValues(alpha: 0.7),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+
                         SizedBox(height: estaVacio ? 50 : 20),
 
                         // --- GRILLA DINÁMICA DE MÓDULOS ---
@@ -265,6 +282,94 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     );
+  }
+
+  Widget _buildEmpresaSelector(BuildContext context) {
+    final session = UserSession();
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => _mostrarSelectorEmpresa(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryBlue.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppTheme.primaryBlue.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.business,
+              size: 16,
+              color: AppTheme.primaryBlue,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              session.empresaNombre ?? 'Sin empresa',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.primaryBlue,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.swap_horiz,
+              size: 16,
+              color: AppTheme.primaryBlue,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _mostrarSelectorEmpresa(BuildContext context) async {
+    final session = UserSession();
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Cambiar Empresa',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            ...session.empresas.map(
+              (emp) => ListTile(
+                leading: Icon(
+                  Icons.business,
+                  color: emp.id == session.empresaId
+                      ? AppTheme.primaryBlue
+                      : Colors.grey,
+                ),
+                title: Text(emp.nombre),
+                trailing: emp.id == session.empresaId
+                    ? Icon(Icons.check_circle, color: AppTheme.primaryBlue)
+                    : null,
+                onTap: () => Navigator.pop(ctx, emp.id),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (selected != null && selected != session.empresaId) {
+      session.cambiarEmpresa(selected);
+      // Recargar datos para la nueva empresa
+      await _controller.recargarParaEmpresa();
+    }
   }
 
   // ... (Tu método _cerrarSesion se mantiene igual) ...

@@ -203,6 +203,17 @@ class HomeController extends ChangeNotifier {
     debugPrint('📦 Módulos habilitados: $_enabledModuleKeys');
   }
 
+  /// Recarga módulos y borradores cuando el usuario cambia de empresa.
+  Future<void> recargarParaEmpresa() async {
+    await _cargarModulosHabilitados();
+    await Future.wait([cargarBorradores(), cargarNotificacionesTickets()]);
+    if (isOnline) {
+      await _syncService.descargarDatosMaestros();
+      await _cargarModulosHabilitados();
+    }
+    _safeNotify();
+  }
+
   // --- SINCRONIZACIÓN ---
   Future<void> _sincronizarSilencioso() async {
     if (!isOnline) {
