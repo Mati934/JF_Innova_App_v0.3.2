@@ -110,7 +110,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
           SnackBar(
             content: Text(
               _controller.errorMessage ??
-                  '❌ No se pudo finalizar. Verifica tu conexión e intenta de nuevo.',
+                  '❌ No se pudo finalizar. Error interno al guardar datos.',
             ),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),

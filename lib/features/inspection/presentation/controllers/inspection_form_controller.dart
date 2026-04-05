@@ -608,142 +608,175 @@ class InspectionFormController extends ChangeNotifier {
       }
 
       // ONLINE: Continuar con generación de PDF (tiene número real)
-      pdfDiferido = false;
-
-      // ---------------------------------------------------------
-      // PASO 3: CARGAR ASSETS EN EL HILO PRINCIPAL (MAIN THREAD)
-      // ---------------------------------------------------------
-      final fontReg = await rootBundle.load(
-        "assets/fonts/OpenSans-Regular.ttf",
-      );
-      final fontBold = await rootBundle.load("assets/fonts/OpenSans-Bold.ttf");
-      final fontItalic = await rootBundle.load(
-        "assets/fonts/OpenSans-Italic.ttf",
-      );
-
-      Uint8List? logoBytes;
+      // Si falla (ej. error de PDF, fonts, etc.), fallback a modo offline
       try {
-        final logoData = await rootBundle.load(
-          'assets/images/aquachileporfin3.png',
+        pdfDiferido = false;
+
+        // ---------------------------------------------------------
+        // PASO 3: CARGAR ASSETS EN EL HILO PRINCIPAL (MAIN THREAD)
+        // ---------------------------------------------------------
+        final fontReg = await rootBundle.load(
+          "assets/fonts/OpenSans-Regular.ttf",
         );
-        logoBytes = logoData.buffer.asUint8List();
+        final fontBold = await rootBundle.load(
+          "assets/fonts/OpenSans-Bold.ttf",
+        );
+        final fontItalic = await rootBundle.load(
+          "assets/fonts/OpenSans-Italic.ttf",
+        );
+
+        Uint8List? logoBytes;
+        try {
+          final logoData = await rootBundle.load(
+            'assets/images/aquachileporfin3.png',
+          );
+          logoBytes = logoData.buffer.asUint8List();
+        } catch (e) {
+          debugPrint("⚠️ No se pudo cargar el logo: $e");
+        }
+
+        // ---------------------------------------------------------
+        // PASO 4: PREPARAR DATOS (DTO) - ahora con número real
+        // ---------------------------------------------------------
+        bool esConsecutivaFinal = (_numeroSeguimiento == 1);
+        final reportData = await _buildReportData(
+          esConsecutiva: esConsecutivaFinal,
+        );
+
+        final params = PdfIsolateParams(
+          data: reportData,
+          fontRegular: fontReg.buffer.asUint8List(),
+          fontBold: fontBold.buffer.asUint8List(),
+          fontItalic: fontItalic.buffer.asUint8List(),
+          logoBytes: logoBytes,
+        );
+
+        // ---------------------------------------------------------
+        // PASO 5: GENERAR PDF EN ISOLATE (OTRO HILO)
+        // ---------------------------------------------------------
+        debugPrint("🧵 ISOLATE: Generando PDF en segundo plano...");
+
+        final pdfBytes = await compute(generatePdfEntryPoint, params);
+
+        debugPrint("✅ PDF Generado (${pdfBytes.lengthInBytes / 1024} KB).");
+
+        // ---------------------------------------------------------
+        // PASO 6: GUARDAR PDF LOCALMENTE Y SUBIR A STORAGE
+        // ---------------------------------------------------------
+        String? pdfUrlSubido;
+        String? pdfPathLocal;
+
+        // 6.1 Guardar PDF localmente primero (siempre funciona)
+        try {
+          final directory = await getApplicationDocumentsDirectory();
+          final nombreArchivo = "reporte_${reportData.numeroReporte}.pdf";
+          final localFile = File('${directory.path}/$nombreArchivo');
+          await localFile.writeAsBytes(pdfBytes);
+          pdfPathLocal = localFile.path;
+          debugPrint("💾 PDF guardado localmente: $pdfPathLocal");
+        } catch (e) {
+          debugPrint("❌ Error guardando PDF local: $e");
+          _errorMessage = "No se pudo guardar el PDF localmente.";
+          _isSaving = false;
+          notifyListeners();
+          return false;
+        }
+
+        // 6.2 Intentar subir a Storage (puede fallar sin conexión)
+        try {
+          final supabase = Supabase.instance.client;
+          final nombreArchivo = "reporte_${reportData.numeroReporte}.pdf";
+          final pathStorage = "$activityId/$nombreArchivo";
+
+          debugPrint("☁️ Subiendo PDF a Storage...");
+          await supabase.storage
+              .from('reportes')
+              .uploadBinary(
+                pathStorage,
+                pdfBytes,
+                fileOptions: const FileOptions(upsert: true),
+              );
+
+          pdfUrlSubido = supabase.storage
+              .from('reportes')
+              .getPublicUrl(pathStorage);
+          debugPrint("🔗 URL PDF: $pdfUrlSubido");
+        } catch (e) {
+          debugPrint("⚠️ Error subiendo PDF (modo offline): $e");
+          // PDF se subirá después con el sync automático
+          // pdfUrlSubido queda null, pero tenemos pdfPathLocal
+        }
+
+        // ---------------------------------------------------------
+        // PASO 7: MARCAR COMO FINALIZADO
+        // ---------------------------------------------------------
+        // Guardamos con la URL si la tenemos, o con path local si no
+        await _persistirDatos(
+          esBorrador: false,
+          pdfUrlFinal: pdfUrlSubido,
+          pdfPathLocal: pdfUrlSubido == null ? pdfPathLocal : null,
+        );
+
+        // Sync final para subir el estado finalizado a la nube
+        // SIEMPRE intentar, incluso si el sync previo falló (puede haber conexión ahora)
+        _syncService
+            .sincronizarTodo()
+            .then((_) async {
+              // Después del sync, recargar el número por si Supabase lo generó
+              if (!_disposed) await recargarNumeroDesdeDB();
+            })
+            .catchError((e) {
+              debugPrint("Sync final Error: $e");
+            });
+
+        // ---------------------------------------------------------
+        // PASO 8: LIMPIEZA DE MEMORIA (GARBAGE COLLECTION MANUAL)
+        // ---------------------------------------------------------
+        // Solo limpiamos si todo salió bien. Así liberamos RAM agresivamente.
+        debugPrint("🧹 ÉXITO: Liberando memoria de fotos...");
+        fotosPorPregunta.clear();
+        fotosGenerales.clear();
+        participantes.clear();
+        // _items.clear(); // Descomenta si no vas a reusar la lista de items
+
+        return true;
       } catch (e) {
-        debugPrint("⚠️ No se pudo cargar el logo: $e");
+        // FALLBACK: Si falla la generación de PDF, guardar como finalizado
+        // sin PDF. El PDF se generará al reconectar (DeferredPdfService).
+        debugPrint("⚠️ Error en generación de PDF, usando modo diferido: $e");
+        pdfDiferido = true;
+
+        await _persistirDatos(
+          esBorrador: false,
+          pdfUrlFinal: null,
+          pdfPathLocal: null,
+        );
+
+        _syncService
+            .sincronizarTodo()
+            .then((_) async {
+              if (!_disposed) await recargarNumeroDesdeDB();
+            })
+            .catchError((e) {
+              debugPrint("⚠️ Sync post-finalización fallback falló: $e");
+            });
+
+        fotosPorPregunta.clear();
+        fotosGenerales.clear();
+        participantes.clear();
+
+        return true;
       }
-
-      // ---------------------------------------------------------
-      // PASO 4: PREPARAR DATOS (DTO) - ahora con número real
-      // ---------------------------------------------------------
-      bool esConsecutivaFinal = (_numeroSeguimiento == 1);
-      final reportData = await _buildReportData(
-        esConsecutiva: esConsecutivaFinal,
-      );
-
-      final params = PdfIsolateParams(
-        data: reportData,
-        fontRegular: fontReg.buffer.asUint8List(),
-        fontBold: fontBold.buffer.asUint8List(),
-        fontItalic: fontItalic.buffer.asUint8List(),
-        logoBytes: logoBytes,
-      );
-
-      // ---------------------------------------------------------
-      // PASO 5: GENERAR PDF EN ISOLATE (OTRO HILO)
-      // ---------------------------------------------------------
-      debugPrint("🧵 ISOLATE: Generando PDF en segundo plano...");
-
-      final pdfBytes = await compute(generatePdfEntryPoint, params);
-
-      debugPrint("✅ PDF Generado (${pdfBytes.lengthInBytes / 1024} KB).");
-
-      // ---------------------------------------------------------
-      // PASO 6: GUARDAR PDF LOCALMENTE Y SUBIR A STORAGE
-      // ---------------------------------------------------------
-      String? pdfUrlSubido;
-      String? pdfPathLocal;
-
-      // 6.1 Guardar PDF localmente primero (siempre funciona)
-      try {
-        final directory = await getApplicationDocumentsDirectory();
-        final nombreArchivo = "reporte_${reportData.numeroReporte}.pdf";
-        final localFile = File('${directory.path}/$nombreArchivo');
-        await localFile.writeAsBytes(pdfBytes);
-        pdfPathLocal = localFile.path;
-        debugPrint("💾 PDF guardado localmente: $pdfPathLocal");
-      } catch (e) {
-        debugPrint("❌ Error guardando PDF local: $e");
-        _errorMessage = "No se pudo guardar el PDF localmente.";
-        _isSaving = false;
-        notifyListeners();
-        return false;
-      }
-
-      // 6.2 Intentar subir a Storage (puede fallar sin conexión)
-      try {
-        final supabase = Supabase.instance.client;
-        final nombreArchivo = "reporte_${reportData.numeroReporte}.pdf";
-        final pathStorage = "$activityId/$nombreArchivo";
-
-        debugPrint("☁️ Subiendo PDF a Storage...");
-        await supabase.storage
-            .from('reportes')
-            .uploadBinary(
-              pathStorage,
-              pdfBytes,
-              fileOptions: const FileOptions(upsert: true),
-            );
-
-        pdfUrlSubido = supabase.storage
-            .from('reportes')
-            .getPublicUrl(pathStorage);
-        debugPrint("🔗 URL PDF: $pdfUrlSubido");
-      } catch (e) {
-        debugPrint("⚠️ Error subiendo PDF (modo offline): $e");
-        // PDF se subirá después con el sync automático
-        // pdfUrlSubido queda null, pero tenemos pdfPathLocal
-      }
-
-      // ---------------------------------------------------------
-      // PASO 7: MARCAR COMO FINALIZADO
-      // ---------------------------------------------------------
-      // Guardamos con la URL si la tenemos, o con path local si no
-      await _persistirDatos(
-        esBorrador: false,
-        pdfUrlFinal: pdfUrlSubido,
-        pdfPathLocal: pdfUrlSubido == null ? pdfPathLocal : null,
-      );
-
-      // Sync final para subir el estado finalizado a la nube
-      // SIEMPRE intentar, incluso si el sync previo falló (puede haber conexión ahora)
-      _syncService
-          .sincronizarTodo()
-          .then((_) async {
-            // Después del sync, recargar el número por si Supabase lo generó
-            if (!_disposed) await recargarNumeroDesdeDB();
-          })
-          .catchError((e) {
-            debugPrint("Sync final Error: $e");
-          });
-
-      // ---------------------------------------------------------
-      // PASO 8: LIMPIEZA DE MEMORIA (GARBAGE COLLECTION MANUAL)
-      // ---------------------------------------------------------
-      // Solo limpiamos si todo salió bien. Así liberamos RAM agresivamente.
-      debugPrint("🧹 ÉXITO: Liberando memoria de fotos...");
-      fotosPorPregunta.clear();
-      fotosGenerales.clear();
-      participantes.clear();
-      // _items.clear(); // Descomenta si no vas a reusar la lista de items
-
-      return true;
     } catch (e) {
       _errorMessage = "Error al finalizar: $e";
+      _isSaving = false;
       debugPrint("❌ ERROR CRÍTICO: $e");
-      // NOTA: No limpiamos las fotos aquí para que el usuario pueda reintentar.
       return false;
     } finally {
-      _isSaving = false;
-      notifyListeners();
+      if (_isSaving) {
+        _isSaving = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -761,7 +794,8 @@ class InspectionFormController extends ChangeNotifier {
 
     String? numeroFinal = numeroInformeController.text.trim();
     // No guardar estimados (~) ni legacy como numero_reporte en SQLite
-    final bool esNumeroNoReal = numeroFinal.isEmpty ||
+    final bool esNumeroNoReal =
+        numeroFinal.isEmpty ||
         numeroFinal == "Pendiente..." ||
         numeroFinal == "Pendiente" ||
         numeroFinal.startsWith("~");
@@ -793,7 +827,9 @@ class InspectionFormController extends ChangeNotifier {
       'contratista_id': contratistaId,
       'embarcacion_id': embarcacionId,
       'fecha_realizacion': DateTime.now().toIso8601String(),
-      'numero_reporte': (numeroFinal != null && numeroFinal.isNotEmpty) ? numeroFinal : null,
+      'numero_reporte': (numeroFinal != null && numeroFinal.isNotEmpty)
+          ? numeroFinal
+          : null,
       'numero_seguimiento': _numeroSeguimiento,
       'pdf_url': pdfUrlFinal,
       'pdf_path_local': pdfPathLocal, // Para sync posterior cuando no hay red
