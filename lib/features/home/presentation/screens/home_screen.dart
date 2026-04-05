@@ -1,17 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:jf_innova_app/features/admin/presentation/screens/master_data_admin_screen.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:jf_innova_app/core/theme/app_theme.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/draft_list_widget.dart';
-import '../widgets/module_selector_grid.dart'; // <--- IMPORTA TU NUEVO WIDGET
+import '../widgets/module_selector_grid.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
-import '../../../inspection/presentation/screens/inspection_setup_screen.dart';
 import '../../../history/presentation/screens/history_screen.dart';
-import '../../../visits/presentation/screens/visit_form_screen.dart'; // Importa la pantalla de visitas
-import '../../../extintores/presentation/screens/extintor_form_screen.dart';
-import '../../../tickets/presentation/screens/ticket_list_screen.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -233,48 +227,31 @@ class _HomeScreenState extends State<HomeScreen> {
 
                         SizedBox(height: estaVacio ? 50 : 20),
 
-                        // --- AQUÍ ESTÁ EL CAMBIO: LA NUEVA GRILLA ---
+                        // --- GRILLA DINÁMICA DE MÓDULOS ---
                         ModuleSelectorGrid(
-                          onInspeccionTap: () {
+                          modules: _controller.enabledModules,
+                          onModuleTap: (mod) {
+                            if (mod.isPlaceholder) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("Próximamente..."),
+                                ),
+                              );
+                              return;
+                            }
                             Navigator.push(
                               context,
-                              MaterialPageRoute(
-                                builder: (_) => const InspectionSetupScreen(),
-                              ),
-                            ).then((_) => _controller.cargarBorradores());
-                          },
-                          onVisitaTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const VisitFormScreen(),
-                              ),
-                            ).then((_) => _controller.cargarBorradores());
-                          },
-                          onExtintoresTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ExtintorFormScreen(),
-                              ),
-                            ).then((_) => _controller.cargarBorradores());
-                          },
-                          onRendicionTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text("Próximamente...")),
-                            );
+                              MaterialPageRoute(builder: mod.screenBuilder),
+                            ).then((_) {
+                              _controller.cargarBorradores();
+                              _controller.cargarNotificacionesTickets();
+                            });
                           },
                         ),
 
                         // --------------------------------------------
                         const SizedBox(height: 40),
 
-                        // // BOTÓN DE ADMINISTRACIÓN (RENDERIZADO CONDICIONAL - RBAC)
-                        // // Asume que agregas 'bool get esAdmin => true;' (por ahora) en HomeController
-                        // if (_controller.esAdmin) ...[
-                        //   _buildAdminButton(context),
-                        //   const SizedBox(height: 40),
-                        // ],
                         DraftListWidget(controller: _controller),
 
                         const SizedBox(height: 80),
@@ -287,138 +264,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Panel de Administración (Visible solo para administradores)
-  // ---------------------------------------------------------------------------
-  Widget _buildAdminButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () {
-          // NAVEGACIÓN REAL AL MÓDULO DE ADMIN
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const MasterDataAdminScreen(),
-            ),
-          );
-        },
-        icon: const Icon(Icons.admin_panel_settings),
-        label: const Text(
-          'Administración de Datos Maestros',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.red.shade700,
-          side: BorderSide(color: Colors.red.shade200, width: 2),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Panel de acceso rápido al módulo de Tickets
-  // ---------------------------------------------------------------------------
-
-  Widget _buildTicketsPanel(BuildContext context) {
-    final count = _controller.ticketsAbiertos;
-    final hasTickets = count > 0;
-
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.hardEdge,
-      child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const TicketListScreen()),
-        ).then((_) => _controller.cargarNotificacionesTickets()),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: hasTickets ? Colors.red.shade50 : Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: hasTickets ? Colors.red.shade200 : Colors.grey.shade200,
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: hasTickets
-                        ? Colors.red.shade100
-                        : AppTheme.primaryBlue.withOpacity(0.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.confirmation_number_outlined,
-                    color: hasTickets
-                        ? Colors.red.shade700
-                        : AppTheme.primaryBlue,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Tickets',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        hasTickets
-                            ? '$count ticket(s) abierto(s)'
-                            : 'Sin tickets pendientes',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (hasTickets) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade600,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '$count',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 

@@ -1,22 +1,20 @@
 import 'package:flutter/material.dart';
-import '../../../../core/theme/app_theme.dart';
+import '../../../../core/modules/module_registry.dart';
 
 class ModuleSelectorGrid extends StatelessWidget {
-  final VoidCallback onInspeccionTap;
-  final VoidCallback onVisitaTap;
-  final VoidCallback onExtintoresTap;
-  final VoidCallback onRendicionTap;
+  final List<ModuleDefinition> modules;
+  final void Function(ModuleDefinition) onModuleTap;
 
   const ModuleSelectorGrid({
     super.key,
-    required this.onInspeccionTap,
-    required this.onVisitaTap,
-    required this.onExtintoresTap,
-    required this.onRendicionTap,
+    required this.modules,
+    required this.onModuleTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (modules.isEmpty) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -31,54 +29,25 @@ class ModuleSelectorGrid extends StatelessWidget {
             ),
           ),
         ),
-
-        // AQUÍ ESTÁ LA MAGIA DE LA GRILLA
         GridView.count(
-          shrinkWrap: true, // Ocupa solo el espacio necesario
-          physics:
-              const NeverScrollableScrollPhysics(), // No hace scroll propio
-          crossAxisCount: 2, // 2 Columnas
-          mainAxisSpacing: 15, // Espacio vertical
-          crossAxisSpacing: 15, // Espacio horizontal
-          childAspectRatio: 1.1, // Relación Ancho/Alto (más cuadrado)
-          children: [
-            // 1. INSPECCIÓN
-            _ModuleCard(
-              title: "Nueva Inspección",
-              subtitle: "Barcos / Buceo",
-              icon: Icons.assignment_turned_in,
-              color: AppTheme.primaryBlue,
-              onTap: onInspeccionTap,
-            ),
-
-            // 2. VISITA TÉCNICA
-            _ModuleCard(
-              title: "Registro de Visita",
-              subtitle: "R-003",
-              icon: Icons.location_city,
-              color: Colors.teal,
-              onTap: onVisitaTap,
-            ),
-
-            // 3. EXTINTORES
-            _ModuleCard(
-              title: "Inspección Extintores",
-              subtitle: "VISITA-R004",
-              icon: Icons.fire_extinguisher,
-              color: Colors.red.shade700,
-              onTap: onExtintoresTap,
-            ),
-
-            // 4. RENDICIONES (Deshabilitado por ahora)
-            _ModuleCard(
-              title: "Rendiciones",
-              subtitle: "Gastos",
-              icon: Icons.receipt_long,
-              color: Colors.orange,
-              onTap: onRendicionTap,
-              isDisabled: true,
-            ),
-          ],
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          mainAxisSpacing: 15,
+          crossAxisSpacing: 15,
+          childAspectRatio: 1.1,
+          children: modules
+              .map(
+                (mod) => _ModuleCard(
+                  title: mod.title,
+                  subtitle: mod.subtitle,
+                  icon: mod.icon,
+                  color: mod.color,
+                  isDisabled: mod.isPlaceholder,
+                  onTap: () => onModuleTap(mod),
+                ),
+              )
+              .toList(),
         ),
       ],
     );

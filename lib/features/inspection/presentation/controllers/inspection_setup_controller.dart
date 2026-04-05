@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/database/database_helper.dart';
+import '../../../../core/services/user_session.dart';
 import '../../../sync/services/sync_service.dart';
 import '../../data/repositories/local_inspection_repository.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -77,7 +78,10 @@ class InspectionSetupController extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
-      final areasData = await _dbHelper.getAreas();
+      final empresaId = UserSession().empresaId;
+      final areasData = empresaId != null
+          ? await _dbHelper.getAreasByEmpresa(empresaId)
+          : await _dbHelper.getAreas();
       final contratistasData = await _dbHelper.getContratistas();
 
       _areas = areasData;

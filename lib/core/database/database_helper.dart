@@ -7,7 +7,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      35; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      36; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -104,6 +104,19 @@ class DatabaseHelper {
     );
     await db.execute(
       'CREATE TABLE empresas (id TEXT PRIMARY KEY, nombre TEXT)',
+    );
+    await db.execute('''
+      CREATE TABLE empresa_modulos (
+        id TEXT PRIMARY KEY,
+        empresa_id TEXT NOT NULL,
+        modulo_key TEXT NOT NULL,
+        habilitado INTEGER NOT NULL DEFAULT 1,
+        orden INTEGER NOT NULL DEFAULT 0,
+        subido INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_empresa_modulo ON empresa_modulos(empresa_id, modulo_key)',
     );
     // Agregamos matricula aquí también por si acaso
     await db.execute(
@@ -773,6 +786,24 @@ class DatabaseHelper {
       await _safeAddColumn(db, 'usuarios', 'empresa_id', 'TEXT');
       debugPrint("✅ Parche v35 aplicado.");
     }
+
+    if (oldVersion < 36) {
+      debugPrint("🚀 Aplicando parche v36 (empresa_modulos)...");
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS empresa_modulos (
+          id TEXT PRIMARY KEY,
+          empresa_id TEXT NOT NULL,
+          modulo_key TEXT NOT NULL,
+          habilitado INTEGER NOT NULL DEFAULT 1,
+          orden INTEGER NOT NULL DEFAULT 0,
+          subido INTEGER NOT NULL DEFAULT 1
+        )
+      ''');
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_empresa_modulo ON empresa_modulos(empresa_id, modulo_key)',
+      );
+      debugPrint("✅ Parche v36 aplicado.");
+    }
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -899,6 +930,13 @@ class DatabaseHelper {
         // <-- AGREGAR ESTO
         row['nombre'] = item['nombre'];
         row['empresa_id'] = item['empresa_id'];
+      } else if (tabla == 'empresa_modulos') {
+        row['empresa_id'] = item['empresa_id'];
+        row['modulo_key'] = item['modulo_key'];
+        row['habilitado'] =
+            (item['habilitado'] == true || item['habilitado'] == 1) ? 1 : 0;
+        row['orden'] = item['orden'] ?? 0;
+        row['subido'] = 1;
       } else {
         row['nombre'] = item['nombre'];
       }
@@ -1026,6 +1064,28 @@ class DatabaseHelper {
       where:
           'eliminado = 0 AND numero_reporte IS NOT NULL AND numero_reporte != ""',
       orderBy: 'fecha_realizacion DESC',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getAreasByEmpresa(String empresaId) async {
+    final db = await instance.database;
+    return await db.query(
+      'areas',
+      where: 'empresa_id = ?',
+      whereArgs: [empresaId],
+      orderBy: 'nombre',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getModulosHabilitados(
+    String empresaId,
+  ) async {
+    final db = await instance.database;
+    return await db.query(
+      'empresa_modulos',
+      where: 'empresa_id = ? AND habilitado = 1',
+      whereArgs: [empresaId],
+      orderBy: 'orden',
     );
   }
 }

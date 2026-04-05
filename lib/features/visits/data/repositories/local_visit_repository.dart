@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../../../core/database/database_helper.dart';
+import '../../../../core/services/user_session.dart';
 import '../../domain/models/visit_model.dart';
 import '../../domain/models/visita_respuesta.dart';
 import 'package:uuid/uuid.dart';
@@ -9,8 +10,12 @@ import 'dart:convert';
 class LocalVisitRepository {
   final dbHelper = DatabaseHelper.instance;
 
-  // Obtener Regiones (Áreas)
+  // Obtener Regiones (Áreas) filtradas por empresa del usuario
   Future<List<Map<String, dynamic>>> getRegiones() async {
+    final empresaId = UserSession().empresaId;
+    if (empresaId != null) {
+      return await dbHelper.getAreasByEmpresa(empresaId);
+    }
     return await dbHelper.getAreas();
   }
 

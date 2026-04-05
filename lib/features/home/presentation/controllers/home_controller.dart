@@ -5,6 +5,8 @@ import '../../../sync/services/sync_service.dart';
 import '../../../inspection/data/repositories/local_inspection_repository.dart';
 import '../../../../core/database/database_helper.dart';
 import '../../../../core/services/connectivity_service.dart';
+import '../../../../core/services/user_session.dart';
+import '../../../../core/modules/module_registry.dart';
 import '../../../visits/data/repositories/local_visit_repository.dart';
 import '../../../tickets/data/repositories/local_ticket_repository.dart';
 import '../../../extintores/data/repositories/local_extintor_repository.dart';
@@ -25,6 +27,16 @@ class HomeController extends ChangeNotifier {
   bool get esAdmin => _isAdminUser;
 
   String nombreUsuario = 'Cargando...';
+
+  // Módulos habilitados para la empresa del usuario
+  List<String> _enabledModuleKeys = [];
+
+  List<ModuleDefinition> get enabledModules {
+    return ModuleRegistry.all.where((m) {
+      if (m.requiresAdmin && !esAdmin) return false;
+      return _enabledModuleKeys.contains(m.moduleKey);
+    }).toList();
+  }
 
   // Variables de Sincronización
   bool isSyncing = false;
@@ -129,9 +141,10 @@ class HomeController extends ChangeNotifier {
       }
 
       // 3. Disparamos la sincronización en background para limpiar Supabase
-      _syncService.sincronizarTodo().catchError(
-        (e) => debugPrint("Sync error: $e"),
-      );
+      _syncService.sincronizarTodo().catchError((Object e) {
+        debugPrint("Sync error: $e");
+        return 0;
+      });
     }
 
     // 4. Refrescamos la UI
@@ -142,57 +155,52 @@ class HomeController extends ChangeNotifier {
   Future<void> _cargarPerfil() async {
     if (user == null) {
       nombreUsuario = 'Usuario';
-      _isAdminUser = false; // Seguridad por defecto
+      _isAdminUser = false;
       _safeNotify();
       return;
     }
 
     try {
-      final db = await DatabaseHelper.instance.database;
+      // Cargar UserSession si aún no está cargado
+      if (!UserSession().isLoaded) {
+        await UserSession().loadFromSQLite(user!.id);
+      }
 
-      // Query ultra-rápida y directa a SQLite. Nada de JOINs.
-      final List<Map<String, dynamic>> localUser = await db.query(
-        'usuarios',
-        columns: ['nombre_completo', 'nombre_rol'],
-        where: 'id = ?',
-        whereArgs: [user!.id],
-        limit: 1,
+      final session = UserSession();
+      nombreUsuario = session.nombreCompleto ?? user!.email ?? 'Usuario';
+      _isAdminUser = session.esAdmin;
+
+      debugPrint(
+        '👤 Perfil cargado via UserSession: $nombreUsuario | Admin: $_isAdminUser',
       );
 
-      if (localUser.isNotEmpty) {
-        final userData = localUser.first;
-
-        // 1. Asignar Nombre
-        nombreUsuario =
-            userData['nombre_completo'] ??
-            user!.userMetadata?['nombre_completo'] ??
-            user!.email ??
-            'Usuario';
-
-        // 2. Asignar Rol (Normalizamos a minúsculas y sin espacios extra para evitar errores tontos de tipeo en BD)
-        final String nombreRol = (userData['nombre_rol']?.toString() ?? '')
-            .toLowerCase()
-            .trim();
-
-        // 3. Validación de permisos
-        _isAdminUser = (nombreRol == 'administrador' || nombreRol == 'admin');
-
-        debugPrint(
-          '👤 Perfil cargado (Offline): $nombreUsuario | Admin: $_isAdminUser ($nombreRol)',
-        );
-      } else {
-        // Fallback si SQLite no tiene al usuario aún (ej. app recién instalada y sync en proceso)
-        nombreUsuario =
-            user!.userMetadata?['nombre_completo'] ?? user!.email ?? 'Usuario';
-        _isAdminUser = false;
-      }
+      // Cargar módulos habilitados para la empresa
+      await _cargarModulosHabilitados();
     } catch (e) {
-      debugPrint("⚠️ Error leyendo perfil desde SQLite: $e");
+      debugPrint("⚠️ Error leyendo perfil: $e");
       nombreUsuario = user!.email ?? 'Usuario';
-      _isAdminUser = false; // Ante la duda, se bloquea el acceso
+      _isAdminUser = false;
+      _enabledModuleKeys = List.from(ModuleRegistry.defaultModuleKeys);
     } finally {
       _safeNotify();
     }
+  }
+
+  Future<void> _cargarModulosHabilitados() async {
+    final empresaId = UserSession().empresaId;
+    if (empresaId == null) {
+      _enabledModuleKeys = List.from(ModuleRegistry.defaultModuleKeys);
+      return;
+    }
+
+    final rows = await DatabaseHelper.instance.getModulosHabilitados(empresaId);
+    if (rows.isEmpty) {
+      // Sin configuración → mostrar módulos default
+      _enabledModuleKeys = List.from(ModuleRegistry.defaultModuleKeys);
+    } else {
+      _enabledModuleKeys = rows.map((r) => r['modulo_key'] as String).toList();
+    }
+    debugPrint('📦 Módulos habilitados: $_enabledModuleKeys');
   }
 
   // --- SINCRONIZACIÓN ---
@@ -257,7 +265,7 @@ class HomeController extends ChangeNotifier {
 
   Future<void> cerrarSesion(BuildContext context) async {
     try {
-      // Limpiar caché local si fuera necesario en el futuro (opcional)
+      UserSession().clear();
       await Supabase.instance.client.auth.signOut();
     } catch (e) {
       debugPrint("❌ Error cerrando sesión: $e");

@@ -4,6 +4,7 @@ import 'package:jf_innova_app/core/theme/app_theme.dart';
 import '../../services/master_data_batch_service.dart';
 import '../controllers/batch_draft_controller.dart';
 import 'master_data_form_modal.dart'; // Ajusta si el modal está en otra subcarpeta
+import 'empresa_modulos_screen.dart';
 
 class MasterDataAdminScreen extends StatefulWidget {
   const MasterDataAdminScreen({super.key});
@@ -45,6 +46,18 @@ class _MasterDataAdminScreenState extends State<MasterDataAdminScreen> {
         title: const Text('Admin. Datos Maestros'),
         backgroundColor: AppTheme.primaryBlue,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.toggle_on_outlined),
+            tooltip: 'Módulos por Empresa',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const EmpresaModulosScreen()),
+              );
+            },
+          ),
+        ],
       ),
       body: ListenableBuilder(
         listenable: _batchController,

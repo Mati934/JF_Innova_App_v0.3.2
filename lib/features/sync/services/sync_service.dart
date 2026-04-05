@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/database/database_helper.dart';
 import '../../../core/utils/rut_utils.dart';
+import '../../../core/services/user_session.dart';
 import '../../../features/tickets/data/repositories/supabase_ticket_repository.dart';
 import '../../../features/inspection/services/deferred_pdf_service.dart';
 import 'dart:convert';
@@ -17,8 +18,16 @@ class SyncService {
   // --- 1. DESCARGAR DATOS MAESTROS (Down-Sync) ---
   Future<void> descargarDatosMaestros() async {
     try {
+      final empresaId = UserSession().empresaId;
+
       final results = await Future.wait([
-        _supabase.from('areas').select('id, nombre, empresa_id'),
+        // Filtrar áreas por empresa si hay empresa_id
+        empresaId != null
+            ? _supabase
+                  .from('areas')
+                  .select('id, nombre, empresa_id')
+                  .eq('empresa_id', empresaId)
+            : _supabase.from('areas').select('id, nombre, empresa_id'),
         _supabase.from('centros').select('id, nombre, area_id'),
         _supabase.from('contratistas').select('id, nombre'),
         _supabase
@@ -36,6 +45,13 @@ class SyncService {
             .select(
               'id, rut, nombre_completo, email, rol_id, telefono, empresa_id, roles (nombre)',
             ),
+        // Descargar módulos habilitados para esta empresa
+        empresaId != null
+            ? _supabase
+                  .from('empresa_modulos')
+                  .select('id, empresa_id, modulo_key, habilitado, orden')
+                  .eq('empresa_id', empresaId)
+            : Future.value(<Map<String, dynamic>>[]),
       ]);
 
       await _dbHelper.guardarMaestros(
@@ -77,6 +93,12 @@ class SyncService {
       // Descargar tickets abiertos/en proceso desde Supabase
       await _ticketRepo.descargarTicketsDesdeSupabase();
 
+      // Guardar módulos habilitados por empresa
+      final modulosData = List<Map<String, dynamic>>.from(results[9]);
+      if (modulosData.isNotEmpty) {
+        await _dbHelper.guardarMaestros('empresa_modulos', modulosData);
+      }
+
       debugPrint(
         "✅ Datos maestros actualizados offline (Sin tocar al usuario).",
       );
@@ -104,7 +126,10 @@ class SyncService {
       // 4. Subir Tickets pendientes
       await _ticketRepo.syncTicketsHaciaSupabase();
 
-      // 5. Generar PDFs diferidos (inspecciones finalizadas offline)
+      // 5. Subir configuración de módulos por empresa
+      await _sincronizarEmpresaModulos();
+
+      // 6. Generar PDFs diferidos (inspecciones finalizadas offline)
       await _generarPdfsDiferidos();
 
       return actividadesSubidas + visitasSubidas;
@@ -922,6 +947,9 @@ class SyncService {
         debugPrint(
           "✅ Perfil de usuario hidratado en SQLite desde SyncService.",
         );
+
+        // Cargar UserSession singleton para acceso rápido en toda la app
+        await UserSession().loadFromSQLite(userId);
       } else {
         throw Exception("Perfil de usuario no encontrado en la base de datos.");
       }
@@ -941,13 +969,49 @@ class SyncService {
     }
   }
 
-  // --- 5. GENERACIÓN DE PDFs DIFERIDOS (Opción C) ---
+  // --- 5. SINCRONIZACIÓN DE MÓDULOS POR EMPRESA ---
+  Future<void> _sincronizarEmpresaModulos() async {
+    try {
+      final db = await _dbHelper.database;
+      final pendientes = await db.query('empresa_modulos', where: 'subido = 0');
+
+      if (pendientes.isEmpty) return;
+
+      for (var row in pendientes) {
+        try {
+          await _supabase.from('empresa_modulos').upsert({
+            'id': row['id'],
+            'empresa_id': row['empresa_id'],
+            'modulo_key': row['modulo_key'],
+            'habilitado': (row['habilitado'] as int) == 1,
+            'orden': row['orden'],
+          });
+
+          await db.update(
+            'empresa_modulos',
+            {'subido': 1},
+            where: 'id = ?',
+            whereArgs: [row['id']],
+          );
+        } catch (e) {
+          debugPrint("⚠️ Error sincronizando módulo ${row['modulo_key']}: $e");
+        }
+      }
+
+      debugPrint("✅ ${pendientes.length} módulos de empresa sincronizados.");
+    } catch (e) {
+      debugPrint("⚠️ Error en _sincronizarEmpresaModulos: $e");
+    }
+  }
+
+  // --- 6. GENERACIÓN DE PDFs DIFERIDOS (Opción C) ---
   Future<void> _generarPdfsDiferidos() async {
     try {
       final db = await _dbHelper.database;
       final pendientes = await db.query(
         'actividades_pendientes',
-        where: "estado_final = 'En Seguimiento' AND "
+        where:
+            "estado_final = 'En Seguimiento' AND "
             "(pdf_path_local IS NULL OR pdf_path_local = '') AND "
             "(pdf_url IS NULL OR pdf_url = '') AND "
             "eliminado = 0 AND "

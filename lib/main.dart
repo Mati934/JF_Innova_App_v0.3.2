@@ -10,6 +10,7 @@ import 'core/config/supabase_config.dart';
 import 'core/theme/app_theme.dart';
 import 'core/database/database_helper.dart'; // Para el chequeo de supervivencia offline
 import 'core/services/connectivity_service.dart';
+import 'core/services/user_session.dart';
 import 'features/home/presentation/screens/home_screen.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/sync/services/sync_service.dart';
@@ -178,6 +179,7 @@ class _AuthGateState extends State<AuthGate> {
           if (mounted) setState(() => _isLoading = false);
         }
       } else if (event == AuthChangeEvent.signedOut || session == null) {
+        UserSession().clear();
         if (mounted) setState(() => _isLoading = false);
       }
     });
