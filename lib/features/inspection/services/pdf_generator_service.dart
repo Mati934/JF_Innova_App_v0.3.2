@@ -228,13 +228,9 @@ class PdfGeneratorService {
   }
 
   List<pw.Widget> _buildCategorizedChecklists(InspectionReportData data) {
-    Map<String, List<dynamic>> groupedItems = {};
-    final categoryOrder = [
-      'EQUIPO PERSONAL',
-      'EQUIPO DE BUCEO',
-      'SEGURIDAD Y APOYO',
-    ];
-
+    // Agrupar items por categoría preservando el orden de `orden ASC`
+    // (data.items ya viene ordenado por orden, LinkedHashMap preserva insertion order)
+    final Map<String, List<dynamic>> groupedItems = {};
     for (var item in data.items) {
       if (!groupedItems.containsKey(item.categoria))
         groupedItems[item.categoria] = [];
@@ -244,12 +240,7 @@ class PdfGeneratorService {
     List<pw.Widget> widgets = [];
     int globalCounter = 1;
 
-    final categoriesToRender = categoryOrder
-        .where((c) => groupedItems.containsKey(c))
-        .toList();
-    for (var k in groupedItems.keys) {
-      if (!categoriesToRender.contains(k)) categoriesToRender.add(k);
-    }
+    final categoriesToRender = groupedItems.keys.toList();
 
     for (var category in categoriesToRender) {
       final items = groupedItems[category]!;
@@ -617,12 +608,17 @@ class PdfGeneratorService {
         : PdfColors.green800;
     final PdfColor bgEstado = esCritico ? PdfColors.red100 : PdfColors.green100;
 
-    // 🟢 MATEMÁTICAS ESTRICTAS: Solo evaluar lo aplicable
-    int totalAplicable = data.totalCumple + data.totalNoCumple;
+    // 🟢 MATEMÁTICAS ESTRICTAS: Porcentaje usa pesos, display usa conteos
+    double totalPesoAplicable = data.sumPesoCumple + data.sumPesoNoCumple;
 
-    String pct(int count) {
-      if (totalAplicable == 0) return "0%";
-      return "${((count / totalAplicable) * 100).round()}%";
+    String pctCumple() {
+      if (totalPesoAplicable == 0) return "0%";
+      return "${((data.sumPesoCumple / totalPesoAplicable) * 100).round()}%";
+    }
+
+    String pctNoCumple() {
+      if (totalPesoAplicable == 0) return "0%";
+      return "${((data.sumPesoNoCumple / totalPesoAplicable) * 100).round()}%";
     }
 
     // Helper ajustado para recibir el texto del porcentaje directamente
@@ -716,7 +712,7 @@ class PdfGeneratorService {
           statBox(
             "CUMPLE",
             data.totalCumple,
-            pct(data.totalCumple),
+            pctCumple(),
             PdfColors.green50,
             PdfColors.green200,
             PdfColors.green800,
@@ -724,7 +720,7 @@ class PdfGeneratorService {
           statBox(
             "NO CUMPLE",
             data.totalNoCumple,
-            pct(data.totalNoCumple),
+            pctNoCumple(),
             PdfColors.orange50,
             PdfColors.orange200,
             PdfColors.orange900,
@@ -882,22 +878,32 @@ class PdfGeneratorService {
     return widgets;
   }
 
+  static const String _pdfVersion = '0.1.0';
+
   pw.Widget _buildFooter(pw.Context context, InspectionReportData data) {
     return pw.Container(
       alignment: pw.Alignment.centerRight,
       margin: const pw.EdgeInsets.only(top: 5),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(
-            "Versión App: ${data.appVersion}",
-            style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey500),
-          ),
-          pw.Text(
-            "Generado por JF Innova App - Pág. ${context.pageNumber}/${context.pagesCount}",
-            style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey),
-          ),
-        ],
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(
+          top: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+        ),
+      ),
+      child: pw.Padding(
+        padding: const pw.EdgeInsets.only(top: 4),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(
+              "Generado por Servimaf  |  +56 9 8383 3177  |  v$_pdfVersion",
+              style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey400),
+            ),
+            pw.Text(
+              "Pág. ${context.pageNumber}/${context.pagesCount}",
+              style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey400),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1046,26 +1052,15 @@ class PdfGeneratorService {
   }
 
   pw.Widget _buildResumenNoCumple(InspectionReportData data) {
-    // 🟢 LÓGICA DE AGRUPAMIENTO Y NUMERACIÓN (Se mantiene igual)
+    // Agrupar por categoría preservando orden de `orden ASC`
     Map<String, List<InspectionItemDto>> groupedItems = {};
-    final categoryOrder = [
-      'EQUIPO PERSONAL',
-      'EQUIPO DE BUCEO',
-      'SEGURIDAD Y APOYO',
-    ];
-
     for (var item in data.items) {
       if (!groupedItems.containsKey(item.categoria))
         groupedItems[item.categoria] = [];
       groupedItems[item.categoria]!.add(item);
     }
 
-    final categoriesToRender = categoryOrder
-        .where((c) => groupedItems.containsKey(c))
-        .toList();
-    for (var k in groupedItems.keys) {
-      if (!categoriesToRender.contains(k)) categoriesToRender.add(k);
-    }
+    final categoriesToRender = groupedItems.keys.toList();
 
     int globalCounter = 1;
     List<Map<String, dynamic>> hallazgosNC = [];

@@ -4,9 +4,11 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/database/database_helper.dart';
 import '../../../../core/modules/module_registry.dart';
 import '../../../../core/services/user_session.dart';
+import '../../../sync/services/sync_service.dart';
 
 class EmpresaModulosScreen extends StatefulWidget {
-  const EmpresaModulosScreen({super.key});
+  final bool embedded;
+  const EmpresaModulosScreen({super.key, this.embedded = false});
 
   @override
   State<EmpresaModulosScreen> createState() => _EmpresaModulosScreenState();
@@ -33,11 +35,20 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
   Future<void> _cargarEmpresas() async {
     setState(() => _isLoading = true);
     try {
-      final empresas = await _dbHelper.getAllEmpresas();
-      setState(() {
-        _empresas = empresas;
-        _isLoading = false;
-      });
+      final session = UserSession();
+      if (session.esSuperAdmin) {
+        // Super-admin: ve todas las empresas
+        final empresas = await _dbHelper.getAllEmpresas();
+        setState(() {
+          _empresas = empresas;
+          _isLoading = false;
+        });
+      } else {
+        // Admin normal: solo su empresa, carga módulos directo
+        _selectedEmpresaId = session.empresaId;
+        _selectedEmpresaNombre = session.empresaNombre ?? 'Mi empresa';
+        await _cargarModulosDeEmpresa(_selectedEmpresaId!);
+      }
     } catch (e) {
       debugPrint('Error cargando empresas: $e');
       setState(() => _isLoading = false);
@@ -115,6 +126,13 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
 
       await batch.commit(noResult: true);
 
+      // Sincronizar inmediatamente a Supabase
+      try {
+        await SyncService().sincronizarEmpresaModulos();
+      } catch (e) {
+        debugPrint('⚠️ Error sincronizando módulos: $e');
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -140,6 +158,47 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final body = _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : _selectedEmpresaId == null
+        ? _buildEmpresaList()
+        : _buildModulosList();
+
+    if (widget.embedded) {
+      return Column(
+        children: [
+          Expanded(child: body),
+          if (_selectedEmpresaId != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+              child: SafeArea(
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _isSaving ? null : _guardarCambios,
+                    icon: _isSaving
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(Icons.save),
+                    label: Text(_isSaving ? 'Guardando...' : 'Guardar Cambios'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.deepPurple,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Módulos por Empresa'),
@@ -202,7 +261,7 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: Colors.deepPurple.withOpacity(0.1),
+              backgroundColor: Colors.deepPurple.withValues(alpha: 0.1),
               child: const Icon(Icons.business, color: Colors.deepPurple),
             ),
             title: Text(
@@ -211,8 +270,8 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
             ),
             subtitle: esEmpresaActual
                 ? const Text(
-                    'Tu empresa',
-                    style: TextStyle(color: Colors.deepPurple),
+                    'Empresa activa',
+                    style: TextStyle(color: Colors.deepPurple, fontSize: 12),
                   )
                 : null,
             trailing: const Icon(Icons.chevron_right),
@@ -230,6 +289,7 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
 
   Widget _buildModulosList() {
     final moduleDefs = ModuleRegistry.all;
+    final isSuperAdmin = UserSession().esSuperAdmin;
 
     return Column(
       children: [
@@ -237,19 +297,20 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
-          color: Colors.deepPurple.withOpacity(0.05),
+          color: Colors.deepPurple.withValues(alpha: 0.05),
           child: Row(
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () {
-                  setState(() {
-                    _selectedEmpresaId = null;
-                    _modulos = {};
-                  });
-                },
-              ),
-              const SizedBox(width: 8),
+              if (isSuperAdmin)
+                IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () {
+                    setState(() {
+                      _selectedEmpresaId = null;
+                      _modulos = {};
+                    });
+                  },
+                ),
+              if (isSuperAdmin) const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   _selectedEmpresaNombre,
@@ -276,7 +337,7 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
                 margin: const EdgeInsets.only(bottom: 8),
                 child: SwitchListTile(
                   secondary: CircleAvatar(
-                    backgroundColor: mod.color.withOpacity(0.1),
+                    backgroundColor: mod.color.withValues(alpha: 0.1),
                     child: Icon(mod.icon, color: mod.color, size: 20),
                   ),
                   title: Text(
@@ -285,7 +346,7 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
                   ),
                   subtitle: Text(mod.subtitle),
                   value: state.habilitado,
-                  activeColor: Colors.deepPurple,
+                  activeThumbColor: Colors.deepPurple,
                   onChanged: (value) {
                     setState(() {
                       _modulos[mod.moduleKey] = _ModuloState(

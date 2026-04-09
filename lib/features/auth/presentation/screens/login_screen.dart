@@ -70,7 +70,8 @@ class _LoginScreenState extends State<LoginScreen> {
       final data = await supabase
           .from('formulario_items')
           .select()
-          .eq('activo', true);
+          .eq('activo', true)
+          .order('orden');
       if (data.isNotEmpty) {
         await DatabaseHelper.instance.guardarItemsOffline(
           List<Map<String, dynamic>>.from(data),

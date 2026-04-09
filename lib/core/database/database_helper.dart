@@ -7,7 +7,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      37; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      40; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -63,7 +63,8 @@ class DatabaseHelper {
         orden INTEGER,
         activo INTEGER,
         info_adicional TEXT,
-        url_imagen_referencia TEXT
+        url_imagen_referencia TEXT,
+        peso REAL DEFAULT 1.0
       )
     ''');
 
@@ -97,13 +98,13 @@ class DatabaseHelper {
       'CREATE TABLE areas (id TEXT PRIMARY KEY, nombre TEXT, empresa_id TEXT)',
     );
     await db.execute(
-      'CREATE TABLE centros (id TEXT PRIMARY KEY, nombre TEXT, area_id TEXT)',
+      'CREATE TABLE centros (id TEXT PRIMARY KEY, nombre TEXT, area_id TEXT, subido INTEGER DEFAULT 1)',
     );
     await db.execute(
-      'CREATE TABLE contratistas (id TEXT PRIMARY KEY, nombre TEXT)',
+      'CREATE TABLE contratistas (id TEXT PRIMARY KEY, nombre TEXT, subido INTEGER DEFAULT 1)',
     );
     await db.execute(
-      'CREATE TABLE empresas (id TEXT PRIMARY KEY, nombre TEXT)',
+      'CREATE TABLE empresas (id TEXT PRIMARY KEY, nombre TEXT, es_administradora INTEGER DEFAULT 0)',
     );
     await db.execute('''
       CREATE TABLE empresa_modulos (
@@ -130,7 +131,7 @@ class DatabaseHelper {
     );
     // Agregamos matricula aquí también por si acaso
     await db.execute(
-      'CREATE TABLE embarcaciones (id TEXT PRIMARY KEY, nombre TEXT, contratista_id TEXT, matricula TEXT)',
+      'CREATE TABLE embarcaciones (id TEXT PRIMARY KEY, nombre TEXT, contratista_id TEXT, matricula TEXT, subido INTEGER DEFAULT 1)',
     );
 
     // 4. ACTIVIDADES PENDIENTES
@@ -836,6 +837,28 @@ class DatabaseHelper {
       ''');
       debugPrint("✅ Parche v37 aplicado.");
     }
+
+    if (oldVersion < 38) {
+      debugPrint(
+        "... Aplicando parche v38 (subido en centros/contratistas/embarcaciones)...",
+      );
+      await _safeAddColumn(db, 'centros', 'subido', 'INTEGER DEFAULT 1');
+      await _safeAddColumn(db, 'contratistas', 'subido', 'INTEGER DEFAULT 1');
+      await _safeAddColumn(db, 'embarcaciones', 'subido', 'INTEGER DEFAULT 1');
+      debugPrint("✅ Parche v38 aplicado.");
+    }
+
+    if (oldVersion < 39) {
+      debugPrint("🚀 Aplicando parche v39 (peso en formulario_items)...");
+      await _safeAddColumn(db, 'formulario_items', 'peso', 'REAL DEFAULT 1.0');
+      debugPrint("✅ Parche v39 aplicado.");
+    }
+
+    if (oldVersion < 40) {
+      debugPrint("🚀 Aplicando parche v40 (es_administradora en empresas)...");
+      await _safeAddColumn(db, 'empresas', 'es_administradora', 'INTEGER DEFAULT 0');
+      debugPrint("✅ Parche v40 aplicado.");
+    }
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -961,9 +984,11 @@ class DatabaseHelper {
         row['nombre'] = item['nombre'];
         row['contratista_id'] = item['contratista_id'];
         row['matricula'] = item['matricula'];
+        row['subido'] = 1;
       } else if (tabla == 'centros') {
         row['nombre'] = item['nombre'];
         row['area_id'] = item['area_id'];
+        row['subido'] = 1;
       } else if (tabla == 'areas') {
         // <-- AGREGAR ESTO
         row['nombre'] = item['nombre'];
@@ -978,6 +1003,13 @@ class DatabaseHelper {
       } else if (tabla == 'usuario_empresas') {
         row['usuario_id'] = item['usuario_id'];
         row['empresa_id'] = item['empresa_id'];
+      } else if (tabla == 'contratistas') {
+        row['nombre'] = item['nombre'];
+        row['subido'] = 1;
+      } else if (tabla == 'empresas') {
+        row['nombre'] = item['nombre'];
+        row['es_administradora'] =
+            (item['es_administradora'] == true || item['es_administradora'] == 1) ? 1 : 0;
       } else {
         row['nombre'] = item['nombre'];
       }
@@ -1076,6 +1108,7 @@ class DatabaseHelper {
         'activo': (item['activo'] == true) ? 1 : 0,
         'info_adicional': item['info_adicional'],
         'url_imagen_referencia': item['url_imagen_referencia'],
+        'peso': (item['peso'] as num?)?.toDouble() ?? 1.0,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
     await batch.commit(noResult: true);
@@ -1139,5 +1172,52 @@ class DatabaseHelper {
       whereArgs: [empresaId],
       orderBy: 'orden',
     );
+  }
+
+  // --- CRUD para datos maestros (Admin) ---
+
+  Future<void> insertCentro(String id, String nombre, String areaId) async {
+    final db = await database;
+    await db.insert('centros', {
+      'id': id,
+      'nombre': nombre,
+      'area_id': areaId,
+      'subido': 0,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> insertContratista(String id, String nombre) async {
+    final db = await database;
+    await db.insert('contratistas', {
+      'id': id,
+      'nombre': nombre,
+      'subido': 0,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> insertEmbarcacion(
+    String id,
+    String nombre,
+    String contratistaId,
+    String? matricula,
+  ) async {
+    final db = await database;
+    await db.insert('embarcaciones', {
+      'id': id,
+      'nombre': nombre,
+      'contratista_id': contratistaId,
+      'matricula': matricula,
+      'subido': 0,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingMasterData(String tabla) async {
+    final db = await database;
+    return await db.query(tabla, where: 'subido = 0');
+  }
+
+  Future<void> markMasterDataSynced(String tabla, String id) async {
+    final db = await database;
+    await db.update(tabla, {'subido': 1}, where: 'id = ?', whereArgs: [id]);
   }
 }

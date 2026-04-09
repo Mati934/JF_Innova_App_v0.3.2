@@ -34,9 +34,13 @@ class SyncService {
         _supabase
             .from('embarcaciones')
             .select('id, nombre, contratista_id, matricula'),
-        _supabase.from('formulario_items').select().eq('activo', true),
+        _supabase
+            .from('formulario_items')
+            .select()
+            .eq('activo', true)
+            .order('orden'),
         _supabase.from('personal_externo').select(),
-        _supabase.from('empresas').select('id, nombre'),
+        _supabase.from('empresas').select('id, nombre, es_administradora'),
         _supabase
             .from('ticket_categorias')
             .select('id, nombre, activo')
@@ -142,7 +146,11 @@ class SyncService {
   // --- 2. SUBIDA DE DATOS (Up-Sync) ---
   // --- 2. SUBIDA DE DATOS (Up-Sync) ---
   Future<int> sincronizarTodo() async {
+    int totalSubidas = 0;
     try {
+      // 0. Subir datos maestros creados localmente (ANTES de actividades por FK)
+      await _sincronizarMaestrosPendientes();
+
       // 1. Subir Inspecciones (Las que siguen usando la tabla actividades)
       int actividadesSubidas = await _sincronizarActividades();
 
@@ -159,14 +167,21 @@ class SyncService {
       // 5. Subir configuración de módulos por empresa
       await _sincronizarEmpresaModulos();
 
-      // 6. Generar PDFs diferidos (inspecciones finalizadas offline)
-      await _generarPdfsDiferidos();
-
-      return actividadesSubidas + visitasSubidas;
+      totalSubidas = actividadesSubidas + visitasSubidas;
     } catch (e) {
       debugPrint("❌ Error en sincronización global: $e");
-      return 0;
     }
+
+    // 6. Generar PDFs diferidos SIEMPRE (fuera del try/catch principal)
+    // Así se ejecuta aunque otros pasos de sync hayan fallado
+    try {
+      await _recuperarNumeroReporteFaltante();
+      await _generarPdfsDiferidos();
+    } catch (e) {
+      debugPrint("⚠️ Error en generación de PDFs diferidos: $e");
+    }
+
+    return totalSubidas;
   }
 
   Future<int> _sincronizarActividades() async {
@@ -1000,6 +1015,10 @@ class SyncService {
   }
 
   // --- 5. SINCRONIZACIÓN DE MÓDULOS POR EMPRESA ---
+
+  /// Método público para sincronizar módulos desde la pantalla de admin.
+  Future<void> sincronizarEmpresaModulos() => _sincronizarEmpresaModulos();
+
   Future<void> _sincronizarEmpresaModulos() async {
     try {
       final db = await _dbHelper.database;
@@ -1031,6 +1050,95 @@ class SyncService {
       debugPrint("✅ ${pendientes.length} módulos de empresa sincronizados.");
     } catch (e) {
       debugPrint("⚠️ Error en _sincronizarEmpresaModulos: $e");
+    }
+  }
+
+  /// Sube centros, contratistas y embarcaciones creados localmente (subido=0).
+  Future<void> _sincronizarMaestrosPendientes() async {
+    try {
+      // Contratistas primero (embarcaciones dependen de ellos)
+      await _syncTabla('contratistas', ['id', 'nombre']);
+      // Centros
+      await _syncTabla('centros', ['id', 'nombre', 'area_id']);
+      // Embarcaciones
+      await _syncTabla('embarcaciones', [
+        'id',
+        'nombre',
+        'contratista_id',
+        'matricula',
+      ]);
+    } catch (e) {
+      debugPrint("⚠️ Error en _sincronizarMaestrosPendientes: $e");
+    }
+  }
+
+  Future<void> _syncTabla(String tabla, List<String> campos) async {
+    final pendientes = await _dbHelper.getPendingMasterData(tabla);
+    if (pendientes.isEmpty) return;
+
+    for (var row in pendientes) {
+      try {
+        final payload = <String, dynamic>{};
+        for (final campo in campos) {
+          payload[campo] = row[campo];
+        }
+        await _supabase.from(tabla).upsert(payload);
+        await _dbHelper.markMasterDataSynced(tabla, row['id'] as String);
+      } catch (e) {
+        debugPrint("⚠️ Error sincronizando $tabla ${row['id']}: $e");
+      }
+    }
+    debugPrint("✅ $tabla: ${pendientes.length} registros sincronizados.");
+  }
+
+  // --- 5.5. RECUPERAR numero_reporte FALTANTE ---
+  // Inspecciones "En Seguimiento" que se sincronizaron pero nunca leyeron
+  // el numero_informe de vuelta (ej: sync parcial, trigger retrasado).
+  Future<void> _recuperarNumeroReporteFaltante() async {
+    try {
+      final db = await _dbHelper.database;
+      final stuck = await db.query(
+        'actividades_pendientes',
+        columns: ['id'],
+        where:
+            "estado_final = 'En Seguimiento' AND "
+            "(numero_reporte IS NULL OR numero_reporte = '') AND "
+            "eliminado = 0",
+      );
+
+      if (stuck.isEmpty) return;
+
+      debugPrint(
+        "🔍 ${stuck.length} inspecciones sin numero_reporte, consultando Supabase...",
+      );
+
+      for (var row in stuck) {
+        final activityId = row['id'] as String;
+        try {
+          final remote = await _supabase
+              .from('actividades')
+              .select('numero_informe')
+              .eq('id', activityId)
+              .maybeSingle();
+
+          final numero = remote?['numero_informe'];
+          if (numero != null && numero.toString().isNotEmpty) {
+            await db.update(
+              'actividades_pendientes',
+              {'numero_reporte': numero.toString()},
+              where: 'id = ?',
+              whereArgs: [activityId],
+            );
+            debugPrint("✅ numero_reporte recuperado para $activityId: $numero");
+          }
+        } catch (e) {
+          debugPrint(
+            "⚠️ Error recuperando numero_reporte para $activityId: $e",
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error en _recuperarNumeroReporteFaltante: $e");
     }
   }
 

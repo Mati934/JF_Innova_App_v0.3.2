@@ -1,27 +1,51 @@
 import 'package:flutter/material.dart';
-import 'package:jf_innova_app/core/database/database_helper.dart';
 import 'package:jf_innova_app/core/theme/app_theme.dart';
 import 'package:jf_innova_app/shared/widgets/custom_dropdown.dart';
 
-/// Definición de un tipo de filtro disponible.
-class _FilterDef {
+/// Definición pública de un tipo de filtro.
+class FilterDef {
   final String key;
   final String label;
   final IconData icon;
-  const _FilterDef(this.key, this.label, this.icon);
+
+  /// Items de texto a mostrar en el dropdown.
+  final List<String> items;
+
+  /// Si true, el dropdown tiene búsqueda.
+  final bool enableSearch;
+
+  /// Resuelve el texto visible → valor a guardar (por defecto identity).
+  final String Function(String displayName) resolveId;
+
+  /// Resuelve el valor guardado → texto visible (por defecto identity).
+  final String Function(String id) resolveDisplayName;
+
+  const FilterDef({
+    required this.key,
+    required this.label,
+    required this.icon,
+    required this.items,
+    this.enableSearch = false,
+    String Function(String)? resolveId,
+    String Function(String)? resolveDisplayName,
+  }) : resolveId = resolveId ?? _identity,
+       resolveDisplayName = resolveDisplayName ?? _identity;
+
+  static String _identity(String s) => s;
 }
 
-/// Widget para mostrarse como [showModalBottomSheet].
-/// Gestiona su estado local de filtros antes de emitirlos con [onApply].
-/// Los filtros se añaden uno a uno desde una lista dinámica cargada desde la BD.
+/// Widget genérico de filtros para [showModalBottomSheet].
+/// Acepta [filterDefs] con las definiciones de filtros disponibles.
 class CustomFilterSheet extends StatefulWidget {
   final Map<String, String> currentFilters;
   final Function(Map<String, String>) onApply;
+  final List<FilterDef> filterDefs;
 
   const CustomFilterSheet({
     super.key,
     required this.currentFilters,
     required this.onApply,
+    required this.filterDefs,
   });
 
   @override
@@ -31,125 +55,23 @@ class CustomFilterSheet extends StatefulWidget {
 class _CustomFilterSheetState extends State<CustomFilterSheet> {
   late Map<String, String> _localFilters;
 
-  // Datos cargados desde SQLite
-  List<Map<String, dynamic>> _empresas = [];
-  List<Map<String, dynamic>> _areas = [];
-  List<Map<String, dynamic>> _usuarios = [];
-  bool _isLoadingData = true;
-
   // Estado del panel "Agregar filtro"
   bool _showAddPanel = false;
   String? _pendingType;
-  String? _pendingId; // Valor real a guardar
-  String? _pendingDisplayName; // Texto visible en el dropdown
-
-  static const _criticidades = ['Bajo', 'Medio', 'Alto', 'Intolerable'];
-  static const _estados = ['Abierto', 'En Proceso', 'Cerrado'];
-
-  static const _filterDefs = <_FilterDef>[
-    _FilterDef('empresa_id', 'Empresa', Icons.business_rounded),
-    _FilterDef('area_id', 'Área', Icons.map_outlined),
-    _FilterDef('solicitante_id', 'Solicitante', Icons.person_rounded),
-    _FilterDef('criticidad', 'Criticidad', Icons.warning_amber_rounded),
-    _FilterDef('estado', 'Estado', Icons.flag_rounded),
-  ];
+  String? _pendingId;
+  String? _pendingDisplayName;
 
   @override
   void initState() {
     super.initState();
     _localFilters = Map<String, String>.from(widget.currentFilters);
-    _loadData();
   }
 
-  Future<void> _loadData() async {
+  FilterDef? _findDef(String key) {
     try {
-      final db = DatabaseHelper.instance;
-      final results = await Future.wait([
-        db.getAllEmpresas(),
-        db.getAreas(),
-        db.getAllUsuarios(),
-      ]);
-      if (mounted) {
-        setState(() {
-          _empresas = results[0];
-          _areas = results[1];
-          _usuarios = results[2];
-          _isLoadingData = false;
-        });
-      }
+      return widget.filterDefs.firstWhere((d) => d.key == key);
     } catch (_) {
-      if (mounted) setState(() => _isLoadingData = false);
-    }
-  }
-
-  // Devuelve los items de texto para mostrar en el CustomDropdown del tipo dado.
-  List<String> _itemsForType(String type) {
-    switch (type) {
-      case 'empresa_id':
-        return _empresas.map((e) => e['nombre'] as String).toList();
-      case 'area_id':
-        return _areas.map((e) => e['nombre'] as String).toList();
-      case 'solicitante_id':
-        return _usuarios.map((e) => e['nombre_completo'] as String).toList();
-      case 'criticidad':
-        return _criticidades;
-      case 'estado':
-        return _estados;
-      default:
-        return [];
-    }
-  }
-
-  // Resuelve el ID real a partir del texto visible seleccionado en el dropdown.
-  String _resolveId(String type, String displayName) {
-    switch (type) {
-      case 'empresa_id':
-        return _empresas.firstWhere(
-              (e) => e['nombre'] == displayName,
-              orElse: () => {'id': displayName},
-            )['id']
-            as String;
-      case 'area_id':
-        return _areas.firstWhere(
-              (e) => e['nombre'] == displayName,
-              orElse: () => {'id': displayName},
-            )['id']
-            as String;
-      case 'solicitante_id':
-        return _usuarios.firstWhere(
-              (e) => e['nombre_completo'] == displayName,
-              orElse: () => {'id': displayName},
-            )['id']
-            as String;
-      default:
-        // criticidad y estado se guardan tal cual (no son IDs)
-        return displayName;
-    }
-  }
-
-  // Resuelve el texto visible a partir del valor guardado en _localFilters.
-  String _resolveDisplayName(String key, String value) {
-    switch (key) {
-      case 'empresa_id':
-        return _empresas.firstWhere(
-              (e) => e['id'] == value,
-              orElse: () => {'nombre': value},
-            )['nombre']
-            as String;
-      case 'area_id':
-        return _areas.firstWhere(
-              (e) => e['id'] == value,
-              orElse: () => {'nombre': value},
-            )['nombre']
-            as String;
-      case 'solicitante_id':
-        return _usuarios.firstWhere(
-              (e) => e['id'] == value,
-              orElse: () => {'nombre_completo': value},
-            )['nombre_completo']
-            as String;
-      default:
-        return value;
+      return null;
     }
   }
 
@@ -198,18 +120,9 @@ class _CustomFilterSheetState extends State<CustomFilterSheet> {
         children: [
           _buildHeader(),
           const Divider(height: 28),
-          if (_isLoadingData)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: CircularProgressIndicator(),
-              ),
-            )
-          else ...[
-            _buildActiveFilters(),
-            const SizedBox(height: 8),
-            if (_showAddPanel) _buildAddPanel() else _buildAddButton(),
-          ],
+          _buildActiveFilters(),
+          const SizedBox(height: 8),
+          if (_showAddPanel) _buildAddPanel() else _buildAddButton(),
           const SizedBox(height: 20),
           FilledButton.icon(
             onPressed: () {
@@ -277,27 +190,27 @@ class _CustomFilterSheetState extends State<CustomFilterSheet> {
 
     return Column(
       children: _localFilters.entries.map((entry) {
-        final def = _filterDefs.firstWhere(
-          (d) => d.key == entry.key,
-          orElse: () =>
-              _FilterDef(entry.key, entry.key, Icons.filter_alt_rounded),
-        );
-        final displayName = _resolveDisplayName(entry.key, entry.value);
+        final def = _findDef(entry.key);
+        final displayName = def?.resolveDisplayName(entry.value) ?? entry.value;
+        final label = def?.label ?? entry.key;
+        final icon = def?.icon ?? Icons.filter_alt_rounded;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: AppTheme.primaryBlue.withOpacity(0.06),
+            color: AppTheme.primaryBlue.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.2)),
+            border: Border.all(
+              color: AppTheme.primaryBlue.withValues(alpha: 0.2),
+            ),
           ),
           child: Row(
             children: [
-              Icon(def.icon, size: 18, color: AppTheme.primaryBlue),
+              Icon(icon, size: 18, color: AppTheme.primaryBlue),
               const SizedBox(width: 8),
               Text(
-                '${def.label}: ',
+                '$label: ',
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
@@ -327,8 +240,7 @@ class _CustomFilterSheetState extends State<CustomFilterSheet> {
   }
 
   Widget _buildAddButton() {
-    // Ocultamos el botón si ya se agregaron todos los tipos disponibles
-    final tiposDisponibles = _filterDefs
+    final tiposDisponibles = widget.filterDefs
         .where((d) => !_localFilters.containsKey(d.key))
         .toList();
     if (tiposDisponibles.isEmpty) return const SizedBox.shrink();
@@ -347,9 +259,11 @@ class _CustomFilterSheetState extends State<CustomFilterSheet> {
   }
 
   Widget _buildAddPanel() {
-    final tiposDisponibles = _filterDefs
+    final tiposDisponibles = widget.filterDefs
         .where((d) => !_localFilters.containsKey(d.key))
         .toList();
+
+    final pendingDef = _pendingType != null ? _findDef(_pendingType!) : null;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -394,25 +308,26 @@ class _CustomFilterSheetState extends State<CustomFilterSheet> {
                   color: isSelected ? Colors.white : AppTheme.primaryBlue,
                   fontSize: 13,
                 ),
-                backgroundColor: AppTheme.primaryBlue.withOpacity(0.06),
-                side: BorderSide(color: AppTheme.primaryBlue.withOpacity(0.3)),
+                backgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.06),
+                side: BorderSide(
+                  color: AppTheme.primaryBlue.withValues(alpha: 0.3),
+                ),
                 showCheckmark: false,
               );
             }).toList(),
           ),
-          if (_pendingType != null) ...[
+          if (pendingDef != null) ...[
             const SizedBox(height: 4),
             CustomDropdown(
-              label: _filterDefs.firstWhere((d) => d.key == _pendingType).label,
-              enableSearch:
-                  _pendingType != 'criticidad' && _pendingType != 'estado',
-              items: _itemsForType(_pendingType!),
+              label: pendingDef.label,
+              enableSearch: pendingDef.enableSearch,
+              items: pendingDef.items,
               value: _pendingDisplayName,
               onChanged: (val) {
                 if (val != null) {
                   setState(() {
                     _pendingDisplayName = val;
-                    _pendingId = _resolveId(_pendingType!, val);
+                    _pendingId = pendingDef.resolveId(val);
                   });
                 }
               },

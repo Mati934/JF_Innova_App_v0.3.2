@@ -97,6 +97,68 @@ class _TicketListScreenState extends State<TicketListScreen> {
     }
   }
 
+  List<FilterDef> _buildTicketFilterDefs() {
+    const criticidades = ['Bajo', 'Medio', 'Alto', 'Intolerable'];
+    const estados = ['Abierto', 'En Proceso', 'Cerrado'];
+
+    return [
+      FilterDef(
+        key: 'empresa_id',
+        label: 'Empresa',
+        icon: Icons.business_rounded,
+        items: _empresasMap.values.toList(),
+        enableSearch: _empresasMap.length > 5,
+        resolveId: (name) => _empresasMap.entries
+            .firstWhere(
+              (e) => e.value == name,
+              orElse: () => MapEntry(name, name),
+            )
+            .key,
+        resolveDisplayName: (id) => _empresasMap[id] ?? id,
+      ),
+      FilterDef(
+        key: 'area_id',
+        label: 'Área',
+        icon: Icons.map_outlined,
+        items: _areasMap.values.toList(),
+        enableSearch: _areasMap.length > 5,
+        resolveId: (name) => _areasMap.entries
+            .firstWhere(
+              (e) => e.value == name,
+              orElse: () => MapEntry(name, name),
+            )
+            .key,
+        resolveDisplayName: (id) => _areasMap[id] ?? id,
+      ),
+      FilterDef(
+        key: 'solicitante_id',
+        label: 'Solicitante',
+        icon: Icons.person_rounded,
+        items: _usuariosMap.values.toList(),
+        enableSearch: true,
+        resolveId: (name) => _usuariosMap.entries
+            .firstWhere(
+              (e) => e.value == name,
+              orElse: () => MapEntry(name, name),
+            )
+            .key,
+        resolveDisplayName: (id) => _usuariosMap[id] ?? id,
+      ),
+      FilterDef(
+        key: 'criticidad',
+        label: 'Criticidad',
+        icon: Icons.warning_amber_rounded,
+        items: criticidades,
+      ),
+      FilterDef(
+        key: 'estado',
+        label: 'Estado',
+        icon: Icons.flag_rounded,
+        items: estados,
+      ),
+    ];
+  }
+
   void _openFilterSheet() {
     showModalBottomSheet(
       context: context,
@@ -106,6 +168,7 @@ class _TicketListScreenState extends State<TicketListScreen> {
       ),
       builder: (_) => CustomFilterSheet(
         currentFilters: _activeFilters,
+        filterDefs: _buildTicketFilterDefs(),
         onApply: (filters) {
           setState(() => _activeFilters = filters);
           _controller.applyFilters(filters);

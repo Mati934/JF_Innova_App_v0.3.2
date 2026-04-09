@@ -239,6 +239,7 @@ class DeferredPdfService {
       'formulario_items',
       where: 'tipo_actividad = ? AND activo = 1',
       whereArgs: [tipoActividad],
+      orderBy: 'orden ASC',
     );
 
     final respuestasDb = await db.query(
@@ -266,7 +267,9 @@ class DeferredPdfService {
     final List<Map<String, String>> fotosExtraPaths = [];
 
     // Obtener set de IDs de items del formulario
-    final Set<String> itemIds = itemsDb.map<String>((i) => i['id'] as String).toSet();
+    final Set<String> itemIds = itemsDb
+        .map<String>((i) => i['id'] as String)
+        .toSet();
 
     for (var foto in fotosDb) {
       final itemId = foto['item_id'] as String?;
@@ -288,6 +291,7 @@ class DeferredPdfService {
 
     // Procesar items y conteos
     int countC = 0, countNC = 0, countNA = 0, countIntolerables = 0;
+    double sumPesoC = 0.0, sumPesoNC = 0.0;
     final List<InspectionItemDto> itemsProcesados = [];
 
     for (var item in itemsDb) {
@@ -299,11 +303,14 @@ class DeferredPdfService {
           resp?['criticidad_registrada']?.toString() ??
           item['criticidad']?.toString() ??
           'Tolerable';
+      final peso = (item['peso'] as num?)?.toDouble() ?? 1.0;
 
       if (respuesta == 'C') {
         countC++;
+        sumPesoC += peso;
       } else if (respuesta == 'NC') {
         countNC++;
+        sumPesoNC += peso;
         if (criticidad == 'Intolerable') countIntolerables++;
       } else if (respuesta == 'N/A') {
         countNA++;
@@ -318,6 +325,7 @@ class DeferredPdfService {
           respuesta: respuesta,
           criticidad: criticidad,
           comentario: observacion,
+          orden: item['orden'] as int? ?? 0,
           fotosPaths: fotosPaths,
         ),
       );
@@ -392,7 +400,13 @@ class DeferredPdfService {
           verificacionesBuceo.examenesOcupacionalesVigentes,
         ];
         for (var cumple in criticas) {
-          cumple ? countC++ : countNC++;
+          if (cumple) {
+            countC++;
+            sumPesoC += 1.0;
+          } else {
+            countNC++;
+            sumPesoNC += 1.0;
+          }
         }
       }
     } else if (tipoActividad == 'INSPECCION_EMBARCACION') {
@@ -506,6 +520,8 @@ class DeferredPdfService {
       totalNoCumple: countNC,
       totalNoAplica: countNA,
       totalIntolerables: countIntolerables,
+      sumPesoCumple: sumPesoC,
+      sumPesoNoCumple: sumPesoNC,
       observacionPrevencionista: observacionPrevencionista,
       verificacionesBuceo: verificacionesBuceo != null
           ? {

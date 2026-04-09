@@ -3,6 +3,8 @@ class FormularioItem {
   final String pregunta;
   final String categoria;
   final String criticidad;
+  final int orden;
+  final double peso;
   final String? infoAdicional;
   final String? urlImagenReferencia;
 
@@ -11,6 +13,8 @@ class FormularioItem {
     required this.pregunta,
     required this.categoria,
     required this.criticidad,
+    this.orden = 0,
+    this.peso = 1.0,
     this.infoAdicional,
     this.urlImagenReferencia,
   });
@@ -21,6 +25,8 @@ class FormularioItem {
       pregunta: json['pregunta'],
       categoria: json['categoria'],
       criticidad: json['criticidad'] ?? 'Tolerable',
+      orden: json['orden'] as int? ?? 0,
+      peso: (json['peso'] as num?)?.toDouble() ?? 1.0,
       infoAdicional: json['info_adicional'] ?? json['infoAdicional'],
       urlImagenReferencia: json['url_imagen_referencia'],
     );

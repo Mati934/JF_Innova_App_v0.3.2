@@ -56,6 +56,8 @@ class InspectionReportData {
   final int totalNoCumple;
   final int totalNoAplica;
   final int totalIntolerables;
+  final double sumPesoCumple;
+  final double sumPesoNoCumple;
 
   final String? correoEmpresaServicios;
 
@@ -91,6 +93,8 @@ class InspectionReportData {
     required this.totalNoCumple,
     required this.totalNoAplica,
     required this.totalIntolerables,
+    required this.sumPesoCumple,
+    required this.sumPesoNoCumple,
     required this.observacionPrevencionista,
     required this.verificacionesBuceo,
     this.horaInicio,
@@ -130,6 +134,7 @@ class InspectionItemDto {
   final String respuesta;
   final String criticidad;
   final String? comentario;
+  final int orden;
 
   // CLEAN CODE: Lista de rutas de disco, no binarios
   final List<String> fotosPaths;
@@ -140,6 +145,7 @@ class InspectionItemDto {
     required this.respuesta,
     required this.criticidad,
     this.comentario,
+    this.orden = 0,
     this.fotosPaths = const [],
   });
 }

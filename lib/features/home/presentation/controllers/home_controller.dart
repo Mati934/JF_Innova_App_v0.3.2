@@ -8,7 +8,6 @@ import '../../../../core/services/connectivity_service.dart';
 import '../../../../core/services/user_session.dart';
 import '../../../../core/modules/module_registry.dart';
 import '../../../visits/data/repositories/local_visit_repository.dart';
-import '../../../tickets/data/repositories/local_ticket_repository.dart';
 import '../../../extintores/data/repositories/local_extintor_repository.dart';
 
 class HomeController extends ChangeNotifier {
@@ -16,7 +15,6 @@ class HomeController extends ChangeNotifier {
   final _localRepo = LocalInspectionRepository();
   final _visitRepo = LocalVisitRepository();
   final _extintorRepo = LocalExtintorRepository();
-  final _ticketRepo = LocalTicketRepository();
   final _connectivity = ConnectivityService();
 
   final User? user = Supabase.instance.client.auth.currentUser;
@@ -33,7 +31,8 @@ class HomeController extends ChangeNotifier {
 
   List<ModuleDefinition> get enabledModules {
     return ModuleRegistry.all.where((m) {
-      if (m.requiresAdmin && !esAdmin) return false;
+      // Admin siempre ve el módulo ADMIN
+      if (m.requiresAdmin) return esAdmin;
       return _enabledModuleKeys.contains(m.moduleKey);
     }).toList();
   }
@@ -46,10 +45,6 @@ class HomeController extends ChangeNotifier {
   // Variables de Borradores
   List<Map<String, dynamic>> borradores = [];
   bool isLoadingBorradores = true;
-
-  // Variables de Notificaciones
-  int _ticketsAbiertos = 0;
-  int get ticketsAbiertos => _ticketsAbiertos;
 
   // Estado de conectividad
   bool get isOnline => _connectivity.isOnline;
@@ -68,7 +63,7 @@ class HomeController extends ChangeNotifier {
 
   Future<void> _inicializarDatos() async {
     await _cargarPerfil(); // 100% Offline
-    await Future.wait([cargarBorradores(), cargarNotificacionesTickets()]);
+    await cargarBorradores();
     _sincronizarSilencioso(); // Background sync para maestros y subidas
   }
 
@@ -102,18 +97,6 @@ class HomeController extends ChangeNotifier {
       borradores = [];
     } finally {
       isLoadingBorradores = false;
-      _safeNotify();
-    }
-  }
-
-  // --- LÓGICA DE NOTIFICACIONES DE TICKETS ---
-  Future<void> cargarNotificacionesTickets() async {
-    try {
-      _ticketsAbiertos = await _ticketRepo.getCantidadTicketsAbiertos();
-    } catch (e) {
-      debugPrint('❌ [HomeController] Error al cargar tickets abiertos: $e');
-      _ticketsAbiertos = 0;
-    } finally {
       _safeNotify();
     }
   }
@@ -203,10 +186,16 @@ class HomeController extends ChangeNotifier {
     debugPrint('📦 Módulos habilitados: $_enabledModuleKeys');
   }
 
+  /// Recarga módulos habilitados desde SQLite (e.g. al volver del admin).
+  Future<void> recargarModulos() async {
+    await _cargarModulosHabilitados();
+    _safeNotify();
+  }
+
   /// Recarga módulos y borradores cuando el usuario cambia de empresa.
   Future<void> recargarParaEmpresa() async {
     await _cargarModulosHabilitados();
-    await Future.wait([cargarBorradores(), cargarNotificacionesTickets()]);
+    await cargarBorradores();
     if (isOnline) {
       await _syncService.descargarDatosMaestros();
       await _cargarModulosHabilitados();
@@ -259,7 +248,6 @@ class HomeController extends ChangeNotifier {
       }
 
       await cargarBorradores(); // Refresca UI si se eliminaron zombies
-      await cargarNotificacionesTickets(); // Refresca badge de tickets
       await _syncService.descargarDatosMaestros();
     } catch (e) {
       isError = true;

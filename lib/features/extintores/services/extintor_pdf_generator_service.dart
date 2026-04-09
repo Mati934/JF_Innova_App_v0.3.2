@@ -129,6 +129,8 @@ class ExtintorPdfGeneratorService {
 
   // ── Footer ─────────────────────────────────────────────────────────────────
 
+  static const String _pdfVersion = '0.1.0';
+
   pw.Widget _buildFooter(pw.Context ctx) {
     return pw.Container(
       alignment: pw.Alignment.centerRight,
@@ -136,9 +138,18 @@ class ExtintorPdfGeneratorService {
       decoration: const pw.BoxDecoration(
         border: pw.Border(top: pw.BorderSide(color: _grisLinea)),
       ),
-      child: pw.Text(
-        'Página ${ctx.pageNumber} de ${ctx.pagesCount}',
-        style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(
+            'Generado por Servimaf  |  +56 9 8383 3177  |  v$_pdfVersion',
+            style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey400),
+          ),
+          pw.Text(
+            'Pág. ${ctx.pageNumber}/${ctx.pagesCount}',
+            style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey400),
+          ),
+        ],
       ),
     );
   }

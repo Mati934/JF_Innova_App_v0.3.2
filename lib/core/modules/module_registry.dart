@@ -3,7 +3,7 @@ import '../../core/theme/app_theme.dart';
 import '../../features/inspection/presentation/screens/inspection_setup_screen.dart';
 import '../../features/visits/presentation/screens/visit_form_screen.dart';
 import '../../features/extintores/presentation/screens/extintor_form_screen.dart';
-import '../../features/tickets/presentation/screens/ticket_list_screen.dart';
+
 import '../../features/admin/presentation/screens/master_data_admin_screen.dart';
 import '../../features/history/presentation/screens/history_screen.dart';
 
@@ -56,14 +56,6 @@ class ModuleRegistry {
       icon: Icons.fire_extinguisher,
       color: Colors.red.shade700,
       screenBuilder: (_) => const ExtintorFormScreen(),
-    ),
-    ModuleDefinition(
-      moduleKey: 'TICKETS',
-      title: 'Tickets',
-      subtitle: 'Requerimientos',
-      icon: Icons.confirmation_number_outlined,
-      color: Colors.deepPurple,
-      screenBuilder: (_) => const TicketListScreen(),
     ),
     ModuleDefinition(
       moduleKey: 'ADMIN',

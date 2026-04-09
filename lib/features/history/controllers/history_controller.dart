@@ -110,4 +110,23 @@ class HistoryController extends ChangeNotifier {
     filtroModulo = modulo;
     cargarHistorial();
   }
+
+  /// Aplica filtros desde un Map (e.g. desde CustomFilterSheet).
+  void applyFilters(Map<String, String> filters) {
+    filtroModulo = filters['modulo'];
+    filtroCentroId = filters['centro_id'];
+    filtroUsuarioId = filters['usuario_id'];
+    cargarHistorial();
+  }
+
+  /// Mapa de filtros activos para pasar a CustomFilterSheet.
+  Map<String, String> get activeFilters {
+    final m = <String, String>{};
+    if (filtroModulo != null) m['modulo'] = filtroModulo!;
+    if (filtroCentroId != null) m['centro_id'] = filtroCentroId!;
+    if (filtroUsuarioId != null) m['usuario_id'] = filtroUsuarioId!;
+    return m;
+  }
+
+  int get activeFilterCount => activeFilters.length;
 }

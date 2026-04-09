@@ -208,8 +208,8 @@ void main() {
   // TESTS: ModuleRegistry
   // ===================================================================
   group('ModuleRegistry - Registro Global', () {
-    test('tiene 7 módulos registrados', () {
-      expect(ModuleRegistry.all.length, 7);
+    test('tiene 6 módulos registrados', () {
+      expect(ModuleRegistry.all.length, 6);
     });
 
     test('cada módulo tiene key única', () {
@@ -229,7 +229,6 @@ void main() {
           'INSPECCION',
           'VISITA_R003',
           'VISITA_R004',
-          'TICKETS',
           'ADMIN',
           'HISTORY',
           'RENDICIONES',
@@ -259,7 +258,6 @@ void main() {
         'INSPECCION',
         'VISITA_R003',
         'VISITA_R004',
-        'TICKETS',
       ]) {
         final mod = ModuleRegistry.byKey(key)!;
         expect(
@@ -280,7 +278,6 @@ void main() {
         'INSPECCION',
         'VISITA_R003',
         'VISITA_R004',
-        'TICKETS',
         'ADMIN',
         'HISTORY',
       ]) {
@@ -308,11 +305,16 @@ void main() {
       ]);
     });
 
-    test('TICKETS no está en defaults', () {
+    test('TICKETS no está en defaults ni en registry', () {
       expect(
         ModuleRegistry.defaultModuleKeys.contains('TICKETS'),
         false,
-        reason: 'Tickets aún no está listo para producción',
+        reason: 'Tickets fue removido del registry',
+      );
+      expect(
+        ModuleRegistry.byKey('TICKETS'),
+        isNull,
+        reason: 'Tickets ya no existe en el registry',
       );
     });
 
@@ -779,12 +781,12 @@ void main() {
       // Empresa 1: solo inspecciones y visitas
       final modulosEmpresa1 = ['INSPECCION', 'VISITA_R003'];
 
-      // Empresa 2: tiene todo incluyendo tickets
+      // Empresa 2: tiene todo incluyendo extintores
       final modulosEmpresa2 = [
         'INSPECCION',
         'VISITA_R003',
         'VISITA_R004',
-        'TICKETS',
+        'RENDICIONES',
       ];
 
       final mods1 = ModuleRegistry.all
@@ -796,10 +798,11 @@ void main() {
 
       expect(mods1.length, 2);
       expect(mods2.length, 4);
-      expect(mods2.map((m) => m.moduleKey).toList(), containsAll(['TICKETS']));
+      expect(
+          mods2.map((m) => m.moduleKey).toList(), containsAll(['VISITA_R004']));
       expect(
         mods1.map((m) => m.moduleKey).toList(),
-        isNot(containsAll(['TICKETS'])),
+        isNot(containsAll(['VISITA_R004'])),
       );
     });
   });

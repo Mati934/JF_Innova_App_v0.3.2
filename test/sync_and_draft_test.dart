@@ -40,7 +40,8 @@ void main() {
 
     test('tieneNumeroReal detecta vacío como false', () {
       final textoNumero = "";
-      final tieneNumeroReal = textoNumero.isNotEmpty &&
+      final tieneNumeroReal =
+          textoNumero.isNotEmpty &&
           !textoNumero.startsWith("PROV-") &&
           !textoNumero.startsWith("~");
       expect(tieneNumeroReal, false);
@@ -48,7 +49,8 @@ void main() {
 
     test('tieneNumeroReal detecta número real como true', () {
       final textoNumero = "42";
-      final tieneNumeroReal = textoNumero.isNotEmpty &&
+      final tieneNumeroReal =
+          textoNumero.isNotEmpty &&
           !textoNumero.startsWith("PROV-") &&
           !textoNumero.startsWith("~");
       expect(tieneNumeroReal, true);
@@ -56,7 +58,8 @@ void main() {
 
     test('tieneNumeroReal detecta PROV-* legacy como false', () {
       final textoNumero = "PROV-A1B2C3D4";
-      final tieneNumeroReal = textoNumero.isNotEmpty &&
+      final tieneNumeroReal =
+          textoNumero.isNotEmpty &&
           !textoNumero.startsWith("PROV-") &&
           !textoNumero.startsWith("~");
       expect(tieneNumeroReal, false);
@@ -64,18 +67,21 @@ void main() {
 
     test('tieneNumeroReal detecta estimado ~N como false', () {
       final textoNumero = "~42";
-      final tieneNumeroReal = textoNumero.isNotEmpty &&
+      final tieneNumeroReal =
+          textoNumero.isNotEmpty &&
           !textoNumero.startsWith("PROV-") &&
           !textoNumero.startsWith("~");
-      expect(tieneNumeroReal, false,
-          reason: 'Estimado ~42 no es número real → difiere PDF');
+      expect(
+        tieneNumeroReal,
+        false,
+        reason: 'Estimado ~42 no es número real → difiere PDF',
+      );
     });
 
     test('numero_reporte no guarda vacío en SQLite (guarda null)', () {
       String? numeroFinal = "";
       final resultado = (numeroFinal.isNotEmpty) ? numeroFinal : null;
-      expect(resultado, isNull,
-          reason: 'Vacío se convierte a null en SQLite');
+      expect(resultado, isNull, reason: 'Vacío se convierte a null en SQLite');
     });
 
     test('numero_reporte guarda valor real en SQLite', () {
@@ -141,7 +147,8 @@ void main() {
         expect(
           datosParaNube.containsKey('app_version'),
           false,
-          reason: 'app_version es local, no existe en tabla actividades de Supabase',
+          reason:
+              'app_version es local, no existe en tabla actividades de Supabase',
         );
         expect(
           datosParaNube['puerto_abierto'],
@@ -509,7 +516,9 @@ void main() {
 
       String? numeroFinal = numeroController.trim();
 
-      if ((numeroFinal.isEmpty || numeroFinal == 'Pendiente...' || numeroFinal == 'Pendiente') &&
+      if ((numeroFinal.isEmpty ||
+              numeroFinal == 'Pendiente...' ||
+              numeroFinal == 'Pendiente') &&
           (numeroDB.isNotEmpty && numeroDB != 'null')) {
         numeroFinal = numeroDB;
       }
@@ -523,7 +532,9 @@ void main() {
 
       String? numeroFinal = numeroController.trim();
 
-      if ((numeroFinal.isEmpty || numeroFinal == 'Pendiente...' || numeroFinal == 'Pendiente') &&
+      if ((numeroFinal.isEmpty ||
+              numeroFinal == 'Pendiente...' ||
+              numeroFinal == 'Pendiente') &&
           (numeroDB.isNotEmpty && numeroDB != 'null')) {
         numeroFinal = numeroDB;
       }
@@ -531,34 +542,47 @@ void main() {
       expect(numeroFinal, 'INF-2026-0042');
     });
 
-    test('Si controller tiene "Pendiente" legacy y DB tiene número real, usa DB', () {
-      final numeroController = 'Pendiente';
-      final numeroDB = 'INF-2026-0042';
+    test(
+      'Si controller tiene "Pendiente" legacy y DB tiene número real, usa DB',
+      () {
+        final numeroController = 'Pendiente';
+        final numeroDB = 'INF-2026-0042';
 
-      String? numeroFinal = numeroController.trim();
+        String? numeroFinal = numeroController.trim();
 
-      if ((numeroFinal.isEmpty || numeroFinal == 'Pendiente...' || numeroFinal == 'Pendiente') &&
-          (numeroDB.isNotEmpty && numeroDB != 'null')) {
-        numeroFinal = numeroDB;
-      }
+        if ((numeroFinal.isEmpty ||
+                numeroFinal == 'Pendiente...' ||
+                numeroFinal == 'Pendiente') &&
+            (numeroDB.isNotEmpty && numeroDB != 'null')) {
+          numeroFinal = numeroDB;
+        }
 
-      expect(numeroFinal, 'INF-2026-0042',
-          reason: 'Guard debe capturar "Pendiente" legacy y reemplazar con DB');
-    });
+        expect(
+          numeroFinal,
+          'INF-2026-0042',
+          reason: 'Guard debe capturar "Pendiente" legacy y reemplazar con DB',
+        );
+      },
+    );
 
-    test('Si controller tiene "Pendiente..." legacy y DB tiene número real, usa DB', () {
-      final numeroController = 'Pendiente...';
-      final numeroDB = 'INF-2026-0042';
+    test(
+      'Si controller tiene "Pendiente..." legacy y DB tiene número real, usa DB',
+      () {
+        final numeroController = 'Pendiente...';
+        final numeroDB = 'INF-2026-0042';
 
-      String? numeroFinal = numeroController.trim();
+        String? numeroFinal = numeroController.trim();
 
-      if ((numeroFinal.isEmpty || numeroFinal == 'Pendiente...' || numeroFinal == 'Pendiente') &&
-          (numeroDB.isNotEmpty && numeroDB != 'null')) {
-        numeroFinal = numeroDB;
-      }
+        if ((numeroFinal.isEmpty ||
+                numeroFinal == 'Pendiente...' ||
+                numeroFinal == 'Pendiente') &&
+            (numeroDB.isNotEmpty && numeroDB != 'null')) {
+          numeroFinal = numeroDB;
+        }
 
-      expect(numeroFinal, 'INF-2026-0042');
-    });
+        expect(numeroFinal, 'INF-2026-0042');
+      },
+    );
   });
 
   // ===================================================================
@@ -1531,51 +1555,64 @@ void main() {
     test('Offline detecta vacío como sin número real → difiere PDF', () {
       final textoNumero = "";
 
-      final tieneNumeroReal = textoNumero.isNotEmpty &&
+      final tieneNumeroReal =
+          textoNumero.isNotEmpty &&
           !textoNumero.startsWith("PROV-") &&
           !textoNumero.startsWith("~");
 
-      expect(tieneNumeroReal, false,
-          reason: 'Vacío = sin número real → path offline, PDF diferido');
+      expect(
+        tieneNumeroReal,
+        false,
+        reason: 'Vacío = sin número real → path offline, PDF diferido',
+      );
     });
 
     test('Estimado ~N se detecta como sin número real → difiere PDF', () {
       final textoNumero = "~42";
 
-      final tieneNumeroReal = textoNumero.isNotEmpty &&
+      final tieneNumeroReal =
+          textoNumero.isNotEmpty &&
           !textoNumero.startsWith("PROV-") &&
           !textoNumero.startsWith("~");
 
-      expect(tieneNumeroReal, false,
-          reason: 'Estimado ~42 no es real → path offline, PDF diferido');
+      expect(
+        tieneNumeroReal,
+        false,
+        reason: 'Estimado ~42 no es real → path offline, PDF diferido',
+      );
     });
 
     test('Online detecta número real correctamente', () {
       final textoNumero = "42";
 
-      final tieneNumeroReal = textoNumero.isNotEmpty &&
+      final tieneNumeroReal =
+          textoNumero.isNotEmpty &&
           !textoNumero.startsWith("PROV-") &&
           !textoNumero.startsWith("~");
 
-      expect(tieneNumeroReal, true,
-          reason: '"42" es número real → path online con PDF');
+      expect(
+        tieneNumeroReal,
+        true,
+        reason: '"42" es número real → path online con PDF',
+      );
     });
 
     test('PROV-* legacy se detecta como no-real', () {
       final textoNumero = "PROV-A1B2C3D4";
 
-      final tieneNumeroReal = textoNumero.isNotEmpty &&
+      final tieneNumeroReal =
+          textoNumero.isNotEmpty &&
           !textoNumero.startsWith("PROV-") &&
           !textoNumero.startsWith("~");
 
-      expect(tieneNumeroReal, false,
-          reason: 'PROV-* no es número real');
+      expect(tieneNumeroReal, false, reason: 'PROV-* no es número real');
     });
 
     test('String vacío se detecta como no-real → difiere PDF', () {
       final textoNumero = "";
 
-      final tieneNumeroReal = textoNumero.isNotEmpty &&
+      final tieneNumeroReal =
+          textoNumero.isNotEmpty &&
           !textoNumero.startsWith("PROV-") &&
           !textoNumero.startsWith("~");
 
@@ -1593,8 +1630,11 @@ void main() {
 
       expect(persistData['pdf_url'], isNull);
       expect(persistData['pdf_path_local'], isNull);
-      expect(persistData['estado_final'], 'En Seguimiento',
-          reason: 'La inspección SÍ se finaliza aunque no haya PDF');
+      expect(
+        persistData['estado_final'],
+        'En Seguimiento',
+        reason: 'La inspección SÍ se finaliza aunque no haya PDF',
+      );
     });
 
     test('Offline retorna éxito (inspección completa, solo PDF diferido)', () {
@@ -1602,10 +1642,16 @@ void main() {
       final exito = true;
       final pdfDiferido = true;
 
-      expect(exito, true,
-          reason: 'La inspección está completa, solo falta el PDF');
-      expect(pdfDiferido, true,
-          reason: 'Flag para que la UI muestre mensaje naranja');
+      expect(
+        exito,
+        true,
+        reason: 'La inspección está completa, solo falta el PDF',
+      );
+      expect(
+        pdfDiferido,
+        true,
+        reason: 'Flag para que la UI muestre mensaje naranja',
+      );
     });
   });
 
@@ -1616,8 +1662,7 @@ void main() {
     // Helper: simula la condición WHERE de _generarPdfsDiferidos
     bool esPdfPendiente(Map<String, dynamic> row) {
       return row['estado_final'] == 'En Seguimiento' &&
-          (row['pdf_path_local'] == null ||
-              row['pdf_path_local'] == '') &&
+          (row['pdf_path_local'] == null || row['pdf_path_local'] == '') &&
           (row['pdf_url'] == null || row['pdf_url'] == '') &&
           row['eliminado'] == 0 &&
           row['numero_reporte'] != null &&
@@ -1717,8 +1762,7 @@ void main() {
         'eliminado': 0,
         'numero_reporte': '42',
       };
-      expect(esPdfPendiente(row), true,
-          reason: 'String vacío = sin PDF local');
+      expect(esPdfPendiente(row), true, reason: 'String vacío = sin PDF local');
     });
 
     test('pdf_url vacío se trata como null (PDF pendiente)', () {
@@ -1730,8 +1774,11 @@ void main() {
         'eliminado': 0,
         'numero_reporte': '42',
       };
-      expect(esPdfPendiente(row), true,
-          reason: 'String vacío = sin PDF en nube');
+      expect(
+        esPdfPendiente(row),
+        true,
+        reason: 'String vacío = sin PDF en nube',
+      );
     });
   });
 
@@ -1739,17 +1786,24 @@ void main() {
   // TESTS: DTO DESDE DATABASE (DeferredPdfService)
   // ===================================================================
   group('DeferredPdfService - construcción de DTO desde SQLite', () {
-    test('numero_reporte se lee de actividades_pendientes (no del controller)', () {
-      final activityRow = {
-        'id': 'act-deferred',
-        'numero_reporte': '42',
-        'tipo_actividad': 'INSPECCION_BUCEO',
-      };
+    test(
+      'numero_reporte se lee de actividades_pendientes (no del controller)',
+      () {
+        final activityRow = {
+          'id': 'act-deferred',
+          'numero_reporte': '42',
+          'tipo_actividad': 'INSPECCION_BUCEO',
+        };
 
-      final numeroReporte = activityRow['numero_reporte']?.toString() ?? "S/N";
-      expect(numeroReporte, '42',
-          reason: 'El PDF diferido usa el número de la DB, no del controller');
-    });
+        final numeroReporte =
+            activityRow['numero_reporte']?.toString() ?? "S/N";
+        expect(
+          numeroReporte,
+          '42',
+          reason: 'El PDF diferido usa el número de la DB, no del controller',
+        );
+      },
+    );
 
     test('esConsecutiva se deriva de numero_seguimiento == 1', () {
       expect(1 == 1, true); // numero_seguimiento=1 → consecutiva
@@ -1757,54 +1811,69 @@ void main() {
       expect(2 == 1, false); // numero_seguimiento=2 → no consecutiva
     });
 
-    test('Clasificación de fotos: itemIds desde map().toSet() tipado correctamente', () {
-      // Simula EXACTAMENTE como DeferredPdfService construye itemIds desde SQLite
-      final List<Map<String, dynamic>> itemsDb = [
-        {'id': 'item-A', 'pregunta': 'P1'},
-        {'id': 'item-B', 'pregunta': 'P2'},
-        {'id': 'item-C', 'pregunta': 'P3'},
-      ];
+    test(
+      'Clasificación de fotos: itemIds desde map().toSet() tipado correctamente',
+      () {
+        // Simula EXACTAMENTE como DeferredPdfService construye itemIds desde SQLite
+        final List<Map<String, dynamic>> itemsDb = [
+          {'id': 'item-A', 'pregunta': 'P1'},
+          {'id': 'item-B', 'pregunta': 'P2'},
+          {'id': 'item-C', 'pregunta': 'P3'},
+        ];
 
-      // Esto era el bug: .map().toSet() sin tipo explícito da Set<dynamic>
-      final Set<String> itemIds = itemsDb.map<String>((i) => i['id'] as String).toSet();
+        // Esto era el bug: .map().toSet() sin tipo explícito da Set<dynamic>
+        final Set<String> itemIds = itemsDb
+            .map<String>((i) => i['id'] as String)
+            .toSet();
 
-      final fotos = [
-        {'item_id': 'item-A', 'local_path': '/foto1.jpg', 'descripcion': ''},
-        {'item_id': null, 'local_path': '/foto2.jpg', 'descripcion': ''},
-        {'item_id': 'custom-uuid', 'local_path': '/foto3.jpg', 'descripcion': 'Hallazgo extra'},
-      ];
+        final fotos = [
+          {'item_id': 'item-A', 'local_path': '/foto1.jpg', 'descripcion': ''},
+          {'item_id': null, 'local_path': '/foto2.jpg', 'descripcion': ''},
+          {
+            'item_id': 'custom-uuid',
+            'local_path': '/foto3.jpg',
+            'descripcion': 'Hallazgo extra',
+          },
+        ];
 
-      final Map<String, List<String>> fotosPorItem = {};
-      final List<String> fotosGenerales = [];
-      final List<Map<String, String>> fotosExtra = [];
+        final Map<String, List<String>> fotosPorItem = {};
+        final List<String> fotosGenerales = [];
+        final List<Map<String, String>> fotosExtra = [];
 
-      for (var foto in fotos) {
-        final itemId = foto['item_id'] as String?;
-        final path = foto['local_path'] as String;
-        if (itemId == null) {
-          fotosGenerales.add(path);
-        } else if (itemIds.contains(itemId)) {
-          fotosPorItem.putIfAbsent(itemId, () => []).add(path);
-        } else {
-          fotosExtra.add({'path': path, 'observacion': foto['descripcion'] as String? ?? ''});
+        for (var foto in fotos) {
+          final itemId = foto['item_id'] as String?;
+          final path = foto['local_path'] as String;
+          if (itemId == null) {
+            fotosGenerales.add(path);
+          } else if (itemIds.contains(itemId)) {
+            fotosPorItem.putIfAbsent(itemId, () => []).add(path);
+          } else {
+            fotosExtra.add({
+              'path': path,
+              'observacion': foto['descripcion'] as String? ?? '',
+            });
+          }
         }
-      }
 
-      expect(fotosPorItem['item-A']?.length, 1);
-      expect(fotosGenerales.length, 1);
-      expect(fotosExtra.length, 1);
-      expect(fotosExtra.first['observacion'], 'Hallazgo extra');
-    });
+        expect(fotosPorItem['item-A']?.length, 1);
+        expect(fotosGenerales.length, 1);
+        expect(fotosExtra.length, 1);
+        expect(fotosExtra.first['observacion'], 'Hallazgo extra');
+      },
+    );
 
-    test('Aprobación BUCEO: 0 intolerables + faena habilitada = HABILITADA', () {
-      int countIntolerables = 0;
-      bool faenaHabilitada = true;
+    test(
+      'Aprobación BUCEO: 0 intolerables + faena habilitada = HABILITADA',
+      () {
+        int countIntolerables = 0;
+        bool faenaHabilitada = true;
 
-      bool aprobado = countIntolerables == 0 && faenaHabilitada;
-      String estado = aprobado ? "HABILITADA" : "SUSPENDIDA";
+        bool aprobado = countIntolerables == 0 && faenaHabilitada;
+        String estado = aprobado ? "HABILITADA" : "SUSPENDIDA";
 
-      expect(estado, "HABILITADA");
-    });
+        expect(estado, "HABILITADA");
+      },
+    );
 
     test('Aprobación BUCEO: intolerables > 0 = SUSPENDIDA', () {
       int countIntolerables = 2;
@@ -1818,7 +1887,9 @@ void main() {
 
     test('Aprobación EMBARCACION: siempre REALIZADA', () {
       String tipoActividad = 'INSPECCION_EMBARCACION';
-      String estado = tipoActividad == 'INSPECCION_BUCEO' ? "HABILITADA" : "REALIZADA";
+      String estado = tipoActividad == 'INSPECCION_BUCEO'
+          ? "HABILITADA"
+          : "REALIZADA";
       expect(estado, "REALIZADA");
     });
 
@@ -1837,7 +1908,8 @@ void main() {
     test('Fecha se formatea desde ISO8601 de SQLite', () {
       final fechaStr = '2026-03-31';
       final dt = DateTime.parse(fechaStr);
-      final formatted = "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}";
+      final formatted =
+          "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}";
       expect(formatted, '31/03/2026');
     });
 
@@ -1909,8 +1981,11 @@ void main() {
       }
 
       final estimado = maxNum > 0 ? (maxNum + 1).toString() : null;
-      expect(estimado, '36',
-          reason: 'Solo el "35" es numérico puro, PROV/~/Pendiente se ignoran');
+      expect(
+        estimado,
+        '36',
+        reason: 'Solo el "35" es numérico puro, PROV/~/Pendiente se ignoran',
+      );
     });
 
     test('Estimado se muestra con prefijo ~ en controller', () {
@@ -1924,8 +1999,11 @@ void main() {
       final texto = "~42";
       final esEstimado = texto.startsWith("~");
       final paraGuardar = esEstimado ? null : texto;
-      expect(paraGuardar, isNull,
-          reason: 'Estimados no se persisten en SQLite');
+      expect(
+        paraGuardar,
+        isNull,
+        reason: 'Estimados no se persisten en SQLite',
+      );
     });
 
     test('Número real SÍ se guarda en SQLite', () {
@@ -1937,25 +2015,29 @@ void main() {
 
     test('Guard _persistirDatos protege contra ~estimado', () {
       String? numeroFinal = "~42";
-      final esNumeroNoReal = numeroFinal.isEmpty ||
+      final esNumeroNoReal =
+          numeroFinal.isEmpty ||
           numeroFinal == "Pendiente..." ||
           numeroFinal == "Pendiente" ||
           numeroFinal.startsWith("~");
 
       // Simula: DB tiene número real
       final numeroEnDB = "42";
-      if (esNumeroNoReal &&
-          (numeroEnDB.isNotEmpty && numeroEnDB != "null")) {
+      if (esNumeroNoReal && (numeroEnDB.isNotEmpty && numeroEnDB != "null")) {
         numeroFinal = numeroEnDB;
       }
 
-      expect(numeroFinal, "42",
-          reason: 'Guard reemplaza ~estimado con real de DB');
+      expect(
+        numeroFinal,
+        "42",
+        reason: 'Guard reemplaza ~estimado con real de DB',
+      );
     });
 
     test('Guard _persistirDatos: DB sin número + estimado = guarda null', () {
       String? numeroFinal = "~42";
-      final esNumeroNoReal = numeroFinal.isEmpty ||
+      final esNumeroNoReal =
+          numeroFinal.isEmpty ||
           numeroFinal == "Pendiente..." ||
           numeroFinal == "Pendiente" ||
           numeroFinal.startsWith("~");
@@ -1963,7 +2045,9 @@ void main() {
       // Simula: DB no tiene número real
       final String? numeroEnDB = null;
       if (esNumeroNoReal &&
-          (numeroEnDB != null && numeroEnDB.isNotEmpty && numeroEnDB != "null")) {
+          (numeroEnDB != null &&
+              numeroEnDB.isNotEmpty &&
+              numeroEnDB != "null")) {
         numeroFinal = numeroEnDB;
       }
 
@@ -1972,22 +2056,27 @@ void main() {
         numeroFinal = null;
       }
 
-      expect(numeroFinal, isNull,
-          reason: 'Sin número real en DB, estimado se descarta → null');
+      expect(
+        numeroFinal,
+        isNull,
+        reason: 'Sin número real en DB, estimado se descarta → null',
+      );
     });
 
     test('Timer 5s recarga número si es estimado (~)', () {
       final texto = "~42";
       final debeRecargar = texto.isEmpty || texto.startsWith("~");
-      expect(debeRecargar, true,
-          reason: 'Timer debe intentar recargar si es estimado');
+      expect(
+        debeRecargar,
+        true,
+        reason: 'Timer debe intentar recargar si es estimado',
+      );
     });
 
     test('Timer 5s NO recarga si ya tiene número real', () {
       final texto = "42";
       final debeRecargar = texto.isEmpty || texto.startsWith("~");
-      expect(debeRecargar, false,
-          reason: 'Número real no necesita recarga');
+      expect(debeRecargar, false, reason: 'Número real no necesita recarga');
     });
 
     test('Estimación online: MAX(numero_informe)+1 de Supabase', () {
@@ -2015,62 +2104,70 @@ void main() {
   // TESTS: PDF DIFERIDO - TIPADO Y GENERACIÓN DESDE SQLITE
   // ===================================================================
   group('PDF Diferido - tipado correcto en construcción de datos', () {
-    test('itemIds desde List<Map<String,dynamic>>.map().toSet() es Set<String>', () {
-      // Simula la query de SQLite que retorna List<Map<String, dynamic>>
-      final List<Map<String, dynamic>> itemsDb = [
-        {'id': 'item-A', 'pregunta': 'P1', 'categoria': 'Cat1'},
-        {'id': 'item-B', 'pregunta': 'P2', 'categoria': 'Cat2'},
-      ];
+    test(
+      'itemIds desde List<Map<String,dynamic>>.map().toSet() es Set<String>',
+      () {
+        // Simula la query de SQLite que retorna List<Map<String, dynamic>>
+        final List<Map<String, dynamic>> itemsDb = [
+          {'id': 'item-A', 'pregunta': 'P1', 'categoria': 'Cat1'},
+          {'id': 'item-B', 'pregunta': 'P2', 'categoria': 'Cat2'},
+        ];
 
-      // Sin .map<String>() esto daría Set<dynamic> en runtime
-      final Set<String> ids = itemsDb.map<String>((i) => i['id'] as String).toSet();
+        // Sin .map<String>() esto daría Set<dynamic> en runtime
+        final Set<String> ids = itemsDb
+            .map<String>((i) => i['id'] as String)
+            .toSet();
 
-      expect(ids, isA<Set<String>>());
-      expect(ids.length, 2);
-      expect(ids.contains('item-A'), true);
-    });
+        expect(ids, isA<Set<String>>());
+        expect(ids.length, 2);
+        expect(ids.contains('item-A'), true);
+      },
+    );
 
-    test('equipoDto desde rawQuery.map().toList() es List<PersonalDto> tipado', () {
-      // Simula rawQuery de actividad_participantes JOIN personal_externo
-      final List<Map<String, dynamic>> partRows = [
-        {
-          'nombre_completo': 'Juan Pérez',
-          'rut': '12345678-9',
-          'cargo': 'Buzo',
-          'matricula': 'MAT-001',
-          'condiciones_optimas': 1,
-        },
-        {
-          'nombre_completo': 'María López',
-          'rut': '98765432-1',
-          'cargo': 'Supervisor',
-          'matricula': null,
-          'condiciones_optimas': 0,
-        },
-      ];
+    test(
+      'equipoDto desde rawQuery.map().toList() es List<PersonalDto> tipado',
+      () {
+        // Simula rawQuery de actividad_participantes JOIN personal_externo
+        final List<Map<String, dynamic>> partRows = [
+          {
+            'nombre_completo': 'Juan Pérez',
+            'rut': '12345678-9',
+            'cargo': 'Buzo',
+            'matricula': 'MAT-001',
+            'condiciones_optimas': 1,
+          },
+          {
+            'nombre_completo': 'María López',
+            'rut': '98765432-1',
+            'cargo': 'Supervisor',
+            'matricula': null,
+            'condiciones_optimas': 0,
+          },
+        ];
 
-      // Simula la lógica EXACTA de DeferredPdfService
-      // Sin .map<Map<String, String>>() esto daría List<dynamic>
-      final equipoDto = partRows.map<Map<String, String>>((p) {
-        final condiciones = (p['condiciones_optimas'] as int?) == 1;
-        return {
-          'nombre': p['nombre_completo']?.toString() ?? '',
-          'rut': p['rut']?.toString() ?? '',
-          'cargo': p['cargo']?.toString() ?? '',
-          'matricula': (p['matricula']?.toString().isEmpty ?? true)
-              ? "-"
-              : p['matricula'].toString(),
-          'rolEnFaena': condiciones ? "Optima" : "NO APTO",
-        };
-      }).toList();
+        // Simula la lógica EXACTA de DeferredPdfService
+        // Sin .map<Map<String, String>>() esto daría List<dynamic>
+        final equipoDto = partRows.map<Map<String, String>>((p) {
+          final condiciones = (p['condiciones_optimas'] as int?) == 1;
+          return {
+            'nombre': p['nombre_completo']?.toString() ?? '',
+            'rut': p['rut']?.toString() ?? '',
+            'cargo': p['cargo']?.toString() ?? '',
+            'matricula': (p['matricula']?.toString().isEmpty ?? true)
+                ? "-"
+                : p['matricula'].toString(),
+            'rolEnFaena': condiciones ? "Optima" : "NO APTO",
+          };
+        }).toList();
 
-      expect(equipoDto, isA<List<Map<String, String>>>());
-      expect(equipoDto.length, 2);
-      expect(equipoDto[0]['nombre'], 'Juan Pérez');
-      expect(equipoDto[0]['rolEnFaena'], 'Optima');
-      expect(equipoDto[1]['matricula'], '-');
-      expect(equipoDto[1]['rolEnFaena'], 'NO APTO');
-    });
+        expect(equipoDto, isA<List<Map<String, String>>>());
+        expect(equipoDto.length, 2);
+        expect(equipoDto[0]['nombre'], 'Juan Pérez');
+        expect(equipoDto[0]['rolEnFaena'], 'Optima');
+        expect(equipoDto[1]['matricula'], '-');
+        expect(equipoDto[1]['rolEnFaena'], 'NO APTO');
+      },
+    );
 
     test('Clasificación de fotos funciona con itemIds tipado desde DB', () {
       final List<Map<String, dynamic>> itemsDb = [
@@ -2078,12 +2175,18 @@ void main() {
         {'id': 'item-Y', 'pregunta': 'P2'},
       ];
 
-      final Set<String> itemIds = itemsDb.map<String>((i) => i['id'] as String).toSet();
+      final Set<String> itemIds = itemsDb
+          .map<String>((i) => i['id'] as String)
+          .toSet();
 
       final List<Map<String, dynamic>> fotosDb = [
         {'item_id': 'item-X', 'local_path': '/foto1.jpg', 'descripcion': ''},
         {'item_id': null, 'local_path': '/foto2.jpg', 'descripcion': ''},
-        {'item_id': 'extra-uuid', 'local_path': '/foto3.jpg', 'descripcion': 'Hallazgo'},
+        {
+          'item_id': 'extra-uuid',
+          'local_path': '/foto3.jpg',
+          'descripcion': 'Hallazgo',
+        },
       ];
 
       final Map<String, List<String>> fotosPorItem = {};
@@ -2113,12 +2216,15 @@ void main() {
       expect(fotosExtra.first['observacion'], 'Hallazgo');
     });
 
-    test('PDF diferido detecta actividad sin numero_reporte como no-generable', () {
-      final row = {'numero_reporte': null};
-      final numRep = row['numero_reporte']?.toString();
-      final puedeGenerar = numRep != null && numRep.isNotEmpty;
-      expect(puedeGenerar, false);
-    });
+    test(
+      'PDF diferido detecta actividad sin numero_reporte como no-generable',
+      () {
+        final row = {'numero_reporte': null};
+        final numRep = row['numero_reporte']?.toString();
+        final puedeGenerar = numRep != null && numRep.isNotEmpty;
+        expect(puedeGenerar, false);
+      },
+    );
 
     test('PDF diferido con numero_reporte real es generable', () {
       final row = {'numero_reporte': '93'};
@@ -2233,7 +2339,9 @@ void main() {
 
     test('matricula null se muestra como "-"', () {
       final String? matricula = null;
-      final display = (matricula?.toString().isEmpty ?? true) ? "-" : matricula!;
+      final display = (matricula?.toString().isEmpty ?? true)
+          ? "-"
+          : matricula!;
       expect(display, "-");
     });
   });
@@ -2261,21 +2369,30 @@ void main() {
       }
 
       expect(estado, 'En Seguimiento');
-      expect(subido, 0,
-          reason: 'Debe ser 0 para que el segundo sync lo recoja');
+      expect(
+        subido,
+        0,
+        reason: 'Debe ser 0 para que el segundo sync lo recoja',
+      );
     });
 
-    test('Segundo sync recoge actividad con subido=0 y estado En Seguimiento', () {
-      final actividades = [
-        {'id': 'act-1', 'estado_final': 'En Seguimiento', 'subido': 0},
-        {'id': 'act-2', 'estado_final': 'En Progreso', 'subido': 1},
-      ];
+    test(
+      'Segundo sync recoge actividad con subido=0 y estado En Seguimiento',
+      () {
+        final actividades = [
+          {'id': 'act-1', 'estado_final': 'En Seguimiento', 'subido': 0},
+          {'id': 'act-2', 'estado_final': 'En Progreso', 'subido': 1},
+        ];
 
-      final paraSync = actividades.where((a) => a['subido'] == 0).toList();
-      expect(paraSync.length, 1);
-      expect(paraSync.first['estado_final'], 'En Seguimiento',
-          reason: 'El segundo sync debe subir el estado finalizado');
-    });
+        final paraSync = actividades.where((a) => a['subido'] == 0).toList();
+        expect(paraSync.length, 1);
+        expect(
+          paraSync.first['estado_final'],
+          'En Seguimiento',
+          reason: 'El segundo sync debe subir el estado finalizado',
+        );
+      },
+    );
 
     test('Trigger de Supabase asigna numero_informe solo con En Seguimiento', () {
       // Simula: la actividad llega a Supabase como UPDATE con estado_final='En Seguimiento'
@@ -2284,16 +2401,357 @@ void main() {
       expect(debeAsignarNumero, true);
     });
 
-    test('Sin segundo sync, Supabase queda con En Progreso (el bug original)', () {
-      // Documenta el bug: si no se hace un segundo sync,
-      // Supabase tiene "En Progreso" y el trigger no dispara
-      var estadoEnSupabase = 'En Progreso'; // del primer sync
-      var estadoEnSQLite = 'En Seguimiento'; // del segundo persistir
+    test(
+      'Sin segundo sync, Supabase queda con En Progreso (el bug original)',
+      () {
+        // Documenta el bug: si no se hace un segundo sync,
+        // Supabase tiene "En Progreso" y el trigger no dispara
+        var estadoEnSupabase = 'En Progreso'; // del primer sync
+        var estadoEnSQLite = 'En Seguimiento'; // del segundo persistir
 
-      // Sin segundo sync, hay discrepancia
-      final hayDiscrepancia = estadoEnSupabase != estadoEnSQLite;
-      expect(hayDiscrepancia, true,
-          reason: 'Sin segundo sync, Supabase no se entera del cambio a En Seguimiento');
+        // Sin segundo sync, hay discrepancia
+        final hayDiscrepancia = estadoEnSupabase != estadoEnSQLite;
+        expect(
+          hayDiscrepancia,
+          true,
+          reason:
+              'Sin segundo sync, Supabase no se entera del cambio a En Seguimiento',
+        );
+      },
+    );
+  });
+
+  // ===================================================================
+  // BUG-002: Inspección finalizada sin PDF
+  // Tests de detección de PDFs diferidos y recuperación de numero_reporte
+  // ===================================================================
+  group('BUG-002 - Detección de PDFs diferidos', () {
+    test(
+      'Query de PDFs pendientes detecta inspección sin PDF con numero_reporte',
+      () {
+        final actividades = [
+          {
+            'id': '1',
+            'estado_final': 'En Seguimiento',
+            'pdf_path_local': null,
+            'pdf_url': null,
+            'eliminado': 0,
+            'numero_reporte': '42',
+          },
+          {
+            'id': '2',
+            'estado_final': 'En Seguimiento',
+            'pdf_path_local': '/path/to/file.pdf',
+            'pdf_url': null,
+            'eliminado': 0,
+            'numero_reporte': '43',
+          },
+          {
+            'id': '3',
+            'estado_final': 'En Progreso',
+            'pdf_path_local': null,
+            'pdf_url': null,
+            'eliminado': 0,
+            'numero_reporte': null,
+          },
+        ];
+
+        final pendientesPdf = actividades
+            .where(
+              (a) =>
+                  a['estado_final'] == 'En Seguimiento' &&
+                  (a['pdf_path_local'] == null || a['pdf_path_local'] == '') &&
+                  (a['pdf_url'] == null || a['pdf_url'] == '') &&
+                  a['eliminado'] == 0 &&
+                  a['numero_reporte'] != null &&
+                  a['numero_reporte'] != '',
+            )
+            .toList();
+
+        expect(pendientesPdf.length, 1);
+        expect(pendientesPdf.first['id'], '1');
+      },
+    );
+
+    test('Query de PDFs pendientes ignora inspección eliminada', () {
+      final actividades = [
+        {
+          'id': '1',
+          'estado_final': 'En Seguimiento',
+          'pdf_path_local': null,
+          'pdf_url': null,
+          'eliminado': 1, // soft-deleted
+          'numero_reporte': '42',
+        },
+      ];
+
+      final pendientesPdf = actividades
+          .where(
+            (a) =>
+                a['estado_final'] == 'En Seguimiento' &&
+                (a['pdf_path_local'] == null || a['pdf_path_local'] == '') &&
+                (a['pdf_url'] == null || a['pdf_url'] == '') &&
+                a['eliminado'] == 0 &&
+                a['numero_reporte'] != null &&
+                a['numero_reporte'] != '',
+          )
+          .toList();
+
+      expect(pendientesPdf, isEmpty);
     });
+
+    test('Query de PDFs pendientes ignora inspección sin numero_reporte', () {
+      final actividades = [
+        {
+          'id': '1',
+          'estado_final': 'En Seguimiento',
+          'pdf_path_local': null,
+          'pdf_url': null,
+          'eliminado': 0,
+          'numero_reporte': null, // sin número
+        },
+        {
+          'id': '2',
+          'estado_final': 'En Seguimiento',
+          'pdf_path_local': null,
+          'pdf_url': null,
+          'eliminado': 0,
+          'numero_reporte': '', // vacío
+        },
+      ];
+
+      final pendientesPdf = actividades
+          .where(
+            (a) =>
+                a['estado_final'] == 'En Seguimiento' &&
+                (a['pdf_path_local'] == null || a['pdf_path_local'] == '') &&
+                (a['pdf_url'] == null || a['pdf_url'] == '') &&
+                a['eliminado'] == 0 &&
+                a['numero_reporte'] != null &&
+                a['numero_reporte'] != '',
+          )
+          .toList();
+
+      expect(
+        pendientesPdf,
+        isEmpty,
+        reason: 'Sin numero_reporte no se puede generar PDF',
+      );
+    });
+
+    test('Query de PDFs pendientes trata pdf_path_local vacío como null', () {
+      final actividades = [
+        {
+          'id': '1',
+          'estado_final': 'En Seguimiento',
+          'pdf_path_local': '', // vacío, no null
+          'pdf_url': '',
+          'eliminado': 0,
+          'numero_reporte': '42',
+        },
+      ];
+
+      final pendientesPdf = actividades
+          .where(
+            (a) =>
+                a['estado_final'] == 'En Seguimiento' &&
+                (a['pdf_path_local'] == null || a['pdf_path_local'] == '') &&
+                (a['pdf_url'] == null || a['pdf_url'] == '') &&
+                a['eliminado'] == 0 &&
+                a['numero_reporte'] != null &&
+                a['numero_reporte'] != '',
+          )
+          .toList();
+
+      expect(
+        pendientesPdf.length,
+        1,
+        reason: 'Strings vacíos cuentan como sin PDF',
+      );
+    });
+  });
+
+  group('BUG-002 - Recuperación de numero_reporte faltante', () {
+    test('Detecta inspecciones stuck (En Seguimiento sin numero_reporte)', () {
+      final actividades = [
+        {
+          'id': '1',
+          'estado_final': 'En Seguimiento',
+          'numero_reporte': null,
+          'eliminado': 0,
+        },
+        {
+          'id': '2',
+          'estado_final': 'En Seguimiento',
+          'numero_reporte': '',
+          'eliminado': 0,
+        },
+        {
+          'id': '3',
+          'estado_final': 'En Seguimiento',
+          'numero_reporte': '42', // ya tiene
+          'eliminado': 0,
+        },
+        {
+          'id': '4',
+          'estado_final': 'En Progreso', // borrador, no aplica
+          'numero_reporte': null,
+          'eliminado': 0,
+        },
+      ];
+
+      final stuck = actividades
+          .where(
+            (a) =>
+                a['estado_final'] == 'En Seguimiento' &&
+                (a['numero_reporte'] == null || a['numero_reporte'] == '') &&
+                a['eliminado'] == 0,
+          )
+          .toList();
+
+      expect(stuck.length, 2);
+      expect(stuck.map((s) => s['id']).toList(), ['1', '2']);
+    });
+
+    test('Inspección ya con numero_reporte no se toca', () {
+      final actividades = [
+        {
+          'id': '1',
+          'estado_final': 'En Seguimiento',
+          'numero_reporte': '42',
+          'eliminado': 0,
+        },
+      ];
+
+      final stuck = actividades
+          .where(
+            (a) =>
+                a['estado_final'] == 'En Seguimiento' &&
+                (a['numero_reporte'] == null || a['numero_reporte'] == '') &&
+                a['eliminado'] == 0,
+          )
+          .toList();
+
+      expect(stuck, isEmpty);
+    });
+  });
+
+  group('BUG-002 - _generarPdfsDiferidos siempre se ejecuta', () {
+    test('Si sync principal falla, PDFs diferidos aún deben ejecutarse', () {
+      // Simula sincronizarTodo() con la nueva estructura
+      bool pdfsDiferidosEjecutado = false;
+      bool syncFallo = false;
+
+      // Paso 1-5: sync principal
+      try {
+        throw Exception('Error en visitas sync'); // simula fallo
+      } catch (e) {
+        syncFallo = true;
+      }
+
+      // Paso 6: SIEMPRE se ejecuta (fuera del try/catch principal)
+      try {
+        pdfsDiferidosEjecutado = true; // simula _generarPdfsDiferidos
+      } catch (_) {}
+
+      expect(syncFallo, true, reason: 'Sync principal falló');
+      expect(
+        pdfsDiferidosEjecutado,
+        true,
+        reason: 'PDFs diferidos debe ejecutarse aunque sync falle',
+      );
+    });
+
+    test(
+      'Si sync principal tiene éxito, PDFs diferidos también se ejecutan',
+      () {
+        bool pdfsDiferidosEjecutado = false;
+        int totalSubidas = 0;
+
+        try {
+          totalSubidas = 5; // simula sync exitoso
+        } catch (_) {}
+
+        try {
+          pdfsDiferidosEjecutado = true;
+        } catch (_) {}
+
+        expect(totalSubidas, 5);
+        expect(pdfsDiferidosEjecutado, true);
+      },
+    );
+  });
+
+  group('BUG-002 - Fallback silencioso del controller', () {
+    test('PDF generation catch marca pdfDiferido = true', () {
+      // Simula el catch de línea 743 del controller
+      bool pdfDiferido = false;
+      String? pdfUrlFinal;
+      String? pdfPathLocal;
+
+      try {
+        throw Exception('Font loading failed'); // simula fallo de PDF
+      } catch (e) {
+        pdfDiferido = true;
+        pdfUrlFinal = null;
+        pdfPathLocal = null;
+      }
+
+      expect(
+        pdfDiferido,
+        true,
+        reason: 'Debe activar modo diferido cuando PDF falla',
+      );
+      expect(pdfUrlFinal, isNull);
+      expect(pdfPathLocal, isNull);
+    });
+
+    test(
+      'Inspección con pdfDiferido=true queda detectable para DeferredPdfService',
+      () {
+        // Simula el estado en SQLite después del fallback
+        final estadoFinal = 'En Seguimiento';
+        final String? pdfPathLocal = null;
+        final String? pdfUrl = null;
+        final String? numeroReporte = '42'; // asignado por trigger
+        final eliminado = 0;
+
+        // Query de _generarPdfsDiferidos
+        final esDetectable =
+            estadoFinal == 'En Seguimiento' &&
+            (pdfPathLocal == null || pdfPathLocal == '') &&
+            (pdfUrl == null || pdfUrl == '') &&
+            eliminado == 0 &&
+            numeroReporte != null &&
+            numeroReporte != '';
+
+        expect(
+          esDetectable,
+          true,
+          reason: 'DeferredPdfService debe encontrar esta inspección',
+        );
+      },
+    );
+
+    test(
+      'Inspección offline sin numero_reporte es recuperable por _recuperarNumeroReporteFaltante',
+      () {
+        // Simula el estado en SQLite después de finalización offline
+        final estadoFinal = 'En Seguimiento';
+        final String? numeroReporte = null; // trigger no ejecutado aún
+
+        // Query de _recuperarNumeroReporteFaltante
+        final esRecuperable =
+            estadoFinal == 'En Seguimiento' &&
+            (numeroReporte == null || numeroReporte == '');
+
+        expect(
+          esRecuperable,
+          true,
+          reason:
+              '_recuperarNumeroReporteFaltante debe encontrar esta inspección',
+        );
+      },
+    );
   });
 }

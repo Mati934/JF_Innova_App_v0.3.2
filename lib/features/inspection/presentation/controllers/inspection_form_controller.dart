@@ -1277,6 +1277,7 @@ class InspectionFormController extends ChangeNotifier {
     }
 
     int countC = 0, countNC = 0, countNA = 0, countIntolerables = 0;
+    double sumPesoC = 0.0, sumPesoNC = 0.0;
     final List<InspectionItemDto> itemsProcesados = [];
 
     for (var item in items) {
@@ -1286,8 +1287,10 @@ class InspectionFormController extends ChangeNotifier {
 
       if (respuesta == 'C') {
         countC++;
+        sumPesoC += item.peso;
       } else if (respuesta == 'NC') {
         countNC++;
+        sumPesoNC += item.peso;
         if (criticidad == 'Intolerable') countIntolerables++;
       } else if (respuesta == 'N/A') {
         countNA++;
@@ -1310,6 +1313,7 @@ class InspectionFormController extends ChangeNotifier {
           respuesta: respuesta,
           criticidad: criticidad,
           comentario: observacion,
+          orden: item.orden,
           fotosPaths:
               fotosPaths, // <--- CUIDADO: Tienes que actualizar el DTO en tu modelo PDF para aceptar List<String>
         ),
@@ -1325,7 +1329,13 @@ class InspectionFormController extends ChangeNotifier {
         verificacionesBuceo!.examenesOcupacionalesVigentes,
       ];
       for (var cumple in criticas) {
-        cumple ? countC++ : countNC++;
+        if (cumple) {
+          countC++;
+          sumPesoC += 1.0;
+        } else {
+          countNC++;
+          sumPesoNC += 1.0;
+        }
       }
     }
 
@@ -1447,6 +1457,8 @@ class InspectionFormController extends ChangeNotifier {
       totalNoCumple: countNC,
       totalNoAplica: countNA,
       totalIntolerables: countIntolerables,
+      sumPesoCumple: sumPesoC,
+      sumPesoNoCumple: sumPesoNC,
       observacionPrevencionista:
           verificacionesBuceo?.observacionGeneral ?? "Sin observaciones.",
       verificacionesBuceo: {

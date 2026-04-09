@@ -416,13 +416,32 @@ class VisitPdfGeneratorService {
     );
   }
 
+  static const String _pdfVersion = '0.1.0';
+
   pw.Widget _buildFooter(pw.Context context) {
     return pw.Container(
       alignment: pw.Alignment.centerRight,
       margin: const pw.EdgeInsets.only(top: 10),
-      child: pw.Text(
-        "Página ${context.pageNumber} de ${context.pagesCount}",
-        style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(
+          top: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+        ),
+      ),
+      child: pw.Padding(
+        padding: const pw.EdgeInsets.only(top: 4),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(
+              "Generado por Servimaf  |  +56 9 8383 3177  |  v$_pdfVersion",
+              style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey400),
+            ),
+            pw.Text(
+              "Pág. ${context.pageNumber}/${context.pagesCount}",
+              style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey400),
+            ),
+          ],
+        ),
       ),
     );
   }
