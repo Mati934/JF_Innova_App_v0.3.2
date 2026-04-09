@@ -660,11 +660,12 @@ class _FormularioSheetState extends State<_FormularioSheet> {
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
+            // Campos vinculados primero (area, contratista, etc.)
+            ..._buildCamposExtraAntes(),
             // Campo nombre con autocomplete para detectar duplicados
             _buildNombreField(),
-            const SizedBox(height: 12),
-            // Campos extra segun tabla
-            ..._buildCamposExtra(),
+            // Campos extras después del nombre (matrícula, etc.)
+            ..._buildCamposDespues(),
             const SizedBox(height: 16),
             // Botones
             Row(
@@ -791,7 +792,8 @@ class _FormularioSheetState extends State<_FormularioSheet> {
     }
   }
 
-  List<Widget> _buildCamposExtra() {
+  /// Campos que van ANTES del nombre (dropdowns de vinculación)
+  List<Widget> _buildCamposExtraAntes() {
     switch (widget.tabla) {
       case 'centros':
         final areaNombres = ctrl.areas
@@ -805,6 +807,7 @@ class _FormularioSheetState extends State<_FormularioSheet> {
             enableSearch: areaNombres.length > 5,
             onChanged: (val) => setState(() => _areaSeleccionada = val),
           ),
+          const SizedBox(height: 12),
         ];
       case 'embarcaciones':
         final contratistaNombres = ctrl.contratistas
@@ -818,6 +821,19 @@ class _FormularioSheetState extends State<_FormularioSheet> {
             enableSearch: contratistaNombres.length > 5,
             onChanged: (val) => setState(() => _contratistaSeleccionado = val),
           ),
+          const SizedBox(height: 12),
+        ];
+      default:
+        return [];
+    }
+  }
+
+  /// Campos que van DESPUÉS del nombre (matrícula, etc.)
+  List<Widget> _buildCamposDespues() {
+    switch (widget.tabla) {
+      case 'embarcaciones':
+        return [
+          const SizedBox(height: 12),
           TextField(
             controller: _matriculaCtrl,
             decoration: const InputDecoration(

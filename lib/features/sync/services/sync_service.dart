@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/database/database_helper.dart';
@@ -14,133 +15,329 @@ class SyncService {
   final _dbHelper = DatabaseHelper.instance;
   final _ticketRepo = SupabaseTicketRepository();
 
-  // // --- 1. DESCARGAR DATOS MAESTROS (Down-Sync) ---
   // --- 1. DESCARGAR DATOS MAESTROS (Down-Sync) ---
-  Future<void> descargarDatosMaestros() async {
-    try {
-      final empresaId = UserSession().empresaId;
-      final userId = UserSession().userId;
+  // Cada tabla se descarga independientemente: si una falla, las demás se guardan igual.
+  Future<List<String>> descargarDatosMaestros() async {
+    final empresaId = UserSession().empresaId;
+    final userId = UserSession().userId;
+    final tablasDescargadas = <String>[];
+    final tablasFallidas = <String>[];
 
-      final results = await Future.wait([
-        // Filtrar áreas por empresa activa si hay empresa_id
+    // Helper: descarga una tabla de forma segura, retorna null si falla
+    Future<List<Map<String, dynamic>>?> descargarTabla(
+      String nombre,
+      Future<List<Map<String, dynamic>>> query,
+    ) async {
+      try {
+        final data = await query;
+        return data;
+      } catch (e, stack) {
+        debugPrint("⚠️ Error descargando $nombre: $e");
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'descargarDatosMaestros: tabla $nombre',
+          fatal: false,
+        );
+        tablasFallidas.add(nombre);
+        return null;
+      }
+    }
+
+    // Lanzar todas las descargas en paralelo (como antes, para velocidad)
+    final futures = await Future.wait([
+      // 0: areas
+      descargarTabla(
+        'areas',
         empresaId != null
             ? _supabase
                   .from('areas')
                   .select('id, nombre, empresa_id')
                   .eq('empresa_id', empresaId)
             : _supabase.from('areas').select('id, nombre, empresa_id'),
+      ),
+      // 1: centros
+      descargarTabla(
+        'centros',
         _supabase.from('centros').select('id, nombre, area_id'),
+      ),
+      // 2: contratistas
+      descargarTabla(
+        'contratistas',
         _supabase.from('contratistas').select('id, nombre'),
+      ),
+      // 3: embarcaciones
+      descargarTabla(
+        'embarcaciones',
         _supabase
             .from('embarcaciones')
             .select('id, nombre, contratista_id, matricula'),
+      ),
+      // 4: formulario_items
+      descargarTabla(
+        'formulario_items',
         _supabase
             .from('formulario_items')
             .select()
             .eq('activo', true)
             .order('orden'),
+      ),
+      // 5: personal_externo
+      descargarTabla(
+        'personal_externo',
         _supabase.from('personal_externo').select(),
+      ),
+      // 6: empresas
+      descargarTabla(
+        'empresas',
         _supabase.from('empresas').select('id, nombre, es_administradora'),
+      ),
+      // 7: ticket_categorias
+      descargarTabla(
+        'ticket_categorias',
         _supabase
             .from('ticket_categorias')
             .select('id, nombre, activo')
             .eq('activo', true),
+      ),
+      // 8: usuarios
+      descargarTabla(
+        'usuarios',
         _supabase
             .from('usuarios')
             .select(
               'id, rut, nombre_completo, email, rol_id, telefono, empresa_id, roles (nombre)',
             ),
-        // Descargar módulos habilitados para la empresa activa
+      ),
+      // 9: empresa_modulos (condicional)
+      descargarTabla(
+        'empresa_modulos',
         empresaId != null
             ? _supabase
                   .from('empresa_modulos')
                   .select('id, empresa_id, modulo_key, habilitado, orden')
                   .eq('empresa_id', empresaId)
             : Future.value(<Map<String, dynamic>>[]),
-        // Descargar relaciones usuario-empresa del usuario actual
+      ),
+      // 10: usuario_empresas (condicional)
+      descargarTabla(
+        'usuario_empresas',
         userId != null
             ? _supabase
                   .from('usuario_empresas')
                   .select('id, usuario_id, empresa_id')
                   .eq('usuario_id', userId)
             : Future.value(<Map<String, dynamic>>[]),
-      ]);
+      ),
+    ]);
 
-      await _dbHelper.guardarMaestros(
-        'areas',
-        List<Map<String, dynamic>>.from(results[0]),
-        scopeWhere: empresaId != null ? 'empresa_id = ?' : null,
-        scopeArgs: empresaId != null ? [empresaId] : null,
-      );
-      await _dbHelper.guardarMaestros(
-        'centros',
-        List<Map<String, dynamic>>.from(results[1]),
-      );
-      await _dbHelper.guardarMaestros(
-        'contratistas',
-        List<Map<String, dynamic>>.from(results[2]),
-      );
-      await _dbHelper.guardarMaestros(
-        'embarcaciones',
-        List<Map<String, dynamic>>.from(results[3]),
-      );
-      await _dbHelper.guardarItemsOffline(
-        List<Map<String, dynamic>>.from(results[4]),
-      );
-      await _dbHelper.guardarMaestros(
-        'personal_externo',
-        List<Map<String, dynamic>>.from(results[5]),
-      );
-      await _dbHelper.guardarMaestros(
-        'empresas',
-        List<Map<String, dynamic>>.from(results[6]),
-      );
-      await _dbHelper.guardarMaestros(
-        'ticket_categorias',
-        List<Map<String, dynamic>>.from(results[7]),
-      );
-      await _dbHelper.guardarMaestros(
-        'usuarios',
-        List<Map<String, dynamic>>.from(results[8]),
-      );
-
-      // Descargar tickets abiertos/en proceso desde Supabase
-      await _ticketRepo.descargarTicketsDesdeSupabase();
-
-      // Guardar módulos habilitados por empresa
-      final modulosData = List<Map<String, dynamic>>.from(results[9]);
-      if (modulosData.isNotEmpty) {
+    // Guardar cada tabla que se descargó exitosamente
+    // 0: areas
+    if (futures[0] != null) {
+      try {
         await _dbHelper.guardarMaestros(
-          'empresa_modulos',
-          modulosData,
+          'areas',
+          List<Map<String, dynamic>>.from(futures[0]!),
           scopeWhere: empresaId != null ? 'empresa_id = ?' : null,
           scopeArgs: empresaId != null ? [empresaId] : null,
         );
+        tablasDescargadas.add('areas');
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando areas en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(e, stack,
+            reason: 'guardarMaestros SQLite: areas', fatal: false);
+        tablasFallidas.add('areas');
       }
+    }
 
-      // Guardar relaciones usuario-empresa
-      final ueData = List<Map<String, dynamic>>.from(results[10]);
-      if (ueData.isNotEmpty) {
+    // 1: centros
+    if (futures[1] != null) {
+      try {
+        await _dbHelper.guardarMaestros(
+          'centros',
+          List<Map<String, dynamic>>.from(futures[1]!),
+        );
+        tablasDescargadas.add('centros');
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando centros en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(e, stack,
+            reason: 'guardarMaestros SQLite: centros', fatal: false);
+        tablasFallidas.add('centros');
+      }
+    }
+
+    // 2: contratistas
+    if (futures[2] != null) {
+      try {
+        await _dbHelper.guardarMaestros(
+          'contratistas',
+          List<Map<String, dynamic>>.from(futures[2]!),
+        );
+        tablasDescargadas.add('contratistas');
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando contratistas en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(e, stack,
+            reason: 'guardarMaestros SQLite: contratistas', fatal: false);
+        tablasFallidas.add('contratistas');
+      }
+    }
+
+    // 3: embarcaciones
+    if (futures[3] != null) {
+      try {
+        await _dbHelper.guardarMaestros(
+          'embarcaciones',
+          List<Map<String, dynamic>>.from(futures[3]!),
+        );
+        tablasDescargadas.add('embarcaciones');
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando embarcaciones en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(e, stack,
+            reason: 'guardarMaestros SQLite: embarcaciones', fatal: false);
+        tablasFallidas.add('embarcaciones');
+      }
+    }
+
+    // 4: formulario_items
+    if (futures[4] != null) {
+      try {
+        await _dbHelper.guardarItemsOffline(
+          List<Map<String, dynamic>>.from(futures[4]!),
+        );
+        tablasDescargadas.add('formulario_items');
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando formulario_items en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(e, stack,
+            reason: 'guardarMaestros SQLite: formulario_items', fatal: false);
+        tablasFallidas.add('formulario_items');
+      }
+    }
+
+    // 5: personal_externo
+    if (futures[5] != null) {
+      try {
+        await _dbHelper.guardarMaestros(
+          'personal_externo',
+          List<Map<String, dynamic>>.from(futures[5]!),
+        );
+        tablasDescargadas.add('personal_externo');
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando personal_externo en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(e, stack,
+            reason: 'guardarMaestros SQLite: personal_externo', fatal: false);
+        tablasFallidas.add('personal_externo');
+      }
+    }
+
+    // 6: empresas
+    if (futures[6] != null) {
+      try {
+        await _dbHelper.guardarMaestros(
+          'empresas',
+          List<Map<String, dynamic>>.from(futures[6]!),
+        );
+        tablasDescargadas.add('empresas');
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando empresas en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(e, stack,
+            reason: 'guardarMaestros SQLite: empresas', fatal: false);
+        tablasFallidas.add('empresas');
+      }
+    }
+
+    // 7: ticket_categorias
+    if (futures[7] != null) {
+      try {
+        await _dbHelper.guardarMaestros(
+          'ticket_categorias',
+          List<Map<String, dynamic>>.from(futures[7]!),
+        );
+        tablasDescargadas.add('ticket_categorias');
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando ticket_categorias en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(e, stack,
+            reason: 'guardarMaestros SQLite: ticket_categorias', fatal: false);
+        tablasFallidas.add('ticket_categorias');
+      }
+    }
+
+    // 8: usuarios
+    if (futures[8] != null) {
+      try {
+        await _dbHelper.guardarMaestros(
+          'usuarios',
+          List<Map<String, dynamic>>.from(futures[8]!),
+        );
+        tablasDescargadas.add('usuarios');
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando usuarios en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(e, stack,
+            reason: 'guardarMaestros SQLite: usuarios', fatal: false);
+        tablasFallidas.add('usuarios');
+      }
+    }
+
+    // Descargar tickets (independiente)
+    try {
+      await _ticketRepo.descargarTicketsDesdeSupabase();
+    } catch (e, stack) {
+      debugPrint("⚠️ Error descargando tickets: $e");
+      FirebaseCrashlytics.instance.recordError(e, stack,
+          reason: 'descargarTicketsDesdeSupabase', fatal: false);
+    }
+
+    // 9: empresa_modulos (condicional)
+    final modulosData = futures[9];
+    if (modulosData != null && modulosData.isNotEmpty) {
+      try {
+        await _dbHelper.guardarMaestros(
+          'empresa_modulos',
+          List<Map<String, dynamic>>.from(modulosData),
+          scopeWhere: empresaId != null ? 'empresa_id = ?' : null,
+          scopeArgs: empresaId != null ? [empresaId] : null,
+        );
+        tablasDescargadas.add('empresa_modulos');
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando empresa_modulos en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(e, stack,
+            reason: 'guardarMaestros SQLite: empresa_modulos', fatal: false);
+        tablasFallidas.add('empresa_modulos');
+      }
+    }
+
+    // 10: usuario_empresas (condicional)
+    final ueData = futures[10];
+    if (ueData != null && ueData.isNotEmpty) {
+      try {
         await _dbHelper.guardarMaestros(
           'usuario_empresas',
-          ueData,
+          List<Map<String, dynamic>>.from(ueData),
           scopeWhere: userId != null ? 'usuario_id = ?' : null,
           scopeArgs: userId != null ? [userId] : null,
         );
-        // Recargar empresas del usuario en UserSession
+        tablasDescargadas.add('usuario_empresas');
         if (userId != null) {
           await UserSession().loadFromSQLite(userId);
         }
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando usuario_empresas en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(e, stack,
+            reason: 'guardarMaestros SQLite: usuario_empresas', fatal: false);
+        tablasFallidas.add('usuario_empresas');
       }
+    }
 
+    if (tablasFallidas.isEmpty) {
       debugPrint(
-        "✅ Datos maestros actualizados offline (Sin tocar al usuario).",
+        "✅ Datos maestros actualizados offline (${tablasDescargadas.length} tablas).",
       );
-    } catch (e) {
+    } else {
       debugPrint(
-        "⚠️ No se pudieron actualizar maestros (Sin internet o error BD): $e",
+        "⚠️ Descarga parcial: ${tablasDescargadas.length} OK, ${tablasFallidas.length} fallidas: $tablasFallidas",
       );
     }
+
+    return tablasFallidas;
   }
 
   // --- 2. SUBIDA DE DATOS (Up-Sync) ---
@@ -148,23 +345,26 @@ class SyncService {
   Future<int> sincronizarTodo() async {
     int totalSubidas = 0;
     try {
-      // 0. Subir datos maestros creados localmente (ANTES de actividades por FK)
+      // 0. Verificar y descargar datos maestros faltantes ANTES de sincronizar
+      await _verificarYDescargarFaltantes();
+
+      // 1. Subir datos maestros creados localmente (ANTES de actividades por FK)
       await _sincronizarMaestrosPendientes();
 
-      // 1. Subir Inspecciones (Las que siguen usando la tabla actividades)
+      // 2. Subir Inspecciones (Las que siguen usando la tabla actividades)
       int actividadesSubidas = await _sincronizarActividades();
 
-      // 2. Subir Visitas Técnicas (AHORA SON INDEPENDIENTES)
+      // 3. Subir Visitas Técnicas (AHORA SON INDEPENDIENTES)
       int visitasSubidas = await _sincronizarVisitas();
 
-      // 3. Subir Hijos (Respuestas y Fotos)
+      // 4. Subir Hijos (Respuestas y Fotos)
       await _sincronizarRespuestas();
       await _sincronizarFotos();
 
-      // 4. Subir Tickets pendientes
+      // 5. Subir Tickets pendientes
       await _ticketRepo.syncTicketsHaciaSupabase();
 
-      // 5. Subir configuración de módulos por empresa
+      // 6. Subir configuración de módulos por empresa
       await _sincronizarEmpresaModulos();
 
       totalSubidas = actividadesSubidas + visitasSubidas;
@@ -172,7 +372,7 @@ class SyncService {
       debugPrint("❌ Error en sincronización global: $e");
     }
 
-    // 6. Generar PDFs diferidos SIEMPRE (fuera del try/catch principal)
+    // 7. Generar PDFs diferidos SIEMPRE (fuera del try/catch principal)
     // Así se ejecuta aunque otros pasos de sync hayan fallado
     try {
       await _recuperarNumeroReporteFaltante();
@@ -182,6 +382,123 @@ class SyncService {
     }
 
     return totalSubidas;
+  }
+
+  /// Verifica qué tablas maestras están vacías en SQLite y las descarga.
+  /// Solo descarga las que faltan, no todas.
+  Future<void> _verificarYDescargarFaltantes() async {
+    final db = await _dbHelper.database;
+    final empresaId = UserSession().empresaId;
+
+    // Tablas obligatorias que siempre deben tener datos
+    final tablasAVerificar = [
+      'areas',
+      'centros',
+      'contratistas',
+      'embarcaciones',
+      'formulario_items',
+      'personal_externo',
+      'empresas',
+      'ticket_categorias',
+      'usuarios',
+    ];
+
+    final tablasVacias = <String>[];
+    for (final tabla in tablasAVerificar) {
+      final count = Sqflite.firstIntValue(
+        await db.rawQuery('SELECT COUNT(*) FROM $tabla'),
+      );
+      if (count == null || count == 0) {
+        tablasVacias.add(tabla);
+      }
+    }
+
+    if (tablasVacias.isEmpty) {
+      return; // Todo OK, no falta nada
+    }
+
+    debugPrint(
+      "⚠️ Tablas maestras vacías detectadas: $tablasVacias → descargando...",
+    );
+
+    // Re-descargar solo las tablas faltantes
+    for (final tabla in tablasVacias) {
+      try {
+        List<Map<String, dynamic>> data;
+        switch (tabla) {
+          case 'areas':
+            data = empresaId != null
+                ? await _supabase
+                      .from('areas')
+                      .select('id, nombre, empresa_id')
+                      .eq('empresa_id', empresaId)
+                : await _supabase
+                      .from('areas')
+                      .select('id, nombre, empresa_id');
+            await _dbHelper.guardarMaestros(
+              'areas',
+              data,
+              scopeWhere: empresaId != null ? 'empresa_id = ?' : null,
+              scopeArgs: empresaId != null ? [empresaId] : null,
+            );
+            break;
+          case 'centros':
+            data = await _supabase
+                .from('centros')
+                .select('id, nombre, area_id');
+            await _dbHelper.guardarMaestros('centros', data);
+            break;
+          case 'contratistas':
+            data = await _supabase.from('contratistas').select('id, nombre');
+            await _dbHelper.guardarMaestros('contratistas', data);
+            break;
+          case 'embarcaciones':
+            data = await _supabase
+                .from('embarcaciones')
+                .select('id, nombre, contratista_id, matricula');
+            await _dbHelper.guardarMaestros('embarcaciones', data);
+            break;
+          case 'formulario_items':
+            data = await _supabase
+                .from('formulario_items')
+                .select()
+                .eq('activo', true)
+                .order('orden');
+            await _dbHelper.guardarItemsOffline(data);
+            break;
+          case 'personal_externo':
+            data = await _supabase.from('personal_externo').select();
+            await _dbHelper.guardarMaestros('personal_externo', data);
+            break;
+          case 'empresas':
+            data = await _supabase
+                .from('empresas')
+                .select('id, nombre, es_administradora');
+            await _dbHelper.guardarMaestros('empresas', data);
+            break;
+          case 'ticket_categorias':
+            data = await _supabase
+                .from('ticket_categorias')
+                .select('id, nombre, activo')
+                .eq('activo', true);
+            await _dbHelper.guardarMaestros('ticket_categorias', data);
+            break;
+          case 'usuarios':
+            data = await _supabase
+                .from('usuarios')
+                .select(
+                  'id, rut, nombre_completo, email, rol_id, telefono, empresa_id, roles (nombre)',
+                );
+            await _dbHelper.guardarMaestros('usuarios', data);
+            break;
+        }
+        debugPrint("✅ Tabla faltante '$tabla' descargada OK");
+      } catch (e, stack) {
+        debugPrint("⚠️ No se pudo descargar tabla faltante '$tabla': $e");
+        FirebaseCrashlytics.instance.recordError(e, stack,
+            reason: 'verificarYDescargarFaltantes: tabla $tabla', fatal: false);
+      }
+    }
   }
 
   Future<int> _sincronizarActividades() async {
