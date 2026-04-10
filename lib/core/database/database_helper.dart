@@ -7,7 +7,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      40; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      41; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -128,6 +128,17 @@ class DatabaseHelper {
     ''');
     await db.execute(
       'CREATE UNIQUE INDEX IF NOT EXISTS idx_usuario_empresa ON usuario_empresas(usuario_id, empresa_id)',
+    );
+    // Junction table: N:N entre empresas y areas
+    await db.execute('''
+      CREATE TABLE empresa_areas (
+        id TEXT PRIMARY KEY,
+        empresa_id TEXT NOT NULL,
+        area_id TEXT NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_empresa_area ON empresa_areas(empresa_id, area_id)',
     );
     // Agregamos matricula aquí también por si acaso
     await db.execute(
@@ -856,8 +867,35 @@ class DatabaseHelper {
 
     if (oldVersion < 40) {
       debugPrint("🚀 Aplicando parche v40 (es_administradora en empresas)...");
-      await _safeAddColumn(db, 'empresas', 'es_administradora', 'INTEGER DEFAULT 0');
+      await _safeAddColumn(
+        db,
+        'empresas',
+        'es_administradora',
+        'INTEGER DEFAULT 0',
+      );
       debugPrint("✅ Parche v40 aplicado.");
+    }
+
+    if (oldVersion < 41) {
+      debugPrint("🚀 Aplicando parche v41 (empresa_areas N:N)...");
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS empresa_areas (
+          id TEXT PRIMARY KEY,
+          empresa_id TEXT NOT NULL,
+          area_id TEXT NOT NULL
+        )
+      ''');
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_empresa_area ON empresa_areas(empresa_id, area_id)',
+      );
+      // Seed desde la relación 1:N existente en areas.empresa_id
+      await db.execute('''
+        INSERT OR IGNORE INTO empresa_areas (id, empresa_id, area_id)
+        SELECT id || '_ea', empresa_id, id
+        FROM areas
+        WHERE empresa_id IS NOT NULL AND empresa_id != ''
+      ''');
+      debugPrint("✅ Parche v41 aplicado.");
     }
   }
 
@@ -1003,13 +1041,19 @@ class DatabaseHelper {
       } else if (tabla == 'usuario_empresas') {
         row['usuario_id'] = item['usuario_id'];
         row['empresa_id'] = item['empresa_id'];
+      } else if (tabla == 'empresa_areas') {
+        row['empresa_id'] = item['empresa_id'];
+        row['area_id'] = item['area_id'];
       } else if (tabla == 'contratistas') {
         row['nombre'] = item['nombre'];
         row['subido'] = 1;
       } else if (tabla == 'empresas') {
         row['nombre'] = item['nombre'];
         row['es_administradora'] =
-            (item['es_administradora'] == true || item['es_administradora'] == 1) ? 1 : 0;
+            (item['es_administradora'] == true ||
+                item['es_administradora'] == 1)
+            ? 1
+            : 0;
       } else {
         row['nombre'] = item['nombre'];
       }
@@ -1154,11 +1198,15 @@ class DatabaseHelper {
 
   Future<List<Map<String, dynamic>>> getAreasByEmpresa(String empresaId) async {
     final db = await instance.database;
-    return await db.query(
-      'areas',
-      where: 'empresa_id = ?',
-      whereArgs: [empresaId],
-      orderBy: 'nombre',
+    return await db.rawQuery(
+      '''
+      SELECT DISTINCT a.id, a.nombre, a.empresa_id
+      FROM areas a
+      INNER JOIN empresa_areas ea ON ea.area_id = a.id
+      WHERE ea.empresa_id = ?
+      ORDER BY a.nombre
+    ''',
+      [empresaId],
     );
   }
 

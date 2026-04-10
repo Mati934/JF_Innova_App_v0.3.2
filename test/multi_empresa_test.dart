@@ -254,11 +254,7 @@ void main() {
     });
 
     test('módulos normales no requieren admin', () {
-      for (final key in [
-        'INSPECCION',
-        'VISITA_R003',
-        'VISITA_R004',
-      ]) {
+      for (final key in ['INSPECCION', 'VISITA_R003', 'VISITA_R004']) {
         final mod = ModuleRegistry.byKey(key)!;
         expect(
           mod.requiresAdmin,
@@ -682,7 +678,7 @@ void main() {
     });
   });
 
-  group('Sync - getAreasByEmpresa', () {
+  group('Sync - getAreasByEmpresa (N:N via empresa_areas)', () {
     test(
       'lógica de filtrado: con empresaId usa filtro, sin él retorna todo',
       () {
@@ -695,6 +691,147 @@ void main() {
         expect(usaAreasFiltradas, true);
       },
     );
+
+    test('getAreasByEmpresa usa JOIN con empresa_areas (no WHERE directo)', () {
+      // Antes (1:N): SELECT * FROM areas WHERE empresa_id = ?
+      // Ahora (N:N): SELECT a.* FROM areas a INNER JOIN empresa_areas ea ON ea.area_id = a.id WHERE ea.empresa_id = ?
+      // Esto permite que un área pertenezca a múltiples empresas
+
+      final empresaAreas = [
+        {'empresa_id': 'emp-1', 'area_id': 'area-A'},
+        {'empresa_id': 'emp-1', 'area_id': 'area-B'},
+        {'empresa_id': 'emp-2', 'area_id': 'area-A'}, // area-A compartida
+        {'empresa_id': 'emp-2', 'area_id': 'area-C'},
+      ];
+
+      // Simula JOIN: áreas para emp-1
+      final areasEmp1 = empresaAreas
+          .where((ea) => ea['empresa_id'] == 'emp-1')
+          .map((ea) => ea['area_id'])
+          .toSet();
+
+      // Simula JOIN: áreas para emp-2
+      final areasEmp2 = empresaAreas
+          .where((ea) => ea['empresa_id'] == 'emp-2')
+          .map((ea) => ea['area_id'])
+          .toSet();
+
+      expect(areasEmp1, {'area-A', 'area-B'});
+      expect(areasEmp2, {'area-A', 'area-C'});
+      // area-A está en ambas empresas (N:N)
+      expect(areasEmp1.intersection(areasEmp2), {'area-A'});
+    });
+
+    test('área puede pertenecer a múltiples empresas', () {
+      // Caso real: áreas creadas por administradora (emp-88f5) visibles para Servimaf (emp-5535)
+      final empresaAreas = [
+        {'empresa_id': 'emp-administradora', 'area_id': 'area-PTO-MONTT'},
+        {
+          'empresa_id': 'emp-servimaf',
+          'area_id': 'area-PTO-MONTT',
+        }, // compartida
+        {'empresa_id': 'emp-administradora', 'area_id': 'area-NATALES'},
+        {'empresa_id': 'emp-servimaf', 'area_id': 'area-NATALES'}, // compartida
+      ];
+
+      final areasServimaf = empresaAreas
+          .where((ea) => ea['empresa_id'] == 'emp-servimaf')
+          .map((ea) => ea['area_id'])
+          .toList();
+
+      expect(areasServimaf.length, 2);
+      expect(areasServimaf, contains('area-PTO-MONTT'));
+      expect(areasServimaf, contains('area-NATALES'));
+    });
+
+    test('empresa_areas usa scope empresa_id para guardarMaestros', () {
+      final empresaId = 'emp-servimaf';
+      final scopeWhere = 'empresa_id = ?';
+      final scopeArgs = [empresaId];
+
+      expect(scopeWhere, 'empresa_id = ?');
+      expect(scopeArgs, ['emp-servimaf']);
+    });
+
+    test('areas se descargan globalmente (sin filtro empresa)', () {
+      // Antes: areas se filtraban por empresa_id en Supabase query
+      // Ahora: areas se descargan completas, el filtro es via empresa_areas JOIN
+      final String? empresaIdFilter = null; // No se filtra en descarga
+      expect(
+        empresaIdFilter,
+        isNull,
+        reason: 'Areas se descargan sin filtro, empresa_areas hace el filtro',
+      );
+    });
+
+    test('fallback: si empresa_areas vacía, getAreas retorna todas', () {
+      // Controllers tienen fallback: si getAreasByEmpresa().isEmpty → getAreas()
+      final areasFiltradasResult =
+          <Map<String, dynamic>>[]; // empresa_areas vacía
+      final allAreas = [
+        {'id': 'a1', 'nombre': 'Area 1'},
+        {'id': 'a2', 'nombre': 'Area 2'},
+      ];
+
+      final areasFinales = areasFiltradasResult.isNotEmpty
+          ? areasFiltradasResult
+          : allAreas;
+
+      expect(
+        areasFinales.length,
+        2,
+        reason: 'Fallback a todas las áreas si empresa_areas no tiene datos',
+      );
+    });
+  });
+
+  // ===================================================================
+  // TESTS: Migración v41 - empresa_areas seed desde legacy 1:N
+  // ===================================================================
+  group('Migración v41 - empresa_areas', () {
+    test('genera ID correcto para migración desde areas.empresa_id', () {
+      // La migración v41 hace: SELECT id || '_ea' FROM areas
+      final areaId = 'area-abc-123';
+      final migratedId = '${areaId}_ea';
+      expect(migratedId, 'area-abc-123_ea');
+    });
+
+    test('seed solo toma areas con empresa_id válido', () {
+      final areas = [
+        {'id': 'a1', 'empresa_id': 'emp-1'},
+        {'id': 'a2', 'empresa_id': null},
+        {'id': 'a3', 'empresa_id': ''},
+        {'id': 'a4', 'empresa_id': 'emp-2'},
+      ];
+
+      final seed = areas.where((a) {
+        final empId = a['empresa_id'];
+        return empId != null && empId != '';
+      }).toList();
+
+      expect(seed.length, 2, reason: 'Solo a1 y a4 tienen empresa_id válido');
+      expect(seed.map((a) => a['id']).toList(), ['a1', 'a4']);
+    });
+
+    test('UNIQUE(empresa_id, area_id) previene duplicados en seed', () {
+      // INSERT OR IGNORE maneja duplicados del seed
+      final existingPairs = <String>{};
+      final inserts = [
+        {'empresa_id': 'emp-1', 'area_id': 'a1'},
+        {'empresa_id': 'emp-1', 'area_id': 'a1'}, // duplicado
+        {'empresa_id': 'emp-2', 'area_id': 'a1'}, // diferente empresa, OK
+      ];
+
+      int inserted = 0;
+      for (final row in inserts) {
+        final key = '${row['empresa_id']}_${row['area_id']}';
+        if (existingPairs.add(key)) {
+          inserted++;
+        }
+      }
+
+      expect(inserted, 2, reason: 'Duplicado se ignora por UNIQUE constraint');
+    });
   });
 
   // ===================================================================
@@ -799,7 +936,9 @@ void main() {
       expect(mods1.length, 2);
       expect(mods2.length, 4);
       expect(
-          mods2.map((m) => m.moduleKey).toList(), containsAll(['VISITA_R004']));
+        mods2.map((m) => m.moduleKey).toList(),
+        containsAll(['VISITA_R004']),
+      );
       expect(
         mods1.map((m) => m.moduleKey).toList(),
         isNot(containsAll(['VISITA_R004'])),

@@ -46,15 +46,10 @@ class SyncService {
 
     // Lanzar todas las descargas en paralelo (como antes, para velocidad)
     final futures = await Future.wait([
-      // 0: areas
+      // 0: areas (global — filtrado se hace via empresa_areas)
       descargarTabla(
         'areas',
-        empresaId != null
-            ? _supabase
-                  .from('areas')
-                  .select('id, nombre, empresa_id')
-                  .eq('empresa_id', empresaId)
-            : _supabase.from('areas').select('id, nombre, empresa_id'),
+        _supabase.from('areas').select('id, nombre, empresa_id'),
       ),
       // 1: centros
       descargarTabla(
@@ -129,17 +124,25 @@ class SyncService {
                   .eq('usuario_id', userId)
             : Future.value(<Map<String, dynamic>>[]),
       ),
+      // 11: empresa_areas (condicional — solo para empresa activa)
+      descargarTabla(
+        'empresa_areas',
+        empresaId != null
+            ? _supabase
+                  .from('empresa_areas')
+                  .select('id, empresa_id, area_id')
+                  .eq('empresa_id', empresaId)
+            : Future.value(<Map<String, dynamic>>[]),
+      ),
     ]);
 
     // Guardar cada tabla que se descargó exitosamente
-    // 0: areas
+    // 0: areas (global — sin scope, se filtra via empresa_areas)
     if (futures[0] != null) {
       try {
         await _dbHelper.guardarMaestros(
           'areas',
           List<Map<String, dynamic>>.from(futures[0]!),
-          scopeWhere: empresaId != null ? 'empresa_id = ?' : null,
-          scopeArgs: empresaId != null ? [empresaId] : null,
         );
         tablasDescargadas.add('areas');
       } catch (e, stack) {
@@ -327,6 +330,25 @@ class SyncService {
       }
     }
 
+    // 11: empresa_areas (condicional)
+    final eaData = futures[11];
+    if (eaData != null && eaData.isNotEmpty) {
+      try {
+        await _dbHelper.guardarMaestros(
+          'empresa_areas',
+          List<Map<String, dynamic>>.from(eaData),
+          scopeWhere: empresaId != null ? 'empresa_id = ?' : null,
+          scopeArgs: empresaId != null ? [empresaId] : null,
+        );
+        tablasDescargadas.add('empresa_areas');
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando empresa_areas en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(e, stack,
+            reason: 'guardarMaestros SQLite: empresa_areas', fatal: false);
+        tablasFallidas.add('empresa_areas');
+      }
+    }
+
     if (tablasFallidas.isEmpty) {
       debugPrint(
         "✅ Datos maestros actualizados offline (${tablasDescargadas.length} tablas).",
@@ -427,20 +449,10 @@ class SyncService {
         List<Map<String, dynamic>> data;
         switch (tabla) {
           case 'areas':
-            data = empresaId != null
-                ? await _supabase
-                      .from('areas')
-                      .select('id, nombre, empresa_id')
-                      .eq('empresa_id', empresaId)
-                : await _supabase
-                      .from('areas')
-                      .select('id, nombre, empresa_id');
-            await _dbHelper.guardarMaestros(
-              'areas',
-              data,
-              scopeWhere: empresaId != null ? 'empresa_id = ?' : null,
-              scopeArgs: empresaId != null ? [empresaId] : null,
-            );
+            data = await _supabase
+                .from('areas')
+                .select('id, nombre, empresa_id');
+            await _dbHelper.guardarMaestros('areas', data);
             break;
           case 'centros':
             data = await _supabase
@@ -497,6 +509,37 @@ class SyncService {
         debugPrint("⚠️ No se pudo descargar tabla faltante '$tabla': $e");
         FirebaseCrashlytics.instance.recordError(e, stack,
             reason: 'verificarYDescargarFaltantes: tabla $tabla', fatal: false);
+      }
+    }
+
+    // Verificar tabla condicional: empresa_areas
+    if (empresaId != null) {
+      final eaCount = Sqflite.firstIntValue(
+        await db.rawQuery(
+          'SELECT COUNT(*) FROM empresa_areas WHERE empresa_id = ?',
+          [empresaId],
+        ),
+      );
+      if (eaCount == null || eaCount == 0) {
+        try {
+          final eaData = await _supabase
+              .from('empresa_areas')
+              .select('id, empresa_id, area_id')
+              .eq('empresa_id', empresaId);
+          if (eaData.isNotEmpty) {
+            await _dbHelper.guardarMaestros(
+              'empresa_areas',
+              eaData,
+              scopeWhere: 'empresa_id = ?',
+              scopeArgs: [empresaId],
+            );
+            debugPrint("✅ Tabla faltante 'empresa_areas' descargada OK");
+          }
+        } catch (e, stack) {
+          debugPrint("⚠️ No se pudo descargar tabla faltante 'empresa_areas': $e");
+          FirebaseCrashlytics.instance.recordError(e, stack,
+              reason: 'verificarYDescargarFaltantes: empresa_areas', fatal: false);
+        }
       }
     }
   }

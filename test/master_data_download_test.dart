@@ -22,17 +22,21 @@ void main() {
       'usuarios',
     ];
 
-    const tablasCondicionales = ['empresa_modulos', 'usuario_empresas'];
+    const tablasCondicionales = [
+      'empresa_modulos',
+      'usuario_empresas',
+      'empresa_areas',
+    ];
 
     test(
-      'Existen 9 tablas obligatorias + 2 condicionales = 11 en Future.wait',
+      'Existen 9 tablas obligatorias + 3 condicionales = 12 en Future.wait',
       () {
         expect(tablasObligatorias.length, 9);
-        expect(tablasCondicionales.length, 2);
+        expect(tablasCondicionales.length, 3);
         expect(
           tablasObligatorias.length + tablasCondicionales.length,
-          11,
-          reason: 'descargarDatosMaestros descarga 11 tablas en Future.wait',
+          12,
+          reason: 'descargarDatosMaestros descarga 12 tablas en Future.wait',
         );
       },
     );
@@ -298,15 +302,19 @@ void main() {
         [
           {'id': 'ue1', 'usuario_id': 'u1', 'empresa_id': 'e1'},
         ],
+        // 11: empresa_areas (condicional)
+        [
+          {'id': 'ea1', 'empresa_id': 'e1', 'area_id': 'a1'},
+        ],
       ];
     }
 
-    test('Future.wait retorna exactamente 11 resultados', () {
+    test('Future.wait retorna exactamente 12 resultados', () {
       final results = _crearResultadosCompletos();
       expect(
         results.length,
-        11,
-        reason: 'descargarDatosMaestros espera 11 resultados de Future.wait',
+        12,
+        reason: 'descargarDatosMaestros espera 12 resultados de Future.wait',
       );
     });
 
@@ -491,6 +499,12 @@ void main() {
       final ue = {'id': 'ue1', 'usuario_id': 'u1', 'empresa_id': 'e1'};
       expect(ue.containsKey('usuario_id'), true);
       expect(ue.containsKey('empresa_id'), true);
+    });
+
+    test('empresa_areas: debe tener empresa_id, area_id', () {
+      final ea = {'id': 'ea1', 'empresa_id': 'e1', 'area_id': 'a1'};
+      expect(ea.containsKey('empresa_id'), true);
+      expect(ea.containsKey('area_id'), true);
     });
   });
 

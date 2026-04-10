@@ -14,7 +14,8 @@ class LocalVisitRepository {
   Future<List<Map<String, dynamic>>> getRegiones() async {
     final empresaId = UserSession().empresaId;
     if (empresaId != null) {
-      return await dbHelper.getAreasByEmpresa(empresaId);
+      final filtradas = await dbHelper.getAreasByEmpresa(empresaId);
+      if (filtradas.isNotEmpty) return filtradas;
     }
     return await dbHelper.getAreas();
   }

@@ -79,8 +79,12 @@ class InspectionSetupController extends ChangeNotifier {
       notifyListeners();
 
       final empresaId = UserSession().empresaId;
-      final areasData = empresaId != null
+      final areasResult = empresaId != null
           ? await _dbHelper.getAreasByEmpresa(empresaId)
+          : await _dbHelper.getAreas();
+      // Fallback si empresa_areas no tiene datos aún
+      final areasData = areasResult.isNotEmpty
+          ? areasResult
           : await _dbHelper.getAreas();
       final contratistasData = await _dbHelper.getContratistas();
 

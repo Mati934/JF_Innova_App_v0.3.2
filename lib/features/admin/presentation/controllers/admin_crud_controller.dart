@@ -43,7 +43,9 @@ class AdminCrudController extends ChangeNotifier {
         _db.getContratistas(),
         _db.getAllEmbarcaciones(),
       ]);
-      areas = results[0];
+      final areasResult = results[0];
+      // Fallback: si empresa_areas no tiene datos aún, cargar todas
+      areas = areasResult.isNotEmpty ? areasResult : await _db.getAreas();
       centros = results[1];
       contratistas = results[2];
       embarcaciones = results[3];
@@ -75,9 +77,10 @@ class AdminCrudController extends ChangeNotifier {
           embarcaciones = await _db.getAllEmbarcaciones();
           break;
         case 'areas':
-          areas = empresaId != null
+          final filtered = empresaId != null
               ? await _db.getAreasByEmpresa(empresaId)
               : await _db.getAreas();
+          areas = filtered.isNotEmpty ? filtered : await _db.getAreas();
           _areaNombreCache = {
             for (var a in areas)
               a['id'] as String: a['nombre'] as String? ?? '',
