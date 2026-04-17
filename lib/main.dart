@@ -35,6 +35,22 @@ void main() async {
 
   // 3. Interceptar errores asíncronos (Isolates, Futures no manejados, etc.)
   PlatformDispatcher.instance.onError = (error, stack) {
+    // Errores de red durante token refresh de Supabase no son fatales
+    // (ocurren cuando el dispositivo pierde conexión momentáneamente)
+    final errorStr = error.toString();
+    final esErrorDeRed =
+        error is SocketException ||
+        errorStr.contains('Failed host lookup') ||
+        errorStr.contains('Connection refused') ||
+        errorStr.contains('AuthRetryableFetchException') ||
+        errorStr.contains('SocketException');
+
+    if (esErrorDeRed) {
+      debugPrint('📴 Error de red ignorado (no fatal): $errorStr');
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: false);
+      return true;
+    }
+
     FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
     return true;
   };

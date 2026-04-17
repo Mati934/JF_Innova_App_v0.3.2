@@ -791,6 +791,18 @@ class SyncService {
                   .eq('id', activityId);
 
               debugPrint("✅ PDF pendiente subido: $pdfUrl");
+            } else {
+              // Archivo local eliminado (reinstalación, clear data, etc.)
+              // Limpiar pdf_path_local para que DeferredPdfService lo regenere
+              debugPrint(
+                "⚠️ PDF local no existe ($pdfPathLocal), limpiando para regenerar...",
+              );
+              await db.update(
+                'actividades_pendientes',
+                {'pdf_path_local': null},
+                where: 'id = ?',
+                whereArgs: [activityId],
+              );
             }
           } catch (e) {
             debugPrint("⚠️ Error subiendo PDF pendiente (se reintentará): $e");

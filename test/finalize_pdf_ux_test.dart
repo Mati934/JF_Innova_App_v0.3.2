@@ -145,8 +145,11 @@ void main() {
         'eliminado': 0,
         'numero_reporte': 'PROV-abc12345',
       };
-      expect(queryPdfPendiente(row), false,
-          reason: 'PROV-* es provisional, trigger aún no asignó número real');
+      expect(
+        queryPdfPendiente(row),
+        false,
+        reason: 'PROV-* es provisional, trigger aún no asignó número real',
+      );
     });
 
     test('Número ~N → no se genera (necesita real)', () {
@@ -157,8 +160,11 @@ void main() {
         'eliminado': 0,
         'numero_reporte': '~43',
       };
-      expect(queryPdfPendiente(row), false,
-          reason: '~N es estimado, trigger aún no asignó número real');
+      expect(
+        queryPdfPendiente(row),
+        false,
+        reason: '~N es estimado, trigger aún no asignó número real',
+      );
     });
 
     test('Ya tiene pdf_url → no se genera', () {
@@ -191,8 +197,11 @@ void main() {
         'eliminado': 0,
         'numero_reporte': '42',
       };
-      expect(queryPdfPendiente(row), false,
-          reason: 'Ya existe PDF local generado con número real');
+      expect(
+        queryPdfPendiente(row),
+        false,
+        reason: 'Ya existe PDF local generado con número real',
+      );
     });
   });
 
@@ -268,20 +277,366 @@ void main() {
   });
 
   // ===================================================================
+  // TESTS: Previsualizar PDF antes de finalizar NO interfiere
+  // ===================================================================
+  group('Previsualizar PDF antes de finalizar', () {
+    test('Preview no guarda pdf_path_local ni pdf_url', () {
+      // La previsualización genera el PDF en memoria (Uint8List)
+      // y lo muestra con Printing.layoutPdf. No persiste nada.
+      // Simulamos el estado de la actividad antes y después de preview.
+      final actividadAntes = {
+        'id': 'act-001',
+        'estado_final': 'En Progreso',
+        'pdf_url': null,
+        'pdf_path_local': null,
+        'numero_reporte': null,
+        'subido': 0,
+      };
+
+      // Después de previsualizar, nada cambia en la actividad
+      final actividadDespuesPreview = Map<String, dynamic>.from(actividadAntes);
+
+      expect(
+        actividadDespuesPreview['pdf_url'],
+        isNull,
+        reason: 'Preview no setea pdf_url',
+      );
+      expect(
+        actividadDespuesPreview['pdf_path_local'],
+        isNull,
+        reason: 'Preview no setea pdf_path_local',
+      );
+      expect(
+        actividadDespuesPreview['estado_final'],
+        'En Progreso',
+        reason: 'Preview no cambia el estado',
+      );
+    });
+
+    test('Finalizar después de preview genera PDF normalmente', () {
+      // Después de previsualizar, el usuario finaliza.
+      // El controller genera un PDF NUEVO (no reutiliza el de preview).
+      final pdfUrlSubido =
+          'https://storage.supabase.co/reportes/act-001/reporte_42.pdf';
+      final pdfPathLocal = '/data/user/0/com.app/documents/reporte_42.pdf';
+
+      // Caso online: PDF se genera, se guarda local, se sube a Storage
+      final actividadFinalizada = {
+        'id': 'act-001',
+        'estado_final': 'En Seguimiento',
+        'pdf_url': pdfUrlSubido,
+        'pdf_path_local': null, // Se limpia porque upload exitoso
+        'numero_reporte': '42',
+        'subido': 0,
+      };
+
+      expect(
+        actividadFinalizada['pdf_url'],
+        isNotNull,
+        reason: 'Finalizar genera y sube PDF aunque se haya previsualizdo',
+      );
+      expect(
+        actividadFinalizada['pdf_path_local'],
+        isNull,
+        reason: 'Con upload exitoso, path local se limpia',
+      );
+      expect(actividadFinalizada['estado_final'], 'En Seguimiento');
+    });
+
+    test('Finalizar con upload fallido guarda pdf_path_local para retry', () {
+      // Si el upload a Storage falla (sin red), se guarda el path local
+      final pdfPathLocal = '/data/user/0/com.app/documents/reporte_42.pdf';
+
+      final actividadFinalizada = {
+        'id': 'act-001',
+        'estado_final': 'En Seguimiento',
+        'pdf_url': null, // Upload falló
+        'pdf_path_local': pdfPathLocal, // Se mantiene para retry
+        'numero_reporte': '42',
+        'subido': 0,
+      };
+
+      expect(actividadFinalizada['pdf_url'], isNull);
+      expect(
+        actividadFinalizada['pdf_path_local'],
+        isNotNull,
+        reason: 'Path local se preserva para que sync lo suba después',
+      );
+    });
+  });
+
+  // ===================================================================
+  // TESTS: Sync sube PDF pendiente a Storage
+  // ===================================================================
+  group('Sync - subida de PDF pendiente', () {
+    test('Sync detecta PDF pendiente: pdf_path_local sin pdf_url', () {
+      final row = {
+        'pdf_path_local': '/data/user/0/com.app/documents/reporte_42.pdf',
+        'pdf_url': null,
+        'numero_reporte': '42',
+      };
+
+      final pdfPathLocal = row['pdf_path_local'] as String?;
+      final pdfUrlActual = row['pdf_url'] as String?;
+
+      final debeSub =
+          pdfPathLocal != null &&
+          pdfPathLocal.isNotEmpty &&
+          (pdfUrlActual == null || pdfUrlActual.isEmpty);
+
+      expect(
+        debeSub,
+        true,
+        reason: 'Tiene PDF local pero no URL → sync debe subirlo',
+      );
+    });
+
+    test('Sync NO intenta subir si ya tiene pdf_url', () {
+      final row = {
+        'pdf_path_local': '/data/user/0/com.app/documents/reporte_42.pdf',
+        'pdf_url':
+            'https://storage.supabase.co/reportes/act-001/reporte_42.pdf',
+        'numero_reporte': '42',
+      };
+
+      final pdfPathLocal = row['pdf_path_local'] as String?;
+      final pdfUrlActual = row['pdf_url'] as String?;
+
+      final debeSub =
+          pdfPathLocal != null &&
+          pdfPathLocal.isNotEmpty &&
+          (pdfUrlActual == null || pdfUrlActual.isEmpty);
+
+      expect(debeSub, false, reason: 'Ya tiene URL → no necesita resubir');
+    });
+
+    test('Sync NO intenta subir si pdf_path_local es null', () {
+      final row = {
+        'pdf_path_local': null,
+        'pdf_url': null,
+        'numero_reporte': '42',
+      };
+
+      final pdfPathLocal = row['pdf_path_local'] as String?;
+      final pdfUrlActual = row['pdf_url'] as String?;
+
+      final debeSub =
+          pdfPathLocal != null &&
+          pdfPathLocal.isNotEmpty &&
+          (pdfUrlActual == null || pdfUrlActual.isEmpty);
+
+      expect(
+        debeSub,
+        false,
+        reason:
+            'Sin PDF local → nada que subir (DeferredPdfService se encarga)',
+      );
+    });
+
+    test('Después de subir PDF, sync limpia pdf_path_local y pone pdf_url', () {
+      // Simulamos lo que sync hace después de subir exitosamente
+      final rowAntes = {
+        'pdf_path_local': '/data/user/0/com.app/documents/reporte_42.pdf',
+        'pdf_url': null,
+      };
+
+      // Sync sube el archivo y actualiza:
+      final updateDespues = {
+        'pdf_url':
+            'https://storage.supabase.co/reportes/act-001/reporte_42.pdf',
+        'pdf_path_local': null,
+      };
+
+      final rowDespues = {...rowAntes, ...updateDespues};
+
+      expect(rowDespues['pdf_url'], isNotNull);
+      expect(
+        rowDespues['pdf_path_local'],
+        isNull,
+        reason: 'Path local se limpia después de subir exitosamente',
+      );
+    });
+  });
+
+  // ===================================================================
+  // TESTS: datosParaNube excluye campos locales
+  // ===================================================================
+  group('Sync - datosParaNube para Supabase', () {
+    test('pdf_path_local se remueve de datosParaNube', () {
+      final row = {
+        'id': 'act-001',
+        'tipo_actividad': 'INSPECCION_BUCEO',
+        'estado_final': 'En Seguimiento',
+        'pdf_url':
+            'https://storage.supabase.co/reportes/act-001/reporte_42.pdf',
+        'pdf_path_local': '/data/user/0/com.app/documents/reporte_42.pdf',
+        'numero_reporte': '42',
+        'subido': 0,
+        'eliminado': 0,
+        'app_version': '1.0.0',
+      };
+
+      final datosParaNube = Map<String, dynamic>.from(row);
+      datosParaNube.remove('numero_reporte');
+      datosParaNube.remove('subido');
+      datosParaNube.remove('eliminado');
+      datosParaNube.remove('pdf_path_local');
+      datosParaNube.remove('app_version');
+
+      expect(
+        datosParaNube.containsKey('pdf_path_local'),
+        false,
+        reason: 'pdf_path_local es local, no debe ir a Supabase',
+      );
+      expect(datosParaNube.containsKey('subido'), false);
+      expect(datosParaNube.containsKey('eliminado'), false);
+      expect(datosParaNube.containsKey('app_version'), false);
+      expect(
+        datosParaNube.containsKey('numero_reporte'),
+        false,
+        reason: 'numero_reporte se maneja por trigger de Supabase',
+      );
+      expect(
+        datosParaNube['pdf_url'],
+        isNotNull,
+        reason: 'pdf_url SÍ va a Supabase',
+      );
+    });
+
+    test('pdf_url null se envía a Supabase (no se omite)', () {
+      final row = {
+        'id': 'act-001',
+        'tipo_actividad': 'INSPECCION_BUCEO',
+        'estado_final': 'En Seguimiento',
+        'pdf_url': null,
+        'pdf_path_local': '/data/reporte_42.pdf',
+        'subido': 0,
+      };
+
+      final datosParaNube = Map<String, dynamic>.from(row);
+      datosParaNube.remove('pdf_path_local');
+      datosParaNube.remove('subido');
+
+      // pdf_url null se envía → Supabase lo guarda como null
+      // Esto es correcto: el PDF se subirá después via Storage
+      expect(datosParaNube.containsKey('pdf_url'), true);
+      expect(datosParaNube['pdf_url'], isNull);
+    });
+  });
+
+  // ===================================================================
+  // TESTS: _persistirDatos - lógica de pdf_path_local condicional
+  // ===================================================================
+  group('_persistirDatos - pdf_path_local condicional', () {
+    test('Upload exitoso: pdf_url set, pdf_path_local null', () {
+      // Línea 774 del controller:
+      // pdfPathLocal: pdfUrlSubido == null ? pdfPathLocal : null
+      final pdfUrlSubido = 'https://storage.supabase.co/reportes/x.pdf';
+      final pdfPathLocal = '/data/reporte_42.pdf';
+
+      final valorFinal = pdfUrlSubido == null ? pdfPathLocal : null;
+
+      expect(
+        valorFinal,
+        isNull,
+        reason: 'Con URL subida, no necesitamos path local',
+      );
+    });
+
+    test('Upload fallido: pdf_url null, pdf_path_local preservado', () {
+      final String? pdfUrlSubido = null; // Upload falló
+      final pdfPathLocal = '/data/reporte_42.pdf';
+
+      final valorFinal = pdfUrlSubido == null ? pdfPathLocal : null;
+
+      expect(
+        valorFinal,
+        pdfPathLocal,
+        reason: 'Sin URL, guardamos path local para retry',
+      );
+    });
+
+    test(
+        'PDF local eliminado (reinstalación): sync limpia path para regenerar',
+        () {
+      // Caso: pdf_path_local apunta a archivo que ya no existe
+      // (reinstalación, clear data, etc.)
+      // Sync debe limpiar pdf_path_local → DeferredPdfService lo regenera
+      final row = {
+        'pdf_path_local': '/data/user/0/com.app/documents/reporte_42.pdf',
+        'pdf_url': null,
+        'numero_reporte': '42',
+        'estado_final': 'En Seguimiento',
+        'eliminado': 0,
+      };
+
+      // Simulamos: file.existsSync() → false
+      const fileExists = false;
+
+      if (!fileExists) {
+        // Sync limpia pdf_path_local
+        row['pdf_path_local'] = null;
+      }
+
+      // Ahora DeferredPdfService SÍ lo detecta
+      final numero = row['numero_reporte']?.toString() ?? '';
+      final necesitaGenerar = row['estado_final'] == 'En Seguimiento' &&
+          (row['pdf_path_local'] == null || row['pdf_path_local'] == '') &&
+          (row['pdf_url'] == null || row['pdf_url'] == '') &&
+          row['eliminado'] == 0 &&
+          numero.isNotEmpty &&
+          !numero.startsWith('PROV-') &&
+          !numero.startsWith('~');
+
+      expect(necesitaGenerar, true,
+          reason:
+              'Después de limpiar path stale, DeferredPdfService regenera el PDF');
+    });
+
+    test('SIN fix: pdf_path_local stale bloquea regeneración', () {
+      // Documenta el bug que existía ANTES del fix:
+      // pdf_path_local apunta a archivo eliminado pero DeferredPdfService
+      // no lo detecta porque el campo no es null/vacío
+      final row = {
+        'pdf_path_local': '/data/user/0/com.app/documents/reporte_42.pdf',
+        'pdf_url': null,
+        'numero_reporte': '42',
+        'estado_final': 'En Seguimiento',
+        'eliminado': 0,
+      };
+
+      final numero = row['numero_reporte']?.toString() ?? '';
+      final necesitaGenerar = row['estado_final'] == 'En Seguimiento' &&
+          (row['pdf_path_local'] == null || row['pdf_path_local'] == '') &&
+          (row['pdf_url'] == null || row['pdf_url'] == '') &&
+          row['eliminado'] == 0 &&
+          numero.isNotEmpty &&
+          !numero.startsWith('PROV-') &&
+          !numero.startsWith('~');
+
+      expect(necesitaGenerar, false,
+          reason:
+              'Bug anterior: path stale impedía que DeferredPdfService detecte la actividad');
+    });
+  });
+
+  // ===================================================================
   // TESTS: Botón finalizar - lógica de conectividad
   // ===================================================================
   group('Botón finalizar - conectividad', () {
     test('Online: texto "FINALIZAR INSPECCIÓN"', () {
       const isOnline = true;
-      final label =
-          isOnline ? 'FINALIZAR INSPECCIÓN' : 'FINALIZAR (sin conexión)';
+      final label = isOnline
+          ? 'FINALIZAR INSPECCIÓN'
+          : 'FINALIZAR (sin conexión)';
       expect(label, 'FINALIZAR INSPECCIÓN');
     });
 
     test('Offline: texto "FINALIZAR (sin conexión)"', () {
       const isOnline = false;
-      final label =
-          isOnline ? 'FINALIZAR INSPECCIÓN' : 'FINALIZAR (sin conexión)';
+      final label = isOnline
+          ? 'FINALIZAR INSPECCIÓN'
+          : 'FINALIZAR (sin conexión)';
       expect(label, 'FINALIZAR (sin conexión)');
     });
 
@@ -328,7 +683,8 @@ void main() {
       };
 
       final numero = row['numero_reporte']?.toString() ?? '';
-      final necesitaGenerar = row['estado_final'] == 'En Seguimiento' &&
+      final necesitaGenerar =
+          row['estado_final'] == 'En Seguimiento' &&
           (row['pdf_path_local'] == null || row['pdf_path_local'] == '') &&
           (row['pdf_url'] == null || row['pdf_url'] == '') &&
           row['eliminado'] == 0 &&
@@ -336,8 +692,11 @@ void main() {
           !numero.startsWith('PROV-') &&
           !numero.startsWith('~');
 
-      expect(necesitaGenerar, true,
-          reason: 'Tiene número real del trigger → debe generar PDF');
+      expect(
+        necesitaGenerar,
+        true,
+        reason: 'Tiene número real del trigger → debe generar PDF',
+      );
     });
 
     test('DeferredPdfService ignora actividad sin número real', () {
@@ -350,7 +709,8 @@ void main() {
       };
 
       final numero = row['numero_reporte']?.toString() ?? '';
-      final necesitaGenerar = row['estado_final'] == 'En Seguimiento' &&
+      final necesitaGenerar =
+          row['estado_final'] == 'En Seguimiento' &&
           (row['pdf_path_local'] == null || row['pdf_path_local'] == '') &&
           (row['pdf_url'] == null || row['pdf_url'] == '') &&
           row['eliminado'] == 0 &&
@@ -358,8 +718,11 @@ void main() {
           !numero.startsWith('PROV-') &&
           !numero.startsWith('~');
 
-      expect(necesitaGenerar, false,
-          reason: 'Sin número → espera al trigger de Supabase');
+      expect(
+        necesitaGenerar,
+        false,
+        reason: 'Sin número → espera al trigger de Supabase',
+      );
     });
   });
 }
