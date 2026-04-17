@@ -16,6 +16,7 @@ class LocalHistoryRepository {
           a.fecha_realizacion,
           a.estado_final,
           a.pdf_url,
+          a.pdf_path_local,
           a.subido,
           a.tipo_actividad,
           a.numero_seguimiento,

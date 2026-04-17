@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/repositories/local_history_repository.dart';
 import '../data/repositories/supabase_history_repository.dart';
 
 class HistoryController extends ChangeNotifier {
@@ -82,7 +83,33 @@ class HistoryController extends ChangeNotifier {
     } catch (e) {
       if (seq != _loadSequence) return;
       debugPrint("⚠️ Fallo al cargar historial desde Supabase: $e");
-      records = []; // Vaciamos para no mostrar datos fantasma
+      // Fallback: intentar cargar desde SQLite local
+      try {
+        final localRepo = LocalHistoryRepository();
+        final localRecords = await localRepo.getAllInspections();
+        records = localRecords.map((r) {
+          return <String, dynamic>{
+            'id': r['id'],
+            'modulo': 'Inspección',
+            'tipo_registro': r['tipo_actividad'],
+            'estado': r['estado_final'],
+            'ubicacion': r['centro_nombre'] ?? 'Sin ubicación',
+            'fecha_realizacion': r['fecha_realizacion'],
+            'numero_reporte': r['numero_reporte'],
+            'pdf_url': r['pdf_url'],
+            'pdf_path_local': r['pdf_path_local'],
+            'inspector_nombre': r['inspector_nombre'] ?? 'Usuario',
+            'numero_seguimiento': r['numero_seguimiento'] ?? 0,
+            'centro_id': null,
+            'embarcacion_id': null,
+            'subido': r['subido'] ?? 0,
+          };
+        }).toList();
+        debugPrint("📱 Historial local cargado: ${records.length} registros");
+      } catch (localError) {
+        debugPrint("⚠️ Historial local también falló: $localError");
+        records = [];
+      }
     } finally {
       if (seq == _loadSequence) {
         isLoading = false;

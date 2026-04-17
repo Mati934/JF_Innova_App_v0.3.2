@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -265,7 +266,11 @@ class HistoryCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _PdfDownloadButton(pdfUrl: pdfUrl, isSynced: isSynced),
+                _PdfDownloadButton(
+                  pdfUrl: pdfUrl,
+                  pdfPathLocal: item['pdf_path_local'] as String?,
+                  isSynced: isSynced,
+                ),
               ],
             ),
           ],
@@ -355,9 +360,14 @@ class HistoryCard extends StatelessWidget {
 
 class _PdfDownloadButton extends StatefulWidget {
   final String? pdfUrl;
+  final String? pdfPathLocal;
   final bool isSynced;
 
-  const _PdfDownloadButton({required this.pdfUrl, required this.isSynced});
+  const _PdfDownloadButton({
+    required this.pdfUrl,
+    this.pdfPathLocal,
+    required this.isSynced,
+  });
 
   @override
   State<_PdfDownloadButton> createState() => _PdfDownloadButtonState();
@@ -384,6 +394,40 @@ class _PdfDownloadButtonState extends State<_PdfDownloadButton> {
       }
     } catch (e) {
       debugPrint('Error abriendo PDF: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isOpening = false);
+      }
+    }
+  }
+
+  Future<void> _abrirPdfLocal() async {
+    if (widget.pdfPathLocal == null) return;
+
+    setState(() => _isOpening = true);
+
+    try {
+      final file = File(widget.pdfPathLocal!);
+      if (await file.exists()) {
+        final uri = Uri.file(widget.pdfPathLocal!);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No se pudo abrir el PDF local')),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Archivo PDF no encontrado')),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error abriendo PDF local: $e');
     } finally {
       if (mounted) {
         setState(() => _isOpening = false);
@@ -440,6 +484,66 @@ class _PdfDownloadButtonState extends State<_PdfDownloadButton> {
       );
     }
 
-    return const SizedBox.shrink();
+    // PDF local provisional (generado offline, pendiente de sync)
+    if (widget.pdfPathLocal != null && widget.pdfPathLocal!.isNotEmpty) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: _abrirPdfLocal,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.picture_as_pdf,
+                  color: Colors.orange.shade700,
+                  size: 16,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'PDF Local',
+                  style: TextStyle(
+                    color: Colors.orange.shade800,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Sin PDF ni local ni remoto: mostrar indicador pendiente
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.amber.shade300),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.hourglass_top, size: 16, color: Colors.amber.shade700),
+          const SizedBox(width: 4),
+          Text(
+            'PDF Pendiente',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.amber.shade800,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

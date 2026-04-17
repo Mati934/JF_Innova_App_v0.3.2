@@ -37,6 +37,8 @@ class InspectionFormController extends ChangeNotifier {
   bool _isLoading = true;
   bool _isSaving = false;
   bool pdfDiferido = false;
+  bool _errorPdfNoRecuperable = false;
+  bool get errorPdfNoRecuperable => _errorPdfNoRecuperable;
   String? _errorMessage;
   int _numeroSeguimiento = 0;
 
@@ -477,7 +479,42 @@ class InspectionFormController extends ChangeNotifier {
 
   void clearError() {
     _errorMessage = null;
+    _errorPdfNoRecuperable = false;
     notifyListeners();
+  }
+
+  /// Determina si un error es de red/conexión (diferir tiene sentido)
+  /// vs un error local (diferir NO lo arreglará).
+  bool _esErrorDeRed(Object e) {
+    final msg = e.toString().toLowerCase();
+    return msg.contains('socket') ||
+        msg.contains('connection') ||
+        msg.contains('timeout') ||
+        msg.contains('network') ||
+        msg.contains('host') ||
+        msg.contains('handshake') ||
+        msg.contains('certificate');
+  }
+
+  /// Convierte una excepción en un mensaje amigable para el usuario.
+  String _mensajeErrorAmigable(Object e) {
+    final msg = e.toString().toLowerCase();
+    if (msg.contains('no space') || msg.contains('disk full')) {
+      return 'No hay espacio en el dispositivo.';
+    }
+    if (msg.contains('permission denied') || msg.contains('access denied')) {
+      return 'Sin permisos para guardar archivos.';
+    }
+    if (msg.contains('unique constraint') || msg.contains('duplicate')) {
+      return 'Registro duplicado en la base de datos.';
+    }
+    if (msg.contains('database') || msg.contains('sqlite')) {
+      return 'Error en la base de datos local.';
+    }
+    if (_esErrorDeRed(e)) {
+      return 'Sin conexión a internet.';
+    }
+    return 'Error inesperado al guardar datos.';
   }
 
   Future<bool> guardarBorrador({bool silent = false}) async {
@@ -527,14 +564,49 @@ class InspectionFormController extends ChangeNotifier {
 
   // EN InspectionFormController.dart
 
+  /// Carga fonts y logo para generación de PDF. Funciona offline (assets locales).
+  Future<
+    ({
+      Uint8List fontReg,
+      Uint8List fontBold,
+      Uint8List fontItalic,
+      Uint8List? logoBytes,
+    })
+  >
+  _loadPdfAssets() async {
+    final fontReg = await rootBundle.load("assets/fonts/OpenSans-Regular.ttf");
+    final fontBold = await rootBundle.load("assets/fonts/OpenSans-Bold.ttf");
+    final fontItalic = await rootBundle.load(
+      "assets/fonts/OpenSans-Italic.ttf",
+    );
+
+    Uint8List? logoBytes;
+    try {
+      final logoData = await rootBundle.load(
+        'assets/images/aquachileporfin3.png',
+      );
+      logoBytes = logoData.buffer.asUint8List();
+    } catch (e) {
+      debugPrint("⚠️ No se pudo cargar el logo: $e");
+    }
+
+    return (
+      fontReg: fontReg.buffer.asUint8List(),
+      fontBold: fontBold.buffer.asUint8List(),
+      fontItalic: fontItalic.buffer.asUint8List(),
+      logoBytes: logoBytes,
+    );
+  }
+
   Future<bool> finalizarInspeccion() async {
     // 1. Limpiamos errores previos
     _errorMessage = null;
+    _errorPdfNoRecuperable = false;
 
     // 2. Validación de Negocio (Buceo necesita min 2 personas)
     if (tipoActividad == 'INSPECCION_BUCEO') {
-      if (participantes.length < 2) {
-        _errorMessage = "Debe haber al menos 2 participantes en la cuadrilla.";
+      if (participantes.isEmpty) {
+        _errorMessage = "Debe haber al menos 1 participante en la cuadrilla.";
         notifyListeners();
         return false;
       }
@@ -577,6 +649,8 @@ class InspectionFormController extends ChangeNotifier {
 
       if (!tieneNumeroReal) {
         // OFFLINE: Guardar como finalizado SIN PDF
+        // El PDF se generará con el número real cuando DeferredPdfService
+        // lo procese después de que el trigger de Supabase asigne el número.
         debugPrint(
           "📴 Sin número real. Guardando sin PDF (se generará al reconectar).",
         );
@@ -615,25 +689,7 @@ class InspectionFormController extends ChangeNotifier {
         // ---------------------------------------------------------
         // PASO 3: CARGAR ASSETS EN EL HILO PRINCIPAL (MAIN THREAD)
         // ---------------------------------------------------------
-        final fontReg = await rootBundle.load(
-          "assets/fonts/OpenSans-Regular.ttf",
-        );
-        final fontBold = await rootBundle.load(
-          "assets/fonts/OpenSans-Bold.ttf",
-        );
-        final fontItalic = await rootBundle.load(
-          "assets/fonts/OpenSans-Italic.ttf",
-        );
-
-        Uint8List? logoBytes;
-        try {
-          final logoData = await rootBundle.load(
-            'assets/images/aquachileporfin3.png',
-          );
-          logoBytes = logoData.buffer.asUint8List();
-        } catch (e) {
-          debugPrint("⚠️ No se pudo cargar el logo: $e");
-        }
+        final assets = await _loadPdfAssets();
 
         // ---------------------------------------------------------
         // PASO 4: PREPARAR DATOS (DTO) - ahora con número real
@@ -645,10 +701,10 @@ class InspectionFormController extends ChangeNotifier {
 
         final params = PdfIsolateParams(
           data: reportData,
-          fontRegular: fontReg.buffer.asUint8List(),
-          fontBold: fontBold.buffer.asUint8List(),
-          fontItalic: fontItalic.buffer.asUint8List(),
-          logoBytes: logoBytes,
+          fontRegular: assets.fontReg,
+          fontBold: assets.fontBold,
+          fontItalic: assets.fontItalic,
+          logoBytes: assets.logoBytes,
         );
 
         // ---------------------------------------------------------
@@ -676,7 +732,8 @@ class InspectionFormController extends ChangeNotifier {
           debugPrint("💾 PDF guardado localmente: $pdfPathLocal");
         } catch (e) {
           debugPrint("❌ Error guardando PDF local: $e");
-          _errorMessage = "No se pudo guardar el PDF localmente.";
+          final detalle = _mensajeErrorAmigable(e);
+          _errorMessage = "No se pudo guardar el PDF: $detalle";
           _isSaving = false;
           notifyListeners();
           return false;
@@ -741,36 +798,62 @@ class InspectionFormController extends ChangeNotifier {
 
         return true;
       } catch (e) {
-        // FALLBACK: Si falla la generación de PDF, guardar como finalizado
-        // sin PDF. El PDF se generará al reconectar (DeferredPdfService).
-        debugPrint("⚠️ Error en generación de PDF, usando modo diferido: $e");
-        pdfDiferido = true;
+        debugPrint("⚠️ Error en generación de PDF: $e");
+        final esErrorRed = _esErrorDeRed(e);
 
-        await _persistirDatos(
-          esBorrador: false,
-          pdfUrlFinal: null,
-          pdfPathLocal: null,
-        );
+        if (esErrorRed) {
+          // Error de red: diferir PDF tiene sentido, se generará al reconectar
+          pdfDiferido = true;
 
-        _syncService
-            .sincronizarTodo()
-            .then((_) async {
-              if (!_disposed) await recargarNumeroDesdeDB();
-            })
-            .catchError((e) {
-              debugPrint("⚠️ Sync post-finalización fallback falló: $e");
-            });
+          await _persistirDatos(
+            esBorrador: false,
+            pdfUrlFinal: null,
+            pdfPathLocal: null,
+          );
 
-        fotosPorPregunta.clear();
-        fotosGenerales.clear();
-        participantes.clear();
+          _syncService
+              .sincronizarTodo()
+              .then((_) async {
+                if (!_disposed) await recargarNumeroDesdeDB();
+              })
+              .catchError((e) {
+                debugPrint("⚠️ Sync post-finalización fallback falló: $e");
+              });
 
-        return true;
+          fotosPorPregunta.clear();
+          fotosGenerales.clear();
+          participantes.clear();
+
+          return true;
+        } else {
+          // Error real (assets, isolate, etc.): diferir NO lo arreglará.
+          // Guardamos finalizado sin PDF pero avisamos al usuario.
+          pdfDiferido = true;
+          _errorPdfNoRecuperable = true;
+
+          await _persistirDatos(
+            esBorrador: false,
+            pdfUrlFinal: null,
+            pdfPathLocal: null,
+          );
+
+          _syncService.sincronizarTodo().catchError((e) {
+            debugPrint("⚠️ Sync post-finalización fallback falló: $e");
+          });
+
+          fotosPorPregunta.clear();
+          fotosGenerales.clear();
+          participantes.clear();
+
+          return true;
+        }
       }
     } catch (e) {
-      _errorMessage = "Error al finalizar: $e";
+      final detalle = _mensajeErrorAmigable(e);
+      _errorMessage = "Error al finalizar: $detalle";
       _isSaving = false;
       debugPrint("❌ ERROR CRÍTICO: $e");
+      notifyListeners();
       return false;
     } finally {
       if (_isSaving) {

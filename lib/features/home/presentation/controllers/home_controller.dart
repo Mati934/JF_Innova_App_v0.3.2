@@ -31,8 +31,8 @@ class HomeController extends ChangeNotifier {
 
   List<ModuleDefinition> get enabledModules {
     return ModuleRegistry.all.where((m) {
-      // Admin siempre ve el módulo ADMIN
-      if (m.requiresAdmin) return esAdmin;
+      // Admin Maestros solo visible para SuperAdmin (admin + empresa administradora)
+      if (m.requiresAdmin) return UserSession().esSuperAdmin;
       return _enabledModuleKeys.contains(m.moduleKey);
     }).toList();
   }
@@ -181,7 +181,11 @@ class HomeController extends ChangeNotifier {
       // Sin configuración → mostrar módulos default
       _enabledModuleKeys = List.from(ModuleRegistry.defaultModuleKeys);
     } else {
-      _enabledModuleKeys = rows.map((r) => r['modulo_key'] as String).toList();
+      // Filtrar solo los habilitados (rows ahora incluye todos, habilitados y no)
+      _enabledModuleKeys = rows
+          .where((r) => (r['habilitado'] as int) == 1)
+          .map((r) => r['modulo_key'] as String)
+          .toList();
     }
     debugPrint('📦 Módulos habilitados: $_enabledModuleKeys');
   }
@@ -223,6 +227,7 @@ class HomeController extends ChangeNotifier {
 
       // 2. Descargar datos maestros
       await _syncService.descargarDatosMaestros();
+      await _cargarModulosHabilitados();
     } catch (e) {
       debugPrint("⚠️ Error en sync silencioso: $e");
     } finally {
@@ -249,6 +254,7 @@ class HomeController extends ChangeNotifier {
 
       await cargarBorradores(); // Refresca UI si se eliminaron zombies
       await _syncService.descargarDatosMaestros();
+      await _cargarModulosHabilitados();
     } catch (e) {
       isError = true;
       syncMessage = "Error de red al sincronizar.";

@@ -7,7 +7,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      41; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      42; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -101,7 +101,7 @@ class DatabaseHelper {
       'CREATE TABLE centros (id TEXT PRIMARY KEY, nombre TEXT, area_id TEXT, subido INTEGER DEFAULT 1)',
     );
     await db.execute(
-      'CREATE TABLE contratistas (id TEXT PRIMARY KEY, nombre TEXT, subido INTEGER DEFAULT 1)',
+      'CREATE TABLE contratistas (id TEXT PRIMARY KEY, nombre TEXT, rut TEXT, subido INTEGER DEFAULT 1)',
     );
     await db.execute(
       'CREATE TABLE empresas (id TEXT PRIMARY KEY, nombre TEXT, es_administradora INTEGER DEFAULT 0)',
@@ -897,6 +897,12 @@ class DatabaseHelper {
       ''');
       debugPrint("✅ Parche v41 aplicado.");
     }
+
+    if (oldVersion < 42) {
+      debugPrint("🚀 Aplicando parche v42 (rut en contratistas)...");
+      await db.execute("ALTER TABLE contratistas ADD COLUMN rut TEXT");
+      debugPrint("✅ Parche v42 aplicado.");
+    }
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -925,6 +931,7 @@ class DatabaseHelper {
         "signature_image",
         "BLOB",
       );
+      await _safeAddColumn(db, "contratistas", "rut", "TEXT");
     } catch (e, st) {
       debugPrint("❌ Error reparando esquema crítico: $e\n$st");
       rethrow;
@@ -1046,6 +1053,7 @@ class DatabaseHelper {
         row['area_id'] = item['area_id'];
       } else if (tabla == 'contratistas') {
         row['nombre'] = item['nombre'];
+        row['rut'] = item['rut'];
         row['subido'] = 1;
       } else if (tabla == 'empresas') {
         row['nombre'] = item['nombre'];
@@ -1075,6 +1083,12 @@ class DatabaseHelper {
     if (scopeWhere != null) {
       whereClause = '($whereClause) AND ($scopeWhere)';
       if (scopeArgs != null) whereArgs.addAll(scopeArgs);
+    }
+
+    // Proteger registros creados localmente que aún no se han subido
+    final hasSubido = await _columnExists(db, tabla, 'subido');
+    if (hasSubido) {
+      whereClause = '($whereClause) AND (subido = 1)';
     }
 
     final borrados = await db.delete(
@@ -1216,7 +1230,7 @@ class DatabaseHelper {
     final db = await instance.database;
     return await db.query(
       'empresa_modulos',
-      where: 'empresa_id = ? AND habilitado = 1',
+      where: 'empresa_id = ?',
       whereArgs: [empresaId],
       orderBy: 'orden',
     );
@@ -1234,11 +1248,12 @@ class DatabaseHelper {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  Future<void> insertContratista(String id, String nombre) async {
+  Future<void> insertContratista(String id, String nombre, String? rut) async {
     final db = await database;
     await db.insert('contratistas', {
       'id': id,
       'nombre': nombre,
+      'rut': rut,
       'subido': 0,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }

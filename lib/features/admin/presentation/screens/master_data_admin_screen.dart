@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/rut_utils.dart';
 import '../../../../shared/widgets/custom_dropdown.dart';
 import '../controllers/admin_crud_controller.dart';
 import 'empresa_modulos_screen.dart';
@@ -75,6 +76,60 @@ class _DatosMaestrosTab extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Banner de error de sync
+            if (controller.lastSyncError != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade300),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.cloud_off,
+                      color: Colors.orange.shade700,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        controller.lastSyncError!,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.orange.shade900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    controller.isSyncing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : TextButton(
+                            onPressed: controller.retrySyncMaestros,
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text(
+                              'Reintentar',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ),
+                  ],
+                ),
+              ),
             _CategoriaCard(
               titulo: 'Centros',
               icono: Icons.location_city,
@@ -217,10 +272,12 @@ class _DatosMaestrosTab extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (ctx) => _FormularioSheet(
-        controller: controller,
-        tabla: tabla,
-        itemEditar: itemEditar,
+      builder: (ctx) => SafeArea(
+        child: _FormularioSheet(
+          controller: controller,
+          tabla: tabla,
+          itemEditar: itemEditar,
+        ),
       ),
     );
   }
@@ -234,14 +291,16 @@ class _DatosMaestrosTab extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (ctx) => _BuscadorSheet(
-        config: config,
-        controller: controller,
-        tabla: tabla,
-        onItemSelected: (item) {
-          Navigator.pop(ctx);
-          _abrirFormulario(context, tabla, item);
-        },
+      builder: (ctx) => SafeArea(
+        child: _BuscadorSheet(
+          config: config,
+          controller: controller,
+          tabla: tabla,
+          onItemSelected: (item) {
+            Navigator.pop(ctx);
+            _abrirFormulario(context, tabla, item);
+          },
+        ),
       ),
     );
   }
@@ -427,148 +486,166 @@ class _BuscadorSheetState extends State<_BuscadorSheet> {
   Widget build(BuildContext context) {
     final maxH = MediaQuery.of(context).size.height * 0.75;
 
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: maxH),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle + titulo
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-            child: Column(
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Modificar ${widget.config.titulo.toLowerCase()}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Barra de busqueda
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: TextField(
-              controller: _searchCtrl,
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: 'Buscar...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchCtrl.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () {
-                          _searchCtrl.clear();
-                          _filtrar('');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                isDense: true,
-              ),
-              onChanged: _filtrar,
-            ),
-          ),
-          // Contador de resultados
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '${_filtrados.length} resultado${_filtrados.length != 1 ? 's' : ''}',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          // Lista virtualizada
-          Flexible(
-            child: _filtrados.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.search_off,
-                          size: 48,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Sin resultados',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ],
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxH),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle + titulo
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              child: Column(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    itemCount: _filtrados.length,
-                    itemBuilder: (context, index) {
-                      final item = _filtrados[index];
-                      final nombre = widget.config.getNombre(item);
-                      final sub = widget.config.getSubtitulo?.call(item);
-                      final pendiente = (item['subido'] as int? ?? 1) == 0;
-
-                      return ListTile(
-                        leading: Icon(
-                          widget.config.icono,
-                          size: 20,
-                          color: Colors.grey,
-                        ),
-                        title: Text(nombre),
-                        subtitle: sub != null
-                            ? Text(sub, style: const TextStyle(fontSize: 12))
-                            : null,
-                        trailing: Row(
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Modificar ${widget.config.titulo.toLowerCase()}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Barra de busqueda
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: TextField(
+                controller: _searchCtrl,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Buscar...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchCtrl.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            _filtrar('');
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  isDense: true,
+                ),
+                onChanged: _filtrar,
+              ),
+            ),
+            // Contador de resultados
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${_filtrados.length} resultado${_filtrados.length != 1 ? 's' : ''}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            // Lista virtualizada
+            Flexible(
+              child: _filtrados.isEmpty
+                  ? ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 150),
+                      child: Center(
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (pendiente)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                margin: const EdgeInsets.only(right: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Text(
-                                  'Pendiente',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.white,
-                                  ),
-                                ),
+                            Icon(
+                              Icons.search_off,
+                              size: 48,
+                              color: Colors.grey.shade400,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No se encontraron coincidencias',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 14,
                               ),
-                            const Icon(
-                              Icons.edit_outlined,
-                              size: 18,
-                              color: AppTheme.primaryBlue,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Intenta con otro término de búsqueda',
+                              style: TextStyle(
+                                color: Colors.grey.shade400,
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
-                        onTap: () => widget.onItemSelected(item),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      itemCount: _filtrados.length,
+                      itemBuilder: (context, index) {
+                        final item = _filtrados[index];
+                        final nombre = widget.config.getNombre(item);
+                        final sub = widget.config.getSubtitulo?.call(item);
+                        final pendiente = (item['subido'] as int? ?? 1) == 0;
+
+                        return ListTile(
+                          leading: Icon(
+                            widget.config.icono,
+                            size: 20,
+                            color: Colors.grey,
+                          ),
+                          title: Text(nombre),
+                          subtitle: sub != null
+                              ? Text(sub, style: const TextStyle(fontSize: 12))
+                              : null,
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (pendiente)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  margin: const EdgeInsets.only(right: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Text(
+                                    'Pendiente',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              const Icon(
+                                Icons.edit_outlined,
+                                size: 18,
+                                color: AppTheme.primaryBlue,
+                              ),
+                            ],
+                          ),
+                          onTap: () => widget.onItemSelected(item),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -594,8 +671,10 @@ class _FormularioSheet extends StatefulWidget {
 class _FormularioSheetState extends State<_FormularioSheet> {
   final _nombreCtrl = TextEditingController();
   final _matriculaCtrl = TextEditingController();
-  String? _areaSeleccionada;
-  String? _contratistaSeleccionado;
+  final _rutCtrl = TextEditingController();
+  late final FocusNode _nombreFocusNode;
+  final ValueNotifier<String?> _areaNotifier = ValueNotifier(null);
+  final ValueNotifier<String?> _contratistaNotifier = ValueNotifier(null);
   bool _saving = false;
 
   bool get isEditing => widget.itemEditar != null;
@@ -604,16 +683,22 @@ class _FormularioSheetState extends State<_FormularioSheet> {
   @override
   void initState() {
     super.initState();
+    _nombreFocusNode = FocusNode();
     if (isEditing) {
       final item = widget.itemEditar!;
       _nombreCtrl.text = item['nombre'] as String? ?? '';
 
       if (widget.tabla == 'centros') {
-        _areaSeleccionada = ctrl.getAreaNombre(
+        _areaNotifier.value = ctrl.getAreaNombre(
           item['area_id'] as String? ?? '',
         );
+      } else if (widget.tabla == 'contratistas') {
+        final rut = item['rut'] as String? ?? '';
+        if (!rut.startsWith('PENDIENTE-')) {
+          _rutCtrl.text = rut;
+        }
       } else if (widget.tabla == 'embarcaciones') {
-        _contratistaSeleccionado = ctrl.getContratistaNombre(
+        _contratistaNotifier.value = ctrl.getContratistaNombre(
           item['contratista_id'] as String? ?? '',
         );
         _matriculaCtrl.text = item['matricula'] as String? ?? '';
@@ -623,8 +708,12 @@ class _FormularioSheetState extends State<_FormularioSheet> {
 
   @override
   void dispose() {
+    _nombreFocusNode.dispose();
     _nombreCtrl.dispose();
     _matriculaCtrl.dispose();
+    _rutCtrl.dispose();
+    _areaNotifier.dispose();
+    _contratistaNotifier.dispose();
     super.dispose();
   }
 
@@ -634,7 +723,8 @@ class _FormularioSheetState extends State<_FormularioSheet> {
         ? 'Editar ${_tituloSingular(widget.tabla)}'
         : 'Agregar ${_tituloSingular(widget.tabla)}';
 
-    return Padding(
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 100),
       padding: EdgeInsets.fromLTRB(
         24,
         20,
@@ -668,6 +758,21 @@ class _FormularioSheetState extends State<_FormularioSheet> {
             ..._buildCamposDespues(),
             const SizedBox(height: 16),
             // Botones
+            if (isEditing) ...[
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _saving ? null : _eliminar,
+                  icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                  label: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             Row(
               children: [
                 Expanded(
@@ -717,29 +822,33 @@ class _FormularioSheetState extends State<_FormularioSheet> {
 
     return RawAutocomplete<String>(
       textEditingController: _nombreCtrl,
-      focusNode: FocusNode(),
+      focusNode: _nombreFocusNode,
       optionsBuilder: (textEditingValue) {
         final text = textEditingValue.text.trim().toLowerCase();
         if (text.isEmpty) return const Iterable<String>.empty();
         return suggestions.where((s) => s.toLowerCase().contains(text));
       },
       fieldViewBuilder: (context, ctrl, focusNode, onSubmitted) {
-        return TextField(
-          controller: ctrl,
-          focusNode: focusNode,
-          autofocus: !isEditing,
-          decoration: InputDecoration(
-            labelText: 'Nombre',
-            border: const OutlineInputBorder(),
-            isDense: true,
-            suffixIcon: ctrl.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, size: 18),
-                    onPressed: () => setState(() => ctrl.clear()),
-                  )
-                : null,
-          ),
-          onChanged: (_) => setState(() {}),
+        return ValueListenableBuilder<TextEditingValue>(
+          valueListenable: ctrl,
+          builder: (context, value, _) {
+            return TextField(
+              controller: ctrl,
+              focusNode: focusNode,
+              autofocus: !isEditing,
+              decoration: InputDecoration(
+                labelText: 'Nombre',
+                border: const OutlineInputBorder(),
+                isDense: true,
+                suffixIcon: value.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () => ctrl.clear(),
+                      )
+                    : null,
+              ),
+            );
+          },
         );
       },
       optionsViewBuilder: (context, onSelected, options) {
@@ -800,12 +909,16 @@ class _FormularioSheetState extends State<_FormularioSheet> {
             .map((a) => a['nombre'] as String)
             .toList();
         return [
-          CustomDropdown(
-            items: areaNombres,
-            value: _areaSeleccionada,
-            label: 'Area',
-            enableSearch: areaNombres.length > 5,
-            onChanged: (val) => setState(() => _areaSeleccionada = val),
+          ValueListenableBuilder<String?>(
+            valueListenable: _areaNotifier,
+            builder: (context, areaValue, _) => CustomDropdown(
+              key: const ValueKey('area-dropdown'),
+              items: areaNombres,
+              value: areaValue,
+              label: 'Area',
+              enableSearch: areaNombres.length > 5,
+              onChanged: (val) => _areaNotifier.value = val,
+            ),
           ),
           const SizedBox(height: 12),
         ];
@@ -814,12 +927,16 @@ class _FormularioSheetState extends State<_FormularioSheet> {
             .map((c) => c['nombre'] as String)
             .toList();
         return [
-          CustomDropdown(
-            items: contratistaNombres,
-            value: _contratistaSeleccionado,
-            label: 'Contratista',
-            enableSearch: contratistaNombres.length > 5,
-            onChanged: (val) => setState(() => _contratistaSeleccionado = val),
+          ValueListenableBuilder<String?>(
+            valueListenable: _contratistaNotifier,
+            builder: (context, contratistaValue, _) => CustomDropdown(
+              key: const ValueKey('contratista-dropdown'),
+              items: contratistaNombres,
+              value: contratistaValue,
+              label: 'Contratista',
+              enableSearch: contratistaNombres.length > 5,
+              onChanged: (val) => _contratistaNotifier.value = val,
+            ),
           ),
           const SizedBox(height: 12),
         ];
@@ -831,6 +948,20 @@ class _FormularioSheetState extends State<_FormularioSheet> {
   /// Campos que van DESPUÉS del nombre (matrícula, etc.)
   List<Widget> _buildCamposDespues() {
     switch (widget.tabla) {
+      case 'contratistas':
+        return [
+          const SizedBox(height: 12),
+          TextField(
+            controller: _rutCtrl,
+            decoration: const InputDecoration(
+              labelText: 'RUT (opcional)',
+              hintText: 'Ej: 12.345.678-5',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            inputFormatters: [RutInputFormatter()],
+          ),
+        ];
       case 'embarcaciones':
         return [
           const SizedBox(height: 12),
@@ -889,13 +1020,56 @@ class _FormularioSheetState extends State<_FormularioSheet> {
     }
   }
 
+  Future<void> _eliminar() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmar eliminacion'),
+        content: Text(
+          '¿Eliminar "${widget.itemEditar!['nombre']}"? Esta accion no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true || !mounted) return;
+
+    setState(() => _saving = true);
+    final ok = await ctrl.eliminarRegistro(
+      widget.tabla,
+      widget.itemEditar!['id'] as String,
+    );
+    if (mounted) setState(() => _saving = false);
+
+    if (ok && mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('"${widget.itemEditar!['nombre']}" eliminado'),
+          backgroundColor: Colors.orange.shade700,
+        ),
+      );
+    } else if (mounted) {
+      _mostrarError('Error al eliminar');
+    }
+  }
+
   Future<bool> _guardarCentro(String nombre) async {
-    if (_areaSeleccionada == null) {
+    if (_areaNotifier.value == null) {
       _mostrarError('Selecciona un area');
       return false;
     }
     final area = ctrl.areas.firstWhere(
-      (a) => a['nombre'] == _areaSeleccionada,
+      (a) => a['nombre'] == _areaNotifier.value,
       orElse: () => {},
     );
     if (area.isEmpty) {
@@ -915,19 +1089,25 @@ class _FormularioSheetState extends State<_FormularioSheet> {
   }
 
   Future<bool> _guardarContratista(String nombre) async {
+    final rut = _rutCtrl.text.trim();
+    final rutNorm = rut.isNotEmpty ? RutUtils.normalize(rut) : null;
     if (isEditing) {
-      return ctrl.editarContratista(widget.itemEditar!['id'] as String, nombre);
+      return ctrl.editarContratista(
+        widget.itemEditar!['id'] as String,
+        nombre,
+        rut: rutNorm,
+      );
     }
-    return ctrl.crearContratista(nombre);
+    return ctrl.crearContratista(nombre, rut: rutNorm);
   }
 
   Future<bool> _guardarEmbarcacion(String nombre) async {
-    if (_contratistaSeleccionado == null) {
+    if (_contratistaNotifier.value == null) {
       _mostrarError('Selecciona un contratista');
       return false;
     }
     final contratista = ctrl.contratistas.firstWhere(
-      (c) => c['nombre'] == _contratistaSeleccionado,
+      (c) => c['nombre'] == _contratistaNotifier.value,
       orElse: () => {},
     );
     if (contratista.isEmpty) {

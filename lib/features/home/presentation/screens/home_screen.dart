@@ -293,13 +293,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (confirmar == true) {
-      if (mounted) {
-        await _controller.cerrarSesion(context);
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-        );
-      }
+      if (!mounted) return;
+      await _controller.cerrarSesion(context);
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
     }
   }
 }

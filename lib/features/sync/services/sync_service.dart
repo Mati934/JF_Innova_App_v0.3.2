@@ -59,7 +59,7 @@ class SyncService {
       // 2: contratistas
       descargarTabla(
         'contratistas',
-        _supabase.from('contratistas').select('id, nombre'),
+        _supabase.from('contratistas').select('id, nombre, rut'),
       ),
       // 3: embarcaciones
       descargarTabla(
@@ -147,8 +147,12 @@ class SyncService {
         tablasDescargadas.add('areas');
       } catch (e, stack) {
         debugPrint("⚠️ Error guardando areas en SQLite: $e");
-        FirebaseCrashlytics.instance.recordError(e, stack,
-            reason: 'guardarMaestros SQLite: areas', fatal: false);
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: areas',
+          fatal: false,
+        );
         tablasFallidas.add('areas');
       }
     }
@@ -163,8 +167,12 @@ class SyncService {
         tablasDescargadas.add('centros');
       } catch (e, stack) {
         debugPrint("⚠️ Error guardando centros en SQLite: $e");
-        FirebaseCrashlytics.instance.recordError(e, stack,
-            reason: 'guardarMaestros SQLite: centros', fatal: false);
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: centros',
+          fatal: false,
+        );
         tablasFallidas.add('centros');
       }
     }
@@ -179,8 +187,12 @@ class SyncService {
         tablasDescargadas.add('contratistas');
       } catch (e, stack) {
         debugPrint("⚠️ Error guardando contratistas en SQLite: $e");
-        FirebaseCrashlytics.instance.recordError(e, stack,
-            reason: 'guardarMaestros SQLite: contratistas', fatal: false);
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: contratistas',
+          fatal: false,
+        );
         tablasFallidas.add('contratistas');
       }
     }
@@ -195,8 +207,12 @@ class SyncService {
         tablasDescargadas.add('embarcaciones');
       } catch (e, stack) {
         debugPrint("⚠️ Error guardando embarcaciones en SQLite: $e");
-        FirebaseCrashlytics.instance.recordError(e, stack,
-            reason: 'guardarMaestros SQLite: embarcaciones', fatal: false);
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: embarcaciones',
+          fatal: false,
+        );
         tablasFallidas.add('embarcaciones');
       }
     }
@@ -210,8 +226,12 @@ class SyncService {
         tablasDescargadas.add('formulario_items');
       } catch (e, stack) {
         debugPrint("⚠️ Error guardando formulario_items en SQLite: $e");
-        FirebaseCrashlytics.instance.recordError(e, stack,
-            reason: 'guardarMaestros SQLite: formulario_items', fatal: false);
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: formulario_items',
+          fatal: false,
+        );
         tablasFallidas.add('formulario_items');
       }
     }
@@ -226,8 +246,12 @@ class SyncService {
         tablasDescargadas.add('personal_externo');
       } catch (e, stack) {
         debugPrint("⚠️ Error guardando personal_externo en SQLite: $e");
-        FirebaseCrashlytics.instance.recordError(e, stack,
-            reason: 'guardarMaestros SQLite: personal_externo', fatal: false);
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: personal_externo',
+          fatal: false,
+        );
         tablasFallidas.add('personal_externo');
       }
     }
@@ -242,8 +266,12 @@ class SyncService {
         tablasDescargadas.add('empresas');
       } catch (e, stack) {
         debugPrint("⚠️ Error guardando empresas en SQLite: $e");
-        FirebaseCrashlytics.instance.recordError(e, stack,
-            reason: 'guardarMaestros SQLite: empresas', fatal: false);
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: empresas',
+          fatal: false,
+        );
         tablasFallidas.add('empresas');
       }
     }
@@ -258,8 +286,12 @@ class SyncService {
         tablasDescargadas.add('ticket_categorias');
       } catch (e, stack) {
         debugPrint("⚠️ Error guardando ticket_categorias en SQLite: $e");
-        FirebaseCrashlytics.instance.recordError(e, stack,
-            reason: 'guardarMaestros SQLite: ticket_categorias', fatal: false);
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: ticket_categorias',
+          fatal: false,
+        );
         tablasFallidas.add('ticket_categorias');
       }
     }
@@ -274,8 +306,12 @@ class SyncService {
         tablasDescargadas.add('usuarios');
       } catch (e, stack) {
         debugPrint("⚠️ Error guardando usuarios en SQLite: $e");
-        FirebaseCrashlytics.instance.recordError(e, stack,
-            reason: 'guardarMaestros SQLite: usuarios', fatal: false);
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: usuarios',
+          fatal: false,
+        );
         tablasFallidas.add('usuarios');
       }
     }
@@ -285,8 +321,12 @@ class SyncService {
       await _ticketRepo.descargarTicketsDesdeSupabase();
     } catch (e, stack) {
       debugPrint("⚠️ Error descargando tickets: $e");
-      FirebaseCrashlytics.instance.recordError(e, stack,
-          reason: 'descargarTicketsDesdeSupabase', fatal: false);
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        stack,
+        reason: 'descargarTicketsDesdeSupabase',
+        fatal: false,
+      );
     }
 
     // 9: empresa_modulos (condicional)
@@ -302,8 +342,12 @@ class SyncService {
         tablasDescargadas.add('empresa_modulos');
       } catch (e, stack) {
         debugPrint("⚠️ Error guardando empresa_modulos en SQLite: $e");
-        FirebaseCrashlytics.instance.recordError(e, stack,
-            reason: 'guardarMaestros SQLite: empresa_modulos', fatal: false);
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: empresa_modulos',
+          fatal: false,
+        );
         tablasFallidas.add('empresa_modulos');
       }
     }
@@ -324,8 +368,12 @@ class SyncService {
         }
       } catch (e, stack) {
         debugPrint("⚠️ Error guardando usuario_empresas en SQLite: $e");
-        FirebaseCrashlytics.instance.recordError(e, stack,
-            reason: 'guardarMaestros SQLite: usuario_empresas', fatal: false);
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: usuario_empresas',
+          fatal: false,
+        );
         tablasFallidas.add('usuario_empresas');
       }
     }
@@ -343,8 +391,12 @@ class SyncService {
         tablasDescargadas.add('empresa_areas');
       } catch (e, stack) {
         debugPrint("⚠️ Error guardando empresa_areas en SQLite: $e");
-        FirebaseCrashlytics.instance.recordError(e, stack,
-            reason: 'guardarMaestros SQLite: empresa_areas', fatal: false);
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: empresa_areas',
+          fatal: false,
+        );
         tablasFallidas.add('empresa_areas');
       }
     }
@@ -507,8 +559,12 @@ class SyncService {
         debugPrint("✅ Tabla faltante '$tabla' descargada OK");
       } catch (e, stack) {
         debugPrint("⚠️ No se pudo descargar tabla faltante '$tabla': $e");
-        FirebaseCrashlytics.instance.recordError(e, stack,
-            reason: 'verificarYDescargarFaltantes: tabla $tabla', fatal: false);
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'verificarYDescargarFaltantes: tabla $tabla',
+          fatal: false,
+        );
       }
     }
 
@@ -536,9 +592,15 @@ class SyncService {
             debugPrint("✅ Tabla faltante 'empresa_areas' descargada OK");
           }
         } catch (e, stack) {
-          debugPrint("⚠️ No se pudo descargar tabla faltante 'empresa_areas': $e");
-          FirebaseCrashlytics.instance.recordError(e, stack,
-              reason: 'verificarYDescargarFaltantes: empresa_areas', fatal: false);
+          debugPrint(
+            "⚠️ No se pudo descargar tabla faltante 'empresa_areas': $e",
+          );
+          FirebaseCrashlytics.instance.recordError(
+            e,
+            stack,
+            reason: 'verificarYDescargarFaltantes: empresa_areas',
+            fatal: false,
+          );
         }
       }
     }
@@ -1388,13 +1450,14 @@ class SyncService {
 
       for (var row in pendientes) {
         try {
+          // onConflict en (empresa_id, modulo_key) porque Supabase tiene
+          // UNIQUE constraint en esa combinación, y el id local puede diferir
           await _supabase.from('empresa_modulos').upsert({
-            'id': row['id'],
             'empresa_id': row['empresa_id'],
             'modulo_key': row['modulo_key'],
             'habilitado': (row['habilitado'] as int) == 1,
             'orden': row['orden'],
-          });
+          }, onConflict: 'empresa_id,modulo_key');
 
           await db.update(
             'empresa_modulos',
@@ -1413,15 +1476,38 @@ class SyncService {
     }
   }
 
+  /// Sube solo datos maestros (contratistas, centros, embarcaciones) creados localmente.
+  /// Retorna mapa con resultados por tabla. Más liviano que sincronizarTodo().
+  Future<Map<String, ({int exitosos, int fallidos, String? ultimoError})>>
+  sincronizarMaestros() async {
+    return _sincronizarMaestrosPendientes();
+  }
+
+  /// Eliminar un registro maestro de Supabase por tabla e id.
+  Future<void> eliminarMaestro(String tabla, String id) async {
+    await _supabase.from(tabla).delete().eq('id', id);
+  }
+
   /// Sube centros, contratistas y embarcaciones creados localmente (subido=0).
-  Future<void> _sincronizarMaestrosPendientes() async {
+  Future<Map<String, ({int exitosos, int fallidos, String? ultimoError})>>
+  _sincronizarMaestrosPendientes() async {
+    final resultados =
+        <String, ({int exitosos, int fallidos, String? ultimoError})>{};
     try {
       // Contratistas primero (embarcaciones dependen de ellos)
-      await _syncTabla('contratistas', ['id', 'nombre']);
+      resultados['contratistas'] = await _syncTabla('contratistas', [
+        'id',
+        'nombre',
+        'rut',
+      ]);
       // Centros
-      await _syncTabla('centros', ['id', 'nombre', 'area_id']);
+      resultados['centros'] = await _syncTabla('centros', [
+        'id',
+        'nombre',
+        'area_id',
+      ]);
       // Embarcaciones
-      await _syncTabla('embarcaciones', [
+      resultados['embarcaciones'] = await _syncTabla('embarcaciones', [
         'id',
         'nombre',
         'contratista_id',
@@ -1430,25 +1516,51 @@ class SyncService {
     } catch (e) {
       debugPrint("⚠️ Error en _sincronizarMaestrosPendientes: $e");
     }
+    return resultados;
   }
 
-  Future<void> _syncTabla(String tabla, List<String> campos) async {
+  Future<({int exitosos, int fallidos, String? ultimoError})> _syncTabla(
+    String tabla,
+    List<String> campos,
+  ) async {
     final pendientes = await _dbHelper.getPendingMasterData(tabla);
-    if (pendientes.isEmpty) return;
+    debugPrint(
+      '🔍 DEBUG-SYNC [_syncTabla] $tabla: ${pendientes.length} pendientes encontrados',
+    );
+    if (pendientes.isEmpty)
+      return (exitosos: 0, fallidos: 0, ultimoError: null);
 
+    int exitosos = 0;
+    int fallidos = 0;
+    String? ultimoError;
     for (var row in pendientes) {
       try {
         final payload = <String, dynamic>{};
         for (final campo in campos) {
           payload[campo] = row[campo];
         }
+        // Safety net: contratistas requiere rut NOT NULL en Supabase
+        if (tabla == 'contratistas' &&
+            (payload['rut'] == null || (payload['rut'] as String).isEmpty)) {
+          payload['rut'] = 'PENDIENTE-${(row['id'] as String).substring(0, 8)}';
+        }
+        debugPrint(
+          '🔍 DEBUG-SYNC [_syncTabla] $tabla upsert payload: $payload',
+        );
         await _supabase.from(tabla).upsert(payload);
+        debugPrint('🔍 DEBUG-SYNC [_syncTabla] $tabla upsert ✅ OK: $payload');
         await _dbHelper.markMasterDataSynced(tabla, row['id'] as String);
+        exitosos++;
       } catch (e) {
-        debugPrint("⚠️ Error sincronizando $tabla ${row['id']}: $e");
+        fallidos++;
+        ultimoError = e.toString();
+        debugPrint("🔍 DEBUG-SYNC [_syncTabla] $tabla upsert ❌ FALLÓ: $e");
       }
     }
-    debugPrint("✅ $tabla: ${pendientes.length} registros sincronizados.");
+    debugPrint(
+      "🔍 DEBUG-SYNC [_syncTabla] $tabla RESUMEN: $exitosos/${pendientes.length} OK, $fallidos fallidos",
+    );
+    return (exitosos: exitosos, fallidos: fallidos, ultimoError: ultimoError);
   }
 
   // --- 5.5. RECUPERAR numero_reporte FALTANTE ---
@@ -1513,7 +1625,9 @@ class SyncService {
             "(pdf_path_local IS NULL OR pdf_path_local = '') AND "
             "(pdf_url IS NULL OR pdf_url = '') AND "
             "eliminado = 0 AND "
-            "numero_reporte IS NOT NULL AND numero_reporte != ''",
+            "numero_reporte IS NOT NULL AND numero_reporte != '' AND "
+            "numero_reporte NOT LIKE 'PROV-%' AND "
+            "numero_reporte NOT LIKE '~%'",
       );
 
       if (pendientes.isEmpty) return;

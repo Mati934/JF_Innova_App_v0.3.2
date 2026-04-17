@@ -1660,13 +1660,17 @@ void main() {
   // ===================================================================
   group('Detección de PDF pendiente (_generarPdfsDiferidos)', () {
     // Helper: simula la condición WHERE de _generarPdfsDiferidos
+    // Chequea pdf_path_local Y pdf_url vacíos
+    // Filtra números provisionales (PROV-*, ~*) para nunca generar PDF con número falso
     bool esPdfPendiente(Map<String, dynamic> row) {
+      final numero = row['numero_reporte']?.toString() ?? '';
       return row['estado_final'] == 'En Seguimiento' &&
           (row['pdf_path_local'] == null || row['pdf_path_local'] == '') &&
           (row['pdf_url'] == null || row['pdf_url'] == '') &&
           row['eliminado'] == 0 &&
-          row['numero_reporte'] != null &&
-          row['numero_reporte'] != '';
+          numero.isNotEmpty &&
+          !numero.startsWith('PROV-') &&
+          !numero.startsWith('~');
     }
 
     test('Detecta actividad finalizada sin PDF y con número real', () {
@@ -2426,6 +2430,18 @@ void main() {
   // Tests de detección de PDFs diferidos y recuperación de numero_reporte
   // ===================================================================
   group('BUG-002 - Detección de PDFs diferidos', () {
+    // Helper: simula la condición WHERE de _generarPdfsDiferidos
+    bool queryPdfPendiente(Map<String, dynamic> a) {
+      final numero = a['numero_reporte']?.toString() ?? '';
+      return a['estado_final'] == 'En Seguimiento' &&
+          (a['pdf_path_local'] == null || a['pdf_path_local'] == '') &&
+          (a['pdf_url'] == null || a['pdf_url'] == '') &&
+          a['eliminado'] == 0 &&
+          numero.isNotEmpty &&
+          !numero.startsWith('PROV-') &&
+          !numero.startsWith('~');
+    }
+
     test(
       'Query de PDFs pendientes detecta inspección sin PDF con numero_reporte',
       () {
@@ -2456,17 +2472,7 @@ void main() {
           },
         ];
 
-        final pendientesPdf = actividades
-            .where(
-              (a) =>
-                  a['estado_final'] == 'En Seguimiento' &&
-                  (a['pdf_path_local'] == null || a['pdf_path_local'] == '') &&
-                  (a['pdf_url'] == null || a['pdf_url'] == '') &&
-                  a['eliminado'] == 0 &&
-                  a['numero_reporte'] != null &&
-                  a['numero_reporte'] != '',
-            )
-            .toList();
+        final pendientesPdf = actividades.where(queryPdfPendiente).toList();
 
         expect(pendientesPdf.length, 1);
         expect(pendientesPdf.first['id'], '1');
@@ -2485,18 +2491,7 @@ void main() {
         },
       ];
 
-      final pendientesPdf = actividades
-          .where(
-            (a) =>
-                a['estado_final'] == 'En Seguimiento' &&
-                (a['pdf_path_local'] == null || a['pdf_path_local'] == '') &&
-                (a['pdf_url'] == null || a['pdf_url'] == '') &&
-                a['eliminado'] == 0 &&
-                a['numero_reporte'] != null &&
-                a['numero_reporte'] != '',
-          )
-          .toList();
-
+      final pendientesPdf = actividades.where(queryPdfPendiente).toList();
       expect(pendientesPdf, isEmpty);
     });
 
@@ -2520,17 +2515,7 @@ void main() {
         },
       ];
 
-      final pendientesPdf = actividades
-          .where(
-            (a) =>
-                a['estado_final'] == 'En Seguimiento' &&
-                (a['pdf_path_local'] == null || a['pdf_path_local'] == '') &&
-                (a['pdf_url'] == null || a['pdf_url'] == '') &&
-                a['eliminado'] == 0 &&
-                a['numero_reporte'] != null &&
-                a['numero_reporte'] != '',
-          )
-          .toList();
+      final pendientesPdf = actividades.where(queryPdfPendiente).toList();
 
       expect(
         pendientesPdf,
@@ -2539,34 +2524,64 @@ void main() {
       );
     });
 
-    test('Query de PDFs pendientes trata pdf_path_local vacío como null', () {
+    test('Query de PDFs pendientes trata pdf_url vacío como null', () {
       final actividades = [
         {
           'id': '1',
           'estado_final': 'En Seguimiento',
-          'pdf_path_local': '', // vacío, no null
+          'pdf_path_local': '',
           'pdf_url': '',
           'eliminado': 0,
           'numero_reporte': '42',
         },
       ];
 
-      final pendientesPdf = actividades
-          .where(
-            (a) =>
-                a['estado_final'] == 'En Seguimiento' &&
-                (a['pdf_path_local'] == null || a['pdf_path_local'] == '') &&
-                (a['pdf_url'] == null || a['pdf_url'] == '') &&
-                a['eliminado'] == 0 &&
-                a['numero_reporte'] != null &&
-                a['numero_reporte'] != '',
-          )
-          .toList();
+      final pendientesPdf = actividades.where(queryPdfPendiente).toList();
 
       expect(
         pendientesPdf.length,
         1,
         reason: 'Strings vacíos cuentan como sin PDF',
+      );
+    });
+
+    test('Query ignora numero_reporte provisional PROV-*', () {
+      final actividades = [
+        {
+          'id': '1',
+          'estado_final': 'En Seguimiento',
+          'pdf_path_local': '/path/provisional.pdf',
+          'pdf_url': null,
+          'eliminado': 0,
+          'numero_reporte': 'PROV-abc12345',
+        },
+      ];
+
+      final pendientesPdf = actividades.where(queryPdfPendiente).toList();
+      expect(
+        pendientesPdf,
+        isEmpty,
+        reason: 'PROV-* es provisional, necesita número real',
+      );
+    });
+
+    test('Query ignora numero_reporte estimado ~*', () {
+      final actividades = [
+        {
+          'id': '1',
+          'estado_final': 'En Seguimiento',
+          'pdf_path_local': null,
+          'pdf_url': null,
+          'eliminado': 0,
+          'numero_reporte': '~43',
+        },
+      ];
+
+      final pendientesPdf = actividades.where(queryPdfPendiente).toList();
+      expect(
+        pendientesPdf,
+        isEmpty,
+        reason: '~N es estimado, necesita número real',
       );
     });
   });

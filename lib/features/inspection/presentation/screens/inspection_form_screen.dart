@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
+import '../../../../core/services/connectivity_service.dart';
 import 'package:jf_innova_app/features/inspection/presentation/widgets/headers/buceo_header_widget.dart';
 import '../../../../shared/services/image_service.dart';
 import '../../../../shared/widgets/form_inputs/gallery_input.dart';
@@ -91,17 +92,31 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
         setState(() => _canPop = true);
         Navigator.pop(context);
 
-        final String mensaje = _controller.pdfDiferido
-            ? 'Inspeccion guardada. El informe PDF se generara automaticamente al recuperar conexion.'
-            : 'Inspeccion finalizada y PDF generado correctamente.';
+        final String mensaje;
+        final Color color;
+        final int duracion;
+
+        if (_controller.errorPdfNoRecuperable) {
+          mensaje =
+              'Inspeccion guardada sin PDF. Hubo un error generando el informe, contacte soporte si persiste.';
+          color = Colors.orange.shade900;
+          duracion = 6;
+        } else if (_controller.pdfDiferido) {
+          mensaje =
+              'Inspeccion guardada. El informe PDF se generara automaticamente al recuperar conexion.';
+          color = Colors.orange.shade700;
+          duracion = 5;
+        } else {
+          mensaje = 'Inspeccion finalizada y PDF generado correctamente.';
+          color = Colors.green;
+          duracion = 3;
+        }
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(mensaje),
-            backgroundColor: _controller.pdfDiferido
-                ? Colors.orange.shade700
-                : Colors.green,
-            duration: Duration(seconds: _controller.pdfDiferido ? 5 : 3),
+            backgroundColor: color,
+            duration: Duration(seconds: duracion),
           ),
         );
       } else {
@@ -336,20 +351,34 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
           margin: const EdgeInsets.all(16),
           width: double.infinity,
           height: 55,
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.shade700,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: _finalizar,
-            icon: const Icon(Icons.check_circle),
-            label: const Text(
-              'FINALIZAR INSPECCIÓN',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
+          child: StreamBuilder<bool>(
+            stream: ConnectivityService().onStatusChange,
+            initialData: ConnectivityService().isOnline,
+            builder: (context, snapshot) {
+              final isOnline = snapshot.data ?? true;
+              return ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isOnline
+                      ? Colors.green.shade700
+                      : Colors.green.shade700.withOpacity(0.65),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: _finalizar,
+                icon: Icon(isOnline ? Icons.check_circle : Icons.cloud_off),
+                label: Text(
+                  isOnline
+                      ? 'FINALIZAR INSPECCIÓN'
+                      : 'FINALIZAR (sin conexión)',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              );
+            },
           ),
         ),
         const SizedBox(height: 100),

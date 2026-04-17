@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/database/database_helper.dart';
 import '../../../../core/modules/module_registry.dart';
+import '../../../../core/services/connectivity_service.dart';
 import '../../../../core/services/user_session.dart';
 import '../../../sync/services/sync_service.dart';
 
@@ -58,12 +60,25 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
   Future<void> _cargarModulosDeEmpresa(String empresaId) async {
     setState(() => _isLoading = true);
     try {
+      debugPrint('═══════════════════════════════════════');
+      debugPrint('📂 CARGANDO MÓDULOS para empresa: $empresaId');
+
+      // Si hay conexión, descargar módulos de esta empresa desde Supabase
+      if (ConnectivityService().isOnline) {
+        debugPrint('☁️ Online — descargando de Supabase primero...');
+        await _descargarModulosDeSupabase(empresaId);
+      } else {
+        debugPrint('📴 Offline — usando datos locales');
+      }
+
       final db = await _dbHelper.database;
       final rows = await db.query(
         'empresa_modulos',
         where: 'empresa_id = ?',
         whereArgs: [empresaId],
       );
+
+      debugPrint('📦 SQLite tiene ${rows.length} filas para esta empresa');
 
       final existingKeys = rows.map((r) => r['modulo_key'] as String).toSet();
 
@@ -95,6 +110,12 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
         }
       }
 
+      debugPrint('📋 Estado final de módulos:');
+      for (var entry in _modulos.entries) {
+        debugPrint('  ${entry.value.habilitado ? "✅" : "❌"} ${entry.key}');
+      }
+      debugPrint('═══════════════════════════════════════');
+
       setState(() => _isLoading = false);
     } catch (e) {
       debugPrint('Error cargando módulos: $e');
@@ -110,9 +131,13 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
       final db = await _dbHelper.database;
       final batch = db.batch();
 
+      debugPrint('═══════════════════════════════════════');
+      debugPrint('📝 GUARDANDO MÓDULOS para empresa: $_selectedEmpresaNombre ($_selectedEmpresaId)');
+
       for (var entry in _modulos.entries) {
         final key = entry.key;
         final state = entry.value;
+        debugPrint('  ${state.habilitado ? "✅" : "❌"} $key (orden: ${state.orden})');
 
         batch.insert('empresa_modulos', {
           'id': state.id,
@@ -125,13 +150,43 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
       }
 
       await batch.commit(noResult: true);
+      debugPrint('💾 SQLite OK — ${_modulos.length} módulos guardados (subido=0)');
+
+      // Verificar lo que quedó en SQLite
+      final verificacion = await db.query(
+        'empresa_modulos',
+        where: 'empresa_id = ?',
+        whereArgs: [_selectedEmpresaId],
+      );
+      debugPrint('🔍 Verificación SQLite: ${verificacion.length} filas para esta empresa');
+      for (var row in verificacion) {
+        debugPrint('  → ${row['modulo_key']}: habilitado=${row['habilitado']}, subido=${row['subido']}');
+      }
 
       // Sincronizar inmediatamente a Supabase
       try {
+        debugPrint('☁️ Subiendo a Supabase...');
         await SyncService().sincronizarEmpresaModulos();
+        debugPrint('☁️ Supabase OK');
+
+        // Verificar subido después del sync
+        final postSync = await db.query(
+          'empresa_modulos',
+          where: 'empresa_id = ? AND subido = 0',
+          whereArgs: [_selectedEmpresaId],
+        );
+        if (postSync.isEmpty) {
+          debugPrint('✅ Todos los módulos sincronizados (subido=1)');
+        } else {
+          debugPrint('⚠️ ${postSync.length} módulos aún pendientes (subido=0):');
+          for (var row in postSync) {
+            debugPrint('  → ${row['modulo_key']}');
+          }
+        }
       } catch (e) {
-        debugPrint('⚠️ Error sincronizando módulos: $e');
+        debugPrint('⚠️ Error sincronizando módulos a Supabase: $e');
       }
+      debugPrint('═══════════════════════════════════════');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -142,7 +197,7 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
         );
       }
     } catch (e) {
-      debugPrint('Error guardando módulos: $e');
+      debugPrint('❌ Error guardando módulos: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -153,6 +208,35 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
       }
     } finally {
       setState(() => _isSaving = false);
+    }
+  }
+
+  /// Descarga módulos de una empresa específica desde Supabase y los guarda en SQLite.
+  Future<void> _descargarModulosDeSupabase(String empresaId) async {
+    try {
+      final data = await Supabase.instance.client
+          .from('empresa_modulos')
+          .select('id, empresa_id, modulo_key, habilitado, orden')
+          .eq('empresa_id', empresaId);
+
+      debugPrint('☁️ Supabase retornó ${data.length} módulos para empresa $empresaId');
+      for (var row in data) {
+        debugPrint('  → ${row['modulo_key']}: habilitado=${row['habilitado']}');
+      }
+
+      if (data.isNotEmpty) {
+        await _dbHelper.guardarMaestros(
+          'empresa_modulos',
+          List<Map<String, dynamic>>.from(data),
+          scopeWhere: 'empresa_id = ?',
+          scopeArgs: [empresaId],
+        );
+        debugPrint('💾 Módulos de Supabase guardados en SQLite');
+      } else {
+        debugPrint('⚠️ Supabase no tiene módulos para esta empresa (tabla vacía o no configurada)');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error descargando módulos de empresa $empresaId: $e');
     }
   }
 
