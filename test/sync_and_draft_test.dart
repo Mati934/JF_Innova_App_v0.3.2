@@ -1105,6 +1105,9 @@ void main() {
         'numero': 1,
         'matricula': 'EXT-2026-001',
         'tipo_extintor': 'PQS 6kg',
+        'peso_extintor': '6 kg',
+        'fecha_ultima_mantencion': '2025-04-01',
+        'fecha_proxima_mantencion': '2026-04-01',
         'fotos_json': '["foto1.jpg","foto2.jpg"]',
         'respuestas_json': '{"estado_manguera":"C","estado_manometro":"NC"}',
         'subido': 0,
@@ -1117,6 +1120,9 @@ void main() {
         'numero': extintorRow['numero'],
         'matricula': extintorRow['matricula'],
         'tipo_extintor': extintorRow['tipo_extintor'],
+        'peso_extintor': extintorRow['peso_extintor'],
+        'fecha_ultima_mantencion': extintorRow['fecha_ultima_mantencion'],
+        'fecha_proxima_mantencion': extintorRow['fecha_proxima_mantencion'],
         'fotos_json': extintorRow['fotos_json'] != null
             ? ['foto1.jpg', 'foto2.jpg'] // simula jsonDecode
             : [],
@@ -1141,6 +1147,9 @@ void main() {
         reason: 'respuestas_json debe decodificarse de String a Map',
       );
       expect(payload['tipo_extintor'], 'PQS 6kg');
+      expect(payload['peso_extintor'], '6 kg');
+      expect(payload['fecha_ultima_mantencion'], '2025-04-01');
+      expect(payload['fecha_proxima_mantencion'], '2026-04-01');
     });
 
     test('Extintor con fotos_json null envía lista vacía', () {

@@ -118,6 +118,11 @@ class _ExtintorFormView extends StatelessWidget {
                 onClonar: () => ctrl.clonarDelAnterior(i),
                 onMatriculaChanged: (m) => ctrl.updateMatricula(i, m),
                 onTipoExtintorChanged: (t) => ctrl.updateTipoExtintor(i, t),
+                onPesoExtintorChanged: (p) => ctrl.updatePesoExtintor(i, p),
+                onFechaUltimaMantencionChanged: (f) =>
+                    ctrl.updateFechaUltimaMantencion(i, f),
+                onFechaProximaMantencionChanged: (f) =>
+                    ctrl.updateFechaProximaMantencion(i, f),
                 onEliminar: () => ctrl.eliminarExtintor(i),
                 onFotoAdded: (path) => ctrl.addFotoExtintor(i, path),
                 onFotoRemoved: (fotoIdx) => ctrl.removeFotoExtintor(i, fotoIdx),

@@ -7,7 +7,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      42; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      43; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -355,6 +355,9 @@ class DatabaseHelper {
         numero INTEGER NOT NULL,
         matricula TEXT,
         tipo_extintor TEXT,
+        peso_extintor TEXT,
+        fecha_ultima_mantencion TEXT,
+        fecha_proxima_mantencion TEXT,
         fotos_json TEXT,
         respuestas_json TEXT,
         subido INTEGER DEFAULT 0,
@@ -903,6 +906,31 @@ class DatabaseHelper {
       await db.execute("ALTER TABLE contratistas ADD COLUMN rut TEXT");
       debugPrint("✅ Parche v42 aplicado.");
     }
+
+    if (oldVersion < 43) {
+      debugPrint(
+        "🚀 Aplicando parche v43 (campos adicionales extintores R004)...",
+      );
+      await _safeAddColumn(
+        db,
+        'extintores_pendientes',
+        'peso_extintor',
+        'TEXT',
+      );
+      await _safeAddColumn(
+        db,
+        'extintores_pendientes',
+        'fecha_ultima_mantencion',
+        'TEXT',
+      );
+      await _safeAddColumn(
+        db,
+        'extintores_pendientes',
+        'fecha_proxima_mantencion',
+        'TEXT',
+      );
+      debugPrint("✅ Parche v43 aplicado.");
+    }
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -932,6 +960,30 @@ class DatabaseHelper {
         "BLOB",
       );
       await _safeAddColumn(db, "contratistas", "rut", "TEXT");
+      await _safeAddColumn(
+        db,
+        'extintores_pendientes',
+        'tipo_extintor',
+        'TEXT',
+      );
+      await _safeAddColumn(
+        db,
+        'extintores_pendientes',
+        'peso_extintor',
+        'TEXT',
+      );
+      await _safeAddColumn(
+        db,
+        'extintores_pendientes',
+        'fecha_ultima_mantencion',
+        'TEXT',
+      );
+      await _safeAddColumn(
+        db,
+        'extintores_pendientes',
+        'fecha_proxima_mantencion',
+        'TEXT',
+      );
     } catch (e, st) {
       debugPrint("❌ Error reparando esquema crítico: $e\n$st");
       rethrow;

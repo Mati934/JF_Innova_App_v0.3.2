@@ -25,6 +25,7 @@ List<FormularioItem> _crearChecklistItems(int count) => List.generate(
 List<ExtintorState> _crearExtintores(int count, List<FormularioItem> items) =>
     List.generate(count, (i) {
       final ext = ExtintorState.nuevo(numero: i + 1, items: items);
+      final dia = ((i % 28) + 1).toString().padLeft(2, '0');
       // Marcar algunos puntos como NC para tests realistas.
       final puntosModificados = ext.puntos.asMap().entries.map((e) {
         if (e.key % 5 == 0) {
@@ -35,6 +36,9 @@ List<ExtintorState> _crearExtintores(int count, List<FormularioItem> items) =>
       return ext.copyWith(
         matricula: 'MAT-${i + 1}',
         tipoExtintor: i.isEven ? 'PQS 6kg' : 'CO2 5kg',
+        pesoExtintor: i.isEven ? '6 kg' : '5 kg',
+        fechaUltimaMantencion: '2026-03-$dia',
+        fechaProximaMantencion: '2027-03-$dia',
         puntos: puntosModificados,
       );
     });
@@ -131,6 +135,9 @@ void main() {
         expect(restored.numero, ext.numero);
         expect(restored.matricula, ext.matricula);
         expect(restored.tipoExtintor, ext.tipoExtintor);
+        expect(restored.pesoExtintor, ext.pesoExtintor);
+        expect(restored.fechaUltimaMantencion, ext.fechaUltimaMantencion);
+        expect(restored.fechaProximaMantencion, ext.fechaProximaMantencion);
         expect(restored.puntos.length, ext.puntos.length);
       }
     });
@@ -269,6 +276,15 @@ void main() {
         expect(resumenes[i].numero, extintores[i].numero);
         expect(resumenes[i].matricula, extintores[i].matricula);
         expect(resumenes[i].tipoExtintor, extintores[i].tipoExtintor);
+        expect(resumenes[i].pesoExtintor, extintores[i].pesoExtintor);
+        expect(
+          resumenes[i].fechaUltimaMantencion,
+          extintores[i].fechaUltimaMantencion,
+        );
+        expect(
+          resumenes[i].fechaProximaMantencion,
+          extintores[i].fechaProximaMantencion,
+        );
         expect(resumenes[i].totalPuntos, 18);
         expect(resumenes[i].puntosNC.length, extintores[i].puntosNC.length);
       }

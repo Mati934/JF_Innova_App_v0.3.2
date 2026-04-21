@@ -66,6 +66,9 @@ class ExtintorState {
   final int numero;
   final String? matricula;
   final String? tipoExtintor;
+  final String? pesoExtintor;
+  final String? fechaUltimaMantencion;
+  final String? fechaProximaMantencion;
   final List<String> fotoPaths;
   final List<PuntoExtintorState> puntos;
   final bool expandido;
@@ -75,6 +78,9 @@ class ExtintorState {
     required this.numero,
     this.matricula,
     this.tipoExtintor,
+    this.pesoExtintor,
+    this.fechaUltimaMantencion,
+    this.fechaProximaMantencion,
     this.fotoPaths = const [],
     required this.puntos,
     this.expandido = true,
@@ -106,6 +112,9 @@ class ExtintorState {
   ExtintorState copyWith({
     String? matricula,
     String? tipoExtintor,
+    String? pesoExtintor,
+    String? fechaUltimaMantencion,
+    String? fechaProximaMantencion,
     List<String>? fotoPaths,
     List<PuntoExtintorState>? puntos,
     bool? expandido,
@@ -114,6 +123,10 @@ class ExtintorState {
     numero: numero,
     matricula: matricula ?? this.matricula,
     tipoExtintor: tipoExtintor ?? this.tipoExtintor,
+    pesoExtintor: pesoExtintor ?? this.pesoExtintor,
+    fechaUltimaMantencion: fechaUltimaMantencion ?? this.fechaUltimaMantencion,
+    fechaProximaMantencion:
+        fechaProximaMantencion ?? this.fechaProximaMantencion,
     fotoPaths: fotoPaths ?? this.fotoPaths,
     puntos: puntos ?? this.puntos,
     expandido: expandido ?? this.expandido,
@@ -133,6 +146,9 @@ class ExtintorState {
       'numero': numero,
       'matricula': matricula,
       'tipo_extintor': tipoExtintor,
+      'peso_extintor': pesoExtintor,
+      'fecha_ultima_mantencion': fechaUltimaMantencion,
+      'fecha_proxima_mantencion': fechaProximaMantencion,
       'fotos_json': jsonEncode(fotoPaths),
       'respuestas_json': jsonEncode(respuestas),
       'created_at': DateTime.now().toIso8601String(),
@@ -164,6 +180,9 @@ class ExtintorState {
       numero: row['numero'] as int,
       matricula: row['matricula'] as String?,
       tipoExtintor: row['tipo_extintor'] as String?,
+      pesoExtintor: row['peso_extintor'] as String?,
+      fechaUltimaMantencion: row['fecha_ultima_mantencion'] as String?,
+      fechaProximaMantencion: row['fecha_proxima_mantencion'] as String?,
       fotoPaths: fotos,
       puntos: items.map((item) {
         final saved = respuestas[item.id] as Map<String, dynamic>?;

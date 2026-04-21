@@ -65,18 +65,26 @@ class ExtintorResumenItem {
   final int numero;
   final String? matricula;
   final String? tipoExtintor;
+  final String? pesoExtintor;
+  final String? fechaUltimaMantencion;
+  final String? fechaProximaMantencion;
   final bool todosCumplen;
   final int totalPuntos;
   final List<PuntoNCResumen> puntosNC;
+  final List<PuntoEstadoResumen> puntos;
   final List<String> fotoPaths;
 
   const ExtintorResumenItem({
     required this.numero,
     this.matricula,
     this.tipoExtintor,
+    this.pesoExtintor,
+    this.fechaUltimaMantencion,
+    this.fechaProximaMantencion,
     required this.todosCumplen,
     required this.totalPuntos,
     required this.puntosNC,
+    this.puntos = const [],
     required this.fotoPaths,
   });
 
@@ -84,6 +92,9 @@ class ExtintorResumenItem {
     numero: s.numero,
     matricula: s.matricula,
     tipoExtintor: s.tipoExtintor,
+    pesoExtintor: s.pesoExtintor,
+    fechaUltimaMantencion: s.fechaUltimaMantencion,
+    fechaProximaMantencion: s.fechaProximaMantencion,
     todosCumplen: s.todosCumplen,
     totalPuntos: s.totalPuntos,
     puntosNC: s.puntosNC
@@ -92,6 +103,14 @@ class ExtintorResumenItem {
               PuntoNCResumen(pregunta: p.pregunta, observacion: p.observacion),
         )
         .toList(),
+    puntos: List.generate(
+      s.puntos.length,
+      (i) => PuntoEstadoResumen(
+        numero: i + 1,
+        pregunta: s.puntos[i].pregunta,
+        estado: s.puntos[i].estado,
+      ),
+    ),
     fotoPaths: s.fotoPaths,
   );
 }
@@ -101,4 +120,16 @@ class PuntoNCResumen {
   final String? observacion;
 
   const PuntoNCResumen({required this.pregunta, this.observacion});
+}
+
+class PuntoEstadoResumen {
+  final int numero;
+  final String pregunta;
+  final EstadoExtintor? estado;
+
+  const PuntoEstadoResumen({
+    required this.numero,
+    required this.pregunta,
+    this.estado,
+  });
 }

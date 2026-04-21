@@ -239,6 +239,9 @@ class ExtintorFormController extends ChangeNotifier {
         numero: i + 1,
         matricula: lista[i].matricula,
         tipoExtintor: lista[i].tipoExtintor,
+        pesoExtintor: lista[i].pesoExtintor,
+        fechaUltimaMantencion: lista[i].fechaUltimaMantencion,
+        fechaProximaMantencion: lista[i].fechaProximaMantencion,
         fotoPaths: lista[i].fotoPaths,
         puntos: lista[i].puntos,
         expandido: lista[i].expandido,
@@ -304,6 +307,27 @@ class ExtintorFormController extends ChangeNotifier {
   void updateTipoExtintor(int index, String tipo) {
     extintores = List.from(extintores)
       ..[index] = extintores[index].copyWith(tipoExtintor: tipo);
+    _debouncer.run(guardarBorradorSilencioso);
+    _safeNotify();
+  }
+
+  void updatePesoExtintor(int index, String peso) {
+    extintores = List.from(extintores)
+      ..[index] = extintores[index].copyWith(pesoExtintor: peso);
+    _debouncer.run(guardarBorradorSilencioso);
+    _safeNotify();
+  }
+
+  void updateFechaUltimaMantencion(int index, String fecha) {
+    extintores = List.from(extintores)
+      ..[index] = extintores[index].copyWith(fechaUltimaMantencion: fecha);
+    _debouncer.run(guardarBorradorSilencioso);
+    _safeNotify();
+  }
+
+  void updateFechaProximaMantencion(int index, String fecha) {
+    extintores = List.from(extintores)
+      ..[index] = extintores[index].copyWith(fechaProximaMantencion: fecha);
     _debouncer.run(guardarBorradorSilencioso);
     _safeNotify();
   }

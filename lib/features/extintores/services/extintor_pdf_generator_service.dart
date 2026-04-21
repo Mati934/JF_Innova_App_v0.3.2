@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../domain/models/extintor_report_data.dart';
+import '../domain/models/extintor_state.dart' show EstadoExtintor;
 
 // ── Parámetros del isolate ────────────────────────────────────────────────────
 
@@ -129,7 +130,7 @@ class ExtintorPdfGeneratorService {
 
   // ── Footer ─────────────────────────────────────────────────────────────────
 
-  static const String _pdfVersion = '0.1.0';
+  static const String _pdfVersion = '0.4.0';
 
   pw.Widget _buildFooter(pw.Context ctx) {
     return pw.Container(
@@ -157,8 +158,71 @@ class ExtintorPdfGeneratorService {
   // ── Datos generales ─────────────────────────────────────────────────────────
 
   pw.Widget _buildDatosGenerales(ExtintorReportData data) {
+    String v(String s) => s.isNotEmpty ? s : '—';
+    final horario = '${v(data.horaInicio)}  -  ${v(data.horaTermino)}';
+
+    final filas = <List<List<String>>>[
+      [
+        ['Empresa', v(data.empresa)],
+        ['Región', v(data.region)],
+      ],
+      [
+        ['Oficina / Área', v(data.oficina)],
+        ['Lugar de Inspección', v(data.lugarInspeccion)],
+      ],
+      [
+        ['Jefatura a Cargo', v(data.jefaturaCargo)],
+        ['Origen de la Visita', v(data.origenVisita)],
+      ],
+      [
+        ['Fecha', v(data.fecha)],
+        ['Horario', horario],
+      ],
+      [
+        ['Inspector', v(data.profesional)],
+        ['Teléfono', v(data.fonoProfesional)],
+      ],
+      [
+        ['Correo Inspector', v(data.correoProfesional)],
+        ['Correo Empresa 1', v(data.emailEmpresa1)],
+      ],
+      // Última fila: solo correo empresa 2 si existe
+      if (data.emailEmpresa2.isNotEmpty)
+        [
+          ['Correo Empresa 2', v(data.emailEmpresa2)],
+          ['', ''],
+        ],
+    ];
+
+    pw.Widget celda(String label, String valor) {
+      if (label.isEmpty) return pw.SizedBox();
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        child: pw.RichText(
+          text: pw.TextSpan(
+            children: [
+              pw.TextSpan(
+                text: '$label: ',
+                style: const pw.TextStyle(
+                  fontSize: 8,
+                  color: PdfColors.grey700,
+                ),
+              ),
+              pw.TextSpan(
+                text: valor,
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.black,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return pw.Container(
-      padding: const pw.EdgeInsets.all(10),
       decoration: pw.BoxDecoration(
         color: _grisClaro,
         border: pw.Border.all(color: _grisLinea),
@@ -167,58 +231,29 @@ class ExtintorPdfGeneratorService {
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          _titulo('INFORMACIÓN GENERAL'),
-          pw.SizedBox(height: 6),
-          if (data.empresa.isNotEmpty)
-            pw.Row(
-              children: [
-                _Expanded(child: _dato('Empresa', data.empresa)),
-                _Expanded(child: _dato('Región', data.region)),
-              ],
+          pw.Padding(
+            padding: const pw.EdgeInsets.fromLTRB(8, 6, 8, 2),
+            child: _titulo('INFORMACIÓN GENERAL'),
+          ),
+          pw.Table(
+            border: pw.TableBorder.symmetric(
+              inside: const pw.BorderSide(color: _grisLinea, width: 0.5),
             ),
-          if (data.empresa.isEmpty) _dato('Región', data.region),
-          pw.Row(
-            children: [
-              _Expanded(child: _dato('Oficina / Área', data.oficina)),
-              _Expanded(
-                child: _dato('Lugar de Inspección', data.lugarInspeccion),
-              ),
-            ],
-          ),
-          pw.Row(
-            children: [
-              _Expanded(child: _dato('Jefatura a Cargo', data.jefaturaCargo)),
-              if (data.origenVisita.isNotEmpty)
-                _Expanded(
-                  child: _dato('Origen de la Visita', data.origenVisita),
-                ),
-            ],
-          ),
-          pw.Row(
-            children: [
-              _Expanded(child: _dato('Fecha', data.fecha)),
-              _Expanded(child: _dato('Hora Inicio', data.horaInicio)),
-              _Expanded(child: _dato('Hora Término', data.horaTermino)),
-            ],
-          ),
-          if (data.emailEmpresa1.isNotEmpty || data.emailEmpresa2.isNotEmpty)
-            pw.Row(
-              children: [
-                _Expanded(
-                  child: _dato(
-                    'Correo Empresa 1',
-                    data.emailEmpresa1.isNotEmpty ? data.emailEmpresa1 : 'N/A',
+            columnWidths: const {
+              0: pw.FlexColumnWidth(1),
+              1: pw.FlexColumnWidth(1),
+            },
+            children: filas
+                .map(
+                  (par) => pw.TableRow(
+                    children: [
+                      celda(par[0][0], par[0][1]),
+                      celda(par[1][0], par[1][1]),
+                    ],
                   ),
-                ),
-                _Expanded(
-                  child: _dato(
-                    'Correo Empresa 2',
-                    data.emailEmpresa2.isNotEmpty ? data.emailEmpresa2 : 'N/A',
-                  ),
-                ),
-              ],
-            ),
-          if (data.profesional.isNotEmpty) _dato('Inspector', data.profesional),
+                )
+                .toList(),
+          ),
         ],
       ),
     );
@@ -336,19 +371,52 @@ class ExtintorPdfGeneratorService {
   // ── Resumen de Hallazgos (No Cumple) ──────────────────────────────────────
 
   pw.Widget _buildResumenHallazgos(ExtintorReportData data) {
-    final hallazgos = <_Hallazgo>[];
+    final extintoresConNC = data.extintores
+        .where((e) => e.puntosNC.isNotEmpty)
+        .toList();
+
+    // Construir leyenda global de preguntas NC (numero -> texto)
+    final preguntasGlobal = <int, String>{};
+    final preguntaToNumero = <String, int>{};
     for (final ext in data.extintores) {
-      for (final nc in ext.puntosNC) {
-        hallazgos.add(
-          _Hallazgo(
-            extintorNumero: ext.numero,
-            extintorId: ext.matricula,
-            tipoExtintor: ext.tipoExtintor,
-            pregunta: nc.pregunta,
-            observacion: nc.observacion,
-          ),
-        );
+      for (final p in ext.puntos) {
+        preguntaToNumero.putIfAbsent(p.pregunta, () => p.numero);
       }
+      for (final nc in ext.puntosNC) {
+        final n = preguntaToNumero[nc.pregunta];
+        if (n != null) preguntasGlobal.putIfAbsent(n, () => nc.pregunta);
+      }
+    }
+    final leyendaEntries = preguntasGlobal.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    // Bloques de extintores en filas de 2 columnas.
+    // Cada Row es atómico para MultiPage: si dos bloques son altos, salta a página nueva.
+    final filasBloques = <pw.Widget>[];
+    for (var i = 0; i < extintoresConNC.length; i += 2) {
+      final left = extintoresConNC[i];
+      final right = (i + 1 < extintoresConNC.length)
+          ? extintoresConNC[i + 1]
+          : null;
+      filasBloques.add(
+        pw.Padding(
+          padding: pw.EdgeInsets.only(top: i == 0 ? 0 : 5),
+          child: pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(
+                child: _buildHallazgoExtintorBloque(left, preguntaToNumero),
+              ),
+              pw.SizedBox(width: 6),
+              pw.Expanded(
+                child: right != null
+                    ? _buildHallazgoExtintorBloque(right, preguntaToNumero)
+                    : pw.SizedBox(),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return pw.Column(
@@ -356,7 +424,7 @@ class ExtintorPdfGeneratorService {
       children: [
         _titulo('RESUMEN DE HALLAZGOS (NO CUMPLE)'),
         pw.SizedBox(height: 6),
-        if (hallazgos.isEmpty)
+        if (extintoresConNC.isEmpty)
           pw.Container(
             width: double.infinity,
             padding: const pw.EdgeInsets.all(10),
@@ -370,67 +438,226 @@ class ExtintorPdfGeneratorService {
               style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
             ),
           ),
-        ...hallazgos.map(
-          (h) => pw.Container(
-            margin: const pw.EdgeInsets.only(bottom: 4),
-            padding: const pw.EdgeInsets.all(8),
-            decoration: pw.BoxDecoration(
-              border: pw.Border(
-                left: const pw.BorderSide(color: _rojo, width: 3),
-                top: pw.BorderSide(color: _grisLinea),
-                right: pw.BorderSide(color: _grisLinea),
-                bottom: pw.BorderSide(color: _grisLinea),
-              ),
+        if (leyendaEntries.isNotEmpty) ...[
+          _buildLeyendaPreguntasNC(leyendaEntries),
+          pw.SizedBox(height: 6),
+        ],
+        ...filasBloques,
+      ],
+    );
+  }
+
+  /// Leyenda al inicio: lista numerada de preguntas que tienen al menos un NC.
+  pw.Widget _buildLeyendaPreguntasNC(List<MapEntry<int, String>> entries) {
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.fromLTRB(8, 6, 8, 6),
+      decoration: pw.BoxDecoration(
+        color: const PdfColor.fromInt(0xFFFAFAFA),
+        border: pw.Border.all(color: _grisLinea),
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            'PUNTOS CON HALLAZGOS',
+            style: pw.TextStyle(
+              fontSize: 7,
+              color: PdfColors.grey700,
+              fontWeight: pw.FontWeight.bold,
+              letterSpacing: 0.4,
             ),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Row(
-                  children: [
-                    pw.Text(
-                      _hallazgoTitulo(h),
+          ),
+          pw.SizedBox(height: 4),
+          for (var i = 0; i < entries.length; i++)
+            pw.Padding(
+              padding: pw.EdgeInsets.only(top: i == 0 ? 0 : 2),
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Container(
+                    margin: const pw.EdgeInsets.only(top: 1, right: 5),
+                    width: 16,
+                    height: 10,
+                    alignment: pw.Alignment.center,
+                    decoration: pw.BoxDecoration(
+                      color: _rojo,
+                      borderRadius: const pw.BorderRadius.all(
+                        pw.Radius.circular(1.5),
+                      ),
+                    ),
+                    child: pw.Text(
+                      '${entries[i].key}',
                       style: pw.TextStyle(
-                        fontSize: 8,
+                        color: PdfColors.white,
+                        fontSize: 6.5,
                         fontWeight: pw.FontWeight.bold,
-                        color: PdfColors.grey600,
                       ),
                     ),
-                    pw.Spacer(),
-                    pw.Container(
-                      padding: const pw.EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: pw.BoxDecoration(
-                        border: pw.Border.all(color: _rojo),
-                        borderRadius: const pw.BorderRadius.all(
-                          pw.Radius.circular(8),
-                        ),
-                      ),
-                      child: pw.Text(
-                        'NC',
-                        style: pw.TextStyle(
-                          fontSize: 7,
-                          color: _rojo,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                pw.SizedBox(height: 3),
-                pw.Text(h.pregunta, style: const pw.TextStyle(fontSize: 9)),
-                if (h.observacion?.isNotEmpty == true) ...[
-                  pw.SizedBox(height: 2),
-                  pw.Text(
-                    h.observacion!,
-                    style: const pw.TextStyle(
-                      fontSize: 8,
-                      color: PdfColors.grey700,
+                  ),
+                  pw.Expanded(
+                    child: pw.Text(
+                      entries[i].value,
+                      style: const pw.TextStyle(fontSize: 8.5),
                     ),
                   ),
                 ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Bloque agrupado: un extintor con todos sus hallazgos NC adentro.
+  /// Usa Row(barra roja + tarjeta) en vez de Border non-uniform para evitar bugs visuales.
+  pw.Widget _buildHallazgoExtintorBloque(
+    ExtintorResumenItem ext,
+    Map<String, int> preguntaToNumero,
+  ) {
+    final tituloPartes = <String>['Extintor #${ext.numero}'];
+    if (ext.matricula?.isNotEmpty == true) tituloPartes.add(ext.matricula!);
+    if (ext.tipoExtintor?.isNotEmpty == true) {
+      tituloPartes.add('(${ext.tipoExtintor})');
+    }
+    final titulo = tituloPartes.join(' — ');
+
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border(
+          left: const pw.BorderSide(color: _rojo, width: 3),
+          top: pw.BorderSide(color: _grisLinea),
+          right: pw.BorderSide(color: _grisLinea),
+          bottom: pw.BorderSide(color: _grisLinea),
+        ),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        mainAxisSize: pw.MainAxisSize.min,
+        children: [
+          // Header del bloque
+          pw.Container(
+            width: double.infinity,
+            padding: const pw.EdgeInsets.symmetric(
+              horizontal: 6,
+              vertical: 3,
+            ),
+            color: const PdfColor.fromInt(0xFFFFEBEE),
+            child: pw.Row(
+              children: [
+                pw.Expanded(
+                  child: pw.Text(
+                    titulo,
+                    style: pw.TextStyle(
+                      fontSize: 8.5,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.grey800,
+                    ),
+                    maxLines: 1,
+                    overflow: pw.TextOverflow.clip,
+                  ),
+                ),
+                pw.SizedBox(width: 4),
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1,
+                  ),
+                  decoration: pw.BoxDecoration(
+                    color: _rojo,
+                    borderRadius: const pw.BorderRadius.all(
+                      pw.Radius.circular(7),
+                    ),
+                  ),
+                  child: pw.Text(
+                    '${ext.puntosNC.length} NC',
+                    style: pw.TextStyle(
+                      fontSize: 6.5,
+                      color: PdfColors.white,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
               ],
+            ),
+          ),
+          // Lista compacta: 2 columnas internas
+          pw.Padding(
+            padding: const pw.EdgeInsets.fromLTRB(6, 4, 6, 5),
+            child: _buildHallazgosCompactos(ext, preguntaToNumero),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Lista de hallazgos del extintor en 2 columnas internas.
+  /// Si NINGÚN hallazgo tiene observación → wrap horizontal solo de cuadritos.
+  /// Si alguno tiene observación → grid de 2 cols con [cuadrito] obs.
+  pw.Widget _buildHallazgosCompactos(
+    ExtintorResumenItem ext,
+    Map<String, int> preguntaToNumero,
+  ) {
+    final hayObs = ext.puntosNC.any((nc) => nc.observacion?.isNotEmpty == true);
+
+    if (!hayObs) {
+      return pw.Wrap(
+        spacing: 4,
+        runSpacing: 3,
+        children: ext.puntosNC.map((nc) {
+          return _chipNumeroNC(preguntaToNumero[nc.pregunta]);
+        }).toList(),
+      );
+    }
+
+    // Distribuir verticalmente en 2 columnas (ej: [a,b,c,d,e] → col1:a,c,e  col2:b,d)
+    final items = ext.puntosNC;
+    final mid = (items.length / 2).ceil();
+    final col1 = items.sublist(0, mid);
+    final col2 = items.sublist(mid);
+
+    pw.Widget colWidget(List<PuntoNCResumen> col) => pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      mainAxisSize: pw.MainAxisSize.min,
+      children: [
+        for (var i = 0; i < col.length; i++)
+          pw.Padding(
+            padding: pw.EdgeInsets.only(top: i == 0 ? 0 : 2.5),
+            child: _filaNCCompacta(col[i], preguntaToNumero),
+          ),
+      ],
+    );
+
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Expanded(child: colWidget(col1)),
+        pw.SizedBox(width: 6),
+        pw.Expanded(
+          child: col2.isNotEmpty ? colWidget(col2) : pw.SizedBox(),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _filaNCCompacta(
+    PuntoNCResumen nc,
+    Map<String, int> preguntaToNumero,
+  ) {
+    final tieneObs = nc.observacion?.isNotEmpty == true;
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        _chipNumeroNC(preguntaToNumero[nc.pregunta]),
+        pw.SizedBox(width: 4),
+        pw.Expanded(
+          child: pw.Text(
+            tieneObs ? nc.observacion! : '—',
+            style: pw.TextStyle(
+              fontSize: 8,
+              color: tieneObs ? PdfColors.grey800 : PdfColors.grey500,
+              fontStyle: tieneObs ? pw.FontStyle.normal : pw.FontStyle.italic,
             ),
           ),
         ),
@@ -438,208 +665,323 @@ class ExtintorPdfGeneratorService {
     );
   }
 
-  String _hallazgoTitulo(_Hallazgo h) {
-    final parts = <String>['Extintor #${h.extintorNumero}'];
-    if (h.extintorId?.isNotEmpty == true) parts.add(h.extintorId!);
-    if (h.tipoExtintor?.isNotEmpty == true) parts.add('(${h.tipoExtintor})');
-    return parts.join(' — ');
+  pw.Widget _chipNumeroNC(int? numero) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(top: 1),
+      width: 16,
+      height: 10,
+      alignment: pw.Alignment.center,
+      decoration: pw.BoxDecoration(
+        color: _rojo,
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(1.5)),
+      ),
+      child: pw.Text(
+        numero != null ? '$numero' : '?',
+        style: pw.TextStyle(
+          color: PdfColors.white,
+          fontSize: 6.5,
+          fontWeight: pw.FontWeight.bold,
+        ),
+      ),
+    );
   }
 
-  // ── Lista de extintores ─────────────────────────────────────────────────────
+  // ── Lista de extintores (tarjetas detalladas) ─────────────────────────────
 
   List<pw.Widget> _buildExtintores(ExtintorReportData data) {
     final widgets = <pw.Widget>[
-      _titulo('RESULTADOS POR EXTINTOR'),
+      _titulo('DETALLE POR EXTINTOR'),
       pw.SizedBox(height: 8),
     ];
 
     for (final extintor in data.extintores) {
-      widgets.add(_buildExtintorItem(extintor));
-      widgets.add(pw.SizedBox(height: 6));
-
-      if (extintor.fotoPaths.isNotEmpty) {
-        widgets.addAll(_buildFotosExtintor(extintor));
-        widgets.add(pw.SizedBox(height: 6));
-      }
+      widgets.add(_buildExtintorCard(extintor));
+      widgets.add(pw.SizedBox(height: 8));
     }
 
     return widgets;
   }
 
-  pw.Widget _buildExtintorItem(ExtintorResumenItem extintor) {
-    final parts = <String>['Extintor #${extintor.numero}'];
-    if (extintor.matricula?.isNotEmpty == true) parts.add(extintor.matricula!);
-    if (extintor.tipoExtintor?.isNotEmpty == true)
-      parts.add('(${extintor.tipoExtintor})');
-    final titulo = parts.join(' — ');
+  PdfColor _colorEstado(EstadoExtintor? e) {
+    switch (e) {
+      case EstadoExtintor.cumple:
+        return _verde;
+      case EstadoExtintor.noCumple:
+        return _rojo;
+      case EstadoExtintor.noAplica:
+        return const PdfColor.fromInt(0xFF9E9E9E);
+      case null:
+        return const PdfColor.fromInt(0xFFBDBDBD);
+    }
+  }
 
-    if (extintor.todosCumplen) {
-      return pw.Container(
-        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: pw.BoxDecoration(
-          color: const PdfColor.fromInt(0xFFE8F5E9),
-          border: pw.Border.all(color: const PdfColor.fromInt(0xFFA5D6A7)),
-          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-        ),
-        child: pw.Row(
-          children: [
-            pw.Container(
-              width: 14,
-              height: 14,
-              decoration: pw.BoxDecoration(
-                color: _verde,
-                borderRadius: pw.BorderRadius.circular(7),
-              ),
-              alignment: pw.Alignment.center,
-              child: pw.Text(
-                'OK',
-                style: pw.TextStyle(
-                  color: PdfColors.white,
-                  fontSize: 6,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-            ),
-            pw.SizedBox(width: 8),
-            pw.Text(
-              titulo,
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
-            ),
-            pw.Spacer(),
-            pw.Text(
-              'Todos los ${extintor.totalPuntos} puntos conformes',
-              style: const pw.TextStyle(color: _verde, fontSize: 9),
-            ),
-          ],
-        ),
-      );
+  pw.Widget _buildExtintorCard(ExtintorResumenItem extintor) {
+    final hayNC = extintor.puntosNC.isNotEmpty;
+    final colorBorde = hayNC
+        ? const PdfColor.fromInt(0xFFFFCDD2)
+        : const PdfColor.fromInt(0xFFA5D6A7);
+    final colorHeaderFondo = hayNC
+        ? const PdfColor.fromInt(0xFFFFEBEE)
+        : const PdfColor.fromInt(0xFFE8F5E9);
+    final colorEstadoChip = hayNC ? _rojo : _verde;
+    final tituloPartes = <String>['Extintor #${extintor.numero}'];
+    if (extintor.matricula?.isNotEmpty == true) {
+      tituloPartes.add(extintor.matricula!);
+    }
+    final titulo = tituloPartes.join(' — ');
+
+    final fotoValida = extintor.fotoPaths.isNotEmpty
+        ? extintor.fotoPaths.firstWhere(
+            (p) => File(p).existsSync(),
+            orElse: () => '',
+          )
+        : '';
+    pw.MemoryImage? fotoImg;
+    if (fotoValida.isNotEmpty) {
+      try {
+        fotoImg = pw.MemoryImage(File(fotoValida).readAsBytesSync());
+      } catch (_) {}
     }
 
     return pw.Container(
       decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: const PdfColor.fromInt(0xFFFFCDD2)),
+        border: pw.Border.all(color: colorBorde),
         borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
       ),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
+          // Header compacto
           pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: const pw.BoxDecoration(
-              color: PdfColor.fromInt(0xFFFFEBEE),
-              borderRadius: pw.BorderRadius.only(
-                topLeft: pw.Radius.circular(4),
-                topRight: pw.Radius.circular(4),
+            width: double.infinity,
+            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: pw.BoxDecoration(
+              color: colorHeaderFondo,
+              borderRadius: const pw.BorderRadius.only(
+                topLeft: pw.Radius.circular(3),
+                topRight: pw.Radius.circular(3),
               ),
             ),
             child: pw.Row(
               children: [
-                pw.Container(
-                  width: 14,
-                  height: 14,
-                  decoration: pw.BoxDecoration(
-                    color: _rojo,
-                    borderRadius: pw.BorderRadius.circular(7),
-                  ),
-                  alignment: pw.Alignment.center,
-                  child: pw.Text(
-                    'NC',
-                    style: pw.TextStyle(
-                      color: PdfColors.white,
-                      fontSize: 6,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                ),
-                pw.SizedBox(width: 8),
                 pw.Text(
                   titulo,
                   style: pw.TextStyle(
                     fontWeight: pw.FontWeight.bold,
-                    fontSize: 10,
+                    fontSize: 10.5,
                   ),
                 ),
                 pw.Spacer(),
-                pw.Text(
-                  '${extintor.puntosNC.length} No Conformidad(es)',
-                  style: const pw.TextStyle(color: _rojo, fontSize: 9),
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1,
+                  ),
+                  decoration: pw.BoxDecoration(
+                    color: colorEstadoChip,
+                    borderRadius: const pw.BorderRadius.all(
+                      pw.Radius.circular(8),
+                    ),
+                  ),
+                  child: pw.Text(
+                    hayNC ? '${extintor.puntosNC.length} NC' : 'CONFORME',
+                    style: pw.TextStyle(
+                      color: PdfColors.white,
+                      fontSize: 7.5,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-          pw.Table(
-            border: pw.TableBorder(
-              top: const pw.BorderSide(color: _grisLinea),
-              horizontalInside: const pw.BorderSide(color: _grisLinea),
-            ),
-            columnWidths: {
-              0: const pw.FlexColumnWidth(3),
-              1: const pw.FlexColumnWidth(3),
-            },
-            children: [
-              pw.TableRow(
-                decoration: const pw.BoxDecoration(color: _grisClaro),
-                children: [
-                  _celdaHeader('Punto de Inspección'),
-                  _celdaHeader('Observación'),
-                ],
-              ),
-              ...extintor.puntosNC.map(
-                (nc) => pw.TableRow(
-                  children: [
-                    _celda(nc.pregunta),
-                    _celda(nc.observacion ?? '—'),
-                  ],
+          // Cuerpo: grid de info (3 cols x 2 filas) a la izquierda + foto a la derecha
+          pw.Padding(
+            padding: const pw.EdgeInsets.fromLTRB(7, 5, 7, 6),
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      _buildInfoGrid(extintor),
+                    ],
+                  ),
                 ),
+                pw.SizedBox(width: 7),
+                pw.Container(
+                  width: 62,
+                  height: 62,
+                  decoration: pw.BoxDecoration(
+                    color: const PdfColor.fromInt(0xFFFAFAFA),
+                    border: pw.Border.all(color: _grisLinea),
+                    borderRadius: const pw.BorderRadius.all(
+                      pw.Radius.circular(3),
+                    ),
+                  ),
+                  alignment: pw.Alignment.center,
+                  child: fotoImg != null
+                      ? pw.Image(
+                          fotoImg,
+                          width: 62,
+                          height: 62,
+                          fit: pw.BoxFit.cover,
+                        )
+                      : pw.Text(
+                          'Sin foto',
+                          style: const pw.TextStyle(
+                            fontSize: 6.5,
+                            color: PdfColors.grey500,
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+          // Separador entre cuerpo y footer
+          pw.Container(height: 0.5, color: _grisLinea),
+          // Footer: cuadritos numerados + leyenda en una sola línea
+          pw.Container(
+            width: double.infinity,
+            padding: const pw.EdgeInsets.fromLTRB(8, 4, 8, 4),
+            decoration: const pw.BoxDecoration(
+              color: PdfColor.fromInt(0xFFF7F7F7),
+              borderRadius: pw.BorderRadius.only(
+                bottomLeft: pw.Radius.circular(3),
+                bottomRight: pw.Radius.circular(3),
               ),
-            ],
+            ),
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Expanded(
+                  child: pw.Wrap(
+                    spacing: 2.5,
+                    runSpacing: 2.5,
+                    children:
+                        extintor.puntos.map((p) => _puntoChip(p)).toList(),
+                  ),
+                ),
+                pw.SizedBox(width: 8),
+                _leyendaEstados(),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  List<pw.Widget> _buildFotosExtintor(ExtintorResumenItem extintor) {
-    final fotosValidas = extintor.fotoPaths
-        .where((p) => File(p).existsSync())
-        .toList();
-    if (fotosValidas.isEmpty) return [];
+  /// Info del extintor en grid alineado de 3 columnas x 2 filas.
+  /// Cada celda tiene fondo suave, label arriba (gris pequeño) y valor abajo.
+  pw.Widget _buildInfoGrid(ExtintorResumenItem extintor) {
+    String v(String? s) => (s != null && s.isNotEmpty) ? s : '—';
 
-    final parts = <String>['Fotos — Extintor #${extintor.numero}'];
-    if (extintor.matricula?.isNotEmpty == true)
-      parts.add('(${extintor.matricula})');
-    if (extintor.tipoExtintor?.isNotEmpty == true)
-      parts.add('[${extintor.tipoExtintor}]');
-    final titulo = parts.join(' ');
+    final celdas = <List<String>>[
+      ['TIPO', v(extintor.tipoExtintor)],
+      ['PESO', v(extintor.pesoExtintor)],
+      ['MATRÍCULA / UBIC.', v(extintor.matricula)],
+      ['ÚLTIMA MANTENCIÓN', v(extintor.fechaUltimaMantencion)],
+      ['PRÓXIMA MANTENCIÓN', v(extintor.fechaProximaMantencion)],
+      ['TOTAL PUNTOS', '${extintor.totalPuntos}'],
+    ];
 
-    return [
-      pw.Text(
-        titulo,
+    pw.Widget cellWidget(List<String> kv) => pw.Container(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+      decoration: pw.BoxDecoration(
+        color: const PdfColor.fromInt(0xFFFAFBFC),
+        border: pw.Border.all(color: _grisLinea),
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(2)),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        mainAxisSize: pw.MainAxisSize.min,
+        children: [
+          pw.Text(
+            kv[0],
+            style: const pw.TextStyle(
+              fontSize: 6,
+              color: PdfColors.grey600,
+              letterSpacing: 0.3,
+            ),
+          ),
+          pw.Text(
+            kv[1],
+            style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+
+    pw.Widget row(int from) => pw.Row(
+      children: [
+        pw.Expanded(child: cellWidget(celdas[from])),
+        pw.SizedBox(width: 3),
+        pw.Expanded(child: cellWidget(celdas[from + 1])),
+        pw.SizedBox(width: 3),
+        pw.Expanded(child: cellWidget(celdas[from + 2])),
+      ],
+    );
+
+    return pw.Column(
+      mainAxisSize: pw.MainAxisSize.min,
+      children: [row(0), pw.SizedBox(height: 3), row(3)],
+    );
+  }
+
+  pw.Widget _puntoChip(PuntoEstadoResumen p) {
+    final color = _colorEstado(p.estado);
+    return pw.Container(
+      width: 16,
+      height: 10,
+      alignment: pw.Alignment.center,
+      decoration: pw.BoxDecoration(
+        color: color,
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(1.5)),
+      ),
+      child: pw.Text(
+        '${p.numero}',
         style: pw.TextStyle(
-          fontSize: 9,
-          fontStyle: pw.FontStyle.italic,
-          color: PdfColors.grey700,
+          color: PdfColors.white,
+          fontSize: 6.5,
+          fontWeight: pw.FontWeight.bold,
         ),
       ),
-      pw.SizedBox(height: 4),
-      pw.Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        children: fotosValidas.map((p) {
-          try {
-            final bytes = File(p).readAsBytesSync();
-            return pw.Image(
-              pw.MemoryImage(bytes),
-              width: 120,
-              height: 90,
-              fit: pw.BoxFit.cover,
-            );
-          } catch (_) {
-            return pw.SizedBox();
-          }
-        }).toList(),
-      ),
-    ];
+    );
+  }
+
+  pw.Widget _leyendaEstados() {
+    pw.Widget item(PdfColor c, String label) => pw.Row(
+      mainAxisSize: pw.MainAxisSize.min,
+      children: [
+        pw.Container(
+          width: 6,
+          height: 6,
+          decoration: pw.BoxDecoration(
+            color: c,
+            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(1)),
+          ),
+        ),
+        pw.SizedBox(width: 2),
+        pw.Text(
+          label,
+          style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey700),
+        ),
+      ],
+    );
+
+    return pw.Row(
+      children: [
+        item(_verde, 'Cumple'),
+        pw.SizedBox(width: 6),
+        item(_rojo, 'No Cumple'),
+        pw.SizedBox(width: 6),
+        item(const PdfColor.fromInt(0xFF9E9E9E), 'N/A'),
+        pw.SizedBox(width: 6),
+        item(const PdfColor.fromInt(0xFFBDBDBD), 'Sin responder'),
+      ],
+    );
   }
 
   // ── Observaciones ─────────────────────────────────────────────────────────
@@ -697,6 +1039,7 @@ class ExtintorPdfGeneratorService {
     ],
   );
 
+  // ignore: unused_element
   pw.Widget _celdaHeader(String texto) => pw.Padding(
     padding: const pw.EdgeInsets.all(5),
     child: pw.Text(
@@ -705,6 +1048,7 @@ class ExtintorPdfGeneratorService {
     ),
   );
 
+  // ignore: unused_element
   pw.Widget _celda(String texto) => pw.Padding(
     padding: const pw.EdgeInsets.all(5),
     child: pw.Text(texto, style: const pw.TextStyle(fontSize: 8)),
@@ -714,19 +1058,3 @@ class ExtintorPdfGeneratorService {
 // ignore: non_constant_identifier_names
 pw.Widget _Expanded({required pw.Widget child}) =>
     pw.Expanded(flex: 1, child: child);
-
-class _Hallazgo {
-  final int extintorNumero;
-  final String? extintorId;
-  final String? tipoExtintor;
-  final String pregunta;
-  final String? observacion;
-
-  _Hallazgo({
-    required this.extintorNumero,
-    this.extintorId,
-    this.tipoExtintor,
-    required this.pregunta,
-    this.observacion,
-  });
-}

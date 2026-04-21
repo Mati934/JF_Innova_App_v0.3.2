@@ -1082,6 +1082,9 @@ class SyncService {
           'numero': row['numero'],
           'matricula': row['matricula'],
           'tipo_extintor': row['tipo_extintor'],
+          'peso_extintor': row['peso_extintor'],
+          'fecha_ultima_mantencion': row['fecha_ultima_mantencion'],
+          'fecha_proxima_mantencion': row['fecha_proxima_mantencion'],
           'fotos_json': row['fotos_json'] != null
               ? jsonDecode(row['fotos_json'] as String)
               : [],

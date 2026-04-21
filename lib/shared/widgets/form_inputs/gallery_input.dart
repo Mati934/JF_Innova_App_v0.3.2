@@ -7,23 +7,48 @@ class GalleryInput extends StatelessWidget {
   final Function(List<File>) onImagesChanged;
   final bool readOnly;
 
+  /// Máximo de imágenes permitidas. `null` = sin límite.
+  /// Si es `1`, fuerza modo "una sola foto" (cámara devuelve una y reemplaza).
+  final int? maxImages;
+
   const GalleryInput({
     super.key,
     required this.images,
     required this.onImagesChanged,
     this.readOnly = false,
+    this.maxImages,
   });
 
+  bool get _alcanzoMaximo =>
+      maxImages != null && maxImages != 1 && images.length >= maxImages!;
+
   void _addPhotos(BuildContext context) {
+    final unica = maxImages == 1;
     ImageService.mostrarOpciones(
       context,
       onFotoTomada: (f) {
-        onImagesChanged([...images, f]);
+        if (unica) {
+          onImagesChanged([f]);
+        } else {
+          final restante = maxImages == null
+              ? null
+              : maxImages! - images.length;
+          if (restante != null && restante <= 0) return;
+          onImagesChanged([...images, f]);
+        }
       },
       onGaleriaSeleccionada: (files) {
-        onImagesChanged([...images, ...files]);
+        if (unica) {
+          if (files.isNotEmpty) onImagesChanged([files.first]);
+        } else if (maxImages == null) {
+          onImagesChanged([...images, ...files]);
+        } else {
+          final restante = maxImages! - images.length;
+          if (restante <= 0) return;
+          onImagesChanged([...images, ...files.take(restante)]);
+        }
       },
-      soloUna: false,
+      soloUna: unica,
     );
   }
 
@@ -37,11 +62,15 @@ class GalleryInput extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (!readOnly)
+        if (!readOnly && !_alcanzoMaximo)
           ElevatedButton.icon(
             onPressed: () => _addPhotos(context),
             icon: const Icon(Icons.camera_alt),
-            label: const Text('Agregar Evidencia'),
+            label: Text(
+              maxImages == 1 && images.isNotEmpty
+                  ? 'Reemplazar Foto'
+                  : (maxImages == 1 ? 'Agregar Foto' : 'Agregar Evidencia'),
+            ),
           ),
         const SizedBox(height: 10),
         if (images.isNotEmpty)

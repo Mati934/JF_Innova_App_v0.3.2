@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../../shared/widgets/form_inputs/gallery_input.dart';
 import '../../domain/models/extintor_state.dart';
 import 'punto_extintor_row.dart';
@@ -16,6 +17,11 @@ class ExtintorCard extends StatefulWidget {
   final VoidCallback onClonar;
   final void Function(String matricula) onMatriculaChanged;
   final void Function(String tipoExtintor) onTipoExtintorChanged;
+  final void Function(String pesoExtintor) onPesoExtintorChanged;
+  final void Function(String fechaUltimaMantencion)
+  onFechaUltimaMantencionChanged;
+  final void Function(String fechaProximaMantencion)
+  onFechaProximaMantencionChanged;
   final VoidCallback onEliminar;
   final void Function(String path) onFotoAdded;
   final void Function(int fotoIndex) onFotoRemoved;
@@ -31,6 +37,9 @@ class ExtintorCard extends StatefulWidget {
     required this.onClonar,
     required this.onMatriculaChanged,
     required this.onTipoExtintorChanged,
+    required this.onPesoExtintorChanged,
+    required this.onFechaUltimaMantencionChanged,
+    required this.onFechaProximaMantencionChanged,
     required this.onEliminar,
     required this.onFotoAdded,
     required this.onFotoRemoved,
@@ -43,6 +52,9 @@ class ExtintorCard extends StatefulWidget {
 class _ExtintorCardState extends State<ExtintorCard> {
   late final TextEditingController _matriculaCtrl;
   late final TextEditingController _tipoExtintorCtrl;
+  late final TextEditingController _pesoExtintorCtrl;
+  late final TextEditingController _fechaUltimaMantencionCtrl;
+  late final TextEditingController _fechaProximaMantencionCtrl;
 
   @override
   void initState() {
@@ -59,6 +71,28 @@ class _ExtintorCardState extends State<ExtintorCard> {
     _tipoExtintorCtrl.addListener(
       () => widget.onTipoExtintorChanged(_tipoExtintorCtrl.text),
     );
+    _pesoExtintorCtrl = TextEditingController(
+      text: widget.extintor.pesoExtintor ?? '',
+    );
+    _pesoExtintorCtrl.addListener(
+      () => widget.onPesoExtintorChanged(_pesoExtintorCtrl.text),
+    );
+    _fechaUltimaMantencionCtrl = TextEditingController(
+      text: widget.extintor.fechaUltimaMantencion ?? '',
+    );
+    _fechaUltimaMantencionCtrl.addListener(
+      () => widget.onFechaUltimaMantencionChanged(
+        _fechaUltimaMantencionCtrl.text,
+      ),
+    );
+    _fechaProximaMantencionCtrl = TextEditingController(
+      text: widget.extintor.fechaProximaMantencion ?? '',
+    );
+    _fechaProximaMantencionCtrl.addListener(
+      () => widget.onFechaProximaMantencionChanged(
+        _fechaProximaMantencionCtrl.text,
+      ),
+    );
   }
 
   @override
@@ -72,13 +106,64 @@ class _ExtintorCardState extends State<ExtintorCard> {
         _tipoExtintorCtrl.text != (widget.extintor.tipoExtintor ?? '')) {
       _tipoExtintorCtrl.text = widget.extintor.tipoExtintor ?? '';
     }
+    if (old.extintor.pesoExtintor != widget.extintor.pesoExtintor &&
+        _pesoExtintorCtrl.text != (widget.extintor.pesoExtintor ?? '')) {
+      _pesoExtintorCtrl.text = widget.extintor.pesoExtintor ?? '';
+    }
+    if (old.extintor.fechaUltimaMantencion !=
+            widget.extintor.fechaUltimaMantencion &&
+        _fechaUltimaMantencionCtrl.text !=
+            (widget.extintor.fechaUltimaMantencion ?? '')) {
+      _fechaUltimaMantencionCtrl.text =
+          widget.extintor.fechaUltimaMantencion ?? '';
+    }
+    if (old.extintor.fechaProximaMantencion !=
+            widget.extintor.fechaProximaMantencion &&
+        _fechaProximaMantencionCtrl.text !=
+            (widget.extintor.fechaProximaMantencion ?? '')) {
+      _fechaProximaMantencionCtrl.text =
+          widget.extintor.fechaProximaMantencion ?? '';
+    }
   }
 
   @override
   void dispose() {
+    _fechaProximaMantencionCtrl.dispose();
+    _fechaUltimaMantencionCtrl.dispose();
+    _pesoExtintorCtrl.dispose();
     _tipoExtintorCtrl.dispose();
     _matriculaCtrl.dispose();
     super.dispose();
+  }
+
+  static final DateFormat _fmtFecha = DateFormat('dd/MM/yyyy');
+
+  DateTime? _parseFecha(String s) {
+    if (s.isEmpty) return null;
+    try {
+      return _fmtFecha.parseStrict(s);
+    } catch (_) {
+      try {
+        return DateTime.parse(s);
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+
+  Future<void> _pickFecha({
+    required TextEditingController ctrl,
+  }) async {
+    final initial = _parseFecha(ctrl.text) ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100, 12, 31),
+      helpText: 'Selecciona la fecha',
+    );
+    if (picked == null) return;
+    ctrl.text = _fmtFecha.format(picked);
   }
 
   @override
@@ -153,6 +238,90 @@ class _ExtintorCardState extends State<ExtintorCard> {
                         hintStyle: TextStyle(
                           fontSize: 11,
                           color: Colors.grey.shade500,
+                        ),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 0,
+                          vertical: 4,
+                        ),
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 28,
+                    child: TextField(
+                      controller: _pesoExtintorCtrl,
+                      style: const TextStyle(fontSize: 12),
+                      decoration: InputDecoration(
+                        hintText: 'Peso Extintor',
+                        hintStyle: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 0,
+                          vertical: 4,
+                        ),
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 28,
+                    child: TextField(
+                      controller: _fechaUltimaMantencionCtrl,
+                      style: const TextStyle(fontSize: 12),
+                      readOnly: true,
+                      onTap: () =>
+                          _pickFecha(ctrl: _fechaUltimaMantencionCtrl),
+                      decoration: InputDecoration(
+                        hintText: 'Fecha última mantención',
+                        hintStyle: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
+                        suffixIcon: const Icon(
+                          Icons.calendar_today,
+                          size: 14,
+                          color: Colors.grey,
+                        ),
+                        suffixIconConstraints: const BoxConstraints(
+                          minHeight: 14,
+                          minWidth: 18,
+                        ),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 0,
+                          vertical: 4,
+                        ),
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 28,
+                    child: TextField(
+                      controller: _fechaProximaMantencionCtrl,
+                      style: const TextStyle(fontSize: 12),
+                      readOnly: true,
+                      onTap: () =>
+                          _pickFecha(ctrl: _fechaProximaMantencionCtrl),
+                      decoration: InputDecoration(
+                        hintText: 'Fecha próxima mantención',
+                        hintStyle: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
+                        suffixIcon: const Icon(
+                          Icons.calendar_today,
+                          size: 14,
+                          color: Colors.grey,
+                        ),
+                        suffixIconConstraints: const BoxConstraints(
+                          minHeight: 14,
+                          minWidth: 18,
                         ),
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(
@@ -238,6 +407,7 @@ class _ExtintorCardState extends State<ExtintorCard> {
           Padding(
             padding: const EdgeInsets.all(12),
             child: GalleryInput(
+              maxImages: 1,
               images: widget.extintor.fotoPaths.map((p) => File(p)).toList(),
               onImagesChanged: (newFiles) {
                 final newPaths = newFiles.map((f) => f.path).toSet();
