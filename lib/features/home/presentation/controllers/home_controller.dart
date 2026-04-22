@@ -9,6 +9,8 @@ import '../../../../core/services/user_session.dart';
 import '../../../../core/modules/module_registry.dart';
 import '../../../visits/data/repositories/local_visit_repository.dart';
 import '../../../extintores/data/repositories/local_extintor_repository.dart';
+import '../../domain/draft_card_data.dart';
+import '../../domain/draft_card_mapper.dart';
 
 class HomeController extends ChangeNotifier {
   final _syncService = SyncService();
@@ -43,7 +45,7 @@ class HomeController extends ChangeNotifier {
   bool isError = false;
 
   // Variables de Borradores
-  List<Map<String, dynamic>> borradores = [];
+  List<DraftCardData> borradores = [];
   bool isLoadingBorradores = true;
 
   // Estado de conectividad
@@ -79,19 +81,13 @@ class HomeController extends ChangeNotifier {
         _extintorRepo.getBorradores(),
       ]);
 
-      final inspecciones = resultados[0];
-      final visitas = resultados[1];
-      final extintores = resultados[2];
+      final inspecciones = resultados[0].map(DraftCardMapper.fromInspeccion);
+      final visitas = resultados[1].map(DraftCardMapper.fromVisita);
+      final extintores = resultados[2].map(DraftCardMapper.fromExtintor);
 
-      // Fusionamos
-      borradores = [...inspecciones, ...visitas, ...extintores];
-
-      // Ordenamos por fecha (del más reciente al más antiguo)
-      borradores.sort((a, b) {
-        final fechaA = a['fecha_realizacion'] ?? '';
-        final fechaB = b['fecha_realizacion'] ?? '';
-        return fechaB.compareTo(fechaA);
-      });
+      // Fusionamos y ordenamos por fecha (del más reciente al más antiguo)
+      borradores = [...inspecciones, ...visitas, ...extintores]
+        ..sort((a, b) => b.fecha.compareTo(a.fecha));
     } catch (e) {
       debugPrint("❌ Error cargando borradores combinados: $e");
       borradores = [];
@@ -103,24 +99,27 @@ class HomeController extends ChangeNotifier {
 
   Future<void> eliminarBorrador(String id) async {
     // 1. Buscamos el borrador en la lista en memoria para saber qué es
-    final borrador = borradores.firstWhere(
-      (b) => b['id'] == id,
-      orElse: () => {},
-    );
+    DraftCardData? borrador;
+    for (final b in borradores) {
+      if (b.id == id) {
+        borrador = b;
+        break;
+      }
+    }
 
-    if (borrador.isNotEmpty) {
-      final tipoLabel = borrador['tipo_actividad_label']?.toString() ?? '';
-      final esVisita =
-          borrador['tipo_actividad'] == 'Visita Técnica' ||
-          tipoLabel == 'Visita Tecnica';
-      final esExtintor = tipoLabel == 'Inspección Extintores';
-
-      if (esExtintor) {
-        await _extintorRepo.eliminarBorrador(id);
-      } else if (esVisita) {
-        await _visitRepo.eliminarBorrador(id);
-      } else {
-        await _localRepo.eliminarBorrador(id);
+    if (borrador != null) {
+      switch (borrador.kind) {
+        case DraftKind.inspeccionExtintores:
+          await _extintorRepo.eliminarBorrador(id);
+          break;
+        case DraftKind.visitaTecnica:
+        case DraftKind.visitaChecklistElectricidad:
+        case DraftKind.visitaChecklistPisos:
+        case DraftKind.visitaChecklistOtro:
+          await _visitRepo.eliminarBorrador(id);
+          break;
+        default:
+          await _localRepo.eliminarBorrador(id);
       }
 
       // 3. Disparamos la sincronización en background para limpiar Supabase

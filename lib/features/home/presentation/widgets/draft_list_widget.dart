@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:jf_innova_app/features/visits/presentation/screens/visit_form_screen.dart';
 import '../controllers/home_controller.dart';
+import '../../domain/draft_card_data.dart';
+import '../../domain/draft_card_mapper.dart';
 import '../../../inspection/presentation/screens/inspection_form_screen.dart';
 import '../../../extintores/presentation/screens/extintor_form_screen.dart';
 
@@ -9,20 +11,6 @@ class DraftListWidget extends StatelessWidget {
   final HomeController controller;
 
   const DraftListWidget({super.key, required this.controller});
-
-  IconData _iconData(Map<String, dynamic> item) {
-    final label = item['tipo_actividad_label']?.toString() ?? '';
-    if (label.contains('Extintores')) return Icons.fire_extinguisher;
-    if (label.contains('Visita')) return Icons.assignment;
-    return Icons.edit;
-  }
-
-  Color _iconColor(Map<String, dynamic> item) {
-    final label = item['tipo_actividad_label']?.toString() ?? '';
-    if (label.contains('Extintores')) return Colors.red.shade700;
-    if (label.contains('Visita')) return Colors.blue.shade700;
-    return Colors.orange.shade800;
-  }
 
   Future<void> _confirmarEliminar(BuildContext context, String id) async {
     final confirm = await showDialog<bool>(
@@ -49,6 +37,36 @@ class DraftListWidget extends StatelessWidget {
     }
   }
 
+  Future<void> _abrirBorrador(BuildContext context, DraftCardData card) async {
+    final raw = card.raw;
+    Widget destino;
+
+    switch (card.kind) {
+      case DraftKind.inspeccionExtintores:
+        destino = ExtintorFormScreen(borrador: raw);
+        break;
+      case DraftKind.visitaTecnica:
+      case DraftKind.visitaChecklistElectricidad:
+      case DraftKind.visitaChecklistPisos:
+      case DraftKind.visitaChecklistOtro:
+        destino = VisitFormScreen(borrador: raw);
+        break;
+      default:
+        destino = InspectionFormScreen(
+          activityId: raw['id']?.toString() ?? card.id,
+          tipoActividad: raw['tipo_actividad']?.toString() ?? '',
+          centroId: raw['centro_id']?.toString() ?? '',
+          nombreCentro: raw['nombre_centro']?.toString() ?? '',
+        );
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => destino),
+    );
+    controller.cargarBorradores();
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -63,7 +81,6 @@ class DraftListWidget extends StatelessWidget {
           );
         }
 
-        // CASO 1: Lista Vacía (Solo mostramos el mensaje bonito)
         if (controller.borradores.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(30),
@@ -85,111 +102,179 @@ class DraftListWidget extends StatelessWidget {
           );
         }
 
-        // CASO 2: Hay datos (Mostramos Título + Lista)
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // El título ahora vive aquí dentro
-            const Padding(
-              padding: EdgeInsets.only(bottom: 10, left: 4),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10, left: 4),
               child: Text(
-                "📝 Pendientes de subir / Borradores",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                "📝 Pendientes de subir / Borradores  ·  ${controller.borradores.length}",
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: controller.borradores.length,
               itemBuilder: (context, index) {
-                final item = controller.borradores[index];
-
-                DateTime fecha;
-                try {
-                  fecha = DateTime.parse(item['fecha_realizacion']);
-                } catch (e) {
-                  fecha = DateTime.now();
-                }
-
-                final fmtFecha = DateFormat('dd/MM/yyyy HH:mm').format(fecha);
-                final centro = item['nombre_centro'] ?? 'Sin centro asignado';
-
-                return Card(
-                  elevation: 2,
-                  margin: const EdgeInsets.symmetric(
-                    vertical: 6,
-                    horizontal: 2,
-                  ),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: _iconColor(item).withValues(alpha: 0.15),
-                      child: Icon(_iconData(item), color: _iconColor(item)),
-                    ),
-                    title: Text(
-                      item['tipo_actividad_label'] ??
-                          item['tipo_actividad'] ??
-                          'Inspección',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text("$centro\n$fmtFecha"),
-                    isThreeLine: true,
-                    trailing: IconButton(
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        color: Colors.grey,
-                      ),
-                      onPressed: () => _confirmarEliminar(context, item['id']),
-                    ),
-                    onTap: () async {
-                      final tipoLabel =
-                          item['tipo_actividad_label']?.toString() ?? '';
-                      final tipoActividad =
-                          item['tipo_actividad']?.toString() ?? '';
-                      final esExtintor = tipoLabel == 'Inspección Extintores';
-                      final esVisitaTecnica =
-                          tipoActividad.contains('Visita') ||
-                          tipoLabel.contains('Visita') ||
-                          item.containsKey('lugar_visita');
-
-                      if (esExtintor) {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ExtintorFormScreen(borrador: item),
-                          ),
-                        );
-                      } else if (esVisitaTecnica) {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => VisitFormScreen(borrador: item),
-                          ),
-                        );
-                      } else {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => InspectionFormScreen(
-                              activityId: item['id'],
-                              tipoActividad: item['tipo_actividad'],
-                              centroId: item['centro_id'],
-                              nombreCentro: item['nombre_centro'],
-                            ),
-                          ),
-                        );
-                      }
-
-                      // Al volver de cualquier pantalla, recargamos la lista
-                      controller.cargarBorradores();
-                    },
-                  ),
+                final card = controller.borradores[index];
+                return _DraftCardTile(
+                  card: card,
+                  onTap: () => _abrirBorrador(context, card),
+                  onDelete: () => _confirmarEliminar(context, card.id),
                 );
               },
             ),
           ],
         );
       },
+    );
+  }
+}
+
+/// Tarjeta visual "tonta" — no conoce repositorios ni navegación.
+class _DraftCardTile extends StatelessWidget {
+  final DraftCardData card;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  const _DraftCardTile({
+    required this.card,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fmtFecha = DateFormat('dd/MM/yyyy HH:mm').format(card.fecha);
+    final relativo = DraftCardMapper.tiempoRelativo(card.fecha);
+    final theme = Theme.of(context);
+    final mutedStyle = theme.textTheme.bodySmall?.copyWith(
+      color: Colors.grey.shade700,
+    );
+
+    final chips = <Widget>[];
+    if (card.numeroReporte != null) {
+      chips.add(_chip(Icons.tag, 'Nº ${card.numeroReporte}'));
+    }
+    if (card.region != null) {
+      chips.add(_chip(Icons.public, card.region!));
+    }
+    if (card.empresa != null) {
+      chips.add(_chip(Icons.business, card.empresa!));
+    }
+    if (card.horaRango != null) {
+      chips.add(_chip(Icons.schedule, card.horaRango!));
+    }
+
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                backgroundColor: card.color.withValues(alpha: 0.15),
+                child: Icon(card.icon, color: card.color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      card.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    if (card.centro != null) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.place_outlined,
+                            size: 14,
+                            color: Colors.grey.shade700,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              card.centro!,
+                              style: mutedStyle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.event,
+                          size: 14,
+                          color: Colors.grey.shade700,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            '$fmtFecha  ·  $relativo',
+                            style: mutedStyle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (chips.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(spacing: 6, runSpacing: 4, children: chips),
+                    ],
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.grey),
+                onPressed: onDelete,
+                tooltip: 'Eliminar borrador',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.grey.shade700),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade800),
+          ),
+        ],
+      ),
     );
   }
 }
