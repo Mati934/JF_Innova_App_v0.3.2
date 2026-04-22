@@ -296,8 +296,9 @@ class _TicketFormScreenState extends State<TicketFormScreen> {
     if (mounted) {
       setState(() {
         if (areaDisplay != null) _areaDisplay = areaDisplay;
-        if (embarcacionDisplay != null)
+        if (embarcacionDisplay != null) {
           _embarcacionDisplay = embarcacionDisplay;
+        }
         _centroDisplay = null;
         _centros = [];
       });

@@ -3,7 +3,6 @@ import 'package:jf_innova_app/shared/services/image_service.dart';
 import 'dart:io';
 // Ajusta las rutas a tu proyecto
 import '../controllers/inspection_form_controller.dart';
-import '../../../../shared/widgets/camera/multi_camera_screen.dart';
 
 class FotosConObservacionWidget extends StatelessWidget {
   final InspectionFormController controller;

@@ -22,7 +22,7 @@ class BatchDraftController extends ChangeNotifier {
   bool _isUploading = false;
   bool _isValidating = false;
   String? _errorMessage;
-  Map<String, int> _validationErrors = {}; // entityType -> errorCount
+  final Map<String, int> _validationErrors = {}; // entityType -> errorCount
 
   BatchDraftController(this._batchService);
 

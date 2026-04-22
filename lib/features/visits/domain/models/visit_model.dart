@@ -1,5 +1,5 @@
 import 'dart:typed_data';
-import 'dart:convert'; // Para parsear el JSON
+// Para parsear el JSON
 
 class VisitModel {
   String activityId;

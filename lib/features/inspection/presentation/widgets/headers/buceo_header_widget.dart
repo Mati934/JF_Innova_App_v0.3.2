@@ -328,8 +328,9 @@ class BuceoCuadrillaWidget extends StatelessWidget {
                     ),
                     onPressed: () {
                       if (nombreCtrl.text.trim().isEmpty ||
-                          rutCtrl.text.trim().isEmpty)
+                          rutCtrl.text.trim().isEmpty) {
                         return;
+                      }
 
                       // Validar RUT antes de guardar
                       if (!RutUtils.isValid(rutCtrl.text)) {
@@ -693,7 +694,7 @@ class _DetailedCheckItemState extends State<_DetailedCheckItem> {
                 ),
               Switch(
                 value: widget.value,
-                activeColor: Colors.green,
+                activeThumbColor: Colors.green,
                 onChanged: widget.onChanged,
               ),
             ],
@@ -1022,7 +1023,7 @@ class BuceoTecnicoWidget extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 5),
-                      _TextInput(
+                      _textInput(
                         "Matrícula",
                         verificaciones.compresor1Matricula,
                         (v) => controller.updateVerificacion(
@@ -1033,7 +1034,7 @@ class BuceoTecnicoWidget extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: _DateInput(
+                            child: _dateInput(
                               context,
                               "Vigencia",
                               verificaciones.compresor1Vigencia,
@@ -1044,7 +1045,7 @@ class BuceoTecnicoWidget extends StatelessWidget {
                           ),
                           const SizedBox(width: 5),
                           Expanded(
-                            child: _DateInput(
+                            child: _dateInput(
                               context,
                               "Vigencia P.H.",
                               verificaciones.compresor1VigenciaPH,
@@ -1056,7 +1057,7 @@ class BuceoTecnicoWidget extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 5),
-                      _TextInput(
+                      _textInput(
                         "N° Buzos a cargo",
                         verificaciones.compresor1BuzosCargo?.toString(),
                         (v) => controller.updateVerificacion(
@@ -1088,7 +1089,7 @@ class BuceoTecnicoWidget extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 5),
-                      _TextInput(
+                      _textInput(
                         "Matrícula",
                         verificaciones.compresor2Matricula,
                         (v) => controller.updateVerificacion(
@@ -1099,7 +1100,7 @@ class BuceoTecnicoWidget extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: _DateInput(
+                            child: _dateInput(
                               context,
                               "Vigencia",
                               verificaciones.compresor2Vigencia,
@@ -1110,7 +1111,7 @@ class BuceoTecnicoWidget extends StatelessWidget {
                           ),
                           const SizedBox(width: 5),
                           Expanded(
-                            child: _DateInput(
+                            child: _dateInput(
                               context,
                               "Vigencia P.H.",
                               verificaciones.compresor2VigenciaPH,
@@ -1122,7 +1123,7 @@ class BuceoTecnicoWidget extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 5),
-                      _TextInput(
+                      _textInput(
                         "N° Buzos a cargo",
                         verificaciones.compresor2BuzosCargo?.toString(),
                         (v) => controller.updateVerificacion(
@@ -1160,7 +1161,7 @@ class BuceoTecnicoWidget extends StatelessWidget {
     }
   }
 
-  Widget _TextInput(
+  Widget _textInput(
     String label,
     String? val,
     Function(String) onChanged, {
@@ -1180,7 +1181,7 @@ class BuceoTecnicoWidget extends StatelessWidget {
     );
   }
 
-  Widget _DateInput(
+  Widget _dateInput(
     BuildContext context,
     String label,
     DateTime? val,

@@ -13,8 +13,9 @@ import 'package:jf_innova_app/core/theme/app_theme.dart';
 /// Extraída de [history_screen.dart] para cumplir con SRP.
 class HistoryCard extends StatelessWidget {
   final Map<String, dynamic> item;
+  final bool showEmpresa;
 
-  const HistoryCard({super.key, required this.item});
+  const HistoryCard({super.key, required this.item, this.showEmpresa = false});
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +33,10 @@ class HistoryCard extends StatelessWidget {
         : '--/--/--';
 
     final ubicacion = item['ubicacion'] ?? 'Ubicación no especificada';
-    final inspector = item['inspector_nombre'] ?? 'Inspector';
+    final inspectorRaw = item['inspector_nombre']?.toString().trim();
+    final tieneInspector = inspectorRaw != null && inspectorRaw.isNotEmpty;
+    final inspector = tieneInspector ? inspectorRaw : 'Sin asignar';
+    final empresaNombre = item['empresa_nombre']?.toString();
 
     final tipoRaw = item['tipo_registro']?.toString() ?? 'General';
     final tipoLimpio = tipoRaw.replaceAll('INSPECCION_', '');
@@ -148,7 +152,7 @@ class HistoryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
 
-                // Chips: tipo + estado/etiqueta
+                // Chips: tipo + estado/etiqueta (la empresa se muestra junto al inspector)
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
@@ -179,7 +183,7 @@ class HistoryCard extends StatelessWidget {
                 Divider(height: 1, color: Colors.grey.shade200),
                 const SizedBox(height: 10),
 
-                // Inspector + PDF
+                // Inspector + (empresa, solo admin) + PDF
                 Row(
                   children: [
                     CircleAvatar(
@@ -193,15 +197,35 @@ class HistoryCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        inspector.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade700,
-                          letterSpacing: 0.3,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              inspector.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: tieneInspector
+                                    ? Colors.grey.shade700
+                                    : Colors.grey.shade500,
+                                fontStyle: tieneInspector
+                                    ? FontStyle.normal
+                                    : FontStyle.italic,
+                                letterSpacing: 0.3,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (showEmpresa &&
+                              empresaNombre != null &&
+                              empresaNombre.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: _EmpresaTag(label: empresaNombre),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                     _PdfDownloadButton(
@@ -288,6 +312,47 @@ class _MiniChip extends StatelessWidget {
               fontWeight: FontWeight.bold,
               color: color,
               letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tag compacto para mostrar la empresa junto al inspector (vista admin)
+// ---------------------------------------------------------------------------
+
+class _EmpresaTag extends StatelessWidget {
+  final String label;
+  const _EmpresaTag({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Colors.deepPurple.shade600;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.apartment, size: 10, color: color),
+          const SizedBox(width: 3),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
+                color: color,
+                letterSpacing: 0.2,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

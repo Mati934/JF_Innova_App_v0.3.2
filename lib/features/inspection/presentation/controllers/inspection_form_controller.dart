@@ -17,7 +17,6 @@ import '../../domain/models/participante_model.dart';
 import '../../domain/models/formulario_item.dart';
 import '../../domain/repositories/inspection_repository.dart';
 import '../../data/repositories/local_inspection_repository.dart';
-import 'dart:typed_data';
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:jf_innova_app/shared/services/image_service.dart';
@@ -137,9 +136,7 @@ class InspectionFormController extends ChangeNotifier {
 
       // 1. Cargar Datos de la Actividad desde SQLite
       if (_repo is LocalInspectionRepository) {
-        final data = await (_repo as LocalInspectionRepository).getActividad(
-          activityId,
-        );
+        final data = await (_repo).getActividad(activityId);
 
         if (data != null) {
           centroId = data['centro_id']?.toString();
@@ -174,8 +171,7 @@ class InspectionFormController extends ChangeNotifier {
 
       // 4. Cargar Fotos Previas (Solo local) - CLEAN CODE APLICADO
       if (_repo is LocalInspectionRepository) {
-        final fotos = await (_repo as LocalInspectionRepository)
-            .getFotosPendientes(activityId);
+        final fotos = await (_repo).getFotosPendientes(activityId);
 
         for (var f in fotos) {
           final file = File(f['local_path'] as String);
@@ -242,7 +238,7 @@ class InspectionFormController extends ChangeNotifier {
         );
       } else if (tipoActividad == 'INSPECCION_EMBARCACION') {
         if (_repo is LocalInspectionRepository) {
-          verificacionesEmbarcacion = await (_repo as LocalInspectionRepository)
+          verificacionesEmbarcacion = await (_repo)
               .getVerificacionesEmbarcacion(activityId);
           if (verificacionesEmbarcacion != null) {
             correoEmpresaServiciosCtrl.text =
@@ -323,9 +319,7 @@ class InspectionFormController extends ChangeNotifier {
   }
 
   void updateVerificacion(Function(BuceoVerificacionModel) updates) {
-    if (verificacionesBuceo == null) {
-      verificacionesBuceo = BuceoVerificacionModel(actividadId: activityId);
-    }
+    verificacionesBuceo ??= BuceoVerificacionModel(actividadId: activityId);
     updates(verificacionesBuceo!);
     notifyListeners();
   }
@@ -428,7 +422,7 @@ class InspectionFormController extends ChangeNotifier {
       if (_repo is LocalInspectionRepository) {
         debugPrint("🛡️ Blindando foto inmediata item $id...");
         // AWAIT CRÍTICO: No dejamos que el código siga hasta que esté en disco seguro
-        final rutaSegura = await (_repo as LocalInspectionRepository).saveFoto(
+        final rutaSegura = await (_repo).saveFoto(
           activityId: activityId,
           itemId: id,
           file: XFile(f.path),
@@ -460,13 +454,12 @@ class InspectionFormController extends ChangeNotifier {
             continue;
           }
           // Si es nueva, la guardamos
-          final rutaSegura = await (_repo as LocalInspectionRepository)
-              .saveFoto(
-                activityId: activityId,
-                itemId: null,
-                file: XFile(f.path),
-                descripcion: 'General',
-              );
+          final rutaSegura = await (_repo).saveFoto(
+            activityId: activityId,
+            itemId: null,
+            file: XFile(f.path),
+            descripcion: 'General',
+          );
           listaSegura.add(File(rutaSegura));
         }
         // Actualizamos la lista con puras rutas seguras
@@ -840,6 +833,7 @@ class InspectionFormController extends ChangeNotifier {
 
           _syncService.sincronizarTodo().catchError((e) {
             debugPrint("⚠️ Sync post-finalización fallback falló: $e");
+            return 0;
           });
 
           fotosPorPregunta.clear();
@@ -885,8 +879,7 @@ class InspectionFormController extends ChangeNotifier {
         numeroFinal.startsWith("~");
 
     if (_repo is LocalInspectionRepository) {
-      final datosActualesDB = await (_repo as LocalInspectionRepository)
-          .getActividad(activityId);
+      final datosActualesDB = await (_repo).getActividad(activityId);
       final numeroEnDB = datosActualesDB?['numero_reporte']?.toString();
       if (esNumeroNoReal &&
           (numeroEnDB != null &&
@@ -1023,7 +1016,7 @@ class InspectionFormController extends ChangeNotifier {
 
     // 5. LLAMADA MAESTRA
     if (_repo is LocalInspectionRepository) {
-      await (_repo as LocalInspectionRepository).saveInspeccionCompleta(
+      await (_repo).saveInspeccionCompleta(
         actividad: actividadMap,
         respuestas: loteRespuestas,
         participantes: participantesMap,
@@ -1170,7 +1163,7 @@ class InspectionFormController extends ChangeNotifier {
       File fotoComprimida = await ImageService.comprimirImagen(fotoOriginal);
 
       if (_repo is LocalInspectionRepository) {
-        final rutaSegura = await (_repo as LocalInspectionRepository).saveFoto(
+        final rutaSegura = await (_repo).saveFoto(
           activityId: activityId,
           itemId:
               "verif_${nombreArchivoBase}_${DateTime.now().millisecondsSinceEpoch}",
@@ -1191,9 +1184,7 @@ class InspectionFormController extends ChangeNotifier {
   // En InspectionFormController
   Future<void> recargarNumeroDesdeDB() async {
     if (_repo is LocalInspectionRepository) {
-      final data = await (_repo as LocalInspectionRepository).getActividad(
-        activityId,
-      );
+      final data = await (_repo).getActividad(activityId);
       final numDB = data?['numero_reporte']?.toString();
 
       if (numDB != null &&
@@ -1212,8 +1203,9 @@ class InspectionFormController extends ChangeNotifier {
   Future<void> _cargarNumeroEstimado() async {
     if (_repo is LocalInspectionRepository) {
       try {
-        final estimado = await (_repo as LocalInspectionRepository)
-            .estimarSiguienteNumeroInforme(tipoActividad);
+        final estimado = await (_repo).estimarSiguienteNumeroInforme(
+          tipoActividad,
+        );
         if (estimado != null && !_disposed) {
           numeroInformeController.text = "~$estimado";
           notifyListeners();
@@ -1475,8 +1467,8 @@ class InspectionFormController extends ChangeNotifier {
     }
 
     return InspectionReportData(
-      empresaProveedor:
-          (UserSession().empresaNombre ?? 'JF INNOVA').toUpperCase(),
+      empresaProveedor: (UserSession().empresaNombre ?? 'JF INNOVA')
+          .toUpperCase(),
       appVersion: versionApp,
       esConsecutiva: esConsecutiva,
       empresaContratista: nombreEmpresaContratista,
@@ -1574,14 +1566,13 @@ class InspectionFormController extends ChangeNotifier {
   // Añadir dentro de InspectionFormController
   Future<ParticipanteModel?> buscarBuzoPorRut(String rut) async {
     final normalized = RutUtils.normalize(rut);
-    if (normalized.isEmpty || normalized.length < 8)
+    if (normalized.isEmpty || normalized.length < 8) {
       return null; // Validación temprana
+    }
 
     if (_repo is LocalInspectionRepository) {
       try {
-        return await (_repo as LocalInspectionRepository).getPersonalByRut(
-          normalized,
-        );
+        return await (_repo).getPersonalByRut(normalized);
       } catch (e) {
         debugPrint("❌ Error buscando RUT en SQLite: $e");
         return null;

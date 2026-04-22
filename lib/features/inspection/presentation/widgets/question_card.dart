@@ -105,7 +105,7 @@ class _QuestionCardState extends State<QuestionCard>
         // Sombra suave para separar tarjetas del fondo
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, 5),
           ),
@@ -149,7 +149,7 @@ class _QuestionCardState extends State<QuestionCard>
                               alignment: Alignment.centerLeft,
                               child: Icon(
                                 Icons.info_rounded,
-                                color: const Color(0xFFE2B93B).withOpacity(0.9),
+                                color: const Color(0xFFE2B93B).withValues(alpha: 0.9),
                                 size: 18,
                               ),
                             ),
@@ -261,7 +261,7 @@ class _QuestionCardState extends State<QuestionCard>
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: hasPhoto ? color.withOpacity(0.1) : Colors.white,
+          color: hasPhoto ? color.withValues(alpha: 0.1) : Colors.white,
           shape: BoxShape.circle,
           border: Border.all(
             color: hasPhoto ? color : Colors.grey.shade300,
@@ -351,7 +351,7 @@ class _QuestionCardState extends State<QuestionCard>
       decoration: BoxDecoration(
         color: colorFondo,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colorPrincipal.withOpacity(0.5), width: 1),
+        border: Border.all(color: colorPrincipal.withValues(alpha: 0.5), width: 1),
       ),
       child: DropdownButton<String>(
         value: valorSeguro,
@@ -539,12 +539,12 @@ class _QuestionCardState extends State<QuestionCard>
             borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.25),
+                color: Colors.black.withValues(alpha: 0.25),
                 blurRadius: 15,
                 offset: const Offset(0, 5),
               ),
             ],
-            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,

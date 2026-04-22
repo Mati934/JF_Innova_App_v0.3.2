@@ -48,7 +48,7 @@ class _VisitFormView extends StatelessWidget {
     // 🛡️ AQUÍ ENTRA EL POPSCOPE 🛡️
     return PopScope(
       canPop: false, // Bloqueamos la salida instantánea de Android
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
 
         // Feedback visual rápido
@@ -83,9 +83,7 @@ class _VisitFormView extends StatelessWidget {
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF4F6F8),
-        appBar: const GradientAppBar(
-          title: Text("Registro de Visita (R-003)"),
-        ),
+        appBar: const GradientAppBar(title: Text("Registro de Visita (R-003)")),
         body: ctrl.isSaving
             ? const Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
@@ -280,7 +278,8 @@ class _VisitFormView extends StatelessWidget {
                             label: "Capacitación",
                             icon: Icons.school,
                             value: ctrl.model.checkCapacitacion,
-                            onChanged: (v) => ctrl.toggleCheck('capacitacion', v),
+                            onChanged: (v) =>
+                                ctrl.toggleCheck('capacitacion', v),
                           ),
                           _ActivityCheck(
                             label: "Visita SSO",
@@ -353,9 +352,7 @@ class _VisitFormView extends StatelessWidget {
                           if (ctrl.isLoadingPreguntas)
                             const Padding(
                               padding: EdgeInsets.all(20),
-                              child: Center(
-                                child: CircularProgressIndicator(),
-                              ),
+                              child: Center(child: CircularProgressIndicator()),
                             ),
                           if (ctrl.preguntasActivas.isNotEmpty &&
                               !ctrl.isLoadingPreguntas)
@@ -411,8 +408,7 @@ class _VisitFormView extends StatelessWidget {
                                 )
                               : Center(
                                   child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.center,
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Icon(
                                         Icons.touch_app,
@@ -501,8 +497,9 @@ class _VisitFormView extends StatelessWidget {
                               Navigator.pop(context);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content:
-                                      Text("✅ Visita registrada con éxito"),
+                                  content: Text(
+                                    "✅ Visita registrada con éxito",
+                                  ),
                                   backgroundColor: Colors.green,
                                 ),
                               );
@@ -583,9 +580,9 @@ class _VisitFormView extends StatelessWidget {
                         final signature = await ctrl.signatureController
                             .toPngBytes();
                         if (signature != null) {
-                          ctrl.signatureImage = signature;
-                          ctrl.notifyListeners();
+                          ctrl.setSignatureImage(signature);
                         }
+                        if (!context.mounted) return;
                         Navigator.pop(context);
                       },
                       child: const Text("Confirmar"),
@@ -675,11 +672,7 @@ class _VisitFormView extends StatelessWidget {
                 focusNode: focusNode,
                 decoration: InputDecoration(
                   labelText: label,
-                  prefixIcon: Icon(
-                    icon,
-                    size: 20,
-                    color: Colors.grey.shade600,
-                  ),
+                  prefixIcon: Icon(icon, size: 20, color: Colors.grey.shade600),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(color: Colors.grey.shade300),
@@ -755,9 +748,7 @@ class _VisitFormView extends StatelessWidget {
                 children: [
                   Icon(Icons.list_alt, size: 18, color: Colors.grey),
                   SizedBox(width: 10),
-                  Expanded(
-                    child: Text('Registro de Visita (Sin checklist)'),
-                  ),
+                  Expanded(child: Text('Registro de Visita (Sin checklist)')),
                 ],
               ),
             ),
@@ -1000,11 +991,7 @@ class _DateCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(
-                Icons.edit_calendar,
-                size: 18,
-                color: Colors.grey.shade500,
-              ),
+              Icon(Icons.edit_calendar, size: 18, color: Colors.grey.shade500),
             ],
           ),
         ),
@@ -1085,11 +1072,7 @@ class _ActivityCheck extends StatelessWidget {
                     ),
                   ),
                   child: value
-                      ? const Icon(
-                          Icons.check,
-                          size: 16,
-                          color: Colors.white,
-                        )
+                      ? const Icon(Icons.check, size: 16, color: Colors.white)
                       : null,
                 ),
               ],

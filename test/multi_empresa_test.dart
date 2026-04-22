@@ -1,3 +1,4 @@
+// ignore_for_file: unused_local_variable, unnecessary_null_comparison
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jf_innova_app/core/modules/module_registry.dart';
 import 'package:jf_innova_app/core/services/user_session.dart';
@@ -188,7 +189,7 @@ void main() {
       final row = {'empresa_id': 'uuid-1', 'nombre': 'JF Innova'};
       final emp = EmpresaUsuario(
         id: row['empresa_id'] as String,
-        nombre: row['nombre'] as String? ?? 'Sin nombre',
+        nombre: row['nombre'] ?? 'Sin nombre',
       );
       expect(emp.id, 'uuid-1');
       expect(emp.nombre, 'JF Innova');
@@ -198,7 +199,7 @@ void main() {
       final row = {'empresa_id': 'uuid-2', 'nombre': null};
       final emp = EmpresaUsuario(
         id: row['empresa_id'] as String,
-        nombre: row['nombre'] as String? ?? 'Sin nombre',
+        nombre: row['nombre'] ?? 'Sin nombre',
       );
       expect(emp.nombre, 'Sin nombre');
     });
@@ -403,10 +404,6 @@ void main() {
       List<Object?> whereArgs = [...idsRemoto];
       String? scopeWhere;
 
-      if (scopeWhere != null) {
-        whereClause = '($whereClause) AND ($scopeWhere)';
-      }
-
       expect(whereClause, 'id NOT IN (?,?,?)');
       expect(whereArgs, ['id-1', 'id-2', 'id-3']);
     });
@@ -420,11 +417,9 @@ void main() {
       String? scopeWhere = 'empresa_id = ?';
       List<Object?> scopeArgs = ['empresa-aquachile'];
 
-      if (scopeWhere != null) {
-        whereClause = '($whereClause) AND ($scopeWhere)';
-        whereArgs.addAll(scopeArgs);
-      }
-
+      whereClause = '($whereClause) AND ($scopeWhere)';
+      whereArgs.addAll(scopeArgs);
+    
       expect(whereClause, '(id NOT IN (?,?)) AND (empresa_id = ?)');
       expect(whereArgs, ['area-1', 'area-2', 'empresa-aquachile']);
     });
@@ -438,11 +433,9 @@ void main() {
       String? scopeWhere = 'usuario_id = ?';
       List<Object?> scopeArgs = ['user-123'];
 
-      if (scopeWhere != null) {
-        whereClause = '($whereClause) AND ($scopeWhere)';
-        whereArgs.addAll(scopeArgs);
-      }
-
+      whereClause = '($whereClause) AND ($scopeWhere)';
+      whereArgs.addAll(scopeArgs);
+    
       expect(whereClause, '(id NOT IN (?)) AND (usuario_id = ?)');
       expect(whereArgs, ['ue-1', 'user-123']);
     });
@@ -455,11 +448,6 @@ void main() {
       List<Object?> whereArgs = [...idsRemoto];
       String? scopeWhere;
       List<Object?>? scopeArgs;
-
-      if (scopeWhere != null) {
-        whereClause = '($whereClause) AND ($scopeWhere)';
-        if (scopeArgs != null) whereArgs.addAll(scopeArgs);
-      }
 
       expect(whereClause, 'id NOT IN (?)');
       expect(whereArgs, ['id-1']);
@@ -627,7 +615,7 @@ void main() {
   group('Sync - Filtrado por empresa', () {
     test('areas se filtran por empresa_id cuando está disponible', () {
       // Simula la lógica de descargarDatosMaestros
-      final String? empresaId = 'emp-aquachile';
+      final String empresaId = 'emp-aquachile';
 
       // El query que se construiría
       bool usaFiltro = empresaId != null;
@@ -647,20 +635,20 @@ void main() {
     });
 
     test('empresa_modulos usa scope correcto para guardarMaestros', () {
-      final String? empresaId = 'emp-1';
+      final String empresaId = 'emp-1';
 
-      final scopeWhere = empresaId != null ? 'empresa_id = ?' : null;
-      final scopeArgs = empresaId != null ? [empresaId] : null;
+      final scopeWhere = 'empresa_id = ?';
+      final scopeArgs = [empresaId];
 
       expect(scopeWhere, 'empresa_id = ?');
       expect(scopeArgs, ['emp-1']);
     });
 
     test('usuario_empresas usa scope de usuario_id', () {
-      final String? userId = 'user-abc';
+      final String userId = 'user-abc';
 
-      final scopeWhere = userId != null ? 'usuario_id = ?' : null;
-      final scopeArgs = userId != null ? [userId] : null;
+      final scopeWhere = 'usuario_id = ?';
+      final scopeArgs = [userId];
 
       expect(scopeWhere, 'usuario_id = ?');
       expect(scopeArgs, ['user-abc']);
@@ -683,7 +671,7 @@ void main() {
       'lógica de filtrado: con empresaId usa filtro, sin él retorna todo',
       () {
         // InspectionSetupController y LocalVisitRepository usan este patrón
-        final String? empresaId = 'emp-1';
+        final String empresaId = 'emp-1';
 
         // Decision: usar getAreasByEmpresa o getAreas
         final bool usaAreasFiltradas = empresaId != null;
@@ -905,8 +893,8 @@ void main() {
       expect(currentEmpresaId, 'emp-2');
 
       // El scope de sync debe cambiar
-      final scopeWhere = currentEmpresaId != null ? 'empresa_id = ?' : null;
-      final scopeArgs = currentEmpresaId != null ? [currentEmpresaId] : null;
+      final scopeWhere = 'empresa_id = ?';
+      final scopeArgs = [currentEmpresaId];
 
       expect(scopeWhere, 'empresa_id = ?');
       expect(scopeArgs, [
@@ -971,13 +959,11 @@ void main() {
             .toList();
       } else {
         // fallback legacy
-        if (legacyEmpresaId != null) {
-          empresas = [
-            EmpresaUsuario(id: legacyEmpresaId, nombre: empresaNombre),
-          ];
-          currentEmpresaId = legacyEmpresaId;
-        }
-      }
+        empresas = [
+          EmpresaUsuario(id: legacyEmpresaId, nombre: empresaNombre),
+        ];
+        currentEmpresaId = legacyEmpresaId;
+            }
 
       expect(empresas.length, 1);
       expect(empresas.first.id, 'emp-aquachile');
@@ -998,7 +984,7 @@ void main() {
             .map(
               (r) => EmpresaUsuario(
                 id: r['empresa_id'] as String,
-                nombre: r['nombre'] as String? ?? 'Sin nombre',
+                nombre: r['nombre'] ?? 'Sin nombre',
               ),
             )
             .toList();
@@ -1082,8 +1068,7 @@ void main() {
       ];
       String? currentEmpresaId = 'emp-2';
 
-      if (currentEmpresaId == null ||
-          !empresas.any((e) => e.id == currentEmpresaId)) {
+      if (!empresas.any((e) => e.id == currentEmpresaId)) {
         currentEmpresaId = empresas.first.id;
       }
 
@@ -1098,8 +1083,7 @@ void main() {
       final empresas = [EmpresaUsuario(id: 'emp-1', nombre: 'Aquachile')];
       String? currentEmpresaId = 'emp-OLD';
 
-      if (currentEmpresaId == null ||
-          !empresas.any((e) => e.id == currentEmpresaId)) {
+      if (!empresas.any((e) => e.id == currentEmpresaId)) {
         currentEmpresaId = empresas.first.id;
       }
 

@@ -200,7 +200,6 @@ class InspectionSetupController extends ChangeNotifier {
   }
 
   // --- LÓGICA DE GUARDADO ---
-  bool _yaGuardado = false;
   // Retorna true si todo salió bien
   Future<bool> guardarActividad() async {
     if (_isSaving) return false;
@@ -215,9 +214,7 @@ class InspectionSetupController extends ChangeNotifier {
       // ----------------------------------------------
 
       final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (createdActivityId == null) {
-        createdActivityId = const Uuid().v4();
-      }
+      createdActivityId ??= const Uuid().v4();
 
       // Regla de Negocio: ¿Es inspección completa o solo bitácora?
       esInspeccionCompleta =
@@ -292,8 +289,9 @@ class InspectionSetupController extends ChangeNotifier {
   bool validarFormulario() {
     if (areaId == null) return false;
     if (centroId == null) return false;
-    if (estadoPuerto == 'CERRADO' && actividadPuertoCerrado == null)
+    if (estadoPuerto == 'CERRADO' && actividadPuertoCerrado == null) {
       return false;
+    }
 
     // Si es inspección completa, validamos campos técnicos
     bool requiereTecnicos =

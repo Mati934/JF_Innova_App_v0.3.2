@@ -1,3 +1,4 @@
+// ignore_for_file: library_private_types_in_public_api, use_build_context_synchronously
 import 'package:flutter/material.dart';
 import '../../../admin/presentation/controllers/batch_draft_controller.dart';
 import '../../../admin/services/master_data_batch_service.dart';
@@ -7,6 +8,8 @@ import '../../../admin/services/master_data_batch_service.dart';
 /// Este ejemplo muestra cómo implementar el flujo completo de Master Data Management
 /// con estado temporal, dependencias y batch upload transaccional.
 class BatchDraftExample extends StatefulWidget {
+  const BatchDraftExample({super.key});
+
   @override
   _BatchDraftExampleState createState() => _BatchDraftExampleState();
 }
@@ -72,10 +75,7 @@ class _BatchDraftExampleState extends State<BatchDraftExample> {
       // 2. Crear Embarcación
       await controller.addEntity(
         entityType: 'embarcacion',
-        data: {
-          'nombre': 'Barcaza Thunder',
-          'matricula': 'TH-2024-001',
-        },
+        data: {'nombre': 'Barcaza Thunder', 'matricula': 'TH-2024-001'},
         parentTempId: contratistaTempId,
         parentField: 'contratista_id',
       );
@@ -95,7 +95,9 @@ class _BatchDraftExampleState extends State<BatchDraftExample> {
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('✅ Contratista → Embarcación + Personal agregados')),
+        SnackBar(
+          content: Text('✅ Contratista → Embarcación + Personal agregados'),
+        ),
       );
     } catch (e) {
       _mostrarError('Error creando contratista: $e');
@@ -141,12 +143,16 @@ class _BatchDraftExampleState extends State<BatchDraftExample> {
                   if (success) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('🎉 Batch upload completado exitosamente'),
+                        content: Text(
+                          '🎉 Batch upload completado exitosamente',
+                        ),
                         backgroundColor: Colors.green,
                       ),
                     );
                   } else {
-                    _mostrarError('Batch upload falló: ${controller.errorMessage}');
+                    _mostrarError(
+                      'Batch upload falló: ${controller.errorMessage}',
+                    );
                   }
                 },
                 child: Text('Confirmar'),
@@ -160,10 +166,7 @@ class _BatchDraftExampleState extends State<BatchDraftExample> {
 
   void _mostrarError(String mensaje) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: Colors.red,
-      ),
+      SnackBar(content: Text(mensaje), backgroundColor: Colors.red),
     );
   }
 
@@ -189,19 +192,25 @@ class _BatchDraftExampleState extends State<BatchDraftExample> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('🎯 Ejemplos de Creación',
-                             style: Theme.of(context).textTheme.titleLarge),
+                        Text(
+                          '🎯 Ejemplos de Creación',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
                         SizedBox(height: 12),
                         ElevatedButton.icon(
                           icon: Icon(Icons.business),
                           label: Text('Empresa → Área → Centro'),
-                          onPressed: controller.isUploading ? null : _ejemploEmpresaAreaCentro,
+                          onPressed: controller.isUploading
+                              ? null
+                              : _ejemploEmpresaAreaCentro,
                         ),
                         SizedBox(height: 8),
                         ElevatedButton.icon(
                           icon: Icon(Icons.directions_boat),
                           label: Text('Contratista → Embarcación + Personal'),
-                          onPressed: controller.isUploading ? null : _ejemploContratistaEmbarcacionPersonal,
+                          onPressed: controller.isUploading
+                              ? null
+                              : _ejemploContratistaEmbarcacionPersonal,
                         ),
                       ],
                     ),
@@ -217,14 +226,16 @@ class _BatchDraftExampleState extends State<BatchDraftExample> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('📊 Estado del Draft',
-                             style: Theme.of(context).textTheme.titleLarge),
+                        Text(
+                          '📊 Estado del Draft',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
                         SizedBox(height: 12),
                         Text('Total elementos: ${controller.totalItems}'),
                         if (controller.itemsByType.isNotEmpty) ...[
                           SizedBox(height: 8),
-                          ...controller.itemsByType.entries.map((entry) =>
-                            Text('• ${entry.key}: ${entry.value}')
+                          ...controller.itemsByType.entries.map(
+                            (entry) => Text('• ${entry.key}: ${entry.value}'),
                           ),
                         ],
                         if (controller.hasErrors) ...[
@@ -249,23 +260,33 @@ class _BatchDraftExampleState extends State<BatchDraftExample> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('📋 Elementos en Draft',
-                               style: Theme.of(context).textTheme.titleLarge),
+                          Text(
+                            '📋 Elementos en Draft',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
                           SizedBox(height: 12),
-                          ...controller.draftItems.map((entity) => ListTile(
-                            leading: CircleAvatar(
-                              child: Text(entity.entityType[0].toUpperCase()),
-                              backgroundColor: _getEntityColor(entity.entityType),
+                          ...controller.draftItems.map(
+                            (entity) => ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: _getEntityColor(
+                                  entity.entityType,
+                                ),
+                                child: Text(entity.entityType[0].toUpperCase()),
+                              ),
+                              title: Text(entity.displayName),
+                              subtitle: Text(
+                                '${entity.entityType} • ${entity.tempId}',
+                              ),
+                              trailing: IconButton(
+                                icon: Icon(Icons.delete, color: Colors.red),
+                                onPressed: controller.isUploading
+                                    ? null
+                                    : () {
+                                        controller.removeEntity(entity.tempId);
+                                      },
+                              ),
                             ),
-                            title: Text(entity.displayName),
-                            subtitle: Text('${entity.entityType} • ${entity.tempId}'),
-                            trailing: IconButton(
-                              icon: Icon(Icons.delete, color: Colors.red),
-                              onPressed: controller.isUploading ? null : () {
-                                controller.removeEntity(entity.tempId);
-                              },
-                            ),
-                          )),
+                          ),
                         ],
                       ),
                     ),
@@ -279,8 +300,13 @@ class _BatchDraftExampleState extends State<BatchDraftExample> {
                     Expanded(
                       child: ElevatedButton.icon(
                         icon: Icon(Icons.upload),
-                        label: Text(controller.isUploading ? 'Subiendo...' : 'Batch Upload'),
-                        onPressed: (!controller.isEmpty && !controller.isUploading)
+                        label: Text(
+                          controller.isUploading
+                              ? 'Subiendo...'
+                              : 'Batch Upload',
+                        ),
+                        onPressed:
+                            (!controller.isEmpty && !controller.isUploading)
                             ? _ejecutarBatchUpload
                             : null,
                         style: ElevatedButton.styleFrom(
@@ -294,9 +320,11 @@ class _BatchDraftExampleState extends State<BatchDraftExample> {
                       child: ElevatedButton.icon(
                         icon: Icon(Icons.clear_all),
                         label: Text('Limpiar Todo'),
-                        onPressed: controller.isEmpty || controller.isUploading ? null : () {
-                          controller.clearAllDrafts();
-                        },
+                        onPressed: controller.isEmpty || controller.isUploading
+                            ? null
+                            : () {
+                                controller.clearAllDrafts();
+                              },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.grey,
                           padding: EdgeInsets.all(16),

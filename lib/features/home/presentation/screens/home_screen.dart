@@ -3,6 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:jf_innova_app/core/theme/app_theme.dart';
 import 'package:jf_innova_app/core/services/user_session.dart';
 import 'package:jf_innova_app/core/modules/module_registry.dart';
+import 'package:jf_innova_app/shared/branding/app_logo.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/draft_list_widget.dart';
 import '../widgets/module_selector_grid.dart';
@@ -109,18 +110,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onModuleTap(ModuleDefinition mod) {
     if (mod.isPlaceholder) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Próximamente...")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Próximamente...")));
       return;
     }
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: mod.screenBuilder),
-    ).then((_) {
-      _controller.cargarBorradores();
-      _controller.recargarModulos();
-    });
+    Navigator.push(context, MaterialPageRoute(builder: mod.screenBuilder)).then(
+      (_) {
+        _controller.cargarBorradores();
+        _controller.recargarModulos();
+      },
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -160,9 +160,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       Hero(
                         tag: 'logo_app',
                         child: Image.asset(
-                          'assets/images/logo_jfinnova.png',
+                          AppLogo.pathForCurrentEmpresa(),
                           height: 40,
-                          errorBuilder: (_, __, ___) => const Icon(
+                          errorBuilder: (_, _, _) => const Icon(
                             Icons.verified_user,
                             size: 32,
                             color: Colors.white,
@@ -372,9 +372,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (confirmar == true) {
       if (!mounted) return;
+      // ignore: use_build_context_synchronously
       await _controller.cerrarSesion(context);
       if (!mounted) return;
       Navigator.pushReplacement(
+        // ignore: use_build_context_synchronously
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
       );

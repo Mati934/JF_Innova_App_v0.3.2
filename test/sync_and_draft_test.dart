@@ -1,7 +1,7 @@
+// ignore_for_file: dead_code
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/buceo_verificacion_model.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/participante_model.dart';
-import 'package:jf_innova_app/features/inspection/domain/models/formulario_item.dart';
 
 void main() {
   // ===================================================================
@@ -1227,7 +1227,7 @@ void main() {
   group('Sync Fotos - flujo y edge cases', () {
     test('Foto con item_id visita_general no busca respuesta padre', () {
       final itemId = 'visita_general';
-      final debeUscarPadre = itemId != null && itemId != 'visita_general';
+      final debeUscarPadre = itemId != 'visita_general';
       expect(debeUscarPadre, false);
     });
 
@@ -1239,7 +1239,7 @@ void main() {
 
     test('Foto con item_id real SÍ busca respuesta padre', () {
       final itemId = 'item-ABC';
-      final debeBuscarPadre = itemId != null && itemId != 'visita_general';
+      final debeBuscarPadre = itemId != 'visita_general';
       expect(debeBuscarPadre, true);
     });
 
@@ -1263,10 +1263,8 @@ void main() {
         'descripcion': '',
       };
 
-      if (respuestaIdNube != null) {
-        datosFoto['inspeccion_respuesta_id'] = respuestaIdNube;
-      }
-
+      datosFoto['inspeccion_respuesta_id'] = respuestaIdNube;
+    
       expect(datosFoto['inspeccion_respuesta_id'], 'resp-uuid-001');
     });
   });
@@ -1854,7 +1852,7 @@ void main() {
         final List<Map<String, String>> fotosExtra = [];
 
         for (var foto in fotos) {
-          final itemId = foto['item_id'] as String?;
+          final itemId = foto['item_id'];
           final path = foto['local_path'] as String;
           if (itemId == null) {
             fotosGenerales.add(path);
@@ -1863,7 +1861,7 @@ void main() {
           } else {
             fotosExtra.add({
               'path': path,
-              'observacion': foto['descripcion'] as String? ?? '',
+              'observacion': foto['descripcion'] ?? '',
             });
           }
         }
@@ -1949,7 +1947,7 @@ void main() {
 
       int maxNum = 0;
       for (var row in rows) {
-        final val = row['numero_reporte'] as String?;
+        final val = row['numero_reporte'];
         if (val != null && RegExp(r'^[0-9]+$').hasMatch(val)) {
           final num = int.tryParse(val);
           if (num != null && num > maxNum) maxNum = num;
@@ -1986,7 +1984,7 @@ void main() {
 
       int maxNum = 0;
       for (var row in rows) {
-        final val = row['numero_reporte'] as String?;
+        final val = row['numero_reporte'];
         if (val != null && RegExp(r'^[0-9]+$').hasMatch(val)) {
           final num = int.tryParse(val);
           if (num != null && num > maxNum) maxNum = num;
@@ -2737,7 +2735,7 @@ void main() {
         final estadoFinal = 'En Seguimiento';
         final String? pdfPathLocal = null;
         final String? pdfUrl = null;
-        final String? numeroReporte = '42'; // asignado por trigger
+        final String numeroReporte = '42'; // asignado por trigger
         final eliminado = 0;
 
         // Query de _generarPdfsDiferidos
@@ -2746,7 +2744,6 @@ void main() {
             (pdfPathLocal == null || pdfPathLocal == '') &&
             (pdfUrl == null || pdfUrl == '') &&
             eliminado == 0 &&
-            numeroReporte != null &&
             numeroReporte != '';
 
         expect(

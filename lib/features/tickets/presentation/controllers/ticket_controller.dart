@@ -51,20 +51,25 @@ class TicketController extends ChangeNotifier {
 
     _tickets = _allTickets.where((ticket) {
       if (filters.containsKey('empresa_id') &&
-          ticket.empresaId != filters['empresa_id'])
+          ticket.empresaId != filters['empresa_id']) {
         return false;
-      if (filters.containsKey('area_id') && ticket.areaId != filters['area_id'])
+      }
+      if (filters.containsKey('area_id') && ticket.areaId != filters['area_id']) {
         return false;
+      }
       if (filters.containsKey('solicitante_id') &&
-          ticket.solicitanteId != filters['solicitante_id'])
+          ticket.solicitanteId != filters['solicitante_id']) {
         return false;
+      }
       if (filters.containsKey('criticidad') &&
           ticket.criticidad.toLowerCase() !=
-              filters['criticidad']!.toLowerCase())
+              filters['criticidad']!.toLowerCase()) {
         return false;
+      }
       if (filters.containsKey('estado') &&
-          ticket.estado.toLowerCase() != filters['estado']!.toLowerCase())
+          ticket.estado.toLowerCase() != filters['estado']!.toLowerCase()) {
         return false;
+      }
       return true;
     }).toList();
 

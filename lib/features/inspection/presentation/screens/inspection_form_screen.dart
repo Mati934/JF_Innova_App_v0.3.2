@@ -154,7 +154,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
     return PopScope(
       canPop: _canPop,
       // 1. LE QUITAMOS EL 'async' AQUÍ
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
 
         // 2. MOSTRAR MENSAJE INSTANTÁNEO
@@ -177,6 +177,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
         // 5. SALIDA INMEDIATA: Forzamos la animación de retroceder en el siguiente frame.
         Future.delayed(Duration.zero, () {
           if (mounted) {
+            // ignore: use_build_context_synchronously
             Navigator.of(context).pop();
           }
         });

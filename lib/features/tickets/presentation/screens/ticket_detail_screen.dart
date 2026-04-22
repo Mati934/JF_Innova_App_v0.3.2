@@ -29,8 +29,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   String? _solicitanteNombre;
   String? _responsableNombre;
 
-  String? get _currentUserId =>
-      Supabase.instance.client.auth.currentUser?.id;
+  String? get _currentUserId => Supabase.instance.client.auth.currentUser?.id;
 
   TicketController get controller => widget.controller;
 
@@ -59,16 +58,20 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
 
     setState(() {
       _empresaNombre = _findName(empresas, _ticket.empresaId);
-      _areaNombre =
-          _ticket.areaId != null ? _findName(areas, _ticket.areaId!) : null;
+      _areaNombre = _ticket.areaId != null
+          ? _findName(areas, _ticket.areaId!)
+          : null;
       _solicitanteNombre = _findName(
         usuarios,
         _ticket.solicitanteId,
         nameKey: 'nombre_completo',
       );
       _responsableNombre = _ticket.responsableId != null
-          ? _findName(usuarios, _ticket.responsableId!,
-              nameKey: 'nombre_completo')
+          ? _findName(
+              usuarios,
+              _ticket.responsableId!,
+              nameKey: 'nombre_completo',
+            )
           : null;
       _categoriaNombre = controller.categorias
           .where((c) => c.id == _ticket.categoriaId)
@@ -106,9 +109,10 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
     if (ok) {
       setState(() => _ticket = updated);
       await _resolveNames();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ticket tomado con éxito.')),
-      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Ticket tomado con éxito.')));
     }
   }
 
@@ -144,9 +148,9 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
     if (!mounted) return;
     if (ok) {
       setState(() => _ticket = updated);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ticket cerrado.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Ticket cerrado.')));
     }
   }
 
@@ -358,13 +362,18 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           ),
           child: Row(
             children: [
-              Icon(Icons.engineering_outlined,
-                  size: 18, color: Colors.blue.shade700),
+              Icon(
+                Icons.engineering_outlined,
+                size: 18,
+                color: Colors.blue.shade700,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Tomado por: ${_responsableNombre ?? 'tí'}',
                 style: TextStyle(
-                    color: Colors.blue.shade700, fontWeight: FontWeight.w500),
+                  color: Colors.blue.shade700,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
@@ -416,7 +425,9 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           Text(
             'Este ticket está cerrado.',
             style: TextStyle(
-                color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),

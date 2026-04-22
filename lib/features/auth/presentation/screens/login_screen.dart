@@ -91,28 +91,6 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // ... (Imagen y Textos siguen igual) ...
-              Image.asset(
-                'assets/images/logo_jfinnova.png',
-                height: 120,
-                errorBuilder: (context, error, stackTrace) => const Icon(
-                  Icons.shield_outlined,
-                  size: 80,
-                  color: Color(0xFF003366),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'JF INNOVA',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).primaryColor,
-                ),
-              ),
-              const Text(
-                'Gestión de Prevención',
-                style: TextStyle(color: Colors.grey),
-              ),
               const SizedBox(height: 40),
 
               // ... (La Card del Formulario sigue igual) ...

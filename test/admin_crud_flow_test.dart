@@ -257,7 +257,7 @@ void main() {
   group('TablaConfig - builders de subtítulos', () {
     test('centros: subtítulo muestra nombre del área', () {
       final areaCache = {'area-1': 'Natales', 'area-2': 'Aysén'};
-      final getSubtitulo = (Map<String, dynamic> item) =>
+      String getSubtitulo(Map<String, dynamic> item) =>
           areaCache[item['area_id'] as String? ?? ''] ?? 'Sin area';
 
       expect(getSubtitulo({'area_id': 'area-1'}), 'Natales');
@@ -308,8 +308,8 @@ void main() {
         'area_id': 'area-1',
       };
 
-      final nombre = item['nombre'] as String?;
-      final areaSeleccionada = areaCache[item['area_id'] as String? ?? ''];
+      final nombre = item['nombre'];
+      final areaSeleccionada = areaCache[item['area_id'] ?? ''];
 
       expect(nombre, 'Centro Norte');
       expect(areaSeleccionada, 'Natales');
@@ -329,10 +329,10 @@ void main() {
         'matricula': 'MAT-999',
       };
 
-      final nombre = item['nombre'] as String?;
+      final nombre = item['nombre'];
       final contratistaSeleccionado =
-          contratistaCache[item['contratista_id'] as String? ?? ''];
-      final matricula = item['matricula'] as String?;
+          contratistaCache[item['contratista_id'] ?? ''];
+      final matricula = item['matricula'];
 
       expect(nombre, 'Barco Azul');
       expect(contratistaSeleccionado, 'ACME Corp');
@@ -345,7 +345,7 @@ void main() {
         'nombre': 'Barco Rojo',
         'contratista_id': 'c1',
       };
-      final matricula = item['matricula'] as String? ?? '';
+      final matricula = item['matricula'] ?? '';
       expect(matricula, '');
     });
 

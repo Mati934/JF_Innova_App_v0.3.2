@@ -271,10 +271,11 @@ class ExtintorPdfGeneratorService {
     if (data.checkInvestigacion) actividades.add('Inv. Incidente');
     if (data.checkInspeccionSso) actividades.add('Inspección SSO');
     if (data.checkObsConductual) actividades.add('Obs. Conductual');
-    if (data.checkOtro)
+    if (data.checkOtro) {
       actividades.add(
         'Otro${data.otroActividadTexto?.isNotEmpty == true ? ": ${data.otroActividadTexto}" : ""}',
       );
+    }
 
     if (actividades.isEmpty) return pw.SizedBox();
 

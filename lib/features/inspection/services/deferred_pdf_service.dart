@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -217,8 +216,9 @@ class DeferredPdfService {
         where: 'id = ?',
         whereArgs: [contratistaId],
       );
-      if (res.isNotEmpty)
+      if (res.isNotEmpty) {
         nombreEmpresaContratista = res.first['nombre'] as String;
+      }
     }
 
     // Embarcación

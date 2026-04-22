@@ -10,14 +10,11 @@ import 'package:jf_innova_app/features/visits/domain/models/pdf/visit_report_dat
 import 'package:jf_innova_app/features/visits/services/visit_pdf_generator_service.dart';
 import 'package:uuid/uuid.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart'; // 📦 IMPORTANTE AÑADIR ESTO
 import '../../../sync/services/sync_service.dart';
 import '../../domain/models/visit_model.dart';
 import '../../data/repositories/local_visit_repository.dart';
 import 'dart:io';
-import 'dart:typed_data';
-import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart'; // Para compute()
 import 'package:flutter/services.dart' show rootBundle; // Para las fuentes
 import 'package:printing/printing.dart'; // Para mostrar el visor PDF
@@ -135,6 +132,12 @@ class VisitFormController extends ChangeNotifier {
 
   Uint8List? signatureImage;
 
+  /// Asigna la firma capturada y notifica a los listeners.
+  void setSignatureImage(Uint8List bytes) {
+    signatureImage = bytes;
+    notifyListeners();
+  }
+
   TimeOfDay? timeInicio;
   TimeOfDay? timeTermino;
 
@@ -176,13 +179,15 @@ class VisitFormController extends ChangeNotifier {
 
     if (model.horaInicio != null && model.horaInicio != "--:--") {
       final p = model.horaInicio!.split(':');
-      if (p.length == 2)
+      if (p.length == 2) {
         timeInicio = TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
+      }
     }
     if (model.horaTermino != null && model.horaTermino != "--:--") {
       final p = model.horaTermino!.split(':');
-      if (p.length == 2)
+      if (p.length == 2) {
         timeTermino = TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
+      }
     }
   }
 
@@ -331,10 +336,11 @@ class VisitFormController extends ChangeNotifier {
       initialTime: TimeOfDay.now(),
     );
     if (picked != null) {
-      if (esInicio)
+      if (esInicio) {
         timeInicio = picked;
-      else
+      } else {
         timeTermino = picked;
+      }
       _debouncer.run(() => guardarBorradorSilencioso());
       notifyListeners();
     }
@@ -539,9 +545,10 @@ class VisitFormController extends ChangeNotifier {
         respuestasChecklist: _buildRespuestasJson(),
       );
 
-      _syncService.sincronizarTodo().catchError(
-        (e) => debugPrint("Sync error silencioso: $e"),
-      );
+      _syncService.sincronizarTodo().catchError((e) {
+        debugPrint("Sync error silencioso: $e");
+        return 0;
+      });
       return true;
     } catch (e) {
       errorMessage = "Error guardando visita: $e";
@@ -634,9 +641,10 @@ class VisitFormController extends ChangeNotifier {
 
       debugPrint("🗑️ Borrador marcado como Eliminado.");
 
-      _syncService.sincronizarTodo().catchError(
-        (e) => debugPrint("Sync error: $e"),
-      );
+      _syncService.sincronizarTodo().catchError((e) {
+        debugPrint("Sync error: $e");
+        return 0;
+      });
 
       return true;
     } catch (e) {

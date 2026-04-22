@@ -1,3 +1,4 @@
+// ignore_for_file: unrelated_type_equality_checks, dead_code
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/formulario_item.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/pdf/inspection_report_data.dart';

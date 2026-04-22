@@ -6,7 +6,6 @@ import 'package:uuid/uuid.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'dart:io';
-import 'dart:typed_data';
 
 import '../../../../core/services/empresa_logo_service.dart';
 import '../../../../core/services/user_session.dart';
@@ -383,10 +382,11 @@ class ExtintorFormController extends ChangeNotifier {
       initialTime: TimeOfDay.now(),
     );
     if (picked != null) {
-      if (esInicio)
+      if (esInicio) {
         timeInicio = picked;
-      else
+      } else {
         timeTermino = picked;
+      }
       _debouncer.run(guardarBorradorSilencioso);
       _safeNotify();
     }
@@ -410,16 +410,16 @@ class ExtintorFormController extends ChangeNotifier {
       'hora_termino': horaTerminoStr == '--:--' ? null : horaTerminoStr,
       'email_empresa_1': email1Ctrl.text.trim(),
       'email_empresa_2': email2Ctrl.text.trim(),
-      'check_reunion': checkReunion ? 1 : 0,
-      'check_instalacion_senaletica': checkSenaletica ? 1 : 0,
-      'check_capacitacion': checkCapacitacion ? 1 : 0,
-      'check_visita_sso': checkVisitaSso ? 1 : 0,
-      'check_charla': checkCharla ? 1 : 0,
-      'check_investigacion_incidente': checkInvestigacion ? 1 : 0,
-      'check_inspeccion_sso': checkInspeccionSso ? 1 : 0,
-      'check_obs_conductual': checkObsConductual ? 1 : 0,
-      'check_otro': checkOtro ? 1 : 0,
-      'otro_actividad_texto': otroActividadCtrl.text.trim(),
+      'check_reunion': null,
+      'check_instalacion_senaletica': null,
+      'check_capacitacion': null,
+      'check_visita_sso': null,
+      'check_charla': null,
+      'check_investigacion_incidente': null,
+      'check_inspeccion_sso': null,
+      'check_obs_conductual': null,
+      'check_otro': null,
+      'otro_actividad_texto': null,
       'apuntes_observaciones': observacionesCtrl.text.trim(),
       'pdf_path_local': pdfPathLocal,
     };
@@ -523,8 +523,8 @@ class ExtintorFormController extends ChangeNotifier {
     }
 
     return ExtintorReportData(
-      empresaProveedor:
-          (UserSession().empresaNombre ?? 'JF INNOVA').toUpperCase(),
+      empresaProveedor: (UserSession().empresaNombre ?? 'JF INNOVA')
+          .toUpperCase(),
       empresa: empresaCtrl.text.trim(),
       region: regionCtrl.text.trim().toUpperCase(),
       oficina: oficinaCtrl.text.trim().toUpperCase(),

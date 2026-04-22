@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 
 class InspectionReportData {
   final String empresaProveedor;

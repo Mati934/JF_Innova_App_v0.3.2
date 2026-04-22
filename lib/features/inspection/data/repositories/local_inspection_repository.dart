@@ -95,7 +95,7 @@ class LocalInspectionRepository implements InspectionRepository {
       debugPrint("💾 ACTIVIDAD GUARDADA: $id | Estado: $estadoFinal");
     } catch (e) {
       debugPrint("❌ ERROR AL GUARDAR ACTIVIDAD: $e");
-      throw e;
+      rethrow;
     }
   }
 

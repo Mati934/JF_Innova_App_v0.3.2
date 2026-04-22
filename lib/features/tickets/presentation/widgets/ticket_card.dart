@@ -204,9 +204,7 @@ class TicketCard extends StatelessWidget {
   }
 
   Widget _buildFooter() {
-    final diasRestantes = ticket.fechaTentativaCierre != null
-        ? ticket.fechaTentativaCierre!.difference(DateTime.now()).inDays
-        : null;
+    final diasRestantes = ticket.fechaTentativaCierre?.difference(DateTime.now()).inDays;
 
     return Row(
       children: [
@@ -363,7 +361,7 @@ class _EstadoChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: dotColor.withOpacity(0.35), width: 0.8),
+        border: Border.all(color: dotColor.withValues(alpha: 0.35), width: 0.8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

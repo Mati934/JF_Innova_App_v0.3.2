@@ -154,8 +154,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     : ListView.builder(
                         padding: const EdgeInsets.only(top: 8, bottom: 20),
                         itemCount: _ctrl.records.length,
-                        itemBuilder: (ctx, i) =>
-                            HistoryCard(item: _ctrl.records[i]),
+                        itemBuilder: (ctx, i) => HistoryCard(
+                          item: _ctrl.records[i],
+                          showEmpresa: _ctrl.esAdmin,
+                        ),
                       ),
               ),
             ],

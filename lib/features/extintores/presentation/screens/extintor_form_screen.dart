@@ -1,3 +1,6 @@
+// _SeccionActividades / _ActivityCheck quedan deshabilitados a pedido del cliente
+// pero se conservan por si se reactiva la sección "Actividades Realizadas".
+// ignore_for_file: unused_element
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -34,7 +37,7 @@ class _ExtintorFormView extends StatelessWidget {
 
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -88,13 +91,6 @@ class _ExtintorFormView extends StatelessWidget {
               icon: Icons.event,
               title: 'Fecha y Horarios',
               child: _SeccionFechas(ctrl: ctrl),
-            ),
-            const SizedBox(height: 14),
-
-            _SectionCard(
-              icon: Icons.checklist_rtl,
-              title: 'Actividades Realizadas',
-              child: _SeccionActividades(ctrl: ctrl),
             ),
             const SizedBox(height: 14),
 
@@ -539,8 +535,8 @@ class _ExtintoresHeader extends StatelessWidget {
                 progreso >= 1.0
                     ? Colors.green
                     : nc > 0
-                        ? _kExtintorRed
-                        : AppTheme.primaryBlue,
+                    ? _kExtintorRed
+                    : AppTheme.primaryBlue,
               ),
             ),
           ),
@@ -973,11 +969,7 @@ class _DateCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(
-                Icons.edit_calendar,
-                size: 18,
-                color: Colors.grey.shade500,
-              ),
+              Icon(Icons.edit_calendar, size: 18, color: Colors.grey.shade500),
             ],
           ),
         ),
@@ -1078,10 +1070,9 @@ class _BottomActions extends StatelessWidget {
             height: 54,
             decoration: BoxDecoration(
               gradient: ctrl.isSaving
-                  ? LinearGradient(colors: [
-                      Colors.grey.shade400,
-                      Colors.grey.shade500,
-                    ])
+                  ? LinearGradient(
+                      colors: [Colors.grey.shade400, Colors.grey.shade500],
+                    )
                   : const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,

@@ -6,6 +6,7 @@
 ///
 /// La vista solo trabaja con [SelectorOption]: nunca consulta directamente
 /// la BD ni el controlador de borradores.
+library;
 
 class SelectorOption {
   /// ID real (UUID de Supabase/SQLite) o temporal (ej. "temp_empresa_abc123").

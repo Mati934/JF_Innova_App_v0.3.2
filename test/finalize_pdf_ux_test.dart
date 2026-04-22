@@ -1,3 +1,4 @@
+// ignore_for_file: unused_local_variable, dead_code
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -376,8 +377,8 @@ void main() {
         'numero_reporte': '42',
       };
 
-      final pdfPathLocal = row['pdf_path_local'] as String?;
-      final pdfUrlActual = row['pdf_url'] as String?;
+      final pdfPathLocal = row['pdf_path_local'];
+      final pdfUrlActual = row['pdf_url'];
 
       final debeSub =
           pdfPathLocal != null &&
@@ -399,8 +400,8 @@ void main() {
         'numero_reporte': '42',
       };
 
-      final pdfPathLocal = row['pdf_path_local'] as String?;
-      final pdfUrlActual = row['pdf_url'] as String?;
+      final pdfPathLocal = row['pdf_path_local'];
+      final pdfUrlActual = row['pdf_url'];
 
       final debeSub =
           pdfPathLocal != null &&
@@ -417,8 +418,8 @@ void main() {
         'numero_reporte': '42',
       };
 
-      final pdfPathLocal = row['pdf_path_local'] as String?;
-      final pdfUrlActual = row['pdf_url'] as String?;
+      final pdfPathLocal = row['pdf_path_local'];
+      final pdfUrlActual = row['pdf_url'];
 
       final debeSub =
           pdfPathLocal != null &&
@@ -534,7 +535,7 @@ void main() {
       final pdfUrlSubido = 'https://storage.supabase.co/reportes/x.pdf';
       final pdfPathLocal = '/data/reporte_42.pdf';
 
-      final valorFinal = pdfUrlSubido == null ? pdfPathLocal : null;
+      final valorFinal = null;
 
       expect(
         valorFinal,

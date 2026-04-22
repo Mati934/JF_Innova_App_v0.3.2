@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:image/image.dart' as img;
@@ -116,7 +116,7 @@ class VisitPdfGeneratorService {
             ),
           );
         } catch (e) {
-          print("❌ Error cargando imagen en PDF: $path - $e");
+          debugPrint("❌ Error cargando imagen en PDF: $path - $e");
         }
       }
 
@@ -537,6 +537,7 @@ class VisitPdfGeneratorService {
   }
 
   // OPTIMIZADOR DE IMÁGENES (Evita OutOfMemory en el Isolate)
+  // ignore: unused_element
   Uint8List _optimizarImagen(Uint8List rawBytes) {
     try {
       final img.Image? original = img.decodeImage(rawBytes);

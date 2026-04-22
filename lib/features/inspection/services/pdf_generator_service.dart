@@ -1,5 +1,4 @@
 import 'dart:io'; // Importante para leer archivos dentro del Isolate
-import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 // import 'package:image/image.dart' as img;
@@ -232,8 +231,9 @@ class PdfGeneratorService {
     // (data.items ya viene ordenado por orden, LinkedHashMap preserva insertion order)
     final Map<String, List<dynamic>> groupedItems = {};
     for (var item in data.items) {
-      if (!groupedItems.containsKey(item.categoria))
+      if (!groupedItems.containsKey(item.categoria)) {
         groupedItems[item.categoria] = [];
+      }
       groupedItems[item.categoria]!.add(item);
     }
 
@@ -294,7 +294,7 @@ class PdfGeneratorService {
               final row = _buildItemRow(item, globalCounter);
               globalCounter++;
               return row;
-            }).toList(),
+            }),
           ],
         ),
       );
@@ -738,6 +738,7 @@ class PdfGeneratorService {
     );
   }
 
+  // ignore: unused_element
   pw.Widget _statCell(String text, PdfColor color, {bool isBold = false}) =>
       pw.Padding(
         padding: const pw.EdgeInsets.all(3),
@@ -988,7 +989,7 @@ class PdfGeneratorService {
                 ],
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -1055,8 +1056,9 @@ class PdfGeneratorService {
     // Agrupar por categoría preservando orden de `orden ASC`
     Map<String, List<InspectionItemDto>> groupedItems = {};
     for (var item in data.items) {
-      if (!groupedItems.containsKey(item.categoria))
+      if (!groupedItems.containsKey(item.categoria)) {
         groupedItems[item.categoria] = [];
+      }
       groupedItems[item.categoria]!.add(item);
     }
 
@@ -1077,12 +1079,15 @@ class PdfGeneratorService {
     // 🟢 HELPER: MAPEO DE COLORES SEGÚN CRITICIDAD
     PdfColor getColorCriticidad(String criticidad) {
       final crit = criticidad.toLowerCase();
-      if (crit.contains('intolerable') || crit.contains('alto'))
+      if (crit.contains('intolerable') || crit.contains('alto')) {
         return PdfColors.red700;
-      if (crit.contains('moderado') || crit.contains('medio'))
+      }
+      if (crit.contains('moderado') || crit.contains('medio')) {
         return PdfColors.orange600;
-      if (crit.contains('tolerable') || crit.contains('bajo'))
+      }
+      if (crit.contains('tolerable') || crit.contains('bajo')) {
         return PdfColors.amber600;
+      }
       return PdfColors.grey600; // Fallback
     }
 
@@ -1233,7 +1238,7 @@ class PdfGeneratorService {
                 ],
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -2293,6 +2298,7 @@ class PdfGeneratorService {
   }
 
   // -- BUCEO --
+  // ignore: unused_element
   pw.Widget _buildDatosGeneralesBuceo(InspectionReportData data) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(12),
@@ -2343,6 +2349,7 @@ class PdfGeneratorService {
     );
   }
 
+  // ignore: unused_element
   pw.Widget _buildResponsablesBuceo(InspectionReportData data) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(12),

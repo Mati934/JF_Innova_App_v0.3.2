@@ -1,3 +1,4 @@
+// ignore_for_file: dead_code, unused_local_variable, unnecessary_null_comparison
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jf_innova_app/core/modules/module_registry.dart';
 
@@ -853,7 +854,7 @@ void main() {
     test('Contratista con RUT proporcionado usa ese RUT', () {
       const id = 'abc12345-6789-0000-0000-000000000000';
       String? rut = '12345678-5';
-      final rutFinal = (rut != null && rut.trim().isNotEmpty)
+      final rutFinal = (rut.trim().isNotEmpty)
           ? rut.trim()
           : 'PENDIENTE-${id.substring(0, 8)}';
 
@@ -864,7 +865,7 @@ void main() {
     test('Contratista con RUT vacío recibe placeholder', () {
       const id = 'abc12345-6789-0000-0000-000000000000';
       String? rut = '   ';
-      final rutFinal = (rut != null && rut.trim().isNotEmpty)
+      final rutFinal = (rut.trim().isNotEmpty)
           ? rut.trim()
           : 'PENDIENTE-${id.substring(0, 8)}';
 

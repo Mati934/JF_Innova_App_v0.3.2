@@ -14,6 +14,7 @@ import 'core/services/user_session.dart';
 import 'features/home/presentation/screens/home_screen.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/sync/services/sync_service.dart';
+import 'shared/widgets/animated_splash.dart';
 
 import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
@@ -141,6 +142,14 @@ class _AuthGateState extends State<AuthGate> {
       if ((event == AuthChangeEvent.initialSession ||
               event == AuthChangeEvent.signedIn) &&
           session != null) {
+        // Pre-carga la sesión local para que el splash muestre el logo
+        // de la empresa correcta desde el primer frame (cuando hay caché).
+        try {
+          await UserSession().loadFromSQLite(session.user.id);
+        } catch (e) {
+          debugPrint("⚠️ [AuthGate] Pre-carga UserSession falló: $e");
+        }
+
         if (mounted) setState(() => _isLoading = true);
 
         try {
@@ -210,22 +219,7 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
-        backgroundColor: AppTheme.primaryBlue,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(color: Colors.white),
-              const SizedBox(height: 20),
-              Text(
-                "Preparando entorno...",
-                style: TextStyle(color: Colors.white.withOpacity(0.8)),
-              ),
-            ],
-          ),
-        ),
-      );
+      return const AnimatedSplash();
     }
 
     final session = Supabase.instance.client.auth.currentSession;

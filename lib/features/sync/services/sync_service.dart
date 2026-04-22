@@ -912,21 +912,28 @@ class SyncService {
         datosNube.remove('eliminado');
         final String? pdfPathLocal = datosNube.remove('pdf_path_local');
 
-        // Parseamos los booleanos de SQLite (1/0) a PostgreSQL (true/false)
-        datosNube['check_reunion'] = (datosNube['check_reunion'] == 1);
-        datosNube['check_instalacion_senaletica'] =
-            (datosNube['check_instalacion_senaletica'] == 1);
-        datosNube['check_capacitacion'] =
-            (datosNube['check_capacitacion'] == 1);
-        datosNube['check_visita_sso'] = (datosNube['check_visita_sso'] == 1);
-        datosNube['check_charla'] = (datosNube['check_charla'] == 1);
-        datosNube['check_investigacion_incidente'] =
-            (datosNube['check_investigacion_incidente'] == 1);
-        datosNube['check_inspeccion_sso'] =
-            (datosNube['check_inspeccion_sso'] == 1);
-        datosNube['check_obs_conductual'] =
-            (datosNube['check_obs_conductual'] == 1);
-        datosNube['check_otro'] = (datosNube['check_otro'] == 1);
+        // Parseamos los booleanos de SQLite (1/0) a PostgreSQL (true/false).
+        // Preservamos null si el módulo no usa estos campos (ej: extintores).
+        bool? toBool(dynamic v) => v == null ? null : v == 1;
+        datosNube['check_reunion'] = toBool(datosNube['check_reunion']);
+        datosNube['check_instalacion_senaletica'] = toBool(
+          datosNube['check_instalacion_senaletica'],
+        );
+        datosNube['check_capacitacion'] = toBool(
+          datosNube['check_capacitacion'],
+        );
+        datosNube['check_visita_sso'] = toBool(datosNube['check_visita_sso']);
+        datosNube['check_charla'] = toBool(datosNube['check_charla']);
+        datosNube['check_investigacion_incidente'] = toBool(
+          datosNube['check_investigacion_incidente'],
+        );
+        datosNube['check_inspeccion_sso'] = toBool(
+          datosNube['check_inspeccion_sso'],
+        );
+        datosNube['check_obs_conductual'] = toBool(
+          datosNube['check_obs_conductual'],
+        );
+        datosNube['check_otro'] = toBool(datosNube['check_otro']);
 
         final sessionActiva = _supabase.auth.currentSession;
         debugPrint(
@@ -1444,8 +1451,9 @@ class SyncService {
       // 3. INTENTAR SUBIR PENDIENTES (Up-Sync silencioso)
       // Lo lanzamos sin hacer await para no bloquear el inicio de la app más de lo necesario
       sincronizarTodo().then((subidos) {
-        if (subidos > 0)
+        if (subidos > 0) {
           debugPrint("✅ $subidos registros pendientes subidos al iniciar.");
+        }
       });
     } catch (e) {
       debugPrint("🔥 Error crítico en hidratación inicial: $e");
@@ -1544,8 +1552,9 @@ class SyncService {
     debugPrint(
       '🔍 DEBUG-SYNC [_syncTabla] $tabla: ${pendientes.length} pendientes encontrados',
     );
-    if (pendientes.isEmpty)
+    if (pendientes.isEmpty) {
       return (exitosos: 0, fallidos: 0, ultimoError: null);
+    }
 
     int exitosos = 0;
     int fallidos = 0;

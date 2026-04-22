@@ -1,3 +1,4 @@
+// ignore_for_file: unrelated_type_equality_checks, unused_local_variable
 import 'package:flutter_test/flutter_test.dart';
 
 /// Tests que verifican la integridad de la descarga de datos maestros.
@@ -182,8 +183,8 @@ void main() {
   group('Scope filtering para tablas con empresa_id', () {
     test('areas: con empresaId usa scope filter', () {
       final empresaId = 'emp-001';
-      final scopeWhere = empresaId != null ? 'empresa_id = ?' : null;
-      final scopeArgs = empresaId != null ? [empresaId] : null;
+      final scopeWhere = 'empresa_id = ?';
+      final scopeArgs = [empresaId];
       expect(scopeWhere, 'empresa_id = ?');
       expect(scopeArgs, ['emp-001']);
     });
@@ -222,7 +223,7 @@ void main() {
   group('Validación post-descarga — completitud de datos', () {
     /// Simula los resultados de Future.wait: 11 listas.
     /// Si alguna es vacía (y no es condicional), hay un problema potencial.
-    List<List<Map<String, dynamic>>> _crearResultadosCompletos() {
+    List<List<Map<String, dynamic>>> crearResultadosCompletos() {
       return [
         // 0: areas
         [
@@ -310,7 +311,7 @@ void main() {
     }
 
     test('Future.wait retorna exactamente 12 resultados', () {
-      final results = _crearResultadosCompletos();
+      final results = crearResultadosCompletos();
       expect(
         results.length,
         12,
@@ -321,7 +322,7 @@ void main() {
     test(
       'Todas las 9 tablas obligatorias tienen datos (detecta descarga incompleta)',
       () {
-        final results = _crearResultadosCompletos();
+        final results = crearResultadosCompletos();
         final tablasConIndice = {
           'areas': 0,
           'centros': 1,
@@ -346,7 +347,7 @@ void main() {
     );
 
     test('Detecta tabla faltante en descarga (simula fallo parcial)', () {
-      final results = _crearResultadosCompletos();
+      final results = crearResultadosCompletos();
       // Simula que centros vino vacío (fallo de red parcial o query mal configurada)
       results[1] = [];
 
@@ -413,7 +414,7 @@ void main() {
         final modulosData = <Map<String, dynamic>>[]; // Simula descarga vacía
 
         // Verificación: si hay empresaId pero modulos vacío → advertencia
-        final modulosEsperados = empresaId != null && modulosData.isEmpty;
+        final modulosEsperados = modulosData.isEmpty;
         expect(
           modulosEsperados,
           true,

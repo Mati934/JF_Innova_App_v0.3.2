@@ -48,6 +48,7 @@ class MasterDataFormModal extends StatelessWidget {
 
   /// Helper para obtener el BatchDraftController del árbol.
   /// Si usas Provider: reemplaza por `Provider.of<BatchDraftController>(context, listen: false)`
+  // ignore: unused_element
   static BatchDraftController _findBatchController(BuildContext context) {
     // Intento con Provider si está disponible en el árbol.
     // Si no usas Provider, pasa el controller directamente al método show().
@@ -460,7 +461,7 @@ class _MasterDataModalContentState extends State<_MasterDataModalContent> {
     }
   }
 
-  /// Construye el Map<String, dynamic> con los campos de la entidad.
+  /// Construye el `Map<String, dynamic>` con los campos de la entidad.
   /// Los IDs de FK se toman del MasterDataSelectorController — pueden ser
   /// UUIDs reales o IDs temporales ("temp_empresa_xxx").
   Map<String, dynamic> _buildEntityData(String nombre) {

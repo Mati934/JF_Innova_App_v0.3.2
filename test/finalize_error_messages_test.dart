@@ -1,3 +1,4 @@
+// ignore_for_file: unused_local_variable
 import 'package:flutter_test/flutter_test.dart';
 
 /// Tests que verifican que los mensajes de error al finalizar inspección
