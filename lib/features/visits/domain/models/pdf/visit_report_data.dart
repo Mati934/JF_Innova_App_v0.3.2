@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 class VisitReportData {
+  final String empresaProveedor;
   final String empresa;
   final String region;
   final String centro;
@@ -38,6 +39,7 @@ class VisitReportData {
   final List<VisitChecklistItemDto> checklistItems;
 
   VisitReportData({
+    this.empresaProveedor = 'JF INNOVA',
     required this.empresa,
     required this.region,
     required this.centro,

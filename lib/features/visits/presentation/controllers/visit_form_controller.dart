@@ -4,6 +4,8 @@ import 'package:jf_innova_app/features/inspection/domain/models/formulario_item.
 import 'package:jf_innova_app/features/visits/domain/models/visita_respuesta.dart';
 import 'package:signature/signature.dart';
 import 'package:jf_innova_app/core/database/database_helper.dart';
+import 'package:jf_innova_app/core/services/empresa_logo_service.dart';
+import 'package:jf_innova_app/core/services/user_session.dart';
 import 'package:jf_innova_app/features/visits/domain/models/pdf/visit_report_data.dart';
 import 'package:jf_innova_app/features/visits/services/visit_pdf_generator_service.dart';
 import 'package:uuid/uuid.dart';
@@ -414,6 +416,8 @@ class VisitFormController extends ChangeNotifier {
     }
 
     return VisitReportData(
+      empresaProveedor:
+          (UserSession().empresaNombre ?? 'JF INNOVA').toUpperCase(),
       empresa: empresaCtrl.text.trim(),
       region: regionCtrl.text.trim().toUpperCase(),
       centro: centroCtrl.text.trim().toUpperCase(),
@@ -451,8 +455,9 @@ class VisitFormController extends ChangeNotifier {
 
     Uint8List? logoBytes;
     try {
-      final logoData = await rootBundle.load('assets/images/LogoJFInnova2.png');
-      logoBytes = logoData.buffer.asUint8List();
+      logoBytes = await EmpresaLogoService.instance.getLogoForActiveEmpresa(
+        fallbackAsset: 'assets/images/LogoJFInnova2.png',
+      );
     } catch (_) {}
 
     final params = VisitPdfIsolateParams(

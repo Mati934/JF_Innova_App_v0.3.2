@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 class InspectionReportData {
+  final String empresaProveedor;
   final String empresaContratista;
   final String cliente;
   final String logoUrl;
@@ -62,6 +63,7 @@ class InspectionReportData {
   final String? correoEmpresaServicios;
 
   InspectionReportData({
+    this.empresaProveedor = 'JF INNOVA',
     required this.empresaContratista,
     required this.cliente,
     required this.logoUrl,

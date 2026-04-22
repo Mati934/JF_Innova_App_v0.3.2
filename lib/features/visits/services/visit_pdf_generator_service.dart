@@ -152,7 +152,7 @@ class VisitPdfGeneratorService {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text(
-                "JF Innova",
+                data.empresaProveedor,
                 style: pw.TextStyle(
                   fontSize: 16,
                   fontWeight: pw.FontWeight.bold,

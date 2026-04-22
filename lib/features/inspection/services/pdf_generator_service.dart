@@ -1936,7 +1936,7 @@ class PdfGeneratorService {
                   ),
                 ),
                 pw.Text(
-                  "JF INNOVA",
+                  data.empresaProveedor,
                   style: pw.TextStyle(
                     fontWeight: pw.FontWeight.bold,
                     fontSize: 8,

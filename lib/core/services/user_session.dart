@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../database/database_helper.dart';
+import 'empresa_logo_service.dart';
 
 /// Singleton que mantiene el perfil del usuario logueado en memoria.
 /// Soporta multi-empresa: un usuario puede pertenecer a varias empresas.
@@ -34,6 +35,16 @@ class UserSession {
     if (_currentEmpresaId == null) return null;
     try {
       return _empresas.firstWhere((e) => e.id == _currentEmpresaId).nombre;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// URL del logo de la empresa activa (puede ser null si no se configuró).
+  String? get empresaLogoUrl {
+    if (_currentEmpresaId == null) return null;
+    try {
+      return _empresas.firstWhere((e) => e.id == _currentEmpresaId).logoUrl;
     } catch (_) {
       return null;
     }
@@ -89,7 +100,7 @@ class UserSession {
     // Cargar desde tabla usuario_empresas (JOIN con empresas)
     final rows = await db.rawQuery(
       '''
-      SELECT ue.empresa_id, e.nombre, e.es_administradora
+      SELECT ue.empresa_id, e.nombre, e.es_administradora, e.logo_url
       FROM usuario_empresas ue
       INNER JOIN empresas e ON e.id = ue.empresa_id
       WHERE ue.usuario_id = ?
@@ -105,6 +116,7 @@ class UserSession {
               id: r['empresa_id'] as String,
               nombre: r['nombre'] as String? ?? 'Sin nombre',
               esAdministradora: (r['es_administradora'] as int?) == 1,
+              logoUrl: r['logo_url'] as String?,
             ),
           )
           .toList();
@@ -140,11 +152,15 @@ class UserSession {
           final esAdmin = empresaRows.isNotEmpty
               ? (empresaRows.first['es_administradora'] as int?) == 1
               : false;
+          final logoUrl = empresaRows.isNotEmpty
+              ? empresaRows.first['logo_url'] as String?
+              : null;
           _empresas = [
             EmpresaUsuario(
               id: legacyEmpresaId,
               nombre: nombre,
               esAdministradora: esAdmin,
+              logoUrl: logoUrl,
             ),
           ];
           _currentEmpresaId = legacyEmpresaId;
@@ -168,6 +184,7 @@ class UserSession {
     if (_empresas.any((e) => e.id == empresaId)) {
       _currentEmpresaId = empresaId;
       _actualizarFlagAdministradora();
+      EmpresaLogoService.instance.clearMemoryCache();
       debugPrint(
         '🏢 Empresa cambiada a: $empresaNombre (superAdmin: $esSuperAdmin)',
       );
@@ -185,6 +202,7 @@ class UserSession {
     _empresas = [];
     _currentEmpresaId = null;
     _empresaAdministradora = false;
+    EmpresaLogoService.instance.clearMemoryCache();
     debugPrint('🧹 UserSession limpiado');
   }
 }
@@ -193,10 +211,12 @@ class EmpresaUsuario {
   final String id;
   final String nombre;
   final bool esAdministradora;
+  final String? logoUrl;
 
   const EmpresaUsuario({
     required this.id,
     required this.nombre,
     this.esAdministradora = false,
+    this.logoUrl,
   });
 }

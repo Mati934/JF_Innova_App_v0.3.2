@@ -8,6 +8,9 @@ import 'package:printing/printing.dart';
 import 'dart:io';
 import 'dart:typed_data';
 
+import '../../../../core/services/empresa_logo_service.dart';
+import '../../../../core/services/user_session.dart';
+
 import '../../../../shared/utils/debouncer.dart';
 import '../../../inspection/domain/models/formulario_item.dart';
 import '../../../sync/services/sync_service.dart';
@@ -520,6 +523,8 @@ class ExtintorFormController extends ChangeNotifier {
     }
 
     return ExtintorReportData(
+      empresaProveedor:
+          (UserSession().empresaNombre ?? 'JF INNOVA').toUpperCase(),
       empresa: empresaCtrl.text.trim(),
       region: regionCtrl.text.trim().toUpperCase(),
       oficina: oficinaCtrl.text.trim().toUpperCase(),
@@ -555,8 +560,9 @@ class ExtintorFormController extends ChangeNotifier {
 
     Uint8List? logoBytes;
     try {
-      final logoData = await rootBundle.load('assets/images/LogoJFInnova2.png');
-      logoBytes = logoData.buffer.asUint8List();
+      logoBytes = await EmpresaLogoService.instance.getLogoForActiveEmpresa(
+        fallbackAsset: 'assets/images/LogoJFInnova2.png',
+      );
     } catch (_) {}
 
     final params = ExtintorPdfIsolateParams(

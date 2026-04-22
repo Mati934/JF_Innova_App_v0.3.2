@@ -6,6 +6,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/database/database_helper.dart';
+import '../../../core/services/empresa_logo_service.dart';
+import '../../../core/services/user_session.dart';
 import '../domain/models/pdf/inspection_report_data.dart';
 import '../domain/models/buceo_verificacion_model.dart';
 import 'pdf_generator_service.dart';
@@ -57,10 +59,9 @@ class DeferredPdfService {
 
       Uint8List? logoBytes;
       try {
-        final logoData = await rootBundle.load(
-          'assets/images/aquachileporfin3.png',
+        logoBytes = await EmpresaLogoService.instance.getLogoForActiveEmpresa(
+          fallbackAsset: 'assets/images/aquachileporfin3.png',
         );
-        logoBytes = logoData.buffer.asUint8List();
       } catch (e) {
         debugPrint("⚠️ [PDF Diferido] No se pudo cargar el logo: $e");
       }
@@ -479,6 +480,8 @@ class DeferredPdfService {
     }
 
     return InspectionReportData(
+      empresaProveedor:
+          (UserSession().empresaNombre ?? 'JF INNOVA').toUpperCase(),
       appVersion: versionApp,
       esConsecutiva: esConsecutiva,
       empresaContratista: nombreEmpresaContratista,

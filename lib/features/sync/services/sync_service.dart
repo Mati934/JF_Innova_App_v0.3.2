@@ -85,7 +85,9 @@ class SyncService {
       // 6: empresas
       descargarTabla(
         'empresas',
-        _supabase.from('empresas').select('id, nombre, es_administradora'),
+        _supabase
+            .from('empresas')
+            .select('id, nombre, es_administradora, logo_url'),
       ),
       // 7: ticket_categorias
       descargarTabla(
@@ -537,7 +539,7 @@ class SyncService {
           case 'empresas':
             data = await _supabase
                 .from('empresas')
-                .select('id, nombre, es_administradora');
+                .select('id, nombre, es_administradora, logo_url');
             await _dbHelper.guardarMaestros('empresas', data);
             break;
           case 'ticket_categorias':

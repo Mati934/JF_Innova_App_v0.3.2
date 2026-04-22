@@ -655,7 +655,16 @@ class _VisitFormView extends StatelessWidget {
   }
 
   String _formatTipoLabel(String tipo) {
-    const labels = {'VISITA_005': 'Condiciones Eléctricas Generales'};
+    const labels = {
+      // R005 - Condiciones Eléctricas
+      'VISITA_005': 'Insp. Condiciones Eléctricas',
+      'VISITA_R005': 'Insp. Condiciones Eléctricas',
+      'ELECTRICIDAD_R005': 'Insp. Condiciones Eléctricas',
+      // R006 - Pisos y Superficies
+      'VISITA_006': 'Insp. Pisos y Superficies',
+      'VISITA_R006': 'Insp. Pisos y Superficies',
+      'PISOS_R006': 'Insp. Pisos y Superficies',
+    };
     return labels[tipo] ?? tipo.replaceAll('_', ' ');
   }
 }

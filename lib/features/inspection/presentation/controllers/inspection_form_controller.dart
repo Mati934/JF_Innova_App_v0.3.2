@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:jf_innova_app/core/database/database_helper.dart';
+import 'package:jf_innova_app/core/services/empresa_logo_service.dart';
+import 'package:jf_innova_app/core/services/user_session.dart';
 import 'package:jf_innova_app/core/utils/rut_utils.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/pdf/inspection_report_data.dart';
 import 'package:jf_innova_app/features/inspection/services/pdf_generator_service.dart';
@@ -582,10 +584,9 @@ class InspectionFormController extends ChangeNotifier {
 
     Uint8List? logoBytes;
     try {
-      final logoData = await rootBundle.load(
-        'assets/images/aquachileporfin3.png',
+      logoBytes = await EmpresaLogoService.instance.getLogoForActiveEmpresa(
+        fallbackAsset: 'assets/images/aquachileporfin3.png',
       );
-      logoBytes = logoData.buffer.asUint8List();
     } catch (e) {
       debugPrint("⚠️ No se pudo cargar el logo: $e");
     }
@@ -1096,10 +1097,9 @@ class InspectionFormController extends ChangeNotifier {
       );
       Uint8List? logoBytes;
       try {
-        final logoData = await rootBundle.load(
-          'assets/images/aquachileporfin3.png',
+        logoBytes = await EmpresaLogoService.instance.getLogoForActiveEmpresa(
+          fallbackAsset: 'assets/images/aquachileporfin3.png',
         );
-        logoBytes = logoData.buffer.asUint8List();
       } catch (_) {}
 
       // ---------------------------------------------------------
@@ -1475,6 +1475,8 @@ class InspectionFormController extends ChangeNotifier {
     }
 
     return InspectionReportData(
+      empresaProveedor:
+          (UserSession().empresaNombre ?? 'JF INNOVA').toUpperCase(),
       appVersion: versionApp,
       esConsecutiva: esConsecutiva,
       empresaContratista: nombreEmpresaContratista,

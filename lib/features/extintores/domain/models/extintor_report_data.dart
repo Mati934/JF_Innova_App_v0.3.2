@@ -1,6 +1,7 @@
 import 'package:jf_innova_app/features/extintores/domain/models/extintor_state.dart';
 
 class ExtintorReportData {
+  final String empresaProveedor;
   final String empresa;
   final String region;
   final String oficina;
@@ -31,6 +32,7 @@ class ExtintorReportData {
   final List<ExtintorResumenItem> extintores;
 
   const ExtintorReportData({
+    this.empresaProveedor = 'JF INNOVA',
     required this.empresa,
     required this.region,
     required this.oficina,

@@ -7,7 +7,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      43; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      44; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -104,7 +104,7 @@ class DatabaseHelper {
       'CREATE TABLE contratistas (id TEXT PRIMARY KEY, nombre TEXT, rut TEXT, subido INTEGER DEFAULT 1)',
     );
     await db.execute(
-      'CREATE TABLE empresas (id TEXT PRIMARY KEY, nombre TEXT, es_administradora INTEGER DEFAULT 0)',
+      'CREATE TABLE empresas (id TEXT PRIMARY KEY, nombre TEXT, es_administradora INTEGER DEFAULT 0, logo_url TEXT)',
     );
     await db.execute('''
       CREATE TABLE empresa_modulos (
@@ -931,6 +931,12 @@ class DatabaseHelper {
       );
       debugPrint("✅ Parche v43 aplicado.");
     }
+
+    if (oldVersion < 44) {
+      debugPrint("🚀 Aplicando parche v44 (logo_url en empresas)...");
+      await _safeAddColumn(db, 'empresas', 'logo_url', 'TEXT');
+      debugPrint("✅ Parche v44 aplicado.");
+    }
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -1114,6 +1120,7 @@ class DatabaseHelper {
                 item['es_administradora'] == 1)
             ? 1
             : 0;
+        row['logo_url'] = item['logo_url'];
       } else {
         row['nombre'] = item['nombre'];
       }

@@ -111,7 +111,7 @@ class ExtintorPdfGeneratorService {
                 ),
               ),
               pw.Text(
-                'JF Innova',
+                data.empresaProveedor,
                 style: const pw.TextStyle(
                   fontSize: 9,
                   color: PdfColors.grey700,
