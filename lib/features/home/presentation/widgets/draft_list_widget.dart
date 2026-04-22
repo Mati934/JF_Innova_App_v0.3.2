@@ -60,10 +60,7 @@ class DraftListWidget extends StatelessWidget {
         );
     }
 
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => destino),
-    );
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => destino));
     controller.cargarBorradores();
   }
 
@@ -102,33 +99,18 @@ class DraftListWidget extends StatelessWidget {
           );
         }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10, left: 4),
-              child: Text(
-                "📝 Pendientes de subir / Borradores  ·  ${controller.borradores.length}",
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: controller.borradores.length,
-              itemBuilder: (context, index) {
-                final card = controller.borradores[index];
-                return _DraftCardTile(
-                  card: card,
-                  onTap: () => _abrirBorrador(context, card),
-                  onDelete: () => _confirmarEliminar(context, card.id),
-                );
-              },
-            ),
-          ],
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: controller.borradores.length,
+          itemBuilder: (context, index) {
+            final card = controller.borradores[index];
+            return _DraftCardTile(
+              card: card,
+              onTap: () => _abrirBorrador(context, card),
+              onDelete: () => _confirmarEliminar(context, card.id),
+            );
+          },
         );
       },
     );

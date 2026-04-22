@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/custom_filter_sheet.dart';
+import '../../../../shared/widgets/gradient_app_bar.dart';
 import '../../controllers/history_controller.dart';
 import '../widgets/history_card.dart';
 
@@ -33,10 +34,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
       listenable: _ctrl,
       builder: (context, _) {
         return Scaffold(
-          appBar: AppBar(
+          backgroundColor: const Color(0xFFF4F6F8),
+          appBar: GradientAppBar(
             title: const Text("Historial General"),
-            backgroundColor: AppTheme.primaryBlue,
-            foregroundColor: Colors.white,
             actions: [
               Stack(
                 alignment: Alignment.center,

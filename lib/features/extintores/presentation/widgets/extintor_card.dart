@@ -1,16 +1,22 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/form_inputs/gallery_input.dart';
 import '../../domain/models/extintor_state.dart';
 import 'punto_extintor_row.dart';
 
-/// Tarjeta expandible para un extintor individual.
-/// Incluye: matrícula, progreso, "Todo Cumple", "Clonar anterior", 18 ítems.
+const Color _kExtintorRed = Color(0xFFC62828);
+
+/// Tarjeta de un extintor (rediseñada).
+/// - Header limpio con nº, matrícula y progreso visual.
+/// - Acciones rápidas (Todo Cumple / Igual al anterior / Eliminar) en pills.
+/// - Contenido expandible organizado en subsecciones:
+///   "Datos del Extintor" (grid 2 cols) · "Checklist" · "Foto".
 class ExtintorCard extends StatefulWidget {
   final ExtintorState extintor;
   final int index;
-  final bool puedeClonarse; // = index > 0
+  final bool puedeClonarse;
   final void Function(EstadoExtintor e, String itemId) onResponder;
   final void Function(String obs, String itemId) onObservacion;
   final VoidCallback onTodoCumple;
@@ -19,9 +25,9 @@ class ExtintorCard extends StatefulWidget {
   final void Function(String tipoExtintor) onTipoExtintorChanged;
   final void Function(String pesoExtintor) onPesoExtintorChanged;
   final void Function(String fechaUltimaMantencion)
-  onFechaUltimaMantencionChanged;
+      onFechaUltimaMantencionChanged;
   final void Function(String fechaProximaMantencion)
-  onFechaProximaMantencionChanged;
+      onFechaProximaMantencionChanged;
   final VoidCallback onEliminar;
   final void Function(String path) onFotoAdded;
   final void Function(int fotoIndex) onFotoRemoved;
@@ -53,18 +59,22 @@ class _ExtintorCardState extends State<ExtintorCard> {
   late final TextEditingController _matriculaCtrl;
   late final TextEditingController _tipoExtintorCtrl;
   late final TextEditingController _pesoExtintorCtrl;
-  late final TextEditingController _fechaUltimaMantencionCtrl;
-  late final TextEditingController _fechaProximaMantencionCtrl;
+  late final TextEditingController _fechaUltimaCtrl;
+  late final TextEditingController _fechaProximaCtrl;
+
+  bool _expanded = false;
+
+  static final DateFormat _fmtFecha = DateFormat('dd/MM/yyyy');
 
   @override
   void initState() {
     super.initState();
+    _expanded = widget.extintor.expandido;
     _matriculaCtrl = TextEditingController(
       text: widget.extintor.matricula ?? '',
     );
-    _matriculaCtrl.addListener(
-      () => widget.onMatriculaChanged(_matriculaCtrl.text),
-    );
+    _matriculaCtrl
+        .addListener(() => widget.onMatriculaChanged(_matriculaCtrl.text));
     _tipoExtintorCtrl = TextEditingController(
       text: widget.extintor.tipoExtintor ?? '',
     );
@@ -77,66 +87,61 @@ class _ExtintorCardState extends State<ExtintorCard> {
     _pesoExtintorCtrl.addListener(
       () => widget.onPesoExtintorChanged(_pesoExtintorCtrl.text),
     );
-    _fechaUltimaMantencionCtrl = TextEditingController(
+    _fechaUltimaCtrl = TextEditingController(
       text: widget.extintor.fechaUltimaMantencion ?? '',
     );
-    _fechaUltimaMantencionCtrl.addListener(
-      () => widget.onFechaUltimaMantencionChanged(
-        _fechaUltimaMantencionCtrl.text,
-      ),
+    _fechaUltimaCtrl.addListener(
+      () => widget.onFechaUltimaMantencionChanged(_fechaUltimaCtrl.text),
     );
-    _fechaProximaMantencionCtrl = TextEditingController(
+    _fechaProximaCtrl = TextEditingController(
       text: widget.extintor.fechaProximaMantencion ?? '',
     );
-    _fechaProximaMantencionCtrl.addListener(
-      () => widget.onFechaProximaMantencionChanged(
-        _fechaProximaMantencionCtrl.text,
-      ),
+    _fechaProximaCtrl.addListener(
+      () => widget.onFechaProximaMantencionChanged(_fechaProximaCtrl.text),
     );
   }
 
   @override
   void didUpdateWidget(ExtintorCard old) {
     super.didUpdateWidget(old);
-    if (old.extintor.matricula != widget.extintor.matricula &&
-        _matriculaCtrl.text != (widget.extintor.matricula ?? '')) {
-      _matriculaCtrl.text = widget.extintor.matricula ?? '';
-    }
-    if (old.extintor.tipoExtintor != widget.extintor.tipoExtintor &&
-        _tipoExtintorCtrl.text != (widget.extintor.tipoExtintor ?? '')) {
-      _tipoExtintorCtrl.text = widget.extintor.tipoExtintor ?? '';
-    }
-    if (old.extintor.pesoExtintor != widget.extintor.pesoExtintor &&
-        _pesoExtintorCtrl.text != (widget.extintor.pesoExtintor ?? '')) {
-      _pesoExtintorCtrl.text = widget.extintor.pesoExtintor ?? '';
-    }
-    if (old.extintor.fechaUltimaMantencion !=
-            widget.extintor.fechaUltimaMantencion &&
-        _fechaUltimaMantencionCtrl.text !=
-            (widget.extintor.fechaUltimaMantencion ?? '')) {
-      _fechaUltimaMantencionCtrl.text =
-          widget.extintor.fechaUltimaMantencion ?? '';
-    }
-    if (old.extintor.fechaProximaMantencion !=
-            widget.extintor.fechaProximaMantencion &&
-        _fechaProximaMantencionCtrl.text !=
-            (widget.extintor.fechaProximaMantencion ?? '')) {
-      _fechaProximaMantencionCtrl.text =
-          widget.extintor.fechaProximaMantencion ?? '';
+    _syncCtrl(_matriculaCtrl, old.extintor.matricula, widget.extintor.matricula);
+    _syncCtrl(
+      _tipoExtintorCtrl,
+      old.extintor.tipoExtintor,
+      widget.extintor.tipoExtintor,
+    );
+    _syncCtrl(
+      _pesoExtintorCtrl,
+      old.extintor.pesoExtintor,
+      widget.extintor.pesoExtintor,
+    );
+    _syncCtrl(
+      _fechaUltimaCtrl,
+      old.extintor.fechaUltimaMantencion,
+      widget.extintor.fechaUltimaMantencion,
+    );
+    _syncCtrl(
+      _fechaProximaCtrl,
+      old.extintor.fechaProximaMantencion,
+      widget.extintor.fechaProximaMantencion,
+    );
+  }
+
+  void _syncCtrl(TextEditingController c, String? oldVal, String? newVal) {
+    if (oldVal != newVal && c.text != (newVal ?? '')) {
+      c.text = newVal ?? '';
     }
   }
 
   @override
   void dispose() {
-    _fechaProximaMantencionCtrl.dispose();
-    _fechaUltimaMantencionCtrl.dispose();
+    _fechaProximaCtrl.dispose();
+    _fechaUltimaCtrl.dispose();
     _pesoExtintorCtrl.dispose();
     _tipoExtintorCtrl.dispose();
     _matriculaCtrl.dispose();
     super.dispose();
   }
-
-  static final DateFormat _fmtFecha = DateFormat('dd/MM/yyyy');
 
   DateTime? _parseFecha(String s) {
     if (s.isEmpty) return null;
@@ -151,9 +156,7 @@ class _ExtintorCardState extends State<ExtintorCard> {
     }
   }
 
-  Future<void> _pickFecha({
-    required TextEditingController ctrl,
-  }) async {
+  Future<void> _pickFecha(TextEditingController ctrl) async {
     final initial = _parseFecha(ctrl.text) ?? DateTime.now();
     final picked = await showDatePicker(
       context: context,
@@ -166,6 +169,12 @@ class _ExtintorCardState extends State<ExtintorCard> {
     ctrl.text = _fmtFecha.format(picked);
   }
 
+  Color _borderColor(ExtintorState e) {
+    if (e.puntosNC.isNotEmpty) return _kExtintorRed.withValues(alpha: 0.5);
+    if (e.estaCompleto) return Colors.green.withValues(alpha: 0.5);
+    return Colors.grey.shade200;
+  }
+
   @override
   Widget build(BuildContext context) {
     final e = widget.extintor;
@@ -173,336 +182,512 @@ class _ExtintorCardState extends State<ExtintorCard> {
     final total = e.totalPuntos;
     final progreso = total > 0 ? completados / total : 0.0;
     final hayNC = e.puntosNC.isNotEmpty;
+    final completo = e.estaCompleto;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(
-          color: hayNC
-              ? Colors.red.shade300
-              : e.estaCompleto
-              ? Colors.green.shade300
-              : Colors.grey.shade300,
-          width: 1.5,
-        ),
+    final accentColor = hayNC
+        ? _kExtintorRed
+        : completo
+            ? Colors.green.shade700
+            : AppTheme.primaryBlue;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _borderColor(e), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      clipBehavior: Clip.antiAlias,
-      child: ExpansionTile(
-        initiallyExpanded: e.expandido,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        childrenPadding: EdgeInsets.zero,
-        // ── Header ──────────────────────────────────────────────
-        title: Row(
-          children: [
-            // Título
-            Expanded(
+      child: Column(
+        children: [
+          InkWell(
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(16)),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Extintor #${e.numero}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                  // Matrícula inline
-                  SizedBox(
-                    height: 28,
-                    child: TextField(
-                      controller: _matriculaCtrl,
-                      style: const TextStyle(fontSize: 12),
-                      decoration: InputDecoration(
-                        hintText: 'Identificatorio / Ubicación',
-                        hintStyle: TextStyle(
-                          fontSize: 11,
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              accentColor,
+                              accentColor.withValues(alpha: 0.7),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: accentColor.withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            '#${widget.index + 1}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              (e.matricula ?? '').isEmpty
+                                  ? 'Sin matrícula'
+                                  : e.matricula!,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: (e.matricula ?? '').isEmpty
+                                    ? Colors.grey.shade500
+                                    : AppTheme.primaryBlue,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Icon(
+                                  hayNC
+                                      ? Icons.warning_amber_rounded
+                                      : completo
+                                          ? Icons.check_circle
+                                          : Icons.pending_actions,
+                                  size: 13,
+                                  color: accentColor,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  hayNC
+                                      ? '${e.puntosNC.length} NC'
+                                      : completo
+                                          ? 'Completo'
+                                          : 'En revisión',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: accentColor,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '$completados/$total',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            SizedBox(
+                              width: 32,
+                              height: 32,
+                              child: CircularProgressIndicator(
+                                value: progreso,
+                                strokeWidth: 3,
+                                backgroundColor: Colors.grey.shade200,
+                                valueColor:
+                                    AlwaysStoppedAnimation(accentColor),
+                              ),
+                            ),
+                            Text(
+                              '${(progreso * 100).round()}%',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: accentColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      AnimatedRotation(
+                        turns: _expanded ? 0.5 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(
+                          Icons.keyboard_arrow_down,
                           color: Colors.grey.shade500,
                         ),
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 0,
-                          vertical: 4,
-                        ),
-                        border: InputBorder.none,
                       ),
-                    ),
+                    ],
                   ),
-                  SizedBox(
-                    height: 28,
-                    child: TextField(
-                      controller: _tipoExtintorCtrl,
-                      style: const TextStyle(fontSize: 12),
-                      decoration: InputDecoration(
-                        hintText: 'Tipo Extintor',
-                        hintStyle: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade500,
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _AccionPill(
+                          icon: Icons.check_circle_outline,
+                          label: 'Todo Cumple',
+                          color: Colors.green.shade700,
+                          onTap: widget.onTodoCumple,
                         ),
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 0,
-                          vertical: 4,
-                        ),
-                        border: InputBorder.none,
                       ),
-                    ),
-                  ),
-                  SizedBox(
-                    height: 28,
-                    child: TextField(
-                      controller: _pesoExtintorCtrl,
-                      style: const TextStyle(fontSize: 12),
-                      decoration: InputDecoration(
-                        hintText: 'Peso Extintor',
-                        hintStyle: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade500,
+                      const SizedBox(width: 6),
+                      if (widget.puedeClonarse)
+                        Expanded(
+                          child: _AccionPill(
+                            icon: Icons.copy_all_outlined,
+                            label: 'Igual anterior',
+                            color: AppTheme.primaryBlue,
+                            onTap: widget.onClonar,
+                          ),
                         ),
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 0,
-                          vertical: 4,
-                        ),
-                        border: InputBorder.none,
+                      const SizedBox(width: 6),
+                      _AccionPill(
+                        icon: Icons.delete_outline,
+                        label: '',
+                        color: _kExtintorRed,
+                        onTap: () => _confirmarEliminar(context),
+                        iconOnly: true,
                       ),
-                    ),
-                  ),
-                  SizedBox(
-                    height: 28,
-                    child: TextField(
-                      controller: _fechaUltimaMantencionCtrl,
-                      style: const TextStyle(fontSize: 12),
-                      readOnly: true,
-                      onTap: () =>
-                          _pickFecha(ctrl: _fechaUltimaMantencionCtrl),
-                      decoration: InputDecoration(
-                        hintText: 'Fecha última mantención',
-                        hintStyle: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade500,
-                        ),
-                        suffixIcon: const Icon(
-                          Icons.calendar_today,
-                          size: 14,
-                          color: Colors.grey,
-                        ),
-                        suffixIconConstraints: const BoxConstraints(
-                          minHeight: 14,
-                          minWidth: 18,
-                        ),
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 0,
-                          vertical: 4,
-                        ),
-                        border: InputBorder.none,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    height: 28,
-                    child: TextField(
-                      controller: _fechaProximaMantencionCtrl,
-                      style: const TextStyle(fontSize: 12),
-                      readOnly: true,
-                      onTap: () =>
-                          _pickFecha(ctrl: _fechaProximaMantencionCtrl),
-                      decoration: InputDecoration(
-                        hintText: 'Fecha próxima mantención',
-                        hintStyle: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade500,
-                        ),
-                        suffixIcon: const Icon(
-                          Icons.calendar_today,
-                          size: 14,
-                          color: Colors.grey,
-                        ),
-                        suffixIconConstraints: const BoxConstraints(
-                          minHeight: 14,
-                          minWidth: 18,
-                        ),
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 0,
-                          vertical: 4,
-                        ),
-                        border: InputBorder.none,
-                      ),
-                    ),
+                    ],
                   ),
                 ],
               ),
             ),
-
-            // Chip progreso
-            _ProgresoChip(completados: completados, total: total),
-
-            const SizedBox(width: 8),
-
-            // Barra de progreso circular pequeña
-            SizedBox(
-              width: 28,
-              height: 28,
-              child: CircularProgressIndicator(
-                value: progreso,
-                strokeWidth: 3,
-                backgroundColor: Colors.grey.shade200,
-                color: e.estaCompleto
-                    ? Colors.green
-                    : hayNC
-                    ? Colors.red
-                    : Colors.blue,
-              ),
-            ),
-          ],
-        ),
-        // ── Acciones rápidas bajo el header ─────────────────────
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4, bottom: 2),
-          child: Row(
-            children: [
-              _AccionBtn(
-                icon: Icons.done_all,
-                label: 'Todo Cumple',
-                color: Colors.green,
-                onTap: widget.onTodoCumple,
-              ),
-              if (widget.puedeClonarse) ...[
-                const SizedBox(width: 8),
-                _AccionBtn(
-                  icon: Icons.copy,
-                  label: 'Igual al anterior',
-                  color: Colors.blue,
-                  onTap: widget.onClonar,
+          ),
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 220),
+            crossFadeState: _expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            firstChild: const SizedBox.shrink(),
+            secondChild: Column(
+              children: [
+                Divider(height: 1, color: Colors.grey.shade200),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
+                  child: const _SubSectionHeader(
+                    icon: Icons.description_outlined,
+                    title: 'Datos del Extintor',
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _MiniInput(
+                              controller: _matriculaCtrl,
+                              label: 'Matrícula',
+                              icon: Icons.badge_outlined,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _MiniInput(
+                              controller: _tipoExtintorCtrl,
+                              label: 'Tipo (PQS/CO2…)',
+                              icon: Icons.category_outlined,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _MiniInput(
+                              controller: _pesoExtintorCtrl,
+                              label: 'Peso (kg)',
+                              icon: Icons.scale_outlined,
+                              keyboardType: TextInputType.number,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _MiniInput(
+                              controller: _fechaUltimaCtrl,
+                              label: 'Últ. mantención',
+                              icon: Icons.history,
+                              readOnly: true,
+                              onTap: () => _pickFecha(_fechaUltimaCtrl),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      _MiniInput(
+                        controller: _fechaProximaCtrl,
+                        label: 'Próx. mantención',
+                        icon: Icons.event_available,
+                        readOnly: true,
+                        onTap: () => _pickFecha(_fechaProximaCtrl),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(height: 1, color: Colors.grey.shade200),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
+                  child: _SubSectionHeader(
+                    icon: Icons.checklist,
+                    title: 'Checklist ($completados/$total)',
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Column(
+                    children: List.generate(e.puntos.length, (i) {
+                      final punto = e.puntos[i];
+                      return PuntoExtintorRow(
+                        key: ValueKey('${e.localId}_${punto.itemId}'),
+                        punto: punto,
+                        numero: i + 1,
+                        onEstadoChanged: (estado) =>
+                            widget.onResponder(estado, punto.itemId),
+                        onObservacionChanged: (obs) =>
+                            widget.onObservacion(obs, punto.itemId),
+                      );
+                    }),
+                  ),
+                ),
+                Divider(height: 1, color: Colors.grey.shade200),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
+                  child: const _SubSectionHeader(
+                    icon: Icons.photo_camera_outlined,
+                    title: 'Foto del Extintor',
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+                  child: GalleryInput(
+                    maxImages: 1,
+                    images: e.fotoPaths.map((p) => File(p)).toList(),
+                    onImagesChanged: (newFiles) {
+                      final newPaths = newFiles.map((f) => f.path).toSet();
+                      final oldPaths = e.fotoPaths.toSet();
+                      for (int i = e.fotoPaths.length - 1; i >= 0; i--) {
+                        if (!newPaths.contains(e.fotoPaths[i])) {
+                          widget.onFotoRemoved(i);
+                        }
+                      }
+                      for (final f in newFiles) {
+                        if (!oldPaths.contains(f.path)) {
+                          widget.onFotoAdded(f.path);
+                        }
+                      }
+                    },
+                  ),
                 ),
               ],
-              const Spacer(),
-              _AccionBtn(
-                icon: Icons.delete_outline,
-                label: 'Eliminar',
-                color: Colors.red,
-                onTap: widget.onEliminar,
-              ),
-            ],
-          ),
-        ),
-        // ── Cuerpo: lista de ítems ───────────────────────────────
-        children: [
-          const Divider(height: 1),
-          ...List.generate(e.puntos.length, (i) {
-            final punto = e.puntos[i];
-            return PuntoExtintorRow(
-              key: ValueKey('${e.localId}_${punto.itemId}'),
-              punto: punto,
-              numero: i + 1,
-              onEstadoChanged: (estado) =>
-                  widget.onResponder(estado, punto.itemId),
-              onObservacionChanged: (obs) =>
-                  widget.onObservacion(obs, punto.itemId),
-            );
-          }),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: GalleryInput(
-              maxImages: 1,
-              images: widget.extintor.fotoPaths.map((p) => File(p)).toList(),
-              onImagesChanged: (newFiles) {
-                final newPaths = newFiles.map((f) => f.path).toSet();
-                final oldPaths = widget.extintor.fotoPaths.toSet();
-                for (
-                  int i = widget.extintor.fotoPaths.length - 1;
-                  i >= 0;
-                  i--
-                ) {
-                  if (!newPaths.contains(widget.extintor.fotoPaths[i])) {
-                    widget.onFotoRemoved(i);
-                  }
-                }
-                for (final f in newFiles) {
-                  if (!oldPaths.contains(f.path)) {
-                    widget.onFotoAdded(f.path);
-                  }
-                }
-              },
             ),
           ),
         ],
       ),
     );
   }
+
+  Future<void> _confirmarEliminar(BuildContext context) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: _kExtintorRed),
+            const SizedBox(width: 8),
+            Text('Eliminar Extintor #${widget.index + 1}'),
+          ],
+        ),
+        content: const Text(
+          '¿Seguro que deseas eliminar este extintor? Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: _kExtintorRed),
+            child: const Text(
+              'Eliminar',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmar == true) widget.onEliminar();
+  }
 }
 
-class _ProgresoChip extends StatelessWidget {
-  final int completados;
-  final int total;
+class _SubSectionHeader extends StatelessWidget {
+  final IconData icon;
+  final String title;
 
-  const _ProgresoChip({required this.completados, required this.total});
+  const _SubSectionHeader({required this.icon, required this.title});
 
   @override
   Widget build(BuildContext context) {
-    final completo = completados == total && total > 0;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: completo ? Colors.green.shade100 : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: completo ? Colors.green.shade400 : Colors.grey.shade400,
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AppTheme.primaryBlue),
+        const SizedBox(width: 6),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.primaryBlue,
+            letterSpacing: 0.3,
+          ),
         ),
-      ),
-      child: Text(
-        '$completados/$total',
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: completo ? Colors.green.shade800 : Colors.grey.shade700,
+      ],
+    );
+  }
+}
+
+class _MiniInput extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final TextInputType? keyboardType;
+  final bool readOnly;
+  final VoidCallback? onTap;
+
+  const _MiniInput({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    this.keyboardType,
+    this.readOnly = false,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      readOnly: readOnly,
+      onTap: onTap,
+      style: const TextStyle(fontSize: 13),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(fontSize: 12),
+        prefixIcon: Icon(icon, size: 16, color: Colors.grey.shade600),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 32,
+          minHeight: 32,
         ),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 12,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(
+            color: AppTheme.primaryBlue,
+            width: 1.4,
+          ),
+        ),
+        filled: true,
+        fillColor: Colors.grey.shade50,
       ),
     );
   }
 }
 
-class _AccionBtn extends StatelessWidget {
+class _AccionPill extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
   final VoidCallback onTap;
+  final bool iconOnly;
 
-  const _AccionBtn({
+  const _AccionPill({
     required this.icon,
     required this.label,
     required this.color,
     required this.onTap,
+    this.iconOnly = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: color.withAlpha(20),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: color.withAlpha(80)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 12, color: color),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: color,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Container(
+          height: 36,
+          padding: EdgeInsets.symmetric(horizontal: iconOnly ? 10 : 8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: color),
+              if (!iconOnly) ...[
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

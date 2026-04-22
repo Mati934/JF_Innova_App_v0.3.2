@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:jf_innova_app/core/theme/app_theme.dart';
+import 'package:jf_innova_app/core/services/user_session.dart';
+import 'package:jf_innova_app/core/modules/module_registry.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/draft_list_widget.dart';
 import '../widgets/module_selector_grid.dart';
@@ -32,229 +34,305 @@ class _HomeScreenState extends State<HomeScreen> {
     return ListenableBuilder(
       listenable: _controller,
       builder: (context, child) {
-        final bool estaVacio = _controller.borradores.isEmpty;
+        final empresaNombre = UserSession().empresaNombre;
+        final cantidadBorradores = _controller.borradores.length;
 
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('Panel de Control'),
-            backgroundColor: AppTheme.primaryBlue,
-            foregroundColor: Colors.white,
-            actions: [
-              // Indicador de estado de conexión
-              if (!_controller.isOnline)
-                Container(
-                  margin: const EdgeInsets.only(right: 4),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade700,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.cloud_off, size: 14, color: Colors.white),
-                      SizedBox(width: 4),
-                      Text(
-                        'Offline',
-                        style: TextStyle(fontSize: 11, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-              IconButton(
-                icon: _controller.isSyncing
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Icon(Icons.sync),
-                tooltip: 'Sincronizar ahora',
-                onPressed: _controller.isSyncing
-                    ? null
-                    : () async {
-                        await _controller.ejecutarSincronizacion();
-                        if (mounted && _controller.syncMessage != null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(_controller.syncMessage!),
-                              backgroundColor: _controller.isError
-                                  ? Colors.red
-                                  : Colors.green.shade700,
-                            ),
-                          );
-                        }
-                      },
-              ),
-              IconButton(
-                onPressed: () => _cerrarSesion(context),
-                icon: const Icon(Icons.logout),
-                tooltip: 'Salir',
-              ),
-            ],
-          ),
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          backgroundColor: const Color(0xFFF4F6F8),
+          body: RefreshIndicator(
+            color: AppTheme.primaryBlue,
+            onRefresh: () async {
+              await _controller.cargarBorradores();
+              await _controller.recargarModulos();
+            },
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                _buildHeader(empresaNombre),
+                SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.all(24.0),
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                     child: Column(
-                      // Si no hay borradores, centramos verticalmente
-                      mainAxisAlignment: estaVacio
-                          ? MainAxisAlignment.center
-                          : MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (_controller.isSyncing)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            margin: const EdgeInsets.only(bottom: 20),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.shade50,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.orange.shade200),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.orange.shade800,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  "Sincronizando datos...",
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.orange.shade900,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                        // LOGO
-                        Hero(
-                          tag: 'logo_app',
-                          child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: Image.asset(
-                              'assets/images/logo_jfinnova.png',
-                              height:
-                                  100, // Un poco más chico para dar espacio a la grilla
-                              errorBuilder: (context, error, stackTrace) {
-                                return Icon(
-                                  Icons.verified_user,
-                                  size: 80,
-                                  color: AppTheme.primaryBlue,
-                                );
-                              },
-                            ),
-                          ),
+                        if (_controller.isSyncing) _buildSyncBanner(),
+                        _SectionHeader(
+                          title: 'Operaciones',
+                          subtitle: 'Selecciona el módulo a utilizar',
+                          icon: Icons.dashboard_rounded,
                         ),
-
-                        const SizedBox(height: 8),
-                        FutureBuilder<String>(
-                          future: _getVersion(),
-                          builder: (context, snapshot) {
-                            if (!snapshot.hasData) return const SizedBox();
-                            return Text(
-                              snapshot.data!,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade500,
-                              ),
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        Text(
-                          'Hola, ${_controller.nombreUsuario}',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primaryBlue,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          'Sistema de Gestión JF Innova',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-
-                        SizedBox(height: estaVacio ? 50 : 20),
-
-                        // --- GRILLA DINÁMICA DE MÓDULOS ---
+                        const SizedBox(height: 14),
                         ModuleSelectorGrid(
                           modules: _controller.enabledModules,
-                          onModuleTap: (mod) {
-                            if (mod.isPlaceholder) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Próximamente..."),
+                          onModuleTap: _onModuleTap,
+                        ),
+                        const SizedBox(height: 32),
+                        _SectionHeader(
+                          title: 'Pendientes',
+                          subtitle: cantidadBorradores == 0
+                              ? 'Sin borradores en curso'
+                              : '$cantidadBorradores ${cantidadBorradores == 1 ? "borrador" : "borradores"} por completar',
+                          icon: Icons.assignment_outlined,
+                          trailing: cantidadBorradores > 0
+                              ? _CountBadge(count: cantidadBorradores)
+                              : null,
+                        ),
+                        const SizedBox(height: 8),
+                        DraftListWidget(controller: _controller),
+                        const SizedBox(height: 24),
+                        Center(
+                          child: FutureBuilder<String>(
+                            future: _getVersion(),
+                            builder: (context, snapshot) {
+                              if (!snapshot.hasData) return const SizedBox();
+                              return Text(
+                                snapshot.data!,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade500,
                                 ),
                               );
-                              return;
-                            }
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: mod.screenBuilder),
-                            ).then((_) {
-                              _controller.cargarBorradores();
-                              _controller.recargarModulos();
-                            });
-                          },
+                            },
+                          ),
                         ),
-
-                        // --------------------------------------------
-                        const SizedBox(height: 40),
-
-                        DraftListWidget(controller: _controller),
-
-                        const SizedBox(height: 80),
                       ],
                     ),
                   ),
                 ),
-              );
-            },
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  // ... (Tu método _cerrarSesion se mantiene igual) ...
+  void _onModuleTap(ModuleDefinition mod) {
+    if (mod.isPlaceholder) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Próximamente...")),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: mod.screenBuilder),
+    ).then((_) {
+      _controller.cargarBorradores();
+      _controller.recargarModulos();
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // HEADER (Sliver con gradiente + saludo + acciones)
+  // ---------------------------------------------------------------------------
+  Widget _buildHeader(String? empresaNombre) {
+    return SliverAppBar(
+      expandedHeight: 220,
+      pinned: true,
+      stretch: true,
+      backgroundColor: AppTheme.primaryBlue,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      automaticallyImplyLeading: false,
+      flexibleSpace: FlexibleSpaceBar(
+        collapseMode: CollapseMode.pin,
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppTheme.primaryBlue,
+                const Color(0xFF002244),
+                AppTheme.logoGrey.withValues(alpha: 0.85),
+              ],
+            ),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 12, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Hero(
+                        tag: 'logo_app',
+                        child: Image.asset(
+                          'assets/images/logo_jfinnova.png',
+                          height: 40,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.verified_user,
+                            size: 32,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Panel de Control',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      _buildActionButtons(),
+                    ],
+                  ),
+                  const Spacer(),
+                  Text(
+                    'Hola,',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _controller.nombreUsuario,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (empresaNombre != null) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.business,
+                            size: 12,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            empresaNombre,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (!_controller.isOnline)
+          Container(
+            margin: const EdgeInsets.only(right: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade700,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.cloud_off, size: 14, color: Colors.white),
+                SizedBox(width: 4),
+                Text(
+                  'Offline',
+                  style: TextStyle(fontSize: 11, color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+        _HeaderIconButton(
+          icon: _controller.isSyncing ? null : Icons.sync,
+          loading: _controller.isSyncing,
+          tooltip: 'Sincronizar ahora',
+          onPressed: _controller.isSyncing
+              ? null
+              : () async {
+                  await _controller.ejecutarSincronizacion();
+                  if (mounted && _controller.syncMessage != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(_controller.syncMessage!),
+                        backgroundColor: _controller.isError
+                            ? Colors.red
+                            : Colors.green.shade700,
+                      ),
+                    );
+                  }
+                },
+        ),
+        const SizedBox(width: 6),
+        _HeaderIconButton(
+          icon: Icons.logout,
+          tooltip: 'Cerrar sesión',
+          onPressed: () => _cerrarSesion(context),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSyncBanner() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.orange.shade200),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.orange.shade800,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            "Sincronizando datos...",
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.orange.shade900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _cerrarSesion(BuildContext context) async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -301,5 +379,132 @@ class _HomeScreenState extends State<HomeScreen> {
         MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
     }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Helpers visuales (separación de responsabilidades — solo presentación)
+// -----------------------------------------------------------------------------
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Widget? trailing;
+
+  const _SectionHeader({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryBlue.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 18, color: AppTheme.primaryBlue),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryBlue,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+            ],
+          ),
+        ),
+        if (trailing != null) trailing!,
+      ],
+    );
+  }
+}
+
+class _CountBadge extends StatelessWidget {
+  final int count;
+  const _CountBadge({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppTheme.logoYellow.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.logoYellow.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        '$count',
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          color: Colors.orange.shade900,
+        ),
+      ),
+    );
+  }
+}
+
+/// Botón de acción en el header con fondo translúcido para alto contraste
+/// sobre el gradiente azul.
+class _HeaderIconButton extends StatelessWidget {
+  final IconData? icon;
+  final bool loading;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  const _HeaderIconButton({
+    required this.tooltip,
+    required this.onPressed,
+    this.icon,
+    this.loading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.18),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onPressed,
+        child: Tooltip(
+          message: tooltip,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Center(
+              child: loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : Icon(icon, color: Colors.white, size: 20),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/widgets/gradient_app_bar.dart';
 import '../controllers/extintor_form_controller.dart';
 import '../widgets/extintor_card.dart';
+
+const Color _kExtintorRed = Color(0xFFC62828);
 
 class ExtintorFormScreen extends StatelessWidget {
   final Map<String, dynamic>? borrador;
@@ -57,11 +60,9 @@ class _ExtintorFormView extends StatelessWidget {
         if (context.mounted) Navigator.of(context).pop();
       },
       child: Scaffold(
-        backgroundColor: Colors.grey.shade50,
-        appBar: AppBar(
+        backgroundColor: const Color(0xFFF4F6F8),
+        appBar: GradientAppBar(
           title: const Text('Inspección de Extintores'),
-          backgroundColor: AppTheme.primaryBlue,
-          foregroundColor: Colors.white,
           actions: [
             IconButton(
               icon: const Icon(Icons.picture_as_pdf_outlined),
@@ -71,37 +72,34 @@ class _ExtintorFormView extends StatelessWidget {
           ],
         ),
         body: ListView(
-          padding: const EdgeInsets.only(bottom: 120),
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
           children: [
-            // ── Formulario base ──────────────────────────────────
-            _SeccionFormBase(ctrl: ctrl),
+            _Banner(extintoresCount: ctrl.extintores.length),
+            const SizedBox(height: 14),
 
-            // ── Actividades Realizadas ───────────────────────────
-            _SeccionActividades(ctrl: ctrl),
-
-            // ── Extintores ───────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.fire_extinguisher,
-                    color: Colors.red,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Extintores (${ctrl.extintores.length})',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  _ResumenChip(extintores: ctrl.extintores),
-                ],
-              ),
+            _SectionCard(
+              icon: Icons.business_center,
+              title: 'Datos Generales',
+              child: _SeccionFormBase(ctrl: ctrl),
             ),
+            const SizedBox(height: 14),
+
+            _SectionCard(
+              icon: Icons.event,
+              title: 'Fecha y Horarios',
+              child: _SeccionFechas(ctrl: ctrl),
+            ),
+            const SizedBox(height: 14),
+
+            _SectionCard(
+              icon: Icons.checklist_rtl,
+              title: 'Actividades Realizadas',
+              child: _SeccionActividades(ctrl: ctrl),
+            ),
+            const SizedBox(height: 14),
+
+            _ExtintoresHeader(ctrl: ctrl),
+            const SizedBox(height: 8),
 
             ...List.generate(ctrl.extintores.length, (i) {
               final e = ctrl.extintores[i];
@@ -129,181 +127,580 @@ class _ExtintorFormView extends StatelessWidget {
               );
             }),
 
-            // ── Botón agregar extintor ───────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: OutlinedButton.icon(
-                onPressed: ctrl.agregarExtintor,
-                icon: const Icon(Icons.add),
-                label: const Text('Agregar Extintor'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(44),
-                  foregroundColor: AppTheme.primaryBlue,
-                  side: BorderSide(color: AppTheme.primaryBlue),
+            const SizedBox(height: 6),
+            _BotonAgregarExtintor(onPressed: ctrl.agregarExtintor),
+            const SizedBox(height: 14),
+
+            _SectionCard(
+              icon: Icons.notes,
+              title: 'Apuntes / Observaciones',
+              child: TextField(
+                controller: ctrl.observacionesCtrl,
+                maxLines: 5,
+                decoration: InputDecoration(
+                  hintText: 'Observaciones generales de la inspección...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
                 ),
               ),
             ),
 
-            // ── Observaciones generales ──────────────────────────
-            _SeccionObservaciones(ctrl: ctrl),
-
-            // ── Error ────────────────────────────────────────────
             if (ctrl.errorMessage != null)
               Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  ctrl.errorMessage!,
-                  style: const TextStyle(color: Colors.red),
+                padding: const EdgeInsets.only(top: 14),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          ctrl.errorMessage!,
+                          style: TextStyle(color: Colors.red.shade800),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
           ],
         ),
-
-        // ── Botón guardar flotante ───────────────────────────────
         bottomNavigationBar: _BottomActions(ctrl: ctrl),
       ),
     );
   }
 }
 
-// ── Sección formulario base ──────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Banner
+// ─────────────────────────────────────────────────────────────────────────────
 
-class _SeccionFormBase extends StatelessWidget {
-  final ExtintorFormController ctrl;
-
-  const _SeccionFormBase({required this.ctrl});
+class _Banner extends StatelessWidget {
+  final int extintoresCount;
+  const _Banner({required this.extintoresCount});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.all(12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Empresa (Autocomplete)
-            _AutocompleteField(
-              label: 'Empresa',
-              icon: Icons.business_center,
-              controller: ctrl.empresaCtrl,
-              opciones: ctrl.historialEmpresas,
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_kExtintorRed, Color(0xFF8E1818)],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: _kExtintorRed.withValues(alpha: 0.3),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(height: 12),
-
-            // Región (Autocomplete)
-            _AutocompleteField(
-              label: 'Región',
-              icon: Icons.map,
-              controller: ctrl.regionCtrl,
-              opciones: ctrl.historialRegiones,
+            child: const Icon(
+              Icons.fire_extinguisher,
+              color: Colors.white,
+              size: 28,
             ),
-            const SizedBox(height: 12),
-
-            // Oficina / Área (Autocomplete)
-            _AutocompleteField(
-              label: 'Oficina / Área',
-              icon: Icons.business,
-              controller: ctrl.oficinaCtrl,
-              opciones: ctrl.historialCentros,
-            ),
-            const SizedBox(height: 12),
-
-            // Jefatura
-            TextField(
-              controller: ctrl.jefaturaCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Jefatura a Cargo',
-                prefixIcon: Icon(Icons.person_outline),
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Lugar de Inspección (Autocomplete)
-            _AutocompleteField(
-              label: 'Lugar de Inspección *',
-              icon: Icons.location_on_outlined,
-              controller: ctrl.lugarCtrl,
-              opciones: ctrl.historialLugares,
-              uppercase: true,
-            ),
-            const SizedBox(height: 12),
-
-            // Origen de la visita
-            TextField(
-              controller: ctrl.origenCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Origen de la Visita',
-                prefixIcon: Icon(Icons.flag_outlined),
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Correos
-            TextField(
-              controller: ctrl.email1Ctrl,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: 'Correo Empresa 1',
-                prefixIcon: Icon(Icons.email_outlined),
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: ctrl.email2Ctrl,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: 'Correo Empresa 2 (Opcional)',
-                prefixIcon: Icon(Icons.email_outlined),
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Fecha y horas
-            Row(
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: _CampoFechaHora(
-                    icon: Icons.calendar_today,
-                    label: ctrl.fechaStr,
-                    onTap: () => ctrl.pickDate(context),
+                const Text(
+                  'Inspección de Extintores',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _CampoFechaHora(
-                    icon: Icons.access_time,
-                    label: 'Inicio: ${ctrl.horaInicioStr}',
-                    onTap: () => ctrl.pickTime(context, true),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _CampoFechaHora(
-                    icon: Icons.access_time_filled,
-                    label: 'Fin: ${ctrl.horaTerminoStr}',
-                    onTap: () => ctrl.pickTime(context, false),
+                const SizedBox(height: 2),
+                Text(
+                  'VISITA-R004 · $extintoresCount extintor${extintoresCount == 1 ? '' : 'es'} en revisión',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    height: 1.3,
                   ),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sección formulario base
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SeccionFormBase extends StatelessWidget {
+  final ExtintorFormController ctrl;
+  const _SeccionFormBase({required this.ctrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _AutocompleteField(
+          label: 'Empresa',
+          icon: Icons.business_center,
+          controller: ctrl.empresaCtrl,
+          opciones: ctrl.historialEmpresas,
+        ),
+        const SizedBox(height: 12),
+        _AutocompleteField(
+          label: 'Región',
+          icon: Icons.map,
+          controller: ctrl.regionCtrl,
+          opciones: ctrl.historialRegiones,
+        ),
+        const SizedBox(height: 12),
+        _AutocompleteField(
+          label: 'Oficina / Área',
+          icon: Icons.business,
+          controller: ctrl.oficinaCtrl,
+          opciones: ctrl.historialCentros,
+        ),
+        const SizedBox(height: 12),
+        _StyledInput(
+          controller: ctrl.jefaturaCtrl,
+          label: 'Jefatura a Cargo',
+          icon: Icons.person_outline,
+        ),
+        const SizedBox(height: 12),
+        _AutocompleteField(
+          label: 'Lugar de Inspección *',
+          icon: Icons.location_on_outlined,
+          controller: ctrl.lugarCtrl,
+          opciones: ctrl.historialLugares,
+          uppercase: true,
+        ),
+        const SizedBox(height: 12),
+        _StyledInput(
+          controller: ctrl.origenCtrl,
+          label: 'Origen de la Visita',
+          icon: Icons.flag_outlined,
+        ),
+        const SizedBox(height: 12),
+        _StyledInput(
+          controller: ctrl.email1Ctrl,
+          label: 'Correo Empresa 1',
+          icon: Icons.email_outlined,
+          keyboardType: TextInputType.emailAddress,
+        ),
+        const SizedBox(height: 12),
+        _StyledInput(
+          controller: ctrl.email2Ctrl,
+          label: 'Correo Empresa 2 (Opcional)',
+          icon: Icons.email_outlined,
+          keyboardType: TextInputType.emailAddress,
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sección fechas
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SeccionFechas extends StatelessWidget {
+  final ExtintorFormController ctrl;
+  const _SeccionFechas({required this.ctrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _DateCard(
+          label: 'Fecha de Inspección',
+          value: ctrl.fechaStr,
+          onTap: () => ctrl.pickDate(context),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _TimePickerCard(
+                label: 'Inicio',
+                time: ctrl.horaInicioStr,
+                icon: Icons.play_circle_outline,
+                onTap: () => ctrl.pickTime(context, true),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _TimePickerCard(
+                label: 'Término',
+                time: ctrl.horaTerminoStr,
+                icon: Icons.stop_circle_outlined,
+                onTap: () => ctrl.pickTime(context, false),
+              ),
+            ),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sección actividades
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SeccionActividades extends StatelessWidget {
+  final ExtintorFormController ctrl;
+  const _SeccionActividades({required this.ctrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _ActivityCheck(
+          label: 'Reunión',
+          icon: Icons.groups,
+          value: ctrl.checkReunion,
+          onChanged: (v) => ctrl.toggleCheck('reunion', v),
+        ),
+        _ActivityCheck(
+          label: 'Instalación Señalética',
+          icon: Icons.signpost,
+          value: ctrl.checkSenaletica,
+          onChanged: (v) => ctrl.toggleCheck('senaletica', v),
+        ),
+        _ActivityCheck(
+          label: 'Capacitación',
+          icon: Icons.school,
+          value: ctrl.checkCapacitacion,
+          onChanged: (v) => ctrl.toggleCheck('capacitacion', v),
+        ),
+        _ActivityCheck(
+          label: 'Visita SSO',
+          icon: Icons.health_and_safety,
+          value: ctrl.checkVisitaSso,
+          onChanged: (v) => ctrl.toggleCheck('visita_sso', v),
+        ),
+        _ActivityCheck(
+          label: 'Charla(s)',
+          icon: Icons.record_voice_over,
+          value: ctrl.checkCharla,
+          onChanged: (v) => ctrl.toggleCheck('charla', v),
+        ),
+        _ActivityCheck(
+          label: 'Inv. Incidente',
+          icon: Icons.report_problem,
+          value: ctrl.checkInvestigacion,
+          onChanged: (v) => ctrl.toggleCheck('investigacion', v),
+        ),
+        _ActivityCheck(
+          label: 'Inspección SSO',
+          icon: Icons.fact_check,
+          value: ctrl.checkInspeccionSso,
+          onChanged: (v) => ctrl.toggleCheck('inspeccion_sso', v),
+        ),
+        _ActivityCheck(
+          label: 'Obs. Conductual',
+          icon: Icons.psychology,
+          value: ctrl.checkObsConductual,
+          onChanged: (v) => ctrl.toggleCheck('obs_conductual', v),
+        ),
+        _ActivityCheck(
+          label: 'Otro',
+          icon: Icons.more_horiz,
+          value: ctrl.checkOtro,
+          onChanged: (v) => ctrl.toggleCheck('otro', v),
+        ),
+        if (ctrl.checkOtro)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: TextField(
+              controller: ctrl.otroActividadCtrl,
+              decoration: InputDecoration(
+                hintText: "Especifique 'Otro'",
+                prefixIcon: const Icon(Icons.edit_note, color: Colors.grey),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Header de la lista de extintores con resumen
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ExtintoresHeader extends StatelessWidget {
+  final ExtintorFormController ctrl;
+  const _ExtintoresHeader({required this.ctrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = ctrl.extintores.length;
+    final completos = ctrl.extintores.where((e) => e.estaCompleto).length;
+    final nc = ctrl.extintores.fold<int>(0, (s, e) => s + e.puntosNC.length);
+    final progreso = total == 0 ? 0.0 : completos / total;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: _kExtintorRed.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.fire_extinguisher,
+                  size: 20,
+                  color: _kExtintorRed,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Extintores',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryBlue,
+                  ),
+                ),
+              ),
+              _MiniStat(
+                label: 'Listos',
+                value: '$completos/$total',
+                color: completos == total && total > 0
+                    ? Colors.green.shade700
+                    : Colors.orange.shade700,
+              ),
+              const SizedBox(width: 6),
+              _MiniStat(
+                label: 'NC',
+                value: '$nc',
+                color: nc > 0 ? Colors.red.shade700 : Colors.grey.shade600,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: LinearProgressIndicator(
+              value: progreso,
+              minHeight: 8,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation(
+                progreso >= 1.0
+                    ? Colors.green
+                    : nc > 0
+                        ? _kExtintorRed
+                        : AppTheme.primaryBlue,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _MiniStat({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: color,
+              fontSize: 13,
+              height: 1.0,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9,
+              color: color,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BotonAgregarExtintor extends StatelessWidget {
+  final VoidCallback onPressed;
+  const _BotonAgregarExtintor({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: _kExtintorRed.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _kExtintorRed.withValues(alpha: 0.4),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: const BoxDecoration(
+                  color: _kExtintorRed,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.add, color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'Agregar Extintor',
+                style: TextStyle(
+                  color: _kExtintorRed,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// ── Autocomplete reutilizable ────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Inputs reutilizables
+// ─────────────────────────────────────────────────────────────────────────────
+
+InputDecoration _inputDecoration({
+  required String label,
+  required IconData icon,
+}) {
+  return InputDecoration(
+    labelText: label,
+    prefixIcon: Icon(icon, size: 20, color: Colors.grey.shade600),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: Colors.grey.shade300),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: Colors.grey.shade300),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: AppTheme.primaryBlue, width: 1.6),
+    ),
+    filled: true,
+    fillColor: Colors.grey.shade50,
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+  );
+}
+
+class _StyledInput extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final TextInputType? keyboardType;
+
+  const _StyledInput({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    this.keyboardType,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      decoration: _inputDecoration(label: label, icon: icon),
+    );
+  }
+}
 
 class _AutocompleteField extends StatelessWidget {
   final String label;
@@ -342,297 +739,426 @@ class _AutocompleteField extends StatelessWidget {
           textCapitalization: uppercase
               ? TextCapitalization.characters
               : TextCapitalization.sentences,
-          decoration: InputDecoration(
-            labelText: label,
-            prefixIcon: Icon(icon),
-            border: const OutlineInputBorder(),
-            isDense: true,
-          ),
+          decoration: _inputDecoration(label: label, icon: icon),
         );
       },
     );
   }
 }
 
-// ── Sección Actividades Realizadas ───────────────────────────────────────────
+class _ActivityCheck extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool value;
+  final ValueChanged<bool> onChanged;
 
-class _SeccionActividades extends StatelessWidget {
-  final ExtintorFormController ctrl;
-
-  const _SeccionActividades({required this.ctrl});
+  const _ActivityCheck({
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Actividades Realizadas',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => onChanged(!value),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: value
+                  ? AppTheme.primaryBlue.withValues(alpha: 0.08)
+                  : Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: value
+                    ? AppTheme.primaryBlue.withValues(alpha: 0.4)
+                    : Colors.grey.shade200,
+                width: value ? 1.4 : 1,
+              ),
             ),
-            const SizedBox(height: 4),
-            _CheckItem(
-              'Reunión',
-              ctrl.checkReunion,
-              (v) => ctrl.toggleCheck('reunion', v!),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 18,
+                  color: value ? AppTheme.primaryBlue : Colors.grey.shade600,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: value ? FontWeight.w600 : FontWeight.w500,
+                      color: value
+                          ? AppTheme.primaryBlue
+                          : Colors.grey.shade800,
+                    ),
+                  ),
+                ),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: value ? AppTheme.primaryBlue : Colors.transparent,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: value
+                          ? AppTheme.primaryBlue
+                          : Colors.grey.shade400,
+                      width: 1.6,
+                    ),
+                  ),
+                  child: value
+                      ? const Icon(Icons.check, size: 16, color: Colors.white)
+                      : null,
+                ),
+              ],
             ),
-            _CheckItem(
-              'Instalación Señalética',
-              ctrl.checkSenaletica,
-              (v) => ctrl.toggleCheck('senaletica', v!),
-            ),
-            _CheckItem(
-              'Capacitación',
-              ctrl.checkCapacitacion,
-              (v) => ctrl.toggleCheck('capacitacion', v!),
-            ),
-            _CheckItem(
-              'Visita SSO',
-              ctrl.checkVisitaSso,
-              (v) => ctrl.toggleCheck('visita_sso', v!),
-            ),
-            _CheckItem(
-              'Charla(s)',
-              ctrl.checkCharla,
-              (v) => ctrl.toggleCheck('charla', v!),
-            ),
-            _CheckItem(
-              'Inv. Incidente',
-              ctrl.checkInvestigacion,
-              (v) => ctrl.toggleCheck('investigacion', v!),
-            ),
-            _CheckItem(
-              'Inspección SSO',
-              ctrl.checkInspeccionSso,
-              (v) => ctrl.toggleCheck('inspeccion_sso', v!),
-            ),
-            _CheckItem(
-              'Obs. Conductual',
-              ctrl.checkObsConductual,
-              (v) => ctrl.toggleCheck('obs_conductual', v!),
-            ),
-            _CheckItem(
-              'Otro',
-              ctrl.checkOtro,
-              (v) => ctrl.toggleCheck('otro', v!),
-            ),
-            if (ctrl.checkOtro)
-              Padding(
-                padding: const EdgeInsets.only(left: 32, top: 4),
-                child: TextField(
-                  controller: ctrl.otroActividadCtrl,
-                  decoration: const InputDecoration(
-                    hintText: 'Especifique...',
-                    isDense: true,
-                    border: OutlineInputBorder(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section card / Date card / TimePicker
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SectionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final Widget child;
+
+  const _SectionCard({
+    required this.icon,
+    required this.title,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryBlue.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 18, color: AppTheme.primaryBlue),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryBlue,
+                    letterSpacing: 0.2,
                   ),
                 ),
               ),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
       ),
     );
   }
 }
 
-class _CheckItem extends StatelessWidget {
+class _DateCard extends StatelessWidget {
   final String label;
-  final bool value;
-  final ValueChanged<bool?> onChanged;
-
-  const _CheckItem(this.label, this.value, this.onChanged);
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 36,
-      child: CheckboxListTile(
-        title: Text(label, style: const TextStyle(fontSize: 13)),
-        value: value,
-        onChanged: onChanged,
-        dense: true,
-        contentPadding: EdgeInsets.zero,
-        controlAffinity: ListTileControlAffinity.leading,
-      ),
-    );
-  }
-}
-
-// ── Sección Observaciones ────────────────────────────────────────────────────
-
-class _SeccionObservaciones extends StatelessWidget {
-  final ExtintorFormController ctrl;
-
-  const _SeccionObservaciones({required this.ctrl});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Apuntes / Observaciones',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: ctrl.observacionesCtrl,
-              maxLines: 5,
-              decoration: const InputDecoration(
-                hintText: 'Observaciones generales de la inspección...',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CampoFechaHora extends StatelessWidget {
-  final IconData icon;
-  final String label;
+  final String value;
   final VoidCallback onTap;
 
-  const _CampoFechaHora({
-    required this.icon,
+  const _DateCard({
     required this.label,
+    required this.value,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade400),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 14, color: Colors.grey.shade600),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(fontSize: 11),
-                overflow: TextOverflow.ellipsis,
-              ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppTheme.primaryBlue.withValues(alpha: 0.06),
+                Colors.white,
+              ],
             ),
-          ],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppTheme.primaryBlue.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.calendar_today,
+                  color: AppTheme.primaryBlue,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      value,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryBlue,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.edit_calendar,
+                size: 18,
+                color: Colors.grey.shade500,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// ── Resumen rápido ───────────────────────────────────────────────────────────
+class _TimePickerCard extends StatelessWidget {
+  final String label;
+  final String time;
+  final IconData icon;
+  final VoidCallback onTap;
 
-class _ResumenChip extends StatelessWidget {
-  final List extintores;
-
-  const _ResumenChip({required this.extintores});
+  const _TimePickerCard({
+    required this.label,
+    required this.time,
+    required this.icon,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final completos = extintores.where((e) => e.estaCompleto).length;
-    final total = extintores.length;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: completos == total && total > 0
-            ? Colors.green.shade50
-            : Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: completos == total && total > 0
-              ? Colors.green.shade300
-              : Colors.orange.shade300,
-        ),
-      ),
-      child: Text(
-        '$completos/$total completos',
-        style: TextStyle(
-          fontSize: 11,
-          color: completos == total && total > 0
-              ? Colors.green.shade800
-              : Colors.orange.shade800,
-          fontWeight: FontWeight.w600,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 14, color: Colors.grey.shade600),
+                  const SizedBox(width: 4),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                time,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryBlue,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// ── Bottom actions ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Bottom actions
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _BottomActions extends StatelessWidget {
   final ExtintorFormController ctrl;
-
   const _BottomActions({required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(20),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, -3),
           ),
         ],
       ),
       child: SafeArea(
-        child: ElevatedButton.icon(
-          onPressed: ctrl.isSaving
-              ? null
-              : () async {
-                  final confirmar = await _mostrarResumen(context, ctrl);
-                  if (!confirmar) return;
-                  if (!context.mounted) return;
-                  final ok = await ctrl.guardar(context);
-                  if (ok && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Inspección guardada correctamente'),
-                        backgroundColor: Colors.green,
+        top: false,
+        minimum: const EdgeInsets.only(bottom: 8),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Container(
+            width: double.infinity,
+            height: 54,
+            decoration: BoxDecoration(
+              gradient: ctrl.isSaving
+                  ? LinearGradient(colors: [
+                      Colors.grey.shade400,
+                      Colors.grey.shade500,
+                    ])
+                  : const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [AppTheme.primaryBlue, Color(0xFF002244)],
+                    ),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: ctrl.isSaving
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: AppTheme.primaryBlue.withValues(alpha: 0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 5),
                       ),
-                    );
-                    Navigator.of(context).pop();
-                  }
-                },
-          icon: ctrl.isSaving
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
+                    ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: ctrl.isSaving
+                    ? null
+                    : () async {
+                        final confirmar = await _mostrarResumen(context, ctrl);
+                        if (!confirmar) return;
+                        if (!context.mounted) return;
+                        final ok = await ctrl.guardar(context);
+                        if (ok && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Inspección guardada correctamente',
+                              ),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                          Navigator.of(context).pop();
+                        }
+                      },
+                child: Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (ctrl.isSaving)
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      else
+                        const Icon(Icons.save, color: Colors.white),
+                      const SizedBox(width: 10),
+                      Text(
+                        ctrl.isSaving ? 'GUARDANDO…' : 'GUARDAR INSPECCIÓN',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      if (!ctrl.isSaving) ...[
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.arrow_forward,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ],
+                    ],
                   ),
-                )
-              : const Icon(Icons.save),
-          label: Text(ctrl.isSaving ? 'Guardando...' : 'Guardar Inspección'),
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size.fromHeight(48),
-            backgroundColor: AppTheme.primaryBlue,
-            foregroundColor: Colors.white,
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -651,9 +1177,12 @@ class _BottomActions extends StatelessWidget {
     return await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             title: const Row(
               children: [
-                Icon(Icons.fire_extinguisher, color: Colors.red),
+                Icon(Icons.fire_extinguisher, color: _kExtintorRed),
                 SizedBox(width: 8),
                 Text('Resumen de Inspección'),
               ],
@@ -682,7 +1211,7 @@ class _BottomActions extends StatelessWidget {
                   const Padding(
                     padding: EdgeInsets.only(top: 8),
                     child: Text(
-                      'Hay extintores sin completar. Deseas guardar de todas formas?',
+                      'Hay extintores sin completar. ¿Deseas guardar de todas formas?',
                       style: TextStyle(fontSize: 12, color: Colors.orange),
                     ),
                   ),

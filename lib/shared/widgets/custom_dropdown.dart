@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:animated_custom_dropdown/custom_dropdown.dart' as animated;
-// Asegúrate de que esta ruta sea correcta según tu estructura:
 import '../../core/theme/app_theme.dart';
 
 class CustomDropdown extends StatelessWidget {
@@ -10,6 +9,8 @@ class CustomDropdown extends StatelessWidget {
   final Function(String?) onChanged;
   final Function(String)? onAddNew;
   final bool enableSearch;
+  final IconData? icon;
+  final String? hintText;
 
   const CustomDropdown({
     super.key,
@@ -19,110 +20,165 @@ class CustomDropdown extends StatelessWidget {
     required this.onChanged,
     this.onAddNew,
     this.enableSearch = true,
+    this.icon,
+    this.hintText,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Usamos las variables del Theme para consistencia
-    final colorScheme = Theme.of(context).colorScheme;
+    final hasValue = value != null && value!.isNotEmpty;
+
+    final closedDecoration = animated.CustomDropdownDecoration(
+      closedBorder: Border.all(
+        color: hasValue
+            ? AppTheme.primaryBlue.withValues(alpha: 0.35)
+            : Colors.grey.shade300,
+        width: hasValue ? 1.5 : 1,
+      ),
+      closedFillColor: Colors.white,
+      closedBorderRadius: BorderRadius.circular(12),
+      expandedBorderRadius: BorderRadius.circular(12),
+      hintStyle: TextStyle(
+        color: Colors.grey.shade400,
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+      ),
+      headerStyle: const TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+        color: Colors.black87,
+      ),
+      closedShadow: hasValue
+          ? [
+              BoxShadow(
+                color: AppTheme.primaryBlue.withValues(alpha: 0.06),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ]
+          : [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
+      expandedShadow: [
+        BoxShadow(
+          color: AppTheme.primaryBlue.withValues(alpha: 0.18),
+          blurRadius: 16,
+          offset: const Offset(0, 6),
+        ),
+      ],
+      listItemDecoration: animated.ListItemDecoration(
+        selectedColor: AppTheme.primaryBlue.withValues(alpha: 0.10),
+        selectedIconBorder: const BorderSide(
+          color: AppTheme.primaryBlue,
+          width: 2,
+        ),
+        selectedIconColor: AppTheme.primaryBlue,
+      ),
+      searchFieldDecoration: animated.SearchFieldDecoration(
+        textStyle: const TextStyle(fontSize: 14),
+        hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+        fillColor: Colors.grey.shade50,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppTheme.primaryBlue, width: 2),
+        ),
+        prefixIcon: const Icon(
+          Icons.search,
+          color: AppTheme.primaryBlue,
+          size: 20,
+        ),
+      ),
+    );
+
+    final hint =
+        hintText ?? (enableSearch ? 'Selecciona o busca…' : 'Selecciona…');
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
+      padding: const EdgeInsets.only(bottom: 14.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Etiqueta flotante
           Padding(
             padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                // USAMOS TU AZUL CORPORATIVO DESDE EL THEME
-                color: AppTheme.primaryBlue,
-              ),
+            child: Row(
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 14, color: AppTheme.primaryBlue),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryBlue,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                if (hasValue) ...[
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.check_circle,
+                    size: 14,
+                    color: Colors.green.shade500,
+                  ),
+                ],
+              ],
             ),
           ),
-
-          // EL WIDGET "BACÁN"
           enableSearch
               ? animated.CustomDropdown<String>.search(
-                  hintText: 'Selecciona o busca...',
+                  hintText: hint,
                   items: items,
                   initialItem: value,
                   onChanged: onChanged,
-
-                  // --- DECORACIÓN UNIFICADA CON APP_THEME ---
-                  decoration: animated.CustomDropdownDecoration(
-                    // Bordes grises suaves como tus inputs normales
-                    closedBorder: Border.all(color: Colors.grey.shade400),
-                    closedFillColor: Colors.white,
-
-                    // CAMBIO: Usamos radio 8 para que coincida con tu AppTheme
-                    closedBorderRadius: BorderRadius.circular(8),
-                    expandedBorderRadius: BorderRadius.circular(8),
-
-                    hintStyle: TextStyle(color: Colors.grey.shade500),
-
-                    // Texto seleccionado un poco más grueso y oscuro
-                    headerStyle: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black87,
-                    ),
-
-                    // Sombra elegante
-                    expandedShadow: [
-                      BoxShadow(
-                        color: AppTheme.primaryBlue.withOpacity(
-                          0.2,
-                        ), // Sombra azulada sutil
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-
-                  // Configuración de búsqueda
-                  searchHintText: 'Escribe para filtrar...',
-
-                  // Lógica de "Crear Nuevo"
+                  decoration: closedDecoration,
+                  searchHintText: 'Escribe para filtrar…',
                   noResultFoundBuilder: (context, text) {
                     if (onAddNew == null) {
                       return const Center(
                         child: Padding(
-                          padding: EdgeInsets.all(12.0),
-                          child: Text("Sin resultados"),
+                          padding: EdgeInsets.all(16.0),
+                          child: Text(
+                            'Sin resultados',
+                            style: TextStyle(color: Colors.grey),
+                          ),
                         ),
                       );
                     }
-
                     return InkWell(
-                      onTap: () {
-                        onAddNew!(text);
-                      },
+                      onTap: () => onAddNew!(text),
                       child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(
                           vertical: 16,
-                          horizontal: 12,
+                          horizontal: 14,
                         ),
-                        color: Colors.grey.shade50,
+                        color: AppTheme.primaryBlue.withValues(alpha: 0.04),
                         child: Row(
                           children: [
-                            // USAMOS EL ICONO Y COLOR CORPORATIVO
                             const Icon(
                               Icons.add_circle_outline,
                               color: AppTheme.primaryBlue,
                               size: 20,
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Agregar "$text"',
-                              style: const TextStyle(
-                                color: AppTheme.primaryBlue,
-                                fontWeight: FontWeight.bold,
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Agregar "$text"',
+                                style: const TextStyle(
+                                  color: AppTheme.primaryBlue,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -132,18 +188,11 @@ class CustomDropdown extends StatelessWidget {
                   },
                 )
               : animated.CustomDropdown<String>(
-                  // --- MODO SIMPLE ---
-                  hintText: 'Selecciona una opción',
+                  hintText: hint,
                   items: items,
                   initialItem: value,
                   onChanged: onChanged,
-                  decoration: animated.CustomDropdownDecoration(
-                    closedBorder: Border.all(color: Colors.grey.shade400),
-                    closedFillColor: Colors.white,
-                    closedBorderRadius: BorderRadius.circular(8), // Radio 8
-                    expandedBorderRadius: BorderRadius.circular(8),
-                    headerStyle: const TextStyle(fontSize: 16),
-                  ),
+                  decoration: closedDecoration,
                 ),
         ],
       ),

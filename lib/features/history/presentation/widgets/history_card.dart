@@ -2,14 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:uuid/uuid.dart';
 
-import 'package:jf_innova_app/core/database/database_helper.dart';
 import 'package:jf_innova_app/core/theme/app_theme.dart';
-import 'package:jf_innova_app/features/tickets/data/repositories/local_ticket_repository.dart';
-import 'package:jf_innova_app/features/tickets/domain/models/ticket_model.dart';
-import 'package:jf_innova_app/features/tickets/presentation/controllers/ticket_controller.dart';
-import 'package:jf_innova_app/features/tickets/presentation/screens/ticket_form_screen.dart';
+// NOTE: Tickets temporalmente ocultos (se reactivarán a futuro).
+// Se conservan los archivos del módulo en lib/features/tickets/.
 
 /// Tarjeta pública que representa un registro unificado del historial
 /// (Inspección o Visita Técnica).
@@ -49,306 +45,252 @@ class HistoryCard extends StatelessWidget {
     final pdfUrl = item['pdf_url'] as String?;
     final isSynced = (item['subido'] == 1);
 
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // FILA 1: TÍTULO Y FECHA
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: esInspeccion
-                            ? AppTheme.primaryBlue.withOpacity(0.1)
-                            : Colors.teal.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        esInspeccion ? Icons.description : Icons.handshake,
-                        color: esInspeccion
-                            ? AppTheme.primaryBlue
-                            : Colors.teal,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      tituloCard,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: esInspeccion
-                            ? AppTheme.primaryBlue
-                            : Colors.teal.shade800,
-                      ),
-                    ),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      fecha,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(
-                          isSynced ? 'Sincronizado' : 'Pendiente',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: isSynced ? Colors.green : Colors.orange,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          isSynced ? Icons.cloud_done : Icons.cloud_off,
-                          size: 14,
-                          color: isSynced ? Colors.green : Colors.orange,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.0),
-              child: Divider(),
-            ),
+    final accent = esInspeccion ? AppTheme.primaryBlue : Colors.teal.shade700;
 
-            // FILA 2: UBICACIÓN
-            Row(
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header coloreado con icono + título + estado sync
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.06),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
               children: [
-                Icon(
-                  esInspeccion ? Icons.location_on : Icons.business,
-                  size: 16,
-                  color: Colors.redAccent,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    ubicacion,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    esInspeccion ? Icons.description : Icons.handshake,
+                    color: accent,
+                    size: 20,
                   ),
                 ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tituloCard,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: accent,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        fecha,
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _SyncBadge(isSynced: isSynced),
               ],
             ),
-            const SizedBox(height: 8),
+          ),
 
-            // FILA 3: TIPO Y ETIQUETA
-            Row(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
-                  Icons.assignment,
-                  size: 16,
-                  color: Colors.blueAccent,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  tipoLimpio,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(width: 8),
-                if (esInspeccion)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
+                // Ubicación
+                Row(
+                  children: [
+                    Icon(
+                      esInspeccion ? Icons.location_on : Icons.business,
+                      size: 16,
+                      color: Colors.redAccent,
                     ),
-                    decoration: BoxDecoration(
-                      color: esConsecutiva
-                          ? Colors.purple.shade50
-                          : Colors.teal.shade50,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: esConsecutiva
-                            ? Colors.purple.shade200
-                            : Colors.teal.shade200,
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        ubicacion,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    child: Text(
-                      esConsecutiva ? 'CONSECUTIVA' : 'INICIAL',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // Chips: tipo + estado/etiqueta
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _MiniChip(
+                      icon: Icons.assignment,
+                      label: tipoLimpio,
+                      color: Colors.blue.shade700,
+                    ),
+                    if (esInspeccion)
+                      _MiniChip(
+                        icon: esConsecutiva ? Icons.repeat : Icons.flag,
+                        label: esConsecutiva ? 'CONSECUTIVA' : 'INICIAL',
                         color: esConsecutiva
                             ? Colors.purple.shade700
                             : Colors.teal.shade700,
+                      )
+                    else
+                      _MiniChip(
+                        icon: Icons.label_outline,
+                        label: estado.toUpperCase(),
+                        color: Colors.indigo.shade600,
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+                Divider(height: 1, color: Colors.grey.shade200),
+                const SizedBox(height: 10),
+
+                // Inspector + PDF
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 11,
+                      backgroundColor: Colors.grey.shade200,
+                      child: Icon(
+                        Icons.person,
+                        size: 13,
+                        color: Colors.grey.shade600,
                       ),
                     ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.blue.shade200),
-                    ),
-                    child: Text(
-                      estado.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade700,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        inspector.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade700,
+                          letterSpacing: 0.3,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // FILA 4: INSPECTOR + CREAR TICKET + PDF
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 10,
-                  backgroundColor: Colors.grey.shade200,
-                  child: const Icon(Icons.person, size: 12, color: Colors.grey),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    inspector.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey.shade700,
+                    _PdfDownloadButton(
+                      pdfUrl: pdfUrl,
+                      pdfPathLocal: item['pdf_path_local'] as String?,
+                      isSynced: isSynced,
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                // Botón de acceso rápido para crear un ticket vinculado
-                OutlinedButton.icon(
-                  icon: const Icon(
-                    Icons.confirmation_number_outlined,
-                    size: 13,
-                  ),
-                  label: const Text('Crear Ticket'),
-                  onPressed: () => _navegarACrearTicket(context),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.primaryBlue,
-                    side: BorderSide(
-                      color: AppTheme.primaryBlue.withOpacity(0.45),
-                    ),
-                    textStyle: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 0,
-                    ),
-                    visualDensity: VisualDensity.compact,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _PdfDownloadButton(
-                  pdfUrl: pdfUrl,
-                  pdfPathLocal: item['pdf_path_local'] as String?,
-                  isSynced: isSynced,
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+}
 
-  /// Navega a [TicketFormScreen] con un ticket pre-llenado vinculado a esta
-  /// actividad del historial. Los campos de contexto (área, centro, embarcación)
-  /// se auto-completan usando los IDs del item o consultando la BD local.
-  Future<void> _navegarACrearTicket(BuildContext context) async {
-    final actividadId = item['id']?.toString();
-    final modulo = item['modulo']?.toString() ?? '';
-    final esInspeccion = modulo == 'Inspección';
+class _SyncBadge extends StatelessWidget {
+  final bool isSynced;
+  const _SyncBadge({required this.isSynced});
 
-    // Intentar obtener IDs de contexto directamente desde el item de Supabase
-    String? centroId = item['centro_id'] as String?;
-    String? embarcacionId = item['embarcacion_id'] as String?;
-    String? areaId;
-
-    // Si no vienen del item (registros offline locales), consultar SQLite
-    if (centroId == null && esInspeccion && actividadId != null) {
-      try {
-        final db = await DatabaseHelper.instance.database;
-        final actRows = await db.query(
-          'actividades_pendientes',
-          where: 'id = ?',
-          whereArgs: [actividadId],
-        );
-        if (actRows.isNotEmpty) {
-          centroId = actRows.first['centro_id'] as String?;
-          embarcacionId = actRows.first['embarcacion_id'] as String?;
-        }
-      } catch (e) {
-        debugPrint('⚠️ No se pudo leer contexto local de la actividad: $e');
-      }
-    }
-
-    // Derivar area_id desde el centro (siempre vía SQLite local)
-    if (centroId != null) {
-      try {
-        final db = await DatabaseHelper.instance.database;
-        final centroRows = await db.query(
-          'centros',
-          where: 'id = ?',
-          whereArgs: [centroId],
-        );
-        if (centroRows.isNotEmpty) {
-          areaId = centroRows.first['area_id'] as String?;
-        }
-      } catch (e) {
-        debugPrint('⚠️ No se pudo derivar area_id desde el centro: $e');
-      }
-    }
-
-    final draft = TicketModel(
-      id: const Uuid().v4(),
-      empresaId: '',
-      areaId: areaId,
-      centroId: centroId,
-      embarcacionId: embarcacionId,
-      actividadId: actividadId,
-      categoriaId: '',
-      descripcion: '',
-      estado: 'Abierto',
-      criticidad: 'Medio',
-      solicitanteId: 'user-local',
+  @override
+  Widget build(BuildContext context) {
+    final color = isSynced ? Colors.green.shade600 : Colors.orange.shade700;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isSynced ? Icons.cloud_done : Icons.cloud_off,
+            size: 12,
+            color: color,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            isSynced ? 'OK' : 'Pend.',
+            style: TextStyle(
+              fontSize: 10,
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
     );
+  }
+}
 
-    if (!context.mounted) return;
+class _MiniChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  const _MiniChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => TicketFormScreen(
-          controller: TicketController(LocalTicketRepository()),
-          ticket: draft,
-        ),
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.bold,
+              color: color,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
       ),
     );
   }

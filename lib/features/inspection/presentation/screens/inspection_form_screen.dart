@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/services/connectivity_service.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/widgets/gradient_app_bar.dart';
 import 'package:jf_innova_app/features/inspection/presentation/widgets/headers/buceo_header_widget.dart';
 import '../../../../shared/services/image_service.dart';
 import '../../../../shared/widgets/form_inputs/gallery_input.dart';
@@ -180,28 +182,22 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
         });
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFF1F5F9), // Mantiene el fondo limpio
-        appBar: AppBar(
-          elevation: 3,
-          shadowColor: Colors.black.withOpacity(0.4),
-          backgroundColor: Colors.white,
-          foregroundColor: const Color(0xFF003366),
-          surfaceTintColor: Colors.transparent,
+        backgroundColor: const Color(0xFFF4F6F8),
+        appBar: GradientAppBar(
           centerTitle: true,
           title: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
                 'Inspección en Curso',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 2),
               Text(
                 widget.nombreCentro ?? 'Ubicación registrada',
                 style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.blueGrey.shade500,
+                  fontSize: 11.5,
+                  color: Colors.white.withValues(alpha: 0.85),
                   fontWeight: FontWeight.w400,
                 ),
                 textAlign: TextAlign.center,
@@ -211,14 +207,15 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+              icon: const Icon(Icons.picture_as_pdf_outlined),
               tooltip: 'Previsualizar PDF',
               onPressed: () => _controller.previsualizarReporte(context),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
           ],
         ),
         body: SafeArea(
+          top: false,
           child: _controller.isLoading
               ? const Center(child: CircularProgressIndicator())
               : _buildListaPreguntas(),
@@ -329,59 +326,135 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
   Widget _buildFooter() {
     return Column(
       children: [
-        const SizedBox(height: 20),
+        const SizedBox(height: 22),
         FotosConObservacionWidget(controller: _controller),
-        const Divider(height: 40),
-        const Padding(
-          padding: EdgeInsets.only(left: 16, bottom: 8),
-          child: Text(
-            "Fotos Generales",
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: GalleryInput(
-            images: _controller.fotosGenerales,
-            onImagesChanged: (newFiles) =>
-                _controller.setFotosGenerales(newFiles),
-          ),
-        ),
+        const SizedBox(height: 18),
+        // Sección "Fotos Generales"
         Container(
-          margin: const EdgeInsets.all(16),
+          margin: const EdgeInsets.symmetric(horizontal: 14),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryBlue.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.collections_outlined,
+                      size: 18,
+                      color: AppTheme.primaryBlue,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Fotos Generales',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryBlue,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              GalleryInput(
+                images: _controller.fotosGenerales,
+                onImagesChanged: (newFiles) =>
+                    _controller.setFotosGenerales(newFiles),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 22),
+        // Botón Finalizar con gradiente
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
           width: double.infinity,
-          height: 55,
+          height: 56,
           child: StreamBuilder<bool>(
             stream: ConnectivityService().onStatusChange,
             initialData: ConnectivityService().isOnline,
             builder: (context, snapshot) {
               final isOnline = snapshot.data ?? true;
-              return ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isOnline
-                      ? Colors.green.shade700
-                      : Colors.green.shade700.withOpacity(0.65),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              return DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isOnline
+                        ? [Colors.green.shade600, Colors.green.shade800]
+                        : [Colors.green.shade400, Colors.green.shade600],
                   ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
                 ),
-                onPressed: _finalizar,
-                icon: Icon(isOnline ? Icons.check_circle : Icons.cloud_off),
-                label: Text(
-                  isOnline
-                      ? 'FINALIZAR INSPECCIÓN'
-                      : 'FINALIZAR (sin conexión)',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: _finalizar,
+                    child: Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            isOnline ? Icons.check_circle : Icons.cloud_off,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            isOnline
+                                ? 'FINALIZAR INSPECCIÓN'
+                                : 'FINALIZAR (sin conexión)',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.arrow_forward,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               );
             },
           ),
         ),
-        const SizedBox(height: 100),
+        SizedBox(height: 32 + MediaQuery.of(context).padding.bottom),
       ],
     );
   }
