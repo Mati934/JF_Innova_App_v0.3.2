@@ -7,7 +7,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      44; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      45; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -287,7 +287,15 @@ class DatabaseHelper {
         pdf_url TEXT,
         tipo_actividad TEXT,
         empresa TEXT,
-        lugar_inspeccion TEXT
+        lugar_inspeccion TEXT,
+        cert_numero TEXT,
+        cert_anio INTEGER,
+        cert_correlativo INTEGER,
+        cliente_nombre TEXT,
+        cliente_direccion TEXT,
+        fecha_servicio TEXT,
+        pdf_certificado_path_local TEXT,
+        pdf_certificado_url TEXT
       )
     ''');
 
@@ -364,6 +372,33 @@ class DatabaseHelper {
         created_at TEXT
       )
     ''');
+
+    // --- MÓDULO PROSESSO (Mantención y Recarga de Extintores) ---
+    await db.execute('''
+      CREATE TABLE mantenciones_prosesso_pendientes (
+        id TEXT PRIMARY KEY,
+        visita_id TEXT NOT NULL,
+        numero INTEGER NOT NULL,
+        planta TEXT,
+        ubicacion TEXT,
+        ubicacion_sector TEXT,
+        ubicacion_2 TEXT,
+        certificado TEXT,
+        anio INTEGER,
+        tipo TEXT,
+        peso TEXT,
+        kg TEXT,
+        fecha_vencimiento TEXT,
+        observaciones TEXT,
+        respuestas_json TEXT,
+        fotos_json TEXT,
+        subido INTEGER DEFAULT 0,
+        created_at TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_mantenciones_prosesso_visita ON mantenciones_prosesso_pendientes(visita_id)',
+    );
 
     debugPrint("✅ Base de datos v$_dbVersion inicializada.");
   }
@@ -936,6 +971,46 @@ class DatabaseHelper {
       debugPrint("🚀 Aplicando parche v44 (logo_url en empresas)...");
       await _safeAddColumn(db, 'empresas', 'logo_url', 'TEXT');
       debugPrint("✅ Parche v44 aplicado.");
+    }
+
+    if (oldVersion < 45) {
+      debugPrint("🚀 Aplicando parche v45 (Módulo PROSESSO)...");
+      // Tabla nueva
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS mantenciones_prosesso_pendientes (
+          id TEXT PRIMARY KEY,
+          visita_id TEXT NOT NULL,
+          numero INTEGER NOT NULL,
+          planta TEXT,
+          ubicacion TEXT,
+          ubicacion_sector TEXT,
+          ubicacion_2 TEXT,
+          certificado TEXT,
+          anio INTEGER,
+          tipo TEXT,
+          peso TEXT,
+          kg TEXT,
+          fecha_vencimiento TEXT,
+          observaciones TEXT,
+          respuestas_json TEXT,
+          fotos_json TEXT,
+          subido INTEGER DEFAULT 0,
+          created_at TEXT
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_mantenciones_prosesso_visita ON mantenciones_prosesso_pendientes(visita_id)',
+      );
+      // Columnas nuevas en visitas_tecnicas_pendientes para el certificado
+      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'cert_numero', 'TEXT');
+      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'cert_anio', 'INTEGER');
+      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'cert_correlativo', 'INTEGER');
+      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'cliente_nombre', 'TEXT');
+      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'cliente_direccion', 'TEXT');
+      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'fecha_servicio', 'TEXT');
+      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'pdf_certificado_path_local', 'TEXT');
+      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'pdf_certificado_url', 'TEXT');
+      debugPrint("✅ Parche v45 aplicado.");
     }
   }
 

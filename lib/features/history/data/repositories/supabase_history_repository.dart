@@ -81,6 +81,7 @@ class SupabaseHistoryRepository {
         'fecha_realizacion': item['fecha_realizacion'],
         'numero_reporte': item['numero_reporte'],
         'pdf_url': item['pdf_url'],
+        'pdf_certificado_url': item['pdf_certificado_url'],
         'inspector_nombre': item['inspector_nombre'],
         'numero_seguimiento': item['numero_seguimiento'] ?? 0,
         // IDs de contexto usados para pre-rellenar el formulario de tickets
@@ -142,8 +143,7 @@ class SupabaseHistoryRepository {
 
       return <String, String>{
         for (final entry in empresasPorUsuario.entries)
-          if (entry.value.isNotEmpty)
-            entry.key: (entry.value..sort()).first,
+          if (entry.value.isNotEmpty) entry.key: (entry.value..sort()).first,
       };
     } catch (e) {
       debugPrint('⚠️ No se pudo resolver empresa por usuario: $e');

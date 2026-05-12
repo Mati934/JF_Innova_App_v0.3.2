@@ -193,25 +193,19 @@ class LocalInspectionRepository implements InspectionRepository {
   @override
   Future<List<Map<String, dynamic>>> getBorradores() async {
     final db = await dbHelper.database;
+    final userId = Supabase.instance.client.auth.currentUser?.id;
     try {
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT a.*, c.nombre as nombre_centro 
         FROM actividades_pendientes a
         LEFT JOIN centros c ON a.centro_id = c.id
         WHERE a.estado_final = 'En Progreso' AND a.eliminado = 0
+          AND a.usuario_id = ?
         ORDER BY a.fecha_realizacion DESC
-      ''');
-      // 👇 INYECTA ESTO 👇
-      debugPrint("🚨 FORENSE SQLite - Ruta DB: ${db.path}");
-      debugPrint(
-        "🚨 FORENSE SQLite - Borradores encontrados: ${result.length}",
+      ''',
+        [userId ?? ''],
       );
-      for (var r in result) {
-        debugPrint(
-          "🚨 BORRADOR ENCONTRADO: ID=${r['id']}, Subido=${r['subido']}, Eliminado=${r['eliminado']}, Actividad=${r['tipo_actividad']}",
-        );
-      }
-      // 👆 HASTA AQUÍ 👆
       return result;
     } catch (e) {
       debugPrint("❌ ERROR LEYENDO BORRADORES: $e");

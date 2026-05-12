@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/services/user_session.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/rut_utils.dart';
 import '../../../../shared/widgets/custom_dropdown.dart';
@@ -29,21 +31,24 @@ class _MasterDataAdminScreenState extends State<MasterDataAdminScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isSuperAdmin = UserSession().esSuperAdmin;
     return DefaultTabController(
-      length: 2,
+      length: isSuperAdmin ? 3 : 2,
       child: Scaffold(
         resizeToAvoidBottomInset: true,
         appBar: AppBar(
           title: const Text('Administracion'),
           backgroundColor: AppTheme.primaryBlue,
           foregroundColor: Colors.white,
-          bottom: const TabBar(
+          bottom: TabBar(
             indicatorColor: Colors.white,
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
             tabs: [
-              Tab(icon: Icon(Icons.dataset), text: 'Datos Maestros'),
-              Tab(icon: Icon(Icons.toggle_on), text: 'Modulos'),
+              const Tab(icon: Icon(Icons.dataset), text: 'Datos Maestros'),
+              const Tab(icon: Icon(Icons.toggle_on), text: 'Modulos'),
+              if (isSuperAdmin)
+                const Tab(icon: Icon(Icons.people), text: 'Usuarios'),
             ],
           ),
         ),
@@ -51,6 +56,7 @@ class _MasterDataAdminScreenState extends State<MasterDataAdminScreen> {
           children: [
             _DatosMaestrosTab(controller: _controller),
             const EmpresaModulosScreen(embedded: true),
+            if (isSuperAdmin) _UsuariosTab(controller: _controller),
           ],
         ),
       ),
@@ -763,8 +769,15 @@ class _FormularioSheetState extends State<_FormularioSheet> {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: _saving ? null : _eliminar,
-                  icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                  label: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    size: 18,
+                    color: Colors.red,
+                  ),
+                  label: const Text(
+                    'Eliminar',
+                    style: TextStyle(color: Colors.red),
+                  ),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Colors.red),
                     padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1150,5 +1163,158 @@ class _FormularioSheetState extends State<_FormularioSheet> {
       default:
         return '';
     }
+  }
+}
+
+// ─── Tab Usuarios (solo superAdmin) ─────────────────────────────────────────
+
+class _UsuariosTab extends StatefulWidget {
+  final AdminCrudController controller;
+  const _UsuariosTab({required this.controller});
+
+  @override
+  State<_UsuariosTab> createState() => _UsuariosTabState();
+}
+
+class _UsuariosTabState extends State<_UsuariosTab> {
+  List<Map<String, dynamic>> _usuarios = [];
+  bool _cargando = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  Future<void> _cargar() async {
+    setState(() {
+      _cargando = true;
+      _error = null;
+    });
+    try {
+      final lista = await widget.controller.getUsuarios();
+      if (mounted) setState(() => _usuarios = lista);
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
+  }
+
+  Future<void> _confirmarEliminar(Map<String, dynamic> usuario) async {
+    final nombre = usuario['nombre_completo'] as String? ?? usuario['email'] as String? ?? 'Usuario';
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar usuario'),
+        content: Text(
+          '¿Seguro que deseas eliminar a "$nombre"?\n\nEsta acción es irreversible y eliminará la cuenta de Supabase.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true || !mounted) return;
+
+    final error = await widget.controller.deleteUser(
+      usuario['id'] as String,
+    );
+
+    if (!mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Usuario "$nombre" eliminado'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      _cargar();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_cargando) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Error: $_error'),
+            const SizedBox(height: 8),
+            ElevatedButton(onPressed: _cargar, child: const Text('Reintentar')),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _cargar,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: _usuarios.length,
+        itemBuilder: (context, i) {
+          final u = _usuarios[i];
+          final nombre = u['nombre_completo'] as String? ?? '';
+          final email = u['email'] as String? ?? '';
+          final rol = u['nombre_rol'] as String? ?? '';
+          final empresa = u['empresa_nombre'] as String? ?? '';
+          final esMiCuenta =
+              u['id'] == Supabase.instance.client.auth.currentUser?.id;
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                child: Text(
+                  nombre.isNotEmpty ? nombre[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryBlue,
+                  ),
+                ),
+              ),
+              title: Text(nombre.isNotEmpty ? nombre : email),
+              subtitle: Text(
+                [if (email.isNotEmpty) email, if (rol.isNotEmpty) rol, if (empresa.isNotEmpty) empresa]
+                    .join(' · '),
+                style: const TextStyle(fontSize: 12),
+              ),
+              trailing: esMiCuenta
+                  ? const Chip(
+                      label: Text('Tú', style: TextStyle(fontSize: 11)),
+                      padding: EdgeInsets.zero,
+                    )
+                  : IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      tooltip: 'Eliminar usuario',
+                      onPressed: () => _confirmarEliminar(u),
+                    ),
+            ),
+          );
+        },
+      ),
+    );
   }
 }

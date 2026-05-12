@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/database/database_helper.dart';
 import '../../../../core/services/user_session.dart';
 import '../../domain/models/visita_respuesta.dart';
@@ -128,11 +129,17 @@ class LocalVisitRepository {
 
   Future<List<Map<String, dynamic>>> getBorradores() async {
     final db = await dbHelper.database;
+    final userId = Supabase.instance.client.auth.currentUser?.id;
     final result = await db.query(
       'visitas_tecnicas_pendientes',
       where:
-          'estado_final = ? AND eliminado = 0 AND (tipo_actividad IS NULL OR tipo_actividad != ?)',
-      whereArgs: ['En Progreso', 'VISITA_R004'],
+          'estado_final = ? AND eliminado = 0 AND (tipo_actividad IS NULL OR tipo_actividad NOT IN (?, ?)) AND usuario_id = ?',
+      whereArgs: [
+        'En Progreso',
+        'VISITA_R004',
+        'MANTENCION_PROSESSO',
+        userId ?? '',
+      ],
       orderBy: 'fecha_realizacion DESC',
     );
 

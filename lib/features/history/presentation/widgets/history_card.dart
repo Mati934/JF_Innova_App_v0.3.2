@@ -20,12 +20,19 @@ class HistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final modulo = item['modulo']?.toString() ?? 'Registro';
+    final tipoRegistro = item['tipo_registro']?.toString() ?? '';
     final esInspeccion = modulo == 'Inspección';
 
     final folio = item['numero_reporte']?.toString();
-    final tituloCard = esInspeccion
-        ? (folio != null ? 'Informe N° $folio' : 'Inspección s/n')
-        : 'Visita Técnica';
+
+    // Configuración visual por módulo. Cada módulo puede personalizar
+    // título, icono y color de acento. Los demás siguen el comportamiento
+    // genérico (Inspección / Visita Técnica).
+    final cfg = HistoryCardConfig.resolve(
+      modulo: modulo,
+      tipoRegistro: tipoRegistro,
+      folio: folio,
+    );
 
     final fechaRaw = item['fecha_realizacion'] as String?;
     final fecha = fechaRaw != null
@@ -38,8 +45,9 @@ class HistoryCard extends StatelessWidget {
     final inspector = tieneInspector ? inspectorRaw : 'Sin asignar';
     final empresaNombre = item['empresa_nombre']?.toString();
 
-    final tipoRaw = item['tipo_registro']?.toString() ?? 'General';
-    final tipoLimpio = tipoRaw.replaceAll('INSPECCION_', '');
+    final tipoRaw = tipoRegistro.isEmpty ? 'General' : tipoRegistro;
+    final tipoLimpio =
+        cfg.tipoChipLabel ?? tipoRaw.replaceAll('INSPECCION_', '');
 
     final estado = item['estado']?.toString() ?? 'Desconocido';
 
@@ -47,9 +55,14 @@ class HistoryCard extends StatelessWidget {
     final esConsecutiva = numSeguimiento > 0;
 
     final pdfUrl = item['pdf_url'] as String?;
+    final pdfCertUrl = item['pdf_certificado_url'] as String?;
+    final pdfCertPathLocal = item['pdf_certificado_path_local'] as String?;
     final isSynced = (item['subido'] == 1);
+    final tieneCertificado =
+        (pdfCertUrl != null && pdfCertUrl.isNotEmpty) ||
+        (pdfCertPathLocal != null && pdfCertPathLocal.isNotEmpty);
 
-    final accent = esInspeccion ? AppTheme.primaryBlue : Colors.teal.shade700;
+    final accent = cfg.accent;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -87,11 +100,7 @@ class HistoryCard extends StatelessWidget {
                     color: accent.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(
-                    esInspeccion ? Icons.description : Icons.handshake,
-                    color: accent,
-                    size: 20,
-                  ),
+                  child: Icon(cfg.icon, color: accent, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -99,22 +108,59 @@ class HistoryCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        tituloCard,
+                        cfg.titulo,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
                           color: accent,
+                          height: 1.15,
                         ),
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        fecha,
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.event,
+                            size: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            fecha,
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          if (cfg.folioLabel != null) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: accent.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: accent.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Text(
+                                cfg.folioLabel!,
+                                style: TextStyle(
+                                  color: accent,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),
@@ -129,30 +175,49 @@ class HistoryCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Ubicación
-                Row(
-                  children: [
-                    Icon(
-                      esInspeccion ? Icons.location_on : Icons.business,
-                      size: 16,
-                      color: Colors.redAccent,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        ubicacion,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13.5,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                // Bloque info: ubicaci\u00f3n + inspector en panel suave.
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _InfoRow(
+                        icon: esInspeccion
+                            ? Icons.location_on_outlined
+                            : Icons.business_outlined,
+                        iconColor: accent,
+                        label: 'Ubicaci\u00f3n',
+                        value: ubicacion.toString(),
+                        valueBold: true,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      _InfoRow(
+                        icon: Icons.person_outline,
+                        iconColor: Colors.grey.shade600,
+                        label: 'Inspector',
+                        value: inspector,
+                        valueItalic: !tieneInspector,
+                        valueDimmed: !tieneInspector,
+                        trailing:
+                            (showEmpresa &&
+                                empresaNombre != null &&
+                                empresaNombre.isNotEmpty)
+                            ? _EmpresaTag(label: empresaNombre)
+                            : null,
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 10),
-
-                // Chips: tipo + estado/etiqueta (la empresa se muestra junto al inspector)
+                // Chips de tipo + estado.
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
@@ -160,7 +225,7 @@ class HistoryCard extends StatelessWidget {
                     _MiniChip(
                       icon: Icons.assignment,
                       label: tipoLimpio,
-                      color: Colors.blue.shade700,
+                      color: accent,
                     ),
                     if (esInspeccion)
                       _MiniChip(
@@ -178,61 +243,35 @@ class HistoryCard extends StatelessWidget {
                       ),
                   ],
                 ),
-
                 const SizedBox(height: 12),
                 Divider(height: 1, color: Colors.grey.shade200),
                 const SizedBox(height: 10),
-
-                // Inspector + (empresa, solo admin) + PDF
+                // Acciones: botones de descarga (registro + opcional certificado).
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: 11,
-                      backgroundColor: Colors.grey.shade200,
-                      child: Icon(
-                        Icons.person,
-                        size: 13,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
                     Expanded(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              inspector.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: tieneInspector
-                                    ? Colors.grey.shade700
-                                    : Colors.grey.shade500,
-                                fontStyle: tieneInspector
-                                    ? FontStyle.normal
-                                    : FontStyle.italic,
-                                letterSpacing: 0.3,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (showEmpresa &&
-                              empresaNombre != null &&
-                              empresaNombre.isNotEmpty) ...[
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: _EmpresaTag(label: empresaNombre),
-                            ),
-                          ],
-                        ],
+                      child: _PdfDownloadButton(
+                        pdfUrl: pdfUrl,
+                        pdfPathLocal: item['pdf_path_local'] as String?,
+                        isSynced: isSynced,
+                        label: tieneCertificado ? 'Registro' : 'Ver PDF',
+                        accentColor: accent,
+                        expanded: true,
                       ),
                     ),
-                    _PdfDownloadButton(
-                      pdfUrl: pdfUrl,
-                      pdfPathLocal: item['pdf_path_local'] as String?,
-                      isSynced: isSynced,
-                    ),
+                    if (tieneCertificado) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _PdfDownloadButton(
+                          pdfUrl: pdfCertUrl,
+                          pdfPathLocal: pdfCertPathLocal,
+                          isSynced: isSynced,
+                          label: 'Certificado',
+                          accentColor: Colors.deepPurple,
+                          expanded: true,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -240,6 +279,70 @@ class HistoryCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Configuración visual de la tarjeta de historial según el módulo.
+///
+/// Permite personalizar título, icono y color de acento por tipo de
+/// registro. Si se quiere agregar un nuevo módulo (p. ej. una nueva línea
+/// de servicio), basta con extender [resolve] con un nuevo `case`.
+class HistoryCardConfig {
+  final String titulo;
+  final IconData icon;
+  final Color accent;
+
+  /// Si se define, reemplaza el chip de tipo (por defecto se calcula a
+  /// partir de `tipo_registro`).
+  final String? tipoChipLabel;
+
+  /// Folio/número de informe mostrado como pill junto a la fecha en el header.
+  final String? folioLabel;
+
+  const HistoryCardConfig({
+    required this.titulo,
+    required this.icon,
+    required this.accent,
+    this.tipoChipLabel,
+    this.folioLabel,
+  });
+
+  static HistoryCardConfig resolve({
+    required String modulo,
+    required String tipoRegistro,
+    String? folio,
+  }) {
+    final folioPill = (folio != null && folio.isNotEmpty) ? 'N° $folio' : null;
+
+    // Mantención de Extintores (Prosesso) — brand rojo, icono extintor.
+    if (tipoRegistro == 'MANTENCION_PROSESSO' ||
+        modulo == 'Mantención de Extintores') {
+      return HistoryCardConfig(
+        titulo: 'Mantención de Extintores',
+        icon: Icons.fire_extinguisher,
+        accent: const Color(0xFFC8102E),
+        tipoChipLabel: 'PROSESSO',
+        folioLabel: folioPill,
+      );
+    }
+
+    // Inspección clásica.
+    if (modulo == 'Inspección') {
+      return HistoryCardConfig(
+        titulo: folio != null && folio.isNotEmpty
+            ? 'Informe N° $folio'
+            : 'Inspección s/n',
+        icon: Icons.description,
+        accent: AppTheme.primaryBlue,
+      );
+    }
+
+    // Default: visita técnica genérica.
+    return HistoryCardConfig(
+      titulo: 'Visita Técnica',
+      icon: Icons.handshake,
+      accent: Colors.teal.shade700,
     );
   }
 }
@@ -277,6 +380,80 @@ class _SyncBadge extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Fila de informaci\u00f3n: icono + label + valor (con `trailing` opcional).
+/// Usado en el panel de info de la tarjeta de historial.
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String value;
+  final bool valueBold;
+  final bool valueItalic;
+  final bool valueDimmed;
+  final Widget? trailing;
+
+  const _InfoRow({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.value,
+    this.valueBold = false,
+    this.valueItalic = false,
+    this.valueDimmed = false,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16, color: iconColor),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade500,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: valueBold ? FontWeight.w700 : FontWeight.w500,
+                  fontStyle: valueItalic ? FontStyle.italic : FontStyle.normal,
+                  color: valueDimmed
+                      ? Colors.grey.shade500
+                      : Colors.grey.shade800,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+        if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+      ],
     );
   }
 }
@@ -369,11 +546,20 @@ class _PdfDownloadButton extends StatefulWidget {
   final String? pdfUrl;
   final String? pdfPathLocal;
   final bool isSynced;
+  final String label;
+  final Color accentColor;
+
+  /// Si es true, el botón se renderiza centrado con padding mayor para usarse
+  /// dentro de un `Expanded` (estilo CTA).
+  final bool expanded;
 
   const _PdfDownloadButton({
     required this.pdfUrl,
     this.pdfPathLocal,
     required this.isSynced,
+    this.label = 'Ver PDF',
+    this.accentColor = Colors.red,
+    this.expanded = false,
   });
 
   @override
@@ -466,22 +652,33 @@ class _PdfDownloadButtonState extends State<_PdfDownloadButton> {
           borderRadius: BorderRadius.circular(20),
           onTap: _abrirPdf,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: EdgeInsets.symmetric(
+              horizontal: widget.expanded ? 14 : 12,
+              vertical: widget.expanded ? 9 : 6,
+            ),
             decoration: BoxDecoration(
-              color: Colors.red.shade50,
+              color: widget.accentColor.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.red.shade100),
+              border: Border.all(
+                color: widget.accentColor.withValues(alpha: 0.25),
+              ),
             ),
             child: Row(
+              mainAxisAlignment: widget.expanded
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
+              mainAxisSize: widget.expanded
+                  ? MainAxisSize.max
+                  : MainAxisSize.min,
               children: [
-                const Icon(Icons.picture_as_pdf, color: Colors.red, size: 18),
+                Icon(Icons.picture_as_pdf, color: widget.accentColor, size: 18),
                 const SizedBox(width: 6),
                 Text(
-                  'Ver PDF',
+                  widget.label,
                   style: TextStyle(
-                    color: Colors.red.shade800,
+                    color: widget.accentColor,
                     fontWeight: FontWeight.bold,
-                    fontSize: 12,
+                    fontSize: widget.expanded ? 13 : 12,
                   ),
                 ),
               ],
@@ -499,13 +696,22 @@ class _PdfDownloadButtonState extends State<_PdfDownloadButton> {
           borderRadius: BorderRadius.circular(20),
           onTap: _abrirPdfLocal,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: EdgeInsets.symmetric(
+              horizontal: widget.expanded ? 14 : 10,
+              vertical: widget.expanded ? 9 : 6,
+            ),
             decoration: BoxDecoration(
               color: Colors.orange.shade50,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.orange.shade200),
             ),
             child: Row(
+              mainAxisAlignment: widget.expanded
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
+              mainAxisSize: widget.expanded
+                  ? MainAxisSize.max
+                  : MainAxisSize.min,
               children: [
                 Icon(
                   Icons.picture_as_pdf,
@@ -513,12 +719,15 @@ class _PdfDownloadButtonState extends State<_PdfDownloadButton> {
                   size: 16,
                 ),
                 const SizedBox(width: 4),
-                Text(
-                  'PDF Local',
-                  style: TextStyle(
-                    color: Colors.orange.shade800,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11,
+                Flexible(
+                  child: Text(
+                    '${widget.label} (local)',
+                    style: TextStyle(
+                      color: Colors.orange.shade800,
+                      fontWeight: FontWeight.w600,
+                      fontSize: widget.expanded ? 12.5 : 11,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],

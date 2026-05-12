@@ -61,6 +61,23 @@ class DraftCardMapper {
     );
   }
 
+  /// Servicio de Mantención de Extintores PROSESSO.
+  static DraftCardData fromProsesso(Map<String, dynamic> raw) {
+    return DraftCardData(
+      id: raw['id'].toString(),
+      kind: DraftKind.mantencionProsesso,
+      title: _titleForKind(DraftKind.mantencionProsesso),
+      centro: _firstNonEmpty([
+        raw['cliente_nombre'],
+        raw['lugar_visita'],
+        raw['nombre_centro'],
+      ]),
+      fecha: _parseFecha(raw['fecha_servicio'] ?? raw['fecha_realizacion']),
+      empresa: _firstNonEmpty([raw['empresa']]),
+      raw: raw,
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Helpers privados
   // ---------------------------------------------------------------------------
@@ -75,6 +92,7 @@ class DraftCardMapper {
 
   static DraftKind _kindFromVisita(String tipo) {
     final t = tipo.toUpperCase();
+    if (t == 'MANTENCION_PROSESSO') return DraftKind.mantencionProsesso;
     if (t.contains('R005') || t.contains('ELECTRIC')) {
       return DraftKind.visitaChecklistElectricidad;
     }
@@ -106,6 +124,8 @@ class DraftCardMapper {
         return 'Checklist de Visita';
       case DraftKind.inspeccionExtintores:
         return 'Inspección Extintores';
+      case DraftKind.mantencionProsesso:
+        return 'Mantención de Extintores';
       case DraftKind.desconocido:
         return fallback?.isNotEmpty == true ? fallback! : 'Borrador';
     }

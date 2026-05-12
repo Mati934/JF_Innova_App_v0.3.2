@@ -3,6 +3,7 @@ import '../../core/theme/app_theme.dart';
 import '../../features/inspection/presentation/screens/inspection_setup_screen.dart';
 import '../../features/visits/presentation/screens/visit_form_screen.dart';
 import '../../features/extintores/presentation/screens/extintor_form_screen.dart';
+import '../../features/prosesso/presentation/screens/prosesso_form_screen.dart';
 
 import '../../features/admin/presentation/screens/master_data_admin_screen.dart';
 import '../../features/history/presentation/screens/history_screen.dart';
@@ -56,6 +57,14 @@ class ModuleRegistry {
       icon: Icons.fire_extinguisher,
       color: Colors.red.shade700,
       screenBuilder: (_) => const ExtintorFormScreen(),
+    ),
+    ModuleDefinition(
+      moduleKey: 'MANTENCION_PROSESSO',
+      title: 'Mantención',
+      subtitle: 'Servicio de Extintores',
+      icon: Icons.build_circle,
+      color: const Color(0xFFC8102E),
+      screenBuilder: (_) => const ProsessoFormScreen(),
     ),
     ModuleDefinition(
       moduleKey: 'ADMIN',

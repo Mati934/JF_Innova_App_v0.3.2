@@ -10,6 +10,7 @@ enum DraftKind {
   visitaChecklistPisos,
   visitaChecklistOtro,
   inspeccionExtintores,
+  mantencionProsesso,
   desconocido,
 }
 
@@ -47,6 +48,8 @@ class DraftCardData {
     switch (kind) {
       case DraftKind.inspeccionExtintores:
         return Icons.fire_extinguisher;
+      case DraftKind.mantencionProsesso:
+        return Icons.build_circle;
       case DraftKind.visitaTecnica:
       case DraftKind.visitaChecklistOtro:
         return Icons.assignment_outlined;
@@ -69,6 +72,8 @@ class DraftCardData {
     switch (kind) {
       case DraftKind.inspeccionExtintores:
         return Colors.red.shade700;
+      case DraftKind.mantencionProsesso:
+        return const Color(0xFFC8102E);
       case DraftKind.visitaTecnica:
         return Colors.blue.shade700;
       case DraftKind.visitaChecklistElectricidad:
@@ -93,5 +98,6 @@ class DraftCardData {
       kind == DraftKind.visitaChecklistElectricidad ||
       kind == DraftKind.visitaChecklistPisos ||
       kind == DraftKind.visitaChecklistOtro ||
-      kind == DraftKind.inspeccionExtintores;
+      kind == DraftKind.inspeccionExtintores ||
+      kind == DraftKind.mantencionProsesso;
 }

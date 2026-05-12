@@ -6,6 +6,7 @@ import '../../domain/draft_card_data.dart';
 import '../../domain/draft_card_mapper.dart';
 import '../../../inspection/presentation/screens/inspection_form_screen.dart';
 import '../../../extintores/presentation/screens/extintor_form_screen.dart';
+import '../../../prosesso/presentation/screens/prosesso_form_screen.dart';
 
 class DraftListWidget extends StatelessWidget {
   final HomeController controller;
@@ -44,6 +45,9 @@ class DraftListWidget extends StatelessWidget {
     switch (card.kind) {
       case DraftKind.inspeccionExtintores:
         destino = ExtintorFormScreen(borrador: raw);
+        break;
+      case DraftKind.mantencionProsesso:
+        destino = ProsessoFormScreen(borradorInicial: raw);
         break;
       case DraftKind.visitaTecnica:
       case DraftKind.visitaChecklistElectricidad:

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/database/database_helper.dart';
 import '../../../inspection/data/repositories/local_inspection_repository.dart';
 import '../../../inspection/domain/models/formulario_item.dart';
@@ -135,13 +136,15 @@ class LocalExtintorRepository {
     );
   }
 
-  /// Devuelve borradores de inspecciones de extintores
+  /// Devuelve borradores de inspecciones de extintores del usuario actual
   Future<List<Map<String, dynamic>>> getBorradores() async {
     final db = await _dbHelper.database;
+    final userId = Supabase.instance.client.auth.currentUser?.id;
     final result = await db.query(
       'visitas_tecnicas_pendientes',
-      where: 'tipo_actividad = ? AND estado_final = ? AND eliminado = 0',
-      whereArgs: [_tipoActividad, 'En Progreso'],
+      where:
+          'tipo_actividad = ? AND estado_final = ? AND eliminado = 0 AND usuario_id = ?',
+      whereArgs: [_tipoActividad, 'En Progreso', userId ?? ''],
       orderBy: 'fecha_realizacion DESC',
     );
     return result.map((e) {

@@ -209,8 +209,8 @@ void main() {
   // TESTS: ModuleRegistry
   // ===================================================================
   group('ModuleRegistry - Registro Global', () {
-    test('tiene 6 módulos registrados', () {
-      expect(ModuleRegistry.all.length, 6);
+    test('tiene 7 módulos registrados', () {
+      expect(ModuleRegistry.all.length, 7);
     });
 
     test('cada módulo tiene key única', () {

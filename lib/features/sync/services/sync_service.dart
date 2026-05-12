@@ -911,6 +911,12 @@ class SyncService {
         datosNube.remove('subido');
         datosNube.remove('eliminado');
         final String? pdfPathLocal = datosNube.remove('pdf_path_local');
+        final String? pdfCertPathLocal = datosNube.remove(
+          'pdf_certificado_path_local',
+        );
+        // signature_image es Uint8List local-only (se usa para regenerar el PDF).
+        // No se envia a Supabase porque la columna no existe / no es JSON-serializable.
+        datosNube.remove('signature_image');
 
         // Parseamos los booleanos de SQLite (1/0) a PostgreSQL (true/false).
         // Preservamos null si el módulo no usa estos campos (ej: extintores).
@@ -1001,12 +1007,30 @@ class SyncService {
           await _sincronizarExtintoresDe(db, id);
         }
 
+        // --- 2.A.4 Sincronizar Mantenciones PROSESSO ---
+        if (row['tipo_actividad'] == 'MANTENCION_PROSESSO') {
+          await _sincronizarMantencionesProsessoDe(db, id);
+        }
+
         // 2.B. MAGIA CAMINO B: Subida del PDF en Background
         String? pdfUrlNube = row['pdf_url'] as String?;
 
+        debugPrint(
+          "🔍 [PDF-DIAG] visita=$id tipo=${row['tipo_actividad']} "
+          "estado_final=${row['estado_final']} "
+          "pdf_path_local=${pdfPathLocal ?? 'NULL'} "
+          "pdf_url=${pdfUrlNube ?? 'NULL'} "
+          "pdf_certificado_path_local=${pdfCertPathLocal ?? 'NULL'} "
+          "pdf_certificado_url=${row['pdf_certificado_url'] ?? 'NULL'}",
+        );
+
         if (pdfPathLocal != null && pdfUrlNube == null) {
           final file = File(pdfPathLocal);
-          if (file.existsSync()) {
+          final exists = file.existsSync();
+          debugPrint(
+            "🔍 [PDF-DIAG] Registro file=$pdfPathLocal exists=$exists",
+          );
+          if (exists) {
             try {
               debugPrint("📤 Subiendo PDF de visita al Storage...");
               final nombreArchivo = 'Visita_$id.pdf';
@@ -1040,6 +1064,38 @@ class SyncService {
             }
           } else {
             debugPrint("⚠️ El archivo PDF local no existe en: $pdfPathLocal");
+          }
+        }
+
+        // 2.B.2 Subida del Certificado PROSESSO (si existe)
+        String? pdfCertUrlNube = row['pdf_certificado_url'] as String?;
+        if (pdfCertPathLocal != null && pdfCertUrlNube == null) {
+          final certFile = File(pdfCertPathLocal);
+          final certExists = certFile.existsSync();
+          debugPrint(
+            "🔍 [PDF-DIAG] Certificado file=$pdfCertPathLocal exists=$certExists",
+          );
+          if (certExists) {
+            try {
+              final pathStorage = '$id/Certificado_$id.pdf';
+              await _supabase.storage
+                  .from('pdfs_visitas')
+                  .upload(
+                    pathStorage,
+                    certFile,
+                    fileOptions: const FileOptions(upsert: true),
+                  );
+              pdfCertUrlNube = _supabase.storage
+                  .from('pdfs_visitas')
+                  .getPublicUrl(pathStorage);
+              await _supabase
+                  .from('visitas_tecnicas')
+                  .update({'pdf_certificado_url': pdfCertUrlNube})
+                  .eq('id', id);
+              debugPrint("✅ Certificado PROSESSO subido: $pdfCertUrlNube");
+            } catch (e) {
+              debugPrint("⚠️ Error subiendo Certificado PROSESSO: $e");
+            }
           }
         }
 
@@ -1115,6 +1171,44 @@ class SyncService {
       }
     }
     debugPrint("✅ Extintores sincronizados para visita $visitaId");
+  }
+
+  /// Sube las mantenciones PROSESSO de una visita a Supabase.
+  Future<void> _sincronizarMantencionesProsessoDe(
+    DatabaseExecutor db,
+    String visitaId,
+  ) async {
+    final mantenciones = await db.query(
+      'mantenciones_prosesso_pendientes',
+      where: 'visita_id = ? AND subido = 0',
+      whereArgs: [visitaId],
+    );
+
+    if (mantenciones.isEmpty) return;
+
+    for (final row in mantenciones) {
+      try {
+        final payload = Map<String, dynamic>.from(row);
+        payload.remove('subido');
+        payload.remove('eliminado');
+
+        await _supabase
+            .from('mantenciones_prosesso')
+            .upsert(payload, onConflict: 'id');
+
+        await db.update(
+          'mantenciones_prosesso_pendientes',
+          {'subido': 1},
+          where: 'id = ?',
+          whereArgs: [row['id']],
+        );
+      } catch (e) {
+        debugPrint(
+          "⚠️ Error sincronizando mantención PROSESSO ${row['id']}: $e",
+        );
+      }
+    }
+    debugPrint("✅ Mantenciones PROSESSO sincronizadas para visita $visitaId");
   }
 
   Future<void> _sincronizarVerificaciones(

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
+import '../../../../core/config/supabase_config.dart';
 import '../../../../core/database/database_helper.dart';
 import '../../../../core/services/user_session.dart';
 import '../../../sync/services/sync_service.dart';
@@ -151,13 +153,14 @@ class AdminCrudController extends ChangeNotifier {
     }
   }
 
-  Future<bool> editarContratista(String id, String nombre, {String? rut}) async {
+  Future<bool> editarContratista(
+    String id,
+    String nombre, {
+    String? rut,
+  }) async {
     try {
       final db = await _db.database;
-      final updateMap = <String, dynamic>{
-        'nombre': nombre.trim(),
-        'subido': 0,
-      };
+      final updateMap = <String, dynamic>{'nombre': nombre.trim(), 'subido': 0};
       if (rut != null && rut.trim().isNotEmpty) {
         updateMap['rut'] = rut.trim();
       }
@@ -317,6 +320,43 @@ class AdminCrudController extends ChangeNotifier {
       return 'Registro duplicado en el servidor.';
     }
     return 'Inténtelo de nuevo.';
+  }
+
+  /// Carga la lista de usuarios desde SQLite para mostrar en panel admin
+  Future<List<Map<String, dynamic>>> getUsuarios() async {
+    final db = await _db.database;
+    return await db.rawQuery('''
+      SELECT u.id, u.nombre_completo, u.email, u.nombre_rol, e.nombre as empresa_nombre
+      FROM usuarios u
+      LEFT JOIN empresas e ON e.id = u.empresa_id
+      ORDER BY u.nombre_completo ASC
+    ''');
+  }
+
+  /// Elimina un usuario de Supabase Auth y de la tabla local.
+  /// Requiere service_role key. Solo superadmin puede llamar esto.
+  Future<String?> deleteUser(String userId) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('${SupabaseConfig.url}/auth/v1/admin/users/$userId'),
+        headers: {
+          'Authorization': 'Bearer ${SupabaseConfig.serviceRoleKey}',
+          'apikey': SupabaseConfig.serviceRoleKey,
+        },
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        return 'Error del servidor: ${response.statusCode}';
+      }
+
+      // Eliminar local
+      final db = await _db.database;
+      await db.delete('usuarios', where: 'id = ?', whereArgs: [userId]);
+      return null; // null = éxito
+    } catch (e) {
+      debugPrint('Error eliminando usuario $userId: $e');
+      return e.toString();
+    }
   }
 
   String? getAreaNombre(String areaId) => _areaNombreCache[areaId];
