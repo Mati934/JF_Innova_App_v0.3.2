@@ -6,6 +6,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/gradient_app_bar.dart';
 import 'package:jf_innova_app/features/inspection/presentation/widgets/headers/buceo_header_widget.dart';
 import '../../../../shared/services/image_service.dart';
+import '../../../../shared/widgets/confirm_finalize_dialog.dart';
 import '../../../../shared/widgets/form_inputs/gallery_input.dart';
 import '../controllers/inspection_form_controller.dart';
 import '../widgets/question_card.dart';
@@ -87,6 +88,14 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
   }
 
   void _finalizar() async {
+    final confirmar = await showConfirmFinalizeDialog(
+      context,
+      title: 'Finalizar inspección',
+      message:
+          '¿Estás seguro de finalizar la inspección?\n\n'
+          'Una vez finalizada se generará el informe PDF y no podrás volver a editarla.',
+    );
+    if (!confirmar || !mounted) return;
     final exito = await _controller.finalizarInspeccion();
     if (mounted) {
       ScaffoldMessenger.of(context).clearSnackBars();

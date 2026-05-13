@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'dart:io';
 import '../../../../shared/widgets/form_inputs/gallery_input.dart';
 import '../../../../shared/widgets/gradient_app_bar.dart';
+import '../../../../shared/widgets/confirm_finalize_dialog.dart';
 import '../../../../shared/services/image_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../controllers/visit_form_controller.dart';
@@ -492,6 +493,15 @@ class _VisitFormView extends StatelessWidget {
                         child: InkWell(
                           borderRadius: BorderRadius.circular(14),
                           onTap: () async {
+                            final confirmar = await showConfirmFinalizeDialog(
+                              context,
+                              title: 'Guardar registro',
+                              message:
+                                  '¿Estás seguro de finalizar y guardar este registro de visita?\n\n'
+                                  'Una vez guardado quedará como registro oficial.',
+                              confirmLabel: 'Guardar',
+                            );
+                            if (!confirmar || !context.mounted) return;
                             final success = await ctrl.guardarVisita();
                             if (success && context.mounted) {
                               Navigator.pop(context);
