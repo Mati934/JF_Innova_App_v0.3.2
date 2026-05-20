@@ -56,12 +56,18 @@ class VisitPdfGeneratorService {
           pw.SizedBox(height: 10),
           _buildDatosGenerales(data),
           pw.SizedBox(height: 10),
+          if (data.camposExtra.isNotEmpty) ...[
+            _buildCamposExtra(data),
+            pw.SizedBox(height: 10),
+          ],
           _buildTiemposYOrigen(data),
           pw.SizedBox(height: 10),
           _buildCorreos(data),
           pw.SizedBox(height: 15),
-          _buildActividades(data),
-          pw.SizedBox(height: 15),
+          if (data.incluirActividades) ...[
+            _buildActividades(data),
+            pw.SizedBox(height: 15),
+          ],
           if (data.checklistItems.isNotEmpty) ...[
             ..._buildChecklistSection(data),
             pw.SizedBox(height: 15),
@@ -226,6 +232,38 @@ class VisitPdfGeneratorService {
               "Jefatura a cargo",
               data.jefaturaCargo.isNotEmpty ? data.jefaturaCargo : "N/A",
             ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Bloque con los campos extra propios del checklist seleccionado
+  /// (por ej. Patente, Kilometraje, Conductor para R-008).
+  pw.Widget _buildCamposExtra(VisitReportData data) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Container(
+          width: double.infinity,
+          padding: const pw.EdgeInsets.all(5),
+          decoration: pw.BoxDecoration(
+            color: PdfColors.grey200,
+            border: pw.Border.all(color: PdfColors.grey400, width: 0.5),
+          ),
+          child: pw.Text(
+            "Datos del checklist",
+            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+          ),
+        ),
+        pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(2),
+            1: const pw.FlexColumnWidth(3),
+          },
+          children: [
+            for (final c in data.camposExtra) _tableRow(c.label, c.valor),
           ],
         ),
       ],

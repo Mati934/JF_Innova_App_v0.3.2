@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/database/database_helper.dart';
 import '../../../../core/services/user_session.dart';
 import '../../domain/models/visita_respuesta.dart';
+import '../../domain/models/campo_extra_def.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:convert';
 
@@ -221,6 +222,12 @@ class LocalVisitRepository {
       WHERE tipo_actividad LIKE 'VISITA_%' AND tipo_actividad != 'VISITA_R004' AND activo = 1
       ORDER BY tipo_actividad ASC
     ''');
+  }
+
+  /// Definiciones de campos extra propios de un checklist (Patente, etc.).
+  Future<List<CampoExtraDef>> getCamposExtraDefs(String tipoActividad) async {
+    final rows = await dbHelper.getCamposExtraByTipo(tipoActividad);
+    return rows.map(CampoExtraDef.fromMap).toList();
   }
 
   /// Guarda respuestas individuales en visita_respuestas_pendientes

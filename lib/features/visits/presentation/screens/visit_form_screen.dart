@@ -8,6 +8,7 @@ import '../../../../shared/widgets/confirm_finalize_dialog.dart';
 import '../../../../shared/services/image_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../controllers/visit_form_controller.dart';
+import '../../domain/models/campo_extra_def.dart';
 import '../../../inspection/presentation/widgets/question_card.dart';
 import '../../../inspection/presentation/widgets/category_header.dart';
 
@@ -261,86 +262,106 @@ class _VisitFormView extends StatelessWidget {
                     _SectionCard(
                       icon: Icons.checklist_rtl,
                       title: '4. Actividades Realizadas',
-                      child: Column(
-                        children: [
-                          _ActivityCheck(
-                            label: "Reunión",
-                            icon: Icons.groups,
-                            value: ctrl.model.checkReunion,
-                            onChanged: (v) => ctrl.toggleCheck('reunion', v),
-                          ),
-                          _ActivityCheck(
-                            label: "Instalación Señalética",
-                            icon: Icons.signpost,
-                            value: ctrl.model.checkSenaletica,
-                            onChanged: (v) => ctrl.toggleCheck('senaletica', v),
-                          ),
-                          _ActivityCheck(
-                            label: "Capacitación",
-                            icon: Icons.school,
-                            value: ctrl.model.checkCapacitacion,
-                            onChanged: (v) =>
-                                ctrl.toggleCheck('capacitacion', v),
-                          ),
-                          _ActivityCheck(
-                            label: "Visita SSO",
-                            icon: Icons.health_and_safety,
-                            value: ctrl.model.checkVisitaSso,
-                            onChanged: (v) => ctrl.toggleCheck('visita_sso', v),
-                          ),
-                          _ActivityCheck(
-                            label: "Charla(s)",
-                            icon: Icons.record_voice_over,
-                            value: ctrl.model.checkCharla,
-                            onChanged: (v) => ctrl.toggleCheck('charla', v),
-                          ),
-                          _ActivityCheck(
-                            label: "Inv. Incidente",
-                            icon: Icons.report_problem,
-                            value: ctrl.model.checkInvestigacion,
-                            onChanged: (v) =>
-                                ctrl.toggleCheck('investigacion', v),
-                          ),
-                          _ActivityCheck(
-                            label: "Inspección SSO",
-                            icon: Icons.fact_check,
-                            value: ctrl.model.checkInspeccionSso,
-                            onChanged: (v) =>
-                                ctrl.toggleCheck('inspeccion_sso', v),
-                          ),
-                          _ActivityCheck(
-                            label: "Obs. Conductual",
-                            icon: Icons.psychology,
-                            value: ctrl.model.checkObsConductual,
-                            onChanged: (v) => ctrl.toggleCheck('conductual', v),
-                          ),
-                          _ActivityCheck(
-                            label: "Otro",
-                            icon: Icons.more_horiz,
-                            value: ctrl.model.checkOtro,
-                            onChanged: (v) => ctrl.toggleCheck('otro', v),
-                          ),
-                          if (ctrl.model.checkOtro)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 10),
-                              child: TextField(
-                                controller: ctrl.otroActividadCtrl,
-                                decoration: InputDecoration(
-                                  labelText: "Especifique 'Otro'",
-                                  prefixIcon: const Icon(
-                                    Icons.edit_note,
-                                    color: Colors.grey,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  filled: true,
-                                  fillColor: Colors.grey.shade50,
-                                ),
-                              ),
-                            ),
-                        ],
+                      trailing: Switch.adaptive(
+                        value: ctrl.model.incluirActividades,
+                        onChanged: (v) => ctrl.toggleIncluirActividades(v),
+                        activeThumbColor: AppTheme.primaryBlue,
                       ),
+                      child: ctrl.model.incluirActividades
+                          ? Column(
+                              children: [
+                                _ActivityCheck(
+                                  label: "Reunión",
+                                  icon: Icons.groups,
+                                  value: ctrl.model.checkReunion,
+                                  onChanged: (v) =>
+                                      ctrl.toggleCheck('reunion', v),
+                                ),
+                                _ActivityCheck(
+                                  label: "Instalación Señalética",
+                                  icon: Icons.signpost,
+                                  value: ctrl.model.checkSenaletica,
+                                  onChanged: (v) =>
+                                      ctrl.toggleCheck('senaletica', v),
+                                ),
+                                _ActivityCheck(
+                                  label: "Capacitación",
+                                  icon: Icons.school,
+                                  value: ctrl.model.checkCapacitacion,
+                                  onChanged: (v) =>
+                                      ctrl.toggleCheck('capacitacion', v),
+                                ),
+                                _ActivityCheck(
+                                  label: "Visita SSO",
+                                  icon: Icons.health_and_safety,
+                                  value: ctrl.model.checkVisitaSso,
+                                  onChanged: (v) =>
+                                      ctrl.toggleCheck('visita_sso', v),
+                                ),
+                                _ActivityCheck(
+                                  label: "Charla(s)",
+                                  icon: Icons.record_voice_over,
+                                  value: ctrl.model.checkCharla,
+                                  onChanged: (v) =>
+                                      ctrl.toggleCheck('charla', v),
+                                ),
+                                _ActivityCheck(
+                                  label: "Inv. Incidente",
+                                  icon: Icons.report_problem,
+                                  value: ctrl.model.checkInvestigacion,
+                                  onChanged: (v) =>
+                                      ctrl.toggleCheck('investigacion', v),
+                                ),
+                                _ActivityCheck(
+                                  label: "Inspección SSO",
+                                  icon: Icons.fact_check,
+                                  value: ctrl.model.checkInspeccionSso,
+                                  onChanged: (v) =>
+                                      ctrl.toggleCheck('inspeccion_sso', v),
+                                ),
+                                _ActivityCheck(
+                                  label: "Obs. Conductual",
+                                  icon: Icons.psychology,
+                                  value: ctrl.model.checkObsConductual,
+                                  onChanged: (v) =>
+                                      ctrl.toggleCheck('conductual', v),
+                                ),
+                                _ActivityCheck(
+                                  label: "Otro",
+                                  icon: Icons.more_horiz,
+                                  value: ctrl.model.checkOtro,
+                                  onChanged: (v) => ctrl.toggleCheck('otro', v),
+                                ),
+                                if (ctrl.model.checkOtro)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 10),
+                                    child: TextField(
+                                      controller: ctrl.otroActividadCtrl,
+                                      decoration: InputDecoration(
+                                        labelText: "Especifique 'Otro'",
+                                        prefixIcon: const Icon(
+                                          Icons.edit_note,
+                                          color: Colors.grey,
+                                        ),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        filled: true,
+                                        fillColor: Colors.grey.shade50,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            )
+                          : _AddBlockPlaceholder(
+                              icon: Icons.add_task,
+                              label: "Agregar actividades realizadas",
+                              description:
+                                  "Marca aquí las actividades que se hicieron en terreno. Si no aplica, déjalo desactivado y no se incluirá en el PDF.",
+                              onTap: () => ctrl.toggleIncluirActividades(true),
+                            ),
                     ),
                     const SizedBox(height: 14),
 
@@ -355,6 +376,9 @@ class _VisitFormView extends StatelessWidget {
                               padding: EdgeInsets.all(20),
                               child: Center(child: CircularProgressIndicator()),
                             ),
+                          if (ctrl.camposExtraDefs.isNotEmpty &&
+                              !ctrl.isLoadingPreguntas)
+                            _buildCamposExtraSection(context, ctrl),
                           if (ctrl.preguntasActivas.isNotEmpty &&
                               !ctrl.isLoadingPreguntas)
                             _buildChecklistCards(context, ctrl),
@@ -792,6 +816,94 @@ class _VisitFormView extends StatelessWidget {
     );
   }
 
+  Widget _buildCamposExtraSection(
+    BuildContext context,
+    VisitFormController ctrl,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.blue.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune, size: 18, color: Colors.blue.shade700),
+              const SizedBox(width: 6),
+              Text(
+                'Datos del checklist',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue.shade900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Campos específicos del formato seleccionado.',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+          ),
+          const SizedBox(height: 10),
+          for (final def in ctrl.camposExtraDefs)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _buildCampoExtraField(context, ctrl, def),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCampoExtraField(
+    BuildContext context,
+    VisitFormController ctrl,
+    CampoExtraDef def,
+  ) {
+    final controller = ctrl.camposExtraCtrls[def.clave];
+    final isHora = def.tipo == 'hora';
+    final keyboard = def.tipo == 'numero'
+        ? TextInputType.number
+        : def.tipo == 'email'
+        ? TextInputType.emailAddress
+        : TextInputType.text;
+
+    return TextFormField(
+      controller: controller,
+      readOnly: isHora,
+      keyboardType: keyboard,
+      onTap: isHora
+          ? () async {
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: TimeOfDay.now(),
+              );
+              if (picked != null) {
+                final txt =
+                    '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+                ctrl.setCampoExtra(def.clave, txt);
+              }
+            }
+          : null,
+      decoration: InputDecoration(
+        labelText: def.requerido ? '${def.label} *' : def.label,
+        isDense: true,
+        filled: true,
+        fillColor: Colors.white,
+        suffixIcon: isHora ? const Icon(Icons.access_time) : null,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+    );
+  }
+
   Widget _buildChecklistCards(BuildContext context, VisitFormController ctrl) {
     final grupos = ctrl.agruparPorCategoria();
     final categorias = grupos.keys.toList();
@@ -856,6 +968,12 @@ class _VisitFormView extends StatelessWidget {
       'VISITA_006': 'Insp. Pisos y Superficies',
       'VISITA_R006': 'Insp. Pisos y Superficies',
       'PISOS_R006': 'Insp. Pisos y Superficies',
+      // R008 - Chequeo Vehículos Livianos
+      'VISITA_R008': 'Chequeo Vehículos Livianos',
+      'VEHICULOS_R008': 'Chequeo Vehículos Livianos',
+      // R011 - Chequeo Máquina Soldadora
+      'VISITA_R011': 'Chequeo Máquina Soldadora',
+      'SOLDADORA_R011': 'Chequeo Máquina Soldadora',
     };
     return labels[tipo] ?? tipo.replaceAll('_', ' ');
   }
@@ -866,11 +984,13 @@ class _SectionCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final Widget child;
+  final Widget? trailing;
 
   const _SectionCard({
     required this.icon,
     required this.title,
     required this.child,
+    this.trailing,
   });
 
   @override
@@ -916,11 +1036,78 @@ class _SectionCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (trailing != null) trailing!,
             ],
           ),
           const SizedBox(height: 14),
           child,
         ],
+      ),
+    );
+  }
+}
+
+class _AddBlockPlaceholder extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String description;
+  final VoidCallback onTap;
+
+  const _AddBlockPlaceholder({
+    required this.icon,
+    required this.label,
+    required this.description,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryBlue.withValues(alpha: 0.04),
+          border: Border.all(
+            color: AppTheme.primaryBlue.withValues(alpha: 0.35),
+            style: BorderStyle.solid,
+            width: 1.2,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: AppTheme.primaryBlue, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryBlue,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: Colors.grey.shade700,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.add_circle_outline, color: AppTheme.primaryBlue),
+          ],
+        ),
       ),
     );
   }

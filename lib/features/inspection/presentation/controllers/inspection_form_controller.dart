@@ -913,6 +913,12 @@ class InspectionFormController extends ChangeNotifier {
     };
 
     // 2. Respuestas
+    // Mapa id -> criticidad por defecto del item, para que al persistir
+    // los items que el usuario no tocó conserven su criticidad original
+    // (ej. 'Moderado', 'Intolerable') en vez de degradarse a 'Tolerable'.
+    final Map<String, String> criticidadPorItem = {
+      for (final it in _items) it.id: it.criticidad,
+    };
     List<Map<String, dynamic>> loteRespuestas = [];
     respuestas.forEach((key, val) {
       loteRespuestas.add({
@@ -920,7 +926,8 @@ class InspectionFormController extends ChangeNotifier {
         'item_id': key,
         'estado': val,
         'observacion': observaciones[key],
-        'criticidad_registrada': criticidades[key] ?? 'Tolerable',
+        'criticidad_registrada':
+            criticidades[key] ?? criticidadPorItem[key] ?? 'Tolerable',
       });
     });
 

@@ -16,6 +16,9 @@ class VisitReportData {
   final String emailEmpresa1;
   final String emailEmpresa2;
 
+  /// Cuando es false, el bloque "Actividades realizadas" se omite en el PDF.
+  final bool incluirActividades;
+
   final bool checkReunion;
   final bool checkSenaletica;
   final bool checkCapacitacion;
@@ -38,6 +41,11 @@ class VisitReportData {
   final String? tipoChecklist;
   final List<VisitChecklistItemDto> checklistItems;
 
+  /// Campos extra propios del checklist (Patente, Kilometraje, etc.).
+  /// Lista ordenada de (label, valor) para que el PDF los pinte tal cual
+  /// sin tener que reconsultar la tabla maestra.
+  final List<VisitCampoExtraDto> camposExtra;
+
   VisitReportData({
     this.empresaProveedor = 'JF INNOVA',
     required this.empresa,
@@ -53,6 +61,7 @@ class VisitReportData {
     required this.origenVisita,
     required this.emailEmpresa1,
     required this.emailEmpresa2,
+    this.incluirActividades = false,
     required this.checkReunion,
     required this.checkSenaletica,
     required this.checkCapacitacion,
@@ -68,7 +77,14 @@ class VisitReportData {
     required this.signatureImage,
     this.tipoChecklist,
     this.checklistItems = const [],
+    this.camposExtra = const [],
   });
+}
+
+class VisitCampoExtraDto {
+  final String label;
+  final String valor;
+  const VisitCampoExtraDto({required this.label, required this.valor});
 }
 
 class VisitChecklistItemDto {

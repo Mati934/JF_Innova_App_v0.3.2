@@ -136,6 +136,16 @@ class SyncService {
                   .eq('empresa_id', empresaId)
             : Future.value(<Map<String, dynamic>>[]),
       ),
+      // 12: formulario_campos_extra (master data por checklist)
+      descargarTabla(
+        'formulario_campos_extra',
+        _supabase
+            .from('formulario_campos_extra')
+            .select()
+            .eq('activo', true)
+            .order('tipo_actividad')
+            .order('orden'),
+      ),
     ]);
 
     // Guardar cada tabla que se descargó exitosamente
@@ -400,6 +410,25 @@ class SyncService {
           fatal: false,
         );
         tablasFallidas.add('empresa_areas');
+      }
+    }
+
+    // 12: formulario_campos_extra
+    if (futures.length > 12 && futures[12] != null) {
+      try {
+        await _dbHelper.guardarCamposExtraOffline(
+          List<Map<String, dynamic>>.from(futures[12]!),
+        );
+        tablasDescargadas.add('formulario_campos_extra');
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando formulario_campos_extra en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: formulario_campos_extra',
+          fatal: false,
+        );
+        tablasFallidas.add('formulario_campos_extra');
       }
     }
 
@@ -940,6 +969,24 @@ class SyncService {
           datosNube['check_obs_conductual'],
         );
         datosNube['check_otro'] = toBool(datosNube['check_otro']);
+        // Flag opcional del bloque "Actividades realizadas" en visitas R-003.
+        datosNube['incluir_actividades'] = toBool(
+          datosNube['incluir_actividades'],
+        );
+
+        // campos_extra: en SQLite viaja como String JSON; en Supabase es jsonb.
+        final rawCamposExtra = datosNube['campos_extra'];
+        if (rawCamposExtra is String) {
+          if (rawCamposExtra.trim().isEmpty) {
+            datosNube['campos_extra'] = null;
+          } else {
+            try {
+              datosNube['campos_extra'] = jsonDecode(rawCamposExtra);
+            } catch (_) {
+              datosNube['campos_extra'] = null;
+            }
+          }
+        }
 
         final sessionActiva = _supabase.auth.currentSession;
         debugPrint(

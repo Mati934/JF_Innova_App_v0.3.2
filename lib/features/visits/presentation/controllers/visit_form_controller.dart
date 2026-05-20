@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:jf_innova_app/features/inspection/data/repositories/local_inspection_repository.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/formulario_item.dart';
+import 'package:jf_innova_app/features/visits/domain/models/campo_extra_def.dart';
 import 'package:jf_innova_app/features/visits/domain/models/visita_respuesta.dart';
 import 'package:signature/signature.dart';
 import 'package:jf_innova_app/core/database/database_helper.dart';
@@ -29,6 +31,11 @@ class VisitFormController extends ChangeNotifier {
   Map<String, VisitaRespuesta> respuestasMap = {};
   bool isLoadingPreguntas = false;
   List<Map<String, dynamic>> tiposChecklistDisponibles = [];
+
+  // --- Campos extra propios del checklist (Patente, Kilometraje, etc.) ---
+  List<CampoExtraDef> camposExtraDefs = [];
+  final Map<String, TextEditingController> camposExtraCtrls = {};
+
   // Instanciamos el repositorio para poder consultar el catálogo
   final LocalInspectionRepository inspectionRepository =
       LocalInspectionRepository();
@@ -40,6 +47,8 @@ class VisitFormController extends ChangeNotifier {
     try {
       preguntasActivas = await inspectionRepository.getItems(tipoActividad);
       respuestasMap.clear();
+      // Cargar definiciones de campos extra propios del checklist
+      await _loadCamposExtraDefs(tipoActividad);
       // Restaurar respuestas previas si existen en el borrador
       await _restoreChecklistRespuestas();
     } catch (e) {
@@ -50,10 +59,57 @@ class VisitFormController extends ChangeNotifier {
     }
   }
 
+  Future<void> _loadCamposExtraDefs(String tipoActividad) async {
+    camposExtraDefs = await _repository.getCamposExtraDefs(tipoActividad);
+    // Limpiar controllers viejos para no acumular memoria entre cambios de tipo
+    for (final c in camposExtraCtrls.values) {
+      c.dispose();
+    }
+    camposExtraCtrls.clear();
+    for (final def in camposExtraDefs) {
+      // Reutiliza el valor que ya vivía en model.camposExtra (borrador)
+      final initial = model.camposExtra[def.clave] ?? '';
+      final ctrl = TextEditingController(text: initial);
+      ctrl.addListener(_onCampoExtraChanged);
+      camposExtraCtrls[def.clave] = ctrl;
+    }
+  }
+
+  void _onCampoExtraChanged() {
+    // Sincroniza el model con lo tipeado y dispara guardado debounced
+    for (final def in camposExtraDefs) {
+      final v = camposExtraCtrls[def.clave]?.text ?? '';
+      if (v.isEmpty) {
+        model.camposExtra.remove(def.clave);
+      } else {
+        model.camposExtra[def.clave] = v;
+      }
+    }
+    _debouncer.run(() => guardarBorradorSilencioso());
+  }
+
+  /// Para pickers (TimePicker en campos tipo='hora'): setea el valor y guarda.
+  void setCampoExtra(String clave, String valor) {
+    camposExtraCtrls[clave]?.text = valor;
+    if (valor.isEmpty) {
+      model.camposExtra.remove(clave);
+    } else {
+      model.camposExtra[clave] = valor;
+    }
+    _debouncer.run(() => guardarBorradorSilencioso());
+    notifyListeners();
+  }
+
   void clearChecklist() {
     selectedTipoActividad = null;
     preguntasActivas = [];
     respuestasMap.clear();
+    camposExtraDefs = [];
+    for (final c in camposExtraCtrls.values) {
+      c.dispose();
+    }
+    camposExtraCtrls.clear();
+    model.camposExtra.clear();
     notifyListeners();
   }
 
@@ -256,6 +312,10 @@ class VisitFormController extends ChangeNotifier {
       'check_inspeccion_sso': model.checkInspeccionSso ? 1 : 0,
       'check_obs_conductual': model.checkObsConductual ? 1 : 0,
       'check_otro': model.checkOtro ? 1 : 0,
+      'incluir_actividades': model.incluirActividades ? 1 : 0,
+      'campos_extra': model.camposExtra.isEmpty
+          ? null
+          : jsonEncode(model.camposExtra),
       'otro_actividad_texto': otroActividadCtrl.text.trim(),
       'apuntes_observaciones': observacionesCtrl.text.trim(),
       'signature_image': signatureImage,
@@ -325,6 +385,26 @@ class VisitFormController extends ChangeNotifier {
       case 'otro':
         model.checkOtro = val;
         break;
+    }
+    _debouncer.run(() => guardarBorradorSilencioso());
+    notifyListeners();
+  }
+
+  /// Activa/desactiva el bloque opcional "Actividades Realizadas".
+  /// Si se desactiva, se limpian todos los checks para que no se cuelen al PDF.
+  void toggleIncluirActividades(bool val) {
+    model.incluirActividades = val;
+    if (!val) {
+      model.checkReunion = false;
+      model.checkSenaletica = false;
+      model.checkCapacitacion = false;
+      model.checkVisitaSso = false;
+      model.checkCharla = false;
+      model.checkInvestigacion = false;
+      model.checkInspeccionSso = false;
+      model.checkObsConductual = false;
+      model.checkOtro = false;
+      otroActividadCtrl.clear();
     }
     _debouncer.run(() => guardarBorradorSilencioso());
     notifyListeners();
@@ -422,8 +502,8 @@ class VisitFormController extends ChangeNotifier {
     }
 
     return VisitReportData(
-      empresaProveedor:
-          (UserSession().empresaNombre ?? 'JF INNOVA').toUpperCase(),
+      empresaProveedor: (UserSession().empresaNombre ?? 'JF INNOVA')
+          .toUpperCase(),
       empresa: empresaCtrl.text.trim(),
       region: regionCtrl.text.trim().toUpperCase(),
       centro: centroCtrl.text.trim().toUpperCase(),
@@ -437,6 +517,7 @@ class VisitFormController extends ChangeNotifier {
       origenVisita: origenCtrl.text.trim(),
       emailEmpresa1: email1Ctrl.text.trim(),
       emailEmpresa2: email2Ctrl.text.trim(),
+      incluirActividades: model.incluirActividades,
       checkReunion: model.checkReunion,
       checkSenaletica: model.checkSenaletica,
       checkCapacitacion: model.checkCapacitacion,
@@ -452,6 +533,14 @@ class VisitFormController extends ChangeNotifier {
       signatureImage: signatureImage,
       tipoChecklist: selectedTipoActividad,
       checklistItems: checklistItemsPdf,
+      camposExtra: [
+        for (final def in camposExtraDefs)
+          if ((model.camposExtra[def.clave] ?? '').trim().isNotEmpty)
+            VisitCampoExtraDto(
+              label: def.label,
+              valor: model.camposExtra[def.clave]!.trim(),
+            ),
+      ],
     );
   }
 
@@ -716,6 +805,8 @@ class VisitFormController extends ChangeNotifier {
       final tipo = checklistData['tipo_checklist'] as String;
       selectedTipoActividad = tipo;
       preguntasActivas = await inspectionRepository.getItems(tipo);
+      // model.camposExtra ya viene poblado desde fromMap(); solo cargamos defs.
+      await _loadCamposExtraDefs(tipo);
       _parseRespuestasFromJson(
         checklistData['respuestas'] as Map<String, dynamic>,
       );

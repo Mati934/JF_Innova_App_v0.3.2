@@ -7,7 +7,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      45; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      47; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -66,6 +66,25 @@ class DatabaseHelper {
         url_imagen_referencia TEXT,
         peso REAL DEFAULT 1.0
       )
+    ''');
+
+    // 1.b CAMPOS EXTRA POR CHECKLIST (master data, sync con Supabase)
+    await db.execute('''
+      CREATE TABLE formulario_campos_extra (
+        id TEXT PRIMARY KEY,
+        tipo_actividad TEXT NOT NULL,
+        clave TEXT NOT NULL,
+        label TEXT NOT NULL,
+        tipo TEXT NOT NULL DEFAULT 'texto',
+        orden INTEGER NOT NULL DEFAULT 0,
+        requerido INTEGER NOT NULL DEFAULT 0,
+        activo INTEGER NOT NULL DEFAULT 1,
+        UNIQUE (tipo_actividad, clave)
+      )
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_formulario_campos_extra_tipo
+      ON formulario_campos_extra (tipo_actividad)
     ''');
 
     // 2. RESPUESTAS PENDIENTES
@@ -280,6 +299,8 @@ class DatabaseHelper {
         check_inspeccion_sso INTEGER DEFAULT 0,
         check_obs_conductual INTEGER DEFAULT 0,
         check_otro INTEGER DEFAULT 0,
+        incluir_actividades INTEGER DEFAULT 0,
+        campos_extra TEXT,
         otro_actividad_texto TEXT,
         apuntes_observaciones TEXT,
         signature_image BLOB,
@@ -1002,15 +1023,115 @@ class DatabaseHelper {
         'CREATE INDEX IF NOT EXISTS idx_mantenciones_prosesso_visita ON mantenciones_prosesso_pendientes(visita_id)',
       );
       // Columnas nuevas en visitas_tecnicas_pendientes para el certificado
-      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'cert_numero', 'TEXT');
-      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'cert_anio', 'INTEGER');
-      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'cert_correlativo', 'INTEGER');
-      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'cliente_nombre', 'TEXT');
-      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'cliente_direccion', 'TEXT');
-      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'fecha_servicio', 'TEXT');
-      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'pdf_certificado_path_local', 'TEXT');
-      await _safeAddColumn(db, 'visitas_tecnicas_pendientes', 'pdf_certificado_url', 'TEXT');
+      await _safeAddColumn(
+        db,
+        'visitas_tecnicas_pendientes',
+        'cert_numero',
+        'TEXT',
+      );
+      await _safeAddColumn(
+        db,
+        'visitas_tecnicas_pendientes',
+        'cert_anio',
+        'INTEGER',
+      );
+      await _safeAddColumn(
+        db,
+        'visitas_tecnicas_pendientes',
+        'cert_correlativo',
+        'INTEGER',
+      );
+      await _safeAddColumn(
+        db,
+        'visitas_tecnicas_pendientes',
+        'cliente_nombre',
+        'TEXT',
+      );
+      await _safeAddColumn(
+        db,
+        'visitas_tecnicas_pendientes',
+        'cliente_direccion',
+        'TEXT',
+      );
+      await _safeAddColumn(
+        db,
+        'visitas_tecnicas_pendientes',
+        'fecha_servicio',
+        'TEXT',
+      );
+      await _safeAddColumn(
+        db,
+        'visitas_tecnicas_pendientes',
+        'pdf_certificado_path_local',
+        'TEXT',
+      );
+      await _safeAddColumn(
+        db,
+        'visitas_tecnicas_pendientes',
+        'pdf_certificado_url',
+        'TEXT',
+      );
       debugPrint("✅ Parche v45 aplicado.");
+    }
+
+    if (oldVersion < 46) {
+      debugPrint(
+        "🚀 Aplicando parche v46 (incluir_actividades opcional en visitas)...",
+      );
+      await _safeAddColumn(
+        db,
+        'visitas_tecnicas_pendientes',
+        'incluir_actividades',
+        'INTEGER DEFAULT 0',
+      );
+      // Backfill: visitas existentes con cualquier check activo se consideran
+      // "con bloque de actividades incluido" para no romper PDFs ya guardados.
+      await db.execute('''
+        UPDATE visitas_tecnicas_pendientes
+        SET incluir_actividades = 1
+        WHERE COALESCE(check_reunion, 0) = 1
+           OR COALESCE(check_instalacion_senaletica, 0) = 1
+           OR COALESCE(check_capacitacion, 0) = 1
+           OR COALESCE(check_visita_sso, 0) = 1
+           OR COALESCE(check_charla, 0) = 1
+           OR COALESCE(check_investigacion_incidente, 0) = 1
+           OR COALESCE(check_inspeccion_sso, 0) = 1
+           OR COALESCE(check_obs_conductual, 0) = 1
+           OR COALESCE(check_otro, 0) = 1
+      ''');
+      debugPrint("✅ Parche v46 aplicado.");
+    }
+
+    if (oldVersion < 47) {
+      debugPrint(
+        "🚀 Aplicando parche v47 (campos extra por checklist en visitas)...",
+      );
+      // Columna JSON (TEXT) con los valores ingresados
+      await _safeAddColumn(
+        db,
+        'visitas_tecnicas_pendientes',
+        'campos_extra',
+        'TEXT',
+      );
+      // Tabla maestra de definiciones (se rellena en cada sync)
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS formulario_campos_extra (
+          id TEXT PRIMARY KEY,
+          tipo_actividad TEXT NOT NULL,
+          clave TEXT NOT NULL,
+          label TEXT NOT NULL,
+          tipo TEXT NOT NULL DEFAULT 'texto',
+          orden INTEGER NOT NULL DEFAULT 0,
+          requerido INTEGER NOT NULL DEFAULT 0,
+          activo INTEGER NOT NULL DEFAULT 1,
+          UNIQUE (tipo_actividad, clave)
+        )
+      ''');
+      await db.execute('''
+        CREATE INDEX IF NOT EXISTS idx_formulario_campos_extra_tipo
+        ON formulario_campos_extra (tipo_actividad)
+      ''');
+      debugPrint("✅ Parche v47 aplicado.");
     }
   }
 
@@ -1305,6 +1426,43 @@ class DatabaseHelper {
     }
     await batch.commit(noResult: true);
     debugPrint("✅ Formulario items guardados: ${items.length} registros");
+  }
+
+  /// Reescribe la tabla maestra de campos extra por checklist.
+  /// Recibe la lista cruda tal como llega desde Supabase.
+  Future<void> guardarCamposExtraOffline(
+    List<Map<String, dynamic>> defs,
+  ) async {
+    final db = await instance.database;
+    final batch = db.batch();
+    batch.delete('formulario_campos_extra');
+    for (var d in defs) {
+      batch.insert('formulario_campos_extra', {
+        'id': d['id']?.toString() ?? '',
+        'tipo_actividad': d['tipo_actividad'],
+        'clave': d['clave'],
+        'label': d['label'],
+        'tipo': (d['tipo'] ?? 'texto').toString(),
+        'orden': (d['orden'] is num) ? (d['orden'] as num).toInt() : 0,
+        'requerido': (d['requerido'] == true) ? 1 : 0,
+        'activo': (d['activo'] == false) ? 0 : 1,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
+    debugPrint("✅ Campos extra de checklist guardados: ${defs.length}");
+  }
+
+  /// Obtiene los campos extra activos para un tipo de checklist (ordenados).
+  Future<List<Map<String, dynamic>>> getCamposExtraByTipo(
+    String tipoActividad,
+  ) async {
+    final db = await instance.database;
+    return await db.query(
+      'formulario_campos_extra',
+      where: 'tipo_actividad = ? AND activo = 1',
+      whereArgs: [tipoActividad],
+      orderBy: 'orden ASC',
+    );
   }
 
   Future<void> saveActividadOffline(Map<String, dynamic> actividad) async {
