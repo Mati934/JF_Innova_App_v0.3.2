@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
+import 'hidroser_checklists.dart';
 import '../../features/inspection/presentation/screens/inspection_setup_screen.dart';
 import '../../features/visits/presentation/screens/visit_form_screen.dart';
 import '../../features/extintores/presentation/screens/extintor_form_screen.dart';
@@ -65,6 +66,22 @@ class ModuleRegistry {
       icon: Icons.build_circle,
       color: const Color(0xFFC8102E),
       screenBuilder: (_) => const ProsessoFormScreen(),
+    ),
+    ModuleDefinition(
+      moduleKey: 'HIDROSER',
+      title: 'Hidroser',
+      subtitle: 'Listas de chequeo',
+      icon: Icons.precision_manufacturing,
+      color: kHidroserColor,
+      screenBuilder: (_) => const VisitFormScreen(
+        onlyChecklistTypes: kHidroserChecklistTypes,
+        customTitle: 'Hidroser · Lista de Chequeo',
+        customSubtitle:
+            'Selecciona el listado de verificación Hidroser a completar.',
+        brandColor: kHidroserColor,
+        brandColorDark: kHidroserColorDark,
+        brandIcon: Icons.precision_manufacturing,
+      ),
     ),
     ModuleDefinition(
       moduleKey: 'ADMIN',

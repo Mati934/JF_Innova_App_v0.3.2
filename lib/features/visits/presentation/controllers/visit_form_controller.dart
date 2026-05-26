@@ -209,7 +209,14 @@ class VisitFormController extends ChangeNotifier {
 
   VisitModel model = VisitModel(activityId: '');
 
-  VisitFormController({Map<String, dynamic>? borradorInicial}) {
+  /// Si no es null/vacío, el dropdown de checklist se restringe a estos tipos
+  /// (usado por el módulo Hidroser para mostrar sólo sus checklists).
+  final List<String>? onlyChecklistTypes;
+
+  VisitFormController({
+    Map<String, dynamic>? borradorInicial,
+    this.onlyChecklistTypes,
+  }) {
     if (borradorInicial != null) {
       _currentVisitId = borradorInicial['id'] ?? borradorInicial['activity_id'];
       model = VisitModel.fromMap(borradorInicial);
@@ -251,8 +258,22 @@ class VisitFormController extends ChangeNotifier {
     timeInicio ??= TimeOfDay.now();
     await _loadHistorialAutocomplete();
 
-    // Cargar tipos de checklist disponibles
-    tiposChecklistDisponibles = await _repository.getTiposChecklistVisita();
+    // Cargar tipos de checklist disponibles (filtrados si aplica)
+    tiposChecklistDisponibles = await _repository.getTiposChecklistVisita(
+      onlyTypes: onlyChecklistTypes,
+    );
+
+    // Si el módulo restringe a un único tipo y aún no hay uno seleccionado,
+    // lo elegimos automáticamente (UX: Hidroser hoy sólo tiene R-012).
+    if (selectedTipoActividad == null &&
+        onlyChecklistTypes != null &&
+        tiposChecklistDisponibles.length == 1) {
+      final unicoTipo =
+          tiposChecklistDisponibles.first['tipo_actividad'] as String;
+      // No await: dispara la carga en paralelo con el resto del _init.
+      // ignore: unawaited_futures
+      loadPreguntas(unicoTipo);
+    }
 
     // 🚨 PARCHE DE HIDRATACIÓN DE FOTOS (Faltaba esto)
     if (_currentVisitId.isNotEmpty) {

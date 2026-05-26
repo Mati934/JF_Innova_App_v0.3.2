@@ -16,13 +16,39 @@ class VisitFormScreen extends StatelessWidget {
   // CLEAN CODE: Recibimos el mapa del borrador de SQLite (opcional)
   final Map<String, dynamic>? borrador;
 
-  const VisitFormScreen({super.key, this.borrador});
+  /// Si se entrega, el dropdown del checklist se restringe a esos tipos.
+  /// Lo usa el módulo Hidroser para mostrar sólo sus checklists.
+  final List<String>? onlyChecklistTypes;
+
+  /// Título a mostrar en el AppBar y banner introductorio. Si es null se usa
+  /// el título por defecto de Registro de Visita (R-003).
+  final String? customTitle;
+  final String? customSubtitle;
+
+  /// Color primario del módulo (afecta AppBar y banner). Si es null usa
+  /// la paleta corporativa por defecto.
+  final Color? brandColor;
+  final Color? brandColorDark;
+  final IconData? brandIcon;
+
+  const VisitFormScreen({
+    super.key,
+    this.borrador,
+    this.onlyChecklistTypes,
+    this.customTitle,
+    this.customSubtitle,
+    this.brandColor,
+    this.brandColorDark,
+    this.brandIcon,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) {
-        final ctrl = VisitFormController();
+        final ctrl = VisitFormController(
+          onlyChecklistTypes: onlyChecklistTypes,
+        );
         // Si nos pasaron un borrador, lo cargamos INMEDIATAMENTE
         // antes de que la UI se dibuje. Adiós duplicados.
         if (borrador != null) {
@@ -30,13 +56,31 @@ class VisitFormScreen extends StatelessWidget {
         }
         return ctrl;
       },
-      child: const _VisitFormView(),
+      child: _VisitFormView(
+        customTitle: customTitle,
+        customSubtitle: customSubtitle,
+        brandColor: brandColor,
+        brandColorDark: brandColorDark,
+        brandIcon: brandIcon,
+      ),
     );
   }
 }
 
 class _VisitFormView extends StatelessWidget {
-  const _VisitFormView();
+  final String? customTitle;
+  final String? customSubtitle;
+  final Color? brandColor;
+  final Color? brandColorDark;
+  final IconData? brandIcon;
+
+  const _VisitFormView({
+    this.customTitle,
+    this.customSubtitle,
+    this.brandColor,
+    this.brandColorDark,
+    this.brandIcon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +129,16 @@ class _VisitFormView extends StatelessWidget {
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF4F6F8),
-        appBar: const GradientAppBar(title: Text("Registro de Visita (R-003)")),
+        appBar: GradientAppBar(
+          title: Text(customTitle ?? "Registro de Visita (R-003)"),
+          gradientColors: brandColor != null
+              ? <Color>[
+                  brandColor!,
+                  brandColorDark ?? brandColor!,
+                  AppTheme.logoGrey,
+                ]
+              : null,
+        ),
         body: ctrl.isSaving
             ? const Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
@@ -98,20 +151,27 @@ class _VisitFormView extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Banner introductorio R-003
+                    // Banner introductorio (personalizable por módulo)
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
+                        gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [AppTheme.primaryBlue, Color(0xFF002244)],
+                          colors: [
+                            brandColor ?? AppTheme.primaryBlue,
+                            brandColorDark ??
+                                (brandColor != null
+                                    ? brandColor!
+                                    : const Color(0xFF002244)),
+                          ],
                         ),
                         borderRadius: BorderRadius.circular(18),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.primaryBlue.withValues(alpha: 0.25),
+                            color: (brandColor ?? AppTheme.primaryBlue)
+                                .withValues(alpha: 0.25),
                             blurRadius: 14,
                             offset: const Offset(0, 6),
                           ),
@@ -126,29 +186,30 @@ class _VisitFormView extends StatelessWidget {
                               color: Colors.white.withValues(alpha: 0.18),
                               borderRadius: BorderRadius.circular(14),
                             ),
-                            child: const Icon(
-                              Icons.handshake,
+                            child: Icon(
+                              brandIcon ?? Icons.handshake,
                               color: Colors.white,
                               size: 26,
                             ),
                           ),
                           const SizedBox(width: 14),
-                          const Expanded(
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Registro de Visita',
-                                  style: TextStyle(
+                                  customTitle ?? 'Registro de Visita',
+                                  style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                SizedBox(height: 2),
+                                const SizedBox(height: 2),
                                 Text(
-                                  'Formulario R-003 · Completa los datos de la visita técnica.',
-                                  style: TextStyle(
+                                  customSubtitle ??
+                                      'Formulario R-003 · Completa los datos de la visita técnica.',
+                                  style: const TextStyle(
                                     color: Colors.white70,
                                     fontSize: 12,
                                     height: 1.3,
@@ -974,6 +1035,8 @@ class _VisitFormView extends StatelessWidget {
       // R011 - Chequeo Máquina Soldadora
       'VISITA_R011': 'Chequeo Máquina Soldadora',
       'SOLDADORA_R011': 'Chequeo Máquina Soldadora',
+      // R012 - Verificación Grúas Horquillas (Hidroser)
+      'VISITA_R012': 'Verificación Grúas Horquillas',
     };
     return labels[tipo] ?? tipo.replaceAll('_', ' ');
   }

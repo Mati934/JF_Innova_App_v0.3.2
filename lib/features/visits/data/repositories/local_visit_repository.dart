@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/database/database_helper.dart';
+import '../../../../core/modules/hidroser_checklists.dart';
 import '../../../../core/services/user_session.dart';
 import '../../domain/models/visita_respuesta.dart';
 import '../../domain/models/campo_extra_def.dart';
@@ -213,15 +214,48 @@ class LocalVisitRepository {
     return null;
   }
 
-  /// Tipos de checklist disponibles para visitas (excluye VISITA_R004 que tiene módulo propio)
-  Future<List<Map<String, dynamic>>> getTiposChecklistVisita() async {
+  /// Tipos de checklist disponibles para visitas.
+  ///
+  /// Por defecto excluye:
+  ///   * `VISITA_R004` (Extintores tiene su propio módulo)
+  ///   * los tipos Hidroser (también en módulo propio, ver
+  ///     `core/modules/hidroser_checklists.dart`)
+  ///
+  /// Si [onlyTypes] no es null/vacío, retorna SOLO esos tipos (útil para el
+  /// módulo Hidroser, que quiere mostrar únicamente sus checklists).
+  Future<List<Map<String, dynamic>>> getTiposChecklistVisita({
+    List<String>? onlyTypes,
+    List<String>? excludeTypes,
+  }) async {
     final db = await dbHelper.database;
-    return await db.rawQuery('''
-      SELECT DISTINCT tipo_actividad
-      FROM formulario_items
-      WHERE tipo_actividad LIKE 'VISITA_%' AND tipo_actividad != 'VISITA_R004' AND activo = 1
-      ORDER BY tipo_actividad ASC
-    ''');
+    final whereParts = <String>["tipo_actividad LIKE 'VISITA_%'", "activo = 1"];
+    final args = <Object?>[];
+
+    if (onlyTypes != null && onlyTypes.isNotEmpty) {
+      final placeholders = List.filled(onlyTypes.length, '?').join(', ');
+      whereParts.add('tipo_actividad IN ($placeholders)');
+      args.addAll(onlyTypes);
+    } else {
+      // Exclusiones por defecto + las que pidan
+      final defaultExcludes = <String>[
+        'VISITA_R004',
+        ...kHidroserChecklistTypes,
+      ];
+      final excludes = <String>{
+        ...defaultExcludes,
+        if (excludeTypes != null) ...excludeTypes,
+      }.toList();
+      final placeholders = List.filled(excludes.length, '?').join(', ');
+      whereParts.add('tipo_actividad NOT IN ($placeholders)');
+      args.addAll(excludes);
+    }
+
+    return await db.rawQuery(
+      'SELECT DISTINCT tipo_actividad FROM formulario_items '
+      'WHERE ${whereParts.join(' AND ')} '
+      'ORDER BY tipo_actividad ASC',
+      args,
+    );
   }
 
   /// Definiciones de campos extra propios de un checklist (Patente, etc.).

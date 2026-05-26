@@ -12,6 +12,10 @@ class GradientAppBar extends StatelessWidget implements PreferredSizeWidget {
   final double elevation;
   final PreferredSizeWidget? bottom;
 
+  /// Colores del gradiente. Si es null usa la paleta corporativa por defecto.
+  /// Debe traer al menos 2 colores; los stops se calculan automáticamente.
+  final List<Color>? gradientColors;
+
   const GradientAppBar({
     super.key,
     this.title,
@@ -20,10 +24,23 @@ class GradientAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.centerTitle = false,
     this.elevation = 0,
     this.bottom,
+    this.gradientColors,
   });
+
+  static const List<Color> _defaultColors = [
+    AppTheme.primaryBlue,
+    Color(0xFF002244),
+    AppTheme.logoGrey,
+  ];
+  static const List<double> _defaultStops = [0.0, 0.65, 1.0];
 
   @override
   Widget build(BuildContext context) {
+    final colors = gradientColors ?? _defaultColors;
+    // Usamos stops sólo si coinciden en cantidad con los colores por defecto.
+    final stops = (colors.length == _defaultColors.length)
+        ? _defaultStops
+        : null;
     return AppBar(
       title: title,
       actions: actions,
@@ -35,18 +52,14 @@ class GradientAppBar extends StatelessWidget implements PreferredSizeWidget {
       surfaceTintColor: Colors.transparent,
       bottom: bottom,
       flexibleSpace: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              AppTheme.primaryBlue,
-              Color(0xFF002244),
-              AppTheme.logoGrey,
-            ],
-            stops: [0.0, 0.65, 1.0],
+            colors: colors,
+            stops: stops,
           ),
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
               color: Color(0x33000000),
               blurRadius: 8,

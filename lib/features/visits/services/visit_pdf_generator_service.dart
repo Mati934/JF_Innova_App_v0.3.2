@@ -68,21 +68,40 @@ class VisitPdfGeneratorService {
             _buildActividades(data),
             pw.SizedBox(height: 15),
           ],
-          if (data.checklistItems.isNotEmpty) ...[
-            ..._buildChecklistSection(data),
-            pw.SizedBox(height: 15),
-          ],
           _buildObservaciones(data),
           pw.SizedBox(height: 20),
           _buildFirma(data),
 
           // 🖼️ ANEXO FOTOGRÁFICO CON ALGORITMO DE CHUNKING (Clonado de Inspecciones)
           ..._buildGalleryChunked(data.fotosPaths),
+
+          // ✅ CHECKLIST SIEMPRE AL FINAL (después de observaciones, firma y fotos)
+          if (data.checklistItems.isNotEmpty) ...[
+            pw.SizedBox(height: 15),
+            ..._buildChecklistSection(data),
+          ],
         ],
       ),
     );
 
     return pdf.save();
+  }
+
+  /// Convierte el código interno del checklist a un nombre legible.
+  String _checklistLabel(String? tipo) {
+    const labels = {
+      'VISITA_R005': 'Insp. Condiciones Eléctricas',
+      'ELECTRICIDAD_R005': 'Insp. Condiciones Eléctricas',
+      'VISITA_R006': 'Insp. Pisos y Superficies',
+      'PISOS_R006': 'Insp. Pisos y Superficies',
+      'VISITA_R008': 'Chequeo Vehículos Livianos',
+      'VEHICULOS_R008': 'Chequeo Vehículos Livianos',
+      'VISITA_R011': 'Chequeo Máquina Soldadora',
+      'SOLDADORA_R011': 'Chequeo Máquina Soldadora',
+      'VISITA_R012': 'Verificación Grúas Horquillas',
+    };
+    if (tipo == null || tipo.isEmpty) return '';
+    return labels[tipo] ?? tipo.replaceAll('_', ' ');
   }
 
   // ALGORITMO DE CHUNKING: Evita desbordamientos de página y crasheos por RAM
@@ -602,7 +621,7 @@ class VisitPdfGeneratorService {
         padding: const pw.EdgeInsets.all(6),
         decoration: const pw.BoxDecoration(color: PdfColors.grey200),
         child: pw.Text(
-          'CHECKLIST: ${data.tipoChecklist ?? ""}',
+          'CHECKLIST: ${_checklistLabel(data.tipoChecklist)}',
           style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
         ),
       ),
