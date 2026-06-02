@@ -5,6 +5,7 @@ import '../../features/inspection/presentation/screens/inspection_setup_screen.d
 import '../../features/visits/presentation/screens/visit_form_screen.dart';
 import '../../features/extintores/presentation/screens/extintor_form_screen.dart';
 import '../../features/prosesso/presentation/screens/prosesso_form_screen.dart';
+import '../../features/hidroser/presentation/screens/hidroser_module_screen.dart';
 
 import '../../features/admin/presentation/screens/master_data_admin_screen.dart';
 import '../../features/history/presentation/screens/history_screen.dart';
@@ -71,17 +72,9 @@ class ModuleRegistry {
       moduleKey: 'HIDROSER',
       title: 'Hidroser',
       subtitle: 'Listas de chequeo',
-      icon: Icons.precision_manufacturing,
+      icon: Icons.engineering,
       color: kHidroserColor,
-      screenBuilder: (_) => const VisitFormScreen(
-        onlyChecklistTypes: kHidroserChecklistTypes,
-        customTitle: 'Hidroser · Lista de Chequeo',
-        customSubtitle:
-            'Selecciona el listado de verificación Hidroser a completar.',
-        brandColor: kHidroserColor,
-        brandColorDark: kHidroserColorDark,
-        brandIcon: Icons.precision_manufacturing,
-      ),
+      screenBuilder: (_) => const HidroserModuleScreen(),
     ),
     ModuleDefinition(
       moduleKey: 'ADMIN',

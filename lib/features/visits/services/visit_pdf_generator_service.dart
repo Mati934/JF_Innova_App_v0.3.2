@@ -72,14 +72,14 @@ class VisitPdfGeneratorService {
           pw.SizedBox(height: 20),
           _buildFirma(data),
 
-          // 🖼️ ANEXO FOTOGRÁFICO CON ALGORITMO DE CHUNKING (Clonado de Inspecciones)
-          ..._buildGalleryChunked(data.fotosPaths),
-
-          // ✅ CHECKLIST SIEMPRE AL FINAL (después de observaciones, firma y fotos)
+          // ✅ CHECKLIST primero (con foto por pregunta dentro de la celda).
           if (data.checklistItems.isNotEmpty) ...[
             pw.SizedBox(height: 15),
             ..._buildChecklistSection(data),
           ],
+
+          // 🖼️ ANEXO FOTOGRÁFICO (galería general) SIEMPRE al final del PDF.
+          ..._buildGalleryChunked(data.fotosPaths),
         ],
       ),
     );
@@ -669,6 +669,30 @@ class VisitPdfGeneratorService {
             ),
             ...grouped[category]!.map((item) {
               final isNC = item.respuesta == 'NC';
+              pw.Widget? fotoWidget;
+              if (item.fotoPath != null && item.fotoPath!.isNotEmpty) {
+                final f = File(item.fotoPath!);
+                if (f.existsSync()) {
+                  try {
+                    final optimized = _optimizarImagen(f.readAsBytesSync());
+                    fotoWidget = pw.Container(
+                      width: 70,
+                      height: 70,
+                      margin: const pw.EdgeInsets.only(top: 3),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(
+                          color: PdfColors.grey400,
+                          width: 0.5,
+                        ),
+                      ),
+                      child: pw.Image(
+                        pw.MemoryImage(optimized),
+                        fit: pw.BoxFit.cover,
+                      ),
+                    );
+                  } catch (_) {}
+                }
+              }
               final row = pw.TableRow(
                 decoration: isNC
                     ? const pw.BoxDecoration(color: PdfColors.red50)
@@ -685,9 +709,16 @@ class VisitPdfGeneratorService {
                   _cellPdf(item.respuesta, color: isNC ? PdfColors.red : null),
                   pw.Padding(
                     padding: const pw.EdgeInsets.all(3),
-                    child: pw.Text(
-                      item.observacion ?? '',
-                      style: const pw.TextStyle(fontSize: 7),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        if ((item.observacion ?? '').isNotEmpty)
+                          pw.Text(
+                            item.observacion!,
+                            style: const pw.TextStyle(fontSize: 7),
+                          ),
+                        if (fotoWidget != null) fotoWidget,
+                      ],
                     ),
                   ),
                 ],

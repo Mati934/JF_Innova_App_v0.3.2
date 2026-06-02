@@ -146,6 +146,15 @@ class SyncService {
             .order('tipo_actividad')
             .order('orden'),
       ),
+      // 13: hidroser_listas (catálogo de listas de chequeo del módulo Hidroser)
+      descargarTabla(
+        'hidroser_listas',
+        _supabase
+            .from('hidroser_listas')
+            .select()
+            .eq('activo', true)
+            .order('orden'),
+      ),
     ]);
 
     // Guardar cada tabla que se descargó exitosamente
@@ -432,6 +441,25 @@ class SyncService {
       }
     }
 
+    // 13: hidroser_listas
+    if (futures.length > 13 && futures[13] != null) {
+      try {
+        await _dbHelper.guardarHidroserListasOffline(
+          List<Map<String, dynamic>>.from(futures[13]!),
+        );
+        tablasDescargadas.add('hidroser_listas');
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando hidroser_listas en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: hidroser_listas',
+          fatal: false,
+        );
+        tablasFallidas.add('hidroser_listas');
+      }
+    }
+
     if (tablasFallidas.isEmpty) {
       debugPrint(
         "✅ Datos maestros actualizados offline (${tablasDescargadas.length} tablas).",
@@ -462,6 +490,9 @@ class SyncService {
       // 3. Subir Visitas Técnicas (AHORA SON INDEPENDIENTES)
       int visitasSubidas = await _sincronizarVisitas();
 
+      // 3.b Subir Inspecciones del módulo Hidroser (independientes)
+      int hidroserSubidas = await _sincronizarHidroser();
+
       // 4. Subir Hijos (Respuestas y Fotos)
       await _sincronizarRespuestas();
       await _sincronizarFotos();
@@ -472,7 +503,7 @@ class SyncService {
       // 6. Subir configuración de módulos por empresa
       await _sincronizarEmpresaModulos();
 
-      totalSubidas = actividadesSubidas + visitasSubidas;
+      totalSubidas = actividadesSubidas + visitasSubidas + hidroserSubidas;
     } catch (e) {
       debugPrint("❌ Error en sincronización global: $e");
     }
@@ -1433,6 +1464,190 @@ class SyncService {
       "✅ Respuestas sincronizadas y marcadas localmente (${batchParaNube.length})",
     );
     return batchParaNube.length;
+  }
+
+  // ---------------------------------------------------------------------------
+  // MÓDULO HIDROSER
+  // ---------------------------------------------------------------------------
+
+  /// Sube inspecciones Hidroser (cabecera + respuestas + PDF) y devuelve cuántas
+  /// se sincronizaron correctamente.
+  Future<int> _sincronizarHidroser() async {
+    final db = await _dbHelper.database;
+    final pendientes = await db.query(
+      'hidroser_inspecciones_pendientes',
+      where: 'subido = 0',
+    );
+    if (pendientes.isEmpty) return 0;
+
+    int count = 0;
+    for (final row in pendientes) {
+      final id = row['id'] as String;
+      final estaEliminado = (row['eliminado'] as int?) == 1;
+
+      // FLUJO BORRADO ZOMBIE
+      if (estaEliminado) {
+        try {
+          debugPrint("🗑️ Eliminando Hidroser zombie en nube: $id");
+          await _supabase
+              .from('hidroser_inspecciones')
+              .update({'estado_final': 'Eliminada'})
+              .eq('id', id);
+
+          await db.delete(
+            'hidroser_inspecciones_pendientes',
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+          await db.delete(
+            'hidroser_respuestas_pendientes',
+            where: 'inspeccion_id = ?',
+            whereArgs: [id],
+          );
+        } catch (e) {
+          debugPrint("❌ Error eliminando Hidroser zombie (offline?): $e");
+        }
+        continue;
+      }
+
+      try {
+        debugPrint("🚀 Sync Hidroser inspección: $id");
+
+        final datosNube = Map<String, dynamic>.from(row);
+
+        // Sanitizar: campos local-only y BLOB no van a Supabase
+        datosNube.remove('subido');
+        datosNube.remove('eliminado');
+        datosNube.remove('firma_supervisor_image');
+        datosNube.remove('firma_operador_image');
+        final String? pdfPathLocal = datosNube.remove('pdf_path_local');
+        // El correlativo lo asigna el trigger en Supabase, no lo pisamos.
+        datosNube.remove('correlativo');
+
+        // campos_extra: en SQLite viaja como String JSON; en Supabase es jsonb.
+        final rawCamposExtra = datosNube['campos_extra'];
+        if (rawCamposExtra is String) {
+          if (rawCamposExtra.trim().isEmpty) {
+            datosNube['campos_extra'] = <String, dynamic>{};
+          } else {
+            try {
+              datosNube['campos_extra'] = jsonDecode(rawCamposExtra);
+            } catch (_) {
+              datosNube['campos_extra'] = <String, dynamic>{};
+            }
+          }
+        }
+
+        // Asegurar usuario_id (igual que el patrón de visitas).
+        if (datosNube['usuario_id'] == null) {
+          final activeUserId = _supabase.auth.currentUser?.id;
+          if (activeUserId != null) {
+            datosNube['usuario_id'] = activeUserId;
+            await db.update(
+              'hidroser_inspecciones_pendientes',
+              {'usuario_id': activeUserId},
+              where: 'id = ?',
+              whereArgs: [id],
+            );
+          }
+        }
+
+        // Upsert cabecera (devolvemos correlativo si lo asigna el trigger).
+        final upserted = await _supabase
+            .from('hidroser_inspecciones')
+            .upsert(datosNube, onConflict: 'id')
+            .select('correlativo')
+            .maybeSingle();
+
+        final correlativoAsignado = upserted?['correlativo']?.toString();
+        if (correlativoAsignado != null && correlativoAsignado.isNotEmpty) {
+          await db.update(
+            'hidroser_inspecciones_pendientes',
+            {'correlativo': correlativoAsignado},
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+        }
+
+        // Subir respuestas
+        final respuestas = await db.query(
+          'hidroser_respuestas_pendientes',
+          where: 'inspeccion_id = ?',
+          whereArgs: [id],
+        );
+        for (final r in respuestas) {
+          final payload = <String, dynamic>{
+            'id': r['id'],
+            'inspeccion_id': r['inspeccion_id'],
+            'item_id': r['item_id'],
+            'estado': r['estado'],
+            'observacion': r['observacion'],
+            'criticidad': r['criticidad'],
+            'foto_path': r['foto_path'],
+          };
+          try {
+            await _supabase
+                .from('hidroser_respuestas')
+                .upsert(payload, onConflict: 'id');
+            await db.update(
+              'hidroser_respuestas_pendientes',
+              {'subido': 1},
+              where: 'id = ?',
+              whereArgs: [r['id']],
+            );
+          } catch (e) {
+            debugPrint("⚠️ Error subiendo respuesta Hidroser ${r['id']}: $e");
+          }
+        }
+
+        // Subir PDF (si hay path local y no hay url remota aún)
+        String? pdfUrlNube = row['pdf_url'] as String?;
+        if (pdfPathLocal != null &&
+            (pdfUrlNube == null || pdfUrlNube.isEmpty)) {
+          final file = File(pdfPathLocal);
+          if (file.existsSync()) {
+            try {
+              final pathStorage = '$id/Hidroser_$id.pdf';
+              await _supabase.storage
+                  .from('pdfs_visitas')
+                  .upload(
+                    pathStorage,
+                    file,
+                    fileOptions: const FileOptions(upsert: true),
+                  );
+              pdfUrlNube = _supabase.storage
+                  .from('pdfs_visitas')
+                  .getPublicUrl(pathStorage);
+              await _supabase
+                  .from('hidroser_inspecciones')
+                  .update({'pdf_url': pdfUrlNube})
+                  .eq('id', id);
+              debugPrint("✅ PDF Hidroser subido: $pdfUrlNube");
+            } catch (e) {
+              debugPrint("⚠️ Error subiendo PDF Hidroser: $e");
+            }
+          }
+        }
+
+        // Marcar como subido sólo si no hay PDF pendiente
+        final pdfPendiente =
+            pdfPathLocal != null && (pdfUrlNube == null || pdfUrlNube.isEmpty);
+        if (!pdfPendiente) {
+          await db.update(
+            'hidroser_inspecciones_pendientes',
+            {'subido': 1, if (pdfUrlNube != null) 'pdf_url': pdfUrlNube},
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+        }
+
+        count++;
+        debugPrint("✅ Hidroser inspección sincronizada OK: $id");
+      } catch (e) {
+        debugPrint("🔥 Error subiendo Hidroser $id: $e");
+      }
+    }
+    return count;
   }
 
   Future<int> _sincronizarFotos() async {

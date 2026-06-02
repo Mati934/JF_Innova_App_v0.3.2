@@ -1,13 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'dart:convert';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
   static const int _dbVersion =
-      47; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      48; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -419,6 +420,66 @@ class DatabaseHelper {
     ''');
     await db.execute(
       'CREATE INDEX idx_mantenciones_prosesso_visita ON mantenciones_prosesso_pendientes(visita_id)',
+    );
+
+    // --- MÓDULO HIDROSER (independiente del Registro de Visita) ---
+    await db.execute('''
+      CREATE TABLE hidroser_listas (
+        codigo TEXT PRIMARY KEY,
+        nombre TEXT NOT NULL,
+        subtitulo TEXT,
+        tipo_formulario_items TEXT NOT NULL,
+        icono TEXT,
+        orden INTEGER NOT NULL DEFAULT 0,
+        activo INTEGER NOT NULL DEFAULT 1,
+        campos_extra_definicion TEXT NOT NULL DEFAULT '[]'
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE hidroser_inspecciones_pendientes (
+        id TEXT PRIMARY KEY,
+        usuario_id TEXT,
+        empresa_id TEXT,
+        lista_codigo TEXT NOT NULL,
+        fecha_realizacion TEXT,
+        correlativo TEXT,
+        quien_inspecciona TEXT,
+        observaciones TEXT,
+        campos_extra TEXT,
+        firma_supervisor_nombre TEXT,
+        firma_operador_nombre TEXT,
+        firma_supervisor_image BLOB,
+        firma_operador_image BLOB,
+        estado_final TEXT NOT NULL DEFAULT 'Borrador',
+        pdf_url TEXT,
+        pdf_path_local TEXT,
+        subido INTEGER NOT NULL DEFAULT 0,
+        eliminado INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_hidroser_inspecciones_lista ON hidroser_inspecciones_pendientes(lista_codigo)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_hidroser_inspecciones_estado ON hidroser_inspecciones_pendientes(estado_final)',
+    );
+
+    await db.execute('''
+      CREATE TABLE hidroser_respuestas_pendientes (
+        id TEXT PRIMARY KEY,
+        inspeccion_id TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        estado TEXT,
+        observacion TEXT,
+        criticidad TEXT,
+        foto_path TEXT,
+        subido INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_hidroser_respuestas_inspeccion ON hidroser_respuestas_pendientes(inspeccion_id)',
     );
 
     debugPrint("✅ Base de datos v$_dbVersion inicializada.");
@@ -1133,6 +1194,67 @@ class DatabaseHelper {
       ''');
       debugPrint("✅ Parche v47 aplicado.");
     }
+
+    if (oldVersion < 48) {
+      debugPrint("🚀 Aplicando parche v48 (Módulo Hidroser independiente)...");
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS hidroser_listas (
+          codigo TEXT PRIMARY KEY,
+          nombre TEXT NOT NULL,
+          subtitulo TEXT,
+          tipo_formulario_items TEXT NOT NULL,
+          icono TEXT,
+          orden INTEGER NOT NULL DEFAULT 0,
+          activo INTEGER NOT NULL DEFAULT 1,
+          campos_extra_definicion TEXT NOT NULL DEFAULT '[]'
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS hidroser_inspecciones_pendientes (
+          id TEXT PRIMARY KEY,
+          usuario_id TEXT,
+          empresa_id TEXT,
+          lista_codigo TEXT NOT NULL,
+          fecha_realizacion TEXT,
+          correlativo TEXT,
+          quien_inspecciona TEXT,
+          observaciones TEXT,
+          campos_extra TEXT,
+          firma_supervisor_nombre TEXT,
+          firma_operador_nombre TEXT,
+          firma_supervisor_image BLOB,
+          firma_operador_image BLOB,
+          estado_final TEXT NOT NULL DEFAULT 'Borrador',
+          pdf_url TEXT,
+          pdf_path_local TEXT,
+          subido INTEGER NOT NULL DEFAULT 0,
+          eliminado INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_hidroser_inspecciones_lista ON hidroser_inspecciones_pendientes(lista_codigo)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_hidroser_inspecciones_estado ON hidroser_inspecciones_pendientes(estado_final)',
+      );
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS hidroser_respuestas_pendientes (
+          id TEXT PRIMARY KEY,
+          inspeccion_id TEXT NOT NULL,
+          item_id TEXT NOT NULL,
+          estado TEXT,
+          observacion TEXT,
+          criticidad TEXT,
+          foto_path TEXT,
+          subido INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_hidroser_respuestas_inspeccion ON hidroser_respuestas_pendientes(inspeccion_id)',
+      );
+      debugPrint("✅ Parche v48 aplicado.");
+    }
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -1462,6 +1584,49 @@ class DatabaseHelper {
       where: 'tipo_actividad = ? AND activo = 1',
       whereArgs: [tipoActividad],
       orderBy: 'orden ASC',
+    );
+  }
+
+  // --- HIDROSER ------------------------------------------------------------
+
+  /// Reescribe el catálogo local de listas de chequeo Hidroser.
+  /// Las definiciones de campos extra viajan como JSON (TEXT en SQLite).
+  Future<void> guardarHidroserListasOffline(
+    List<Map<String, dynamic>> listas,
+  ) async {
+    if (listas.isEmpty) {
+      debugPrint(
+        "⚠️ Advertencia: lista vacía para hidroser_listas. Operación cancelada.",
+      );
+      return;
+    }
+    final db = await instance.database;
+    final batch = db.batch();
+    batch.delete('hidroser_listas');
+    for (final l in listas) {
+      final defs = l['campos_extra_definicion'];
+      final defsJson = defs is String ? defs : jsonEncode(defs ?? []);
+      batch.insert('hidroser_listas', {
+        'codigo': l['codigo'],
+        'nombre': l['nombre'],
+        'subtitulo': l['subtitulo'],
+        'tipo_formulario_items': l['tipo_formulario_items'],
+        'icono': l['icono'],
+        'orden': (l['orden'] is num) ? (l['orden'] as num).toInt() : 0,
+        'activo': (l['activo'] == false) ? 0 : 1,
+        'campos_extra_definicion': defsJson,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
+    debugPrint("✅ Hidroser listas guardadas: ${listas.length}");
+  }
+
+  Future<List<Map<String, dynamic>>> getHidroserListasActivas() async {
+    final db = await instance.database;
+    return await db.query(
+      'hidroser_listas',
+      where: 'activo = 1',
+      orderBy: 'orden ASC, nombre ASC',
     );
   }
 

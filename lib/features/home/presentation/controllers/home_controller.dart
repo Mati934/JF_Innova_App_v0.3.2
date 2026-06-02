@@ -9,6 +9,7 @@ import '../../../../core/services/user_session.dart';
 import '../../../../core/modules/module_registry.dart';
 import '../../../visits/data/repositories/local_visit_repository.dart';
 import '../../../extintores/data/repositories/local_extintor_repository.dart';
+import '../../../hidroser/data/repositories/local_hidroser_repository.dart';
 import '../../../prosesso/data/repositories/local_prosesso_repository.dart';
 import '../../domain/draft_card_data.dart';
 import '../../domain/draft_card_mapper.dart';
@@ -18,6 +19,7 @@ class HomeController extends ChangeNotifier {
   final _localRepo = LocalInspectionRepository();
   final _visitRepo = LocalVisitRepository();
   final _extintorRepo = LocalExtintorRepository();
+  final _hidroserRepo = LocalHidroserRepository();
   final _prosessoRepo = LocalProsessoRepository();
   final _connectivity = ConnectivityService();
 
@@ -82,16 +84,23 @@ class HomeController extends ChangeNotifier {
         _visitRepo.getBorradores(),
         _extintorRepo.getBorradores(),
         _prosessoRepo.getBorradores(),
+        _hidroserRepo.getBorradores(),
       ]);
 
       final inspecciones = resultados[0].map(DraftCardMapper.fromInspeccion);
       final visitas = resultados[1].map(DraftCardMapper.fromVisita);
       final extintores = resultados[2].map(DraftCardMapper.fromExtintor);
       final prosesso = resultados[3].map(DraftCardMapper.fromProsesso);
+      final hidroser = resultados[4].map(DraftCardMapper.fromHidroser);
 
       // Fusionamos y ordenamos por fecha (del más reciente al más antiguo)
-      borradores = [...inspecciones, ...visitas, ...extintores, ...prosesso]
-        ..sort((a, b) => b.fecha.compareTo(a.fecha));
+      borradores = [
+        ...inspecciones,
+        ...visitas,
+        ...extintores,
+        ...prosesso,
+        ...hidroser,
+      ]..sort((a, b) => b.fecha.compareTo(a.fecha));
     } catch (e) {
       debugPrint("❌ Error cargando borradores combinados: $e");
       borradores = [];
@@ -118,6 +127,9 @@ class HomeController extends ChangeNotifier {
           break;
         case DraftKind.mantencionProsesso:
           await _prosessoRepo.eliminarBorrador(id);
+          break;
+        case DraftKind.hidroserGruaHorquilla:
+          await _hidroserRepo.eliminarBorrador(id);
           break;
         case DraftKind.visitaTecnica:
         case DraftKind.visitaChecklistElectricidad:

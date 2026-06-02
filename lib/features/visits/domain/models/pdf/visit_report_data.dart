@@ -93,6 +93,7 @@ class VisitChecklistItemDto {
   final String respuesta; // C, NC, N/A
   final String? criticidad;
   final String? observacion;
+  final String? fotoPath;
 
   VisitChecklistItemDto({
     required this.categoria,
@@ -100,5 +101,6 @@ class VisitChecklistItemDto {
     required this.respuesta,
     this.criticidad,
     this.observacion,
+    this.fotoPath,
   });
 }

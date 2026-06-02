@@ -11,6 +11,7 @@ enum DraftKind {
   visitaChecklistOtro,
   inspeccionExtintores,
   mantencionProsesso,
+  hidroserGruaHorquilla,
   desconocido,
 }
 
@@ -50,6 +51,8 @@ class DraftCardData {
         return Icons.fire_extinguisher;
       case DraftKind.mantencionProsesso:
         return Icons.build_circle;
+      case DraftKind.hidroserGruaHorquilla:
+        return Icons.engineering;
       case DraftKind.visitaTecnica:
       case DraftKind.visitaChecklistOtro:
         return Icons.assignment_outlined;
@@ -74,6 +77,8 @@ class DraftCardData {
         return Colors.red.shade700;
       case DraftKind.mantencionProsesso:
         return const Color(0xFFC8102E);
+      case DraftKind.hidroserGruaHorquilla:
+        return const Color(0xFF0277BD);
       case DraftKind.visitaTecnica:
         return Colors.blue.shade700;
       case DraftKind.visitaChecklistElectricidad:
@@ -99,5 +104,6 @@ class DraftCardData {
       kind == DraftKind.visitaChecklistPisos ||
       kind == DraftKind.visitaChecklistOtro ||
       kind == DraftKind.inspeccionExtintores ||
-      kind == DraftKind.mantencionProsesso;
+      kind == DraftKind.mantencionProsesso ||
+      kind == DraftKind.hidroserGruaHorquilla;
 }

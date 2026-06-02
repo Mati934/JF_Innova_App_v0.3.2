@@ -15,7 +15,7 @@ class QuestionCard extends StatefulWidget {
   final Function(String) onRespuestaChanged;
   final Function(String) onObservacionChanged;
   final Function(String) onCriticidadChanged;
-  final VoidCallback onTomarFotoTap;
+  final VoidCallback? onTomarFotoTap;
 
   const QuestionCard({
     super.key,
@@ -27,7 +27,7 @@ class QuestionCard extends StatefulWidget {
     required this.onRespuestaChanged,
     required this.onObservacionChanged,
     required this.onCriticidadChanged,
-    required this.onTomarFotoTap,
+    this.onTomarFotoTap,
   });
 
   @override
@@ -149,7 +149,9 @@ class _QuestionCardState extends State<QuestionCard>
                               alignment: Alignment.centerLeft,
                               child: Icon(
                                 Icons.info_rounded,
-                                color: const Color(0xFFE2B93B).withValues(alpha: 0.9),
+                                color: const Color(
+                                  0xFFE2B93B,
+                                ).withValues(alpha: 0.9),
                                 size: 18,
                               ),
                             ),
@@ -158,16 +160,17 @@ class _QuestionCardState extends State<QuestionCard>
                     ),
                   ),
                   // Botón circular de cámara
-                  _buildCircularIconButton(
-                    icon: widget.fotoInicial != null
-                        ? Icons.check_circle
-                        : Icons.add_a_photo_rounded,
-                    color: widget.fotoInicial != null
-                        ? Colors.green
-                        : const Color(0xFF003366),
-                    onTap: widget.onTomarFotoTap,
-                    hasPhoto: widget.fotoInicial != null,
-                  ),
+                  if (widget.onTomarFotoTap != null)
+                    _buildCircularIconButton(
+                      icon: widget.fotoInicial != null
+                          ? Icons.check_circle
+                          : Icons.add_a_photo_rounded,
+                      color: widget.fotoInicial != null
+                          ? Colors.green
+                          : const Color(0xFF003366),
+                      onTap: widget.onTomarFotoTap!,
+                      hasPhoto: widget.fotoInicial != null,
+                    ),
                 ],
               ),
             ),
@@ -351,7 +354,10 @@ class _QuestionCardState extends State<QuestionCard>
       decoration: BoxDecoration(
         color: colorFondo,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colorPrincipal.withValues(alpha: 0.5), width: 1),
+        border: Border.all(
+          color: colorPrincipal.withValues(alpha: 0.5),
+          width: 1,
+        ),
       ),
       child: DropdownButton<String>(
         value: valorSeguro,
@@ -544,7 +550,10 @@ class _QuestionCardState extends State<QuestionCard>
                 offset: const Offset(0, 5),
               ),
             ],
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.1),
+              width: 1,
+            ),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,

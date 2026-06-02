@@ -6,6 +6,8 @@ import '../../domain/draft_card_data.dart';
 import '../../domain/draft_card_mapper.dart';
 import '../../../inspection/presentation/screens/inspection_form_screen.dart';
 import '../../../extintores/presentation/screens/extintor_form_screen.dart';
+import '../../../hidroser/data/repositories/local_hidroser_repository.dart';
+import '../../../hidroser/presentation/screens/hidroser_form_screen.dart';
 import '../../../prosesso/presentation/screens/prosesso_form_screen.dart';
 
 class DraftListWidget extends StatelessWidget {
@@ -40,7 +42,7 @@ class DraftListWidget extends StatelessWidget {
 
   Future<void> _abrirBorrador(BuildContext context, DraftCardData card) async {
     final raw = card.raw;
-    Widget destino;
+    Widget? destino;
 
     switch (card.kind) {
       case DraftKind.inspeccionExtintores:
@@ -48,6 +50,33 @@ class DraftListWidget extends StatelessWidget {
         break;
       case DraftKind.mantencionProsesso:
         destino = ProsessoFormScreen(borradorInicial: raw);
+        break;
+      case DraftKind.hidroserGruaHorquilla:
+        // Necesitamos resolver la lista (cat\u00e1logo) y traer las respuestas
+        // antes de abrir el formulario.
+        final repo = LocalHidroserRepository();
+        final listaCodigo = raw['lista_codigo']?.toString() ?? '';
+        final lista = await repo.getListaByCodigo(listaCodigo);
+        if (lista == null) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'No se encontr\u00f3 la lista \"$listaCodigo\". '
+                  'Sincroniza con la nube e intenta de nuevo.',
+                ),
+              ),
+            );
+          }
+          return;
+        }
+        final borradorCompleto = await repo.getInspeccionConRespuestasById(
+          card.id,
+        );
+        destino = HidroserFormScreen(
+          lista: lista,
+          borrador: borradorCompleto ?? raw,
+        );
         break;
       case DraftKind.visitaTecnica:
       case DraftKind.visitaChecklistElectricidad:
@@ -64,7 +93,8 @@ class DraftListWidget extends StatelessWidget {
         );
     }
 
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => destino));
+    if (!context.mounted) return;
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => destino!));
     controller.cargarBorradores();
   }
 

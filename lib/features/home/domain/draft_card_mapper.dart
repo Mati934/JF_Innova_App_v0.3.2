@@ -78,6 +78,18 @@ class DraftCardMapper {
     );
   }
 
+  /// Inspecciones del módulo Hidroser (`hidroser_inspecciones_pendientes`).
+  static DraftCardData fromHidroser(Map<String, dynamic> raw) {
+    return DraftCardData(
+      id: raw['id'].toString(),
+      kind: DraftKind.hidroserGruaHorquilla,
+      title: _titleForKind(DraftKind.hidroserGruaHorquilla),
+      centro: _firstNonEmpty([raw['quien_inspecciona'], raw['lista_codigo']]),
+      fecha: _parseFecha(raw['fecha_realizacion'] ?? raw['created_at']),
+      raw: raw,
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Helpers privados
   // ---------------------------------------------------------------------------
@@ -126,6 +138,8 @@ class DraftCardMapper {
         return 'Inspección Extintores';
       case DraftKind.mantencionProsesso:
         return 'Mantención de Extintores';
+      case DraftKind.hidroserGruaHorquilla:
+        return 'Inspección Grúa Horquilla';
       case DraftKind.desconocido:
         return fallback?.isNotEmpty == true ? fallback! : 'Borrador';
     }

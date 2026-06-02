@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/database/database_helper.dart';
-import '../../../../core/modules/hidroser_checklists.dart';
 import '../../../../core/services/user_session.dart';
 import '../../domain/models/visita_respuesta.dart';
 import '../../domain/models/campo_extra_def.dart';
@@ -237,10 +236,8 @@ class LocalVisitRepository {
       args.addAll(onlyTypes);
     } else {
       // Exclusiones por defecto + las que pidan
-      final defaultExcludes = <String>[
-        'VISITA_R004',
-        ...kHidroserChecklistTypes,
-      ];
+      // VISITA_R012 = checklist Hidroser, ahora vive en su módulo propio.
+      final defaultExcludes = <String>['VISITA_R004', 'VISITA_R012'];
       final excludes = <String>{
         ...defaultExcludes,
         if (excludeTypes != null) ...excludeTypes,

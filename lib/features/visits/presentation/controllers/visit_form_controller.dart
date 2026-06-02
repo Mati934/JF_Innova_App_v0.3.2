@@ -517,10 +517,15 @@ class VisitFormController extends ChangeNotifier {
             respuesta: resp?.estado ?? '-',
             criticidad: resp?.criticidad,
             observacion: resp?.observacion,
+            fotoPath: resp?.fotoPath,
           ),
         );
       }
     }
+
+    final Set<String> galeriaUnificada = {...galeriaPaths};
+    // NOTA: las fotos por pregunta NO se agregan a la galería general; se
+    // renderizan dentro de la celda del checklist en el PDF.
 
     return VisitReportData(
       empresaProveedor: (UserSession().empresaNombre ?? 'JF INNOVA')
@@ -550,7 +555,7 @@ class VisitFormController extends ChangeNotifier {
       checkOtro: model.checkOtro,
       otroActividadTexto: otroActividadCtrl.text.trim(),
       apuntesObservaciones: observacionesCtrl.text.trim(),
-      fotosPaths: galeriaPaths,
+      fotosPaths: galeriaUnificada.toList(),
       signatureImage: signatureImage,
       tipoChecklist: selectedTipoActividad,
       checklistItems: checklistItemsPdf,
