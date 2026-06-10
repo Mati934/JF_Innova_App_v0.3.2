@@ -8,7 +8,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      48; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      49; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -480,6 +480,53 @@ class DatabaseHelper {
     ''');
     await db.execute(
       'CREATE INDEX idx_hidroser_respuestas_inspeccion ON hidroser_respuestas_pendientes(inspeccion_id)',
+    );
+
+    // --- MÓDULO AST (Análisis Seguro de Trabajo, independiente) ---
+    await db.execute('''
+      CREATE TABLE ast_informes_pendientes (
+        id TEXT PRIMARY KEY,
+        usuario_id TEXT,
+        empresa_id TEXT,
+        area_id TEXT,
+        centro_id TEXT,
+        contratista_id TEXT,
+        embarcacion_id TEXT,
+        area_nombre TEXT,
+        centro_nombre TEXT,
+        contratista_nombre TEXT,
+        embarcacion_nombre TEXT,
+        profesional TEXT,
+        fecha_realizacion TEXT,
+        descripcion_actividad TEXT,
+        observaciones TEXT,
+        correlativo TEXT,
+        estado_final TEXT NOT NULL DEFAULT 'En Progreso',
+        pdf_url TEXT,
+        pdf_path_local TEXT,
+        fotos_generales TEXT,
+        subido INTEGER NOT NULL DEFAULT 0,
+        eliminado INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_ast_informes_estado ON ast_informes_pendientes(estado_final)',
+    );
+
+    await db.execute('''
+      CREATE TABLE ast_hallazgos_pendientes (
+        id TEXT PRIMARY KEY,
+        informe_id TEXT NOT NULL,
+        numero INTEGER NOT NULL DEFAULT 0,
+        titulo TEXT,
+        detalle TEXT,
+        foto_path TEXT,
+        subido INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_ast_hallazgos_informe ON ast_hallazgos_pendientes(informe_id)',
     );
 
     debugPrint("✅ Base de datos v$_dbVersion inicializada.");
@@ -1255,6 +1302,55 @@ class DatabaseHelper {
       );
       debugPrint("✅ Parche v48 aplicado.");
     }
+
+    if (oldVersion < 49) {
+      debugPrint("🚀 Aplicando parche v49 (Módulo AST)...");
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS ast_informes_pendientes (
+          id TEXT PRIMARY KEY,
+          usuario_id TEXT,
+          empresa_id TEXT,
+          area_id TEXT,
+          centro_id TEXT,
+          contratista_id TEXT,
+          embarcacion_id TEXT,
+          area_nombre TEXT,
+          centro_nombre TEXT,
+          contratista_nombre TEXT,
+          embarcacion_nombre TEXT,
+          profesional TEXT,
+          fecha_realizacion TEXT,
+          descripcion_actividad TEXT,
+          observaciones TEXT,
+          correlativo TEXT,
+          estado_final TEXT NOT NULL DEFAULT 'En Progreso',
+          pdf_url TEXT,
+          pdf_path_local TEXT,
+          fotos_generales TEXT,
+          subido INTEGER NOT NULL DEFAULT 0,
+          eliminado INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_ast_informes_estado ON ast_informes_pendientes(estado_final)',
+      );
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS ast_hallazgos_pendientes (
+          id TEXT PRIMARY KEY,
+          informe_id TEXT NOT NULL,
+          numero INTEGER NOT NULL DEFAULT 0,
+          titulo TEXT,
+          detalle TEXT,
+          foto_path TEXT,
+          subido INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_ast_hallazgos_informe ON ast_hallazgos_pendientes(informe_id)',
+      );
+      debugPrint("✅ Parche v49 aplicado.");
+    }
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -1308,6 +1404,46 @@ class DatabaseHelper {
         'fecha_proxima_mantencion',
         'TEXT',
       );
+
+      // Módulo AST: aseguramos tablas aunque un upgrade previo se interrumpiera.
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS ast_informes_pendientes (
+          id TEXT PRIMARY KEY,
+          usuario_id TEXT,
+          empresa_id TEXT,
+          area_id TEXT,
+          centro_id TEXT,
+          contratista_id TEXT,
+          embarcacion_id TEXT,
+          area_nombre TEXT,
+          centro_nombre TEXT,
+          contratista_nombre TEXT,
+          embarcacion_nombre TEXT,
+          profesional TEXT,
+          fecha_realizacion TEXT,
+          descripcion_actividad TEXT,
+          observaciones TEXT,
+          correlativo TEXT,
+          estado_final TEXT NOT NULL DEFAULT 'En Progreso',
+          pdf_url TEXT,
+          pdf_path_local TEXT,
+          fotos_generales TEXT,
+          subido INTEGER NOT NULL DEFAULT 0,
+          eliminado INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS ast_hallazgos_pendientes (
+          id TEXT PRIMARY KEY,
+          informe_id TEXT NOT NULL,
+          numero INTEGER NOT NULL DEFAULT 0,
+          titulo TEXT,
+          detalle TEXT,
+          foto_path TEXT,
+          subido INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
     } catch (e, st) {
       debugPrint("❌ Error reparando esquema crítico: $e\n$st");
       rethrow;

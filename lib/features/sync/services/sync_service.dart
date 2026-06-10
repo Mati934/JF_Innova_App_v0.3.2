@@ -493,6 +493,9 @@ class SyncService {
       // 3.b Subir Inspecciones del módulo Hidroser (independientes)
       int hidroserSubidas = await _sincronizarHidroser();
 
+      // 3.c Subir informes del módulo AST (independientes)
+      int astSubidos = await _sincronizarAst();
+
       // 4. Subir Hijos (Respuestas y Fotos)
       await _sincronizarRespuestas();
       await _sincronizarFotos();
@@ -503,7 +506,8 @@ class SyncService {
       // 6. Subir configuración de módulos por empresa
       await _sincronizarEmpresaModulos();
 
-      totalSubidas = actividadesSubidas + visitasSubidas + hidroserSubidas;
+      totalSubidas =
+          actividadesSubidas + visitasSubidas + hidroserSubidas + astSubidos;
     } catch (e) {
       debugPrint("❌ Error en sincronización global: $e");
     }
@@ -1645,6 +1649,170 @@ class SyncService {
         debugPrint("✅ Hidroser inspección sincronizada OK: $id");
       } catch (e) {
         debugPrint("🔥 Error subiendo Hidroser $id: $e");
+      }
+    }
+    return count;
+  }
+
+  /// Sincroniza los informes AST independientes (tablas `ast_informes` y
+  /// `ast_hallazgos`). Mismo patrón que `_sincronizarHidroser`.
+  Future<int> _sincronizarAst() async {
+    final db = await _dbHelper.database;
+    final pendientes = await db.query(
+      'ast_informes_pendientes',
+      where: 'subido = 0',
+    );
+    if (pendientes.isEmpty) return 0;
+
+    int count = 0;
+    for (final row in pendientes) {
+      final id = row['id'] as String;
+      final estaEliminado = (row['eliminado'] as int?) == 1;
+
+      // FLUJO BORRADO ZOMBIE
+      if (estaEliminado) {
+        try {
+          debugPrint("🗑️ Eliminando AST zombie en nube: $id");
+          await _supabase
+              .from('ast_informes')
+              .update({'estado_final': 'Eliminada'})
+              .eq('id', id);
+
+          await db.delete(
+            'ast_informes_pendientes',
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+          await db.delete(
+            'ast_hallazgos_pendientes',
+            where: 'informe_id = ?',
+            whereArgs: [id],
+          );
+        } catch (e) {
+          debugPrint("❌ Error eliminando AST zombie (offline?): $e");
+        }
+        continue;
+      }
+
+      try {
+        debugPrint("🚀 Sync AST informe: $id");
+
+        final datosNube = Map<String, dynamic>.from(row);
+
+        // Sanitizar: campos local-only no van a Supabase.
+        datosNube.remove('subido');
+        datosNube.remove('eliminado');
+        datosNube.remove('fotos_generales');
+        final String? pdfPathLocal = datosNube.remove('pdf_path_local');
+        // El correlativo lo asigna el trigger en Supabase, no lo pisamos.
+        datosNube.remove('correlativo');
+
+        // Asegurar usuario_id (igual que el patrón de visitas).
+        if (datosNube['usuario_id'] == null) {
+          final activeUserId = _supabase.auth.currentUser?.id;
+          if (activeUserId != null) {
+            datosNube['usuario_id'] = activeUserId;
+            await db.update(
+              'ast_informes_pendientes',
+              {'usuario_id': activeUserId},
+              where: 'id = ?',
+              whereArgs: [id],
+            );
+          }
+        }
+
+        // Upsert cabecera (devolvemos correlativo si lo asigna el trigger).
+        final upserted = await _supabase
+            .from('ast_informes')
+            .upsert(datosNube, onConflict: 'id')
+            .select('correlativo')
+            .maybeSingle();
+
+        final correlativoAsignado = upserted?['correlativo']?.toString();
+        if (correlativoAsignado != null && correlativoAsignado.isNotEmpty) {
+          await db.update(
+            'ast_informes_pendientes',
+            {'correlativo': correlativoAsignado},
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+        }
+
+        // Subir hallazgos
+        final hallazgos = await db.query(
+          'ast_hallazgos_pendientes',
+          where: 'informe_id = ?',
+          whereArgs: [id],
+        );
+        for (final h in hallazgos) {
+          final payload = <String, dynamic>{
+            'id': h['id'],
+            'informe_id': h['informe_id'],
+            'numero': h['numero'],
+            'titulo': h['titulo'],
+            'detalle': h['detalle'],
+            'foto_path': h['foto_path'],
+          };
+          try {
+            await _supabase
+                .from('ast_hallazgos')
+                .upsert(payload, onConflict: 'id');
+            await db.update(
+              'ast_hallazgos_pendientes',
+              {'subido': 1},
+              where: 'id = ?',
+              whereArgs: [h['id']],
+            );
+          } catch (e) {
+            debugPrint("⚠️ Error subiendo hallazgo AST ${h['id']}: $e");
+          }
+        }
+
+        // Subir PDF (si hay path local y no hay url remota aún)
+        String? pdfUrlNube = row['pdf_url'] as String?;
+        if (pdfPathLocal != null &&
+            (pdfUrlNube == null || pdfUrlNube.isEmpty)) {
+          final file = File(pdfPathLocal);
+          if (file.existsSync()) {
+            try {
+              final pathStorage = '$id/AST_$id.pdf';
+              await _supabase.storage
+                  .from('pdfs_visitas')
+                  .upload(
+                    pathStorage,
+                    file,
+                    fileOptions: const FileOptions(upsert: true),
+                  );
+              pdfUrlNube = _supabase.storage
+                  .from('pdfs_visitas')
+                  .getPublicUrl(pathStorage);
+              await _supabase
+                  .from('ast_informes')
+                  .update({'pdf_url': pdfUrlNube})
+                  .eq('id', id);
+              debugPrint("✅ PDF AST subido: $pdfUrlNube");
+            } catch (e) {
+              debugPrint("⚠️ Error subiendo PDF AST: $e");
+            }
+          }
+        }
+
+        // Marcar como subido sólo si no hay PDF pendiente
+        final pdfPendiente =
+            pdfPathLocal != null && (pdfUrlNube == null || pdfUrlNube.isEmpty);
+        if (!pdfPendiente) {
+          await db.update(
+            'ast_informes_pendientes',
+            {'subido': 1, if (pdfUrlNube != null) 'pdf_url': pdfUrlNube},
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+        }
+
+        count++;
+        debugPrint("✅ AST informe sincronizado OK: $id");
+      } catch (e) {
+        debugPrint("🔥 Error subiendo AST $id: $e");
       }
     }
     return count;

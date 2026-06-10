@@ -6,6 +6,7 @@ import '../../features/visits/presentation/screens/visit_form_screen.dart';
 import '../../features/extintores/presentation/screens/extintor_form_screen.dart';
 import '../../features/prosesso/presentation/screens/prosesso_form_screen.dart';
 import '../../features/hidroser/presentation/screens/hidroser_module_screen.dart';
+import '../../features/ast/presentation/screens/ast_module_screen.dart';
 
 import '../../features/admin/presentation/screens/master_data_admin_screen.dart';
 import '../../features/history/presentation/screens/history_screen.dart';
@@ -75,6 +76,14 @@ class ModuleRegistry {
       icon: Icons.engineering,
       color: kHidroserColor,
       screenBuilder: (_) => const HidroserModuleScreen(),
+    ),
+    ModuleDefinition(
+      moduleKey: 'AST',
+      title: 'AST',
+      subtitle: 'Análisis Seguro de Trabajo',
+      icon: Icons.health_and_safety,
+      color: const Color(0xFF003366),
+      screenBuilder: (_) => const AstModuleScreen(),
     ),
     ModuleDefinition(
       moduleKey: 'ADMIN',

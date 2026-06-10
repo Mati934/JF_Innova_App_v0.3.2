@@ -50,6 +50,7 @@ class HistoryCard extends StatelessWidget {
         cfg.tipoChipLabel ?? tipoRaw.replaceAll('INSPECCION_', '');
 
     final estado = item['estado']?.toString() ?? 'Desconocido';
+    final estadoLabel = HistoryCardConfig.estadoLabel(modulo, estado);
 
     final numSeguimiento = item['numero_seguimiento'] as int? ?? 0;
     final esConsecutiva = numSeguimiento > 0;
@@ -238,7 +239,7 @@ class HistoryCard extends StatelessWidget {
                     else
                       _MiniChip(
                         icon: Icons.label_outline,
-                        label: estado.toUpperCase(),
+                        label: estadoLabel.toUpperCase(),
                         color: Colors.indigo.shade600,
                       ),
                   ],
@@ -308,14 +309,20 @@ class HistoryCardConfig {
     this.folioLabel,
   });
 
+  /// Etiqueta de estado mostrada en la tarjeta. Para AST, el estado interno
+  /// `En Seguimiento` (que dispara el correlativo) se muestra como
+  /// `Finalizado`, más claro para el usuario.
+  static String estadoLabel(String modulo, String estado) {
+    if (modulo == 'AST' && estado == 'En Seguimiento') return 'Finalizado';
+    return estado;
+  }
+
   static HistoryCardConfig resolve({
     required String modulo,
     required String tipoRegistro,
     String? folio,
   }) {
     final folioPill = (folio != null && folio.isNotEmpty) ? 'N° $folio' : null;
-
-    // Mantención de Extintores (Prosesso) — brand rojo, icono extintor.
     if (tipoRegistro == 'MANTENCION_PROSESSO' ||
         modulo == 'Mantención de Extintores') {
       return HistoryCardConfig(
@@ -323,6 +330,17 @@ class HistoryCardConfig {
         icon: Icons.fire_extinguisher,
         accent: const Color(0xFFC8102E),
         tipoChipLabel: 'PROSESSO',
+        folioLabel: folioPill,
+      );
+    }
+
+    // AST (Análisis Seguro de Trabajo) — azul corporativo, icono escudo.
+    if (modulo == 'AST') {
+      return HistoryCardConfig(
+        titulo: folio != null && folio.isNotEmpty ? folio : 'AST',
+        icon: Icons.shield_outlined,
+        accent: const Color(0xFF003366),
+        tipoChipLabel: 'AST',
         folioLabel: folioPill,
       );
     }

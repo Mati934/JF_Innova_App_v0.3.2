@@ -209,8 +209,8 @@ void main() {
   // TESTS: ModuleRegistry
   // ===================================================================
   group('ModuleRegistry - Registro Global', () {
-    test('tiene 7 módulos registrados', () {
-      expect(ModuleRegistry.all.length, 7);
+    test('tiene 9 módulos registrados', () {
+      expect(ModuleRegistry.all.length, 9);
     });
 
     test('cada módulo tiene key única', () {
@@ -230,6 +230,9 @@ void main() {
           'INSPECCION',
           'VISITA_R003',
           'VISITA_R004',
+          'MANTENCION_PROSESSO',
+          'HIDROSER',
+          'AST',
           'ADMIN',
           'HISTORY',
           'RENDICIONES',
@@ -419,7 +422,7 @@ void main() {
 
       whereClause = '($whereClause) AND ($scopeWhere)';
       whereArgs.addAll(scopeArgs);
-    
+
       expect(whereClause, '(id NOT IN (?,?)) AND (empresa_id = ?)');
       expect(whereArgs, ['area-1', 'area-2', 'empresa-aquachile']);
     });
@@ -435,7 +438,7 @@ void main() {
 
       whereClause = '($whereClause) AND ($scopeWhere)';
       whereArgs.addAll(scopeArgs);
-    
+
       expect(whereClause, '(id NOT IN (?)) AND (usuario_id = ?)');
       expect(whereArgs, ['ue-1', 'user-123']);
     });
@@ -959,11 +962,9 @@ void main() {
             .toList();
       } else {
         // fallback legacy
-        empresas = [
-          EmpresaUsuario(id: legacyEmpresaId, nombre: empresaNombre),
-        ];
+        empresas = [EmpresaUsuario(id: legacyEmpresaId, nombre: empresaNombre)];
         currentEmpresaId = legacyEmpresaId;
-            }
+      }
 
       expect(empresas.length, 1);
       expect(empresas.first.id, 'emp-aquachile');
