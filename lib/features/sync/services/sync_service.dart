@@ -155,6 +155,25 @@ class SyncService {
             .eq('activo', true)
             .order('orden'),
       ),
+      // 14: buceo_equipamiento_listas (catálogo del módulo Equipamiento de Buceo)
+      descargarTabla(
+        'buceo_equipamiento_listas',
+        _supabase
+            .from('buceo_equipamiento_listas')
+            .select()
+            .eq('activo', true)
+            .order('orden'),
+      ),
+      // 15: buceo_equipamiento_items (preguntas del checklist de buceo)
+      descargarTabla(
+        'buceo_equipamiento_items',
+        _supabase
+            .from('buceo_equipamiento_items')
+            .select()
+            .eq('activo', true)
+            .order('lista_codigo')
+            .order('orden'),
+      ),
     ]);
 
     // Guardar cada tabla que se descargó exitosamente
@@ -460,6 +479,46 @@ class SyncService {
       }
     }
 
+    // 14: buceo_equipamiento_listas
+    if (futures.length > 14 && futures[14] != null) {
+      try {
+        await _dbHelper.guardarBuceoEquipamientoListasOffline(
+          List<Map<String, dynamic>>.from(futures[14]!),
+        );
+        tablasDescargadas.add('buceo_equipamiento_listas');
+      } catch (e, stack) {
+        debugPrint(
+          "⚠️ Error guardando buceo_equipamiento_listas en SQLite: $e",
+        );
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: buceo_equipamiento_listas',
+          fatal: false,
+        );
+        tablasFallidas.add('buceo_equipamiento_listas');
+      }
+    }
+
+    // 15: buceo_equipamiento_items
+    if (futures.length > 15 && futures[15] != null) {
+      try {
+        await _dbHelper.guardarBuceoEquipamientoItemsOffline(
+          List<Map<String, dynamic>>.from(futures[15]!),
+        );
+        tablasDescargadas.add('buceo_equipamiento_items');
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando buceo_equipamiento_items en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: buceo_equipamiento_items',
+          fatal: false,
+        );
+        tablasFallidas.add('buceo_equipamiento_items');
+      }
+    }
+
     if (tablasFallidas.isEmpty) {
       debugPrint(
         "✅ Datos maestros actualizados offline (${tablasDescargadas.length} tablas).",
@@ -493,6 +552,9 @@ class SyncService {
       // 3.b Subir Inspecciones del módulo Hidroser (independientes)
       int hidroserSubidas = await _sincronizarHidroser();
 
+      // 3.b.2 Subir Inspecciones del módulo Equipamiento de Buceo (independientes)
+      int buceoSubidas = await _sincronizarBuceoEquipamiento();
+
       // 3.c Subir informes del módulo AST (independientes)
       int astSubidos = await _sincronizarAst();
 
@@ -507,7 +569,11 @@ class SyncService {
       await _sincronizarEmpresaModulos();
 
       totalSubidas =
-          actividadesSubidas + visitasSubidas + hidroserSubidas + astSubidos;
+          actividadesSubidas +
+          visitasSubidas +
+          hidroserSubidas +
+          buceoSubidas +
+          astSubidos;
     } catch (e) {
       debugPrint("❌ Error en sincronización global: $e");
     }
@@ -1649,6 +1715,195 @@ class SyncService {
         debugPrint("✅ Hidroser inspección sincronizada OK: $id");
       } catch (e) {
         debugPrint("🔥 Error subiendo Hidroser $id: $e");
+      }
+    }
+    return count;
+  }
+
+  /// Sincroniza las inspecciones del módulo Equipamiento de Buceo (tablas
+  /// `buceo_equipamiento_inspecciones` y `buceo_equipamiento_respuestas`).
+  /// Mismo patrón que `_sincronizarHidroser`.
+  Future<int> _sincronizarBuceoEquipamiento() async {
+    final db = await _dbHelper.database;
+    final pendientes = await db.query(
+      'buceo_equipamiento_inspecciones_pendientes',
+      where: 'subido = 0',
+    );
+    if (pendientes.isEmpty) return 0;
+
+    int count = 0;
+    for (final row in pendientes) {
+      final id = row['id'] as String;
+      final estaEliminado = (row['eliminado'] as int?) == 1;
+      final estadoFinal = (row['estado_final'] ?? '').toString();
+
+      // FLUJO BORRADO ZOMBIE
+      if (estaEliminado) {
+        try {
+          debugPrint("🗑️ Eliminando Buceo zombie en nube: $id");
+          await _supabase
+              .from('buceo_equipamiento_inspecciones')
+              .update({'estado_final': 'Eliminada'})
+              .eq('id', id);
+
+          await db.delete(
+            'buceo_equipamiento_inspecciones_pendientes',
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+          await db.delete(
+            'buceo_equipamiento_respuestas_pendientes',
+            where: 'inspeccion_id = ?',
+            whereArgs: [id],
+          );
+        } catch (e) {
+          debugPrint("❌ Error eliminando Buceo zombie (offline?): $e");
+        }
+        continue;
+      }
+
+      // En SAL/SAM solo se sincronizan inspecciones finalizadas.
+      if (estadoFinal != 'En Seguimiento') {
+        debugPrint("⏭️ Buceo $id omitido en sync (estado_final=$estadoFinal).");
+        continue;
+      }
+
+      try {
+        debugPrint("🚀 Sync Buceo inspección: $id");
+
+        final datosNube = Map<String, dynamic>.from(row);
+
+        // Sanitizar: campos local-only y BLOB no van a Supabase
+        datosNube.remove('subido');
+        datosNube.remove('eliminado');
+        datosNube.remove('firma_supervisor_image');
+        datosNube.remove('firma_operador_image');
+        final String? pdfPathLocal = datosNube.remove('pdf_path_local');
+        // El correlativo lo asigna el trigger en Supabase, no lo pisamos.
+        datosNube.remove('correlativo');
+
+        // campos_extra: en SQLite viaja como String JSON; en Supabase es jsonb.
+        final rawCamposExtra = datosNube['campos_extra'];
+        if (rawCamposExtra is String) {
+          if (rawCamposExtra.trim().isEmpty) {
+            datosNube['campos_extra'] = <String, dynamic>{};
+          } else {
+            try {
+              datosNube['campos_extra'] = jsonDecode(rawCamposExtra);
+            } catch (_) {
+              datosNube['campos_extra'] = <String, dynamic>{};
+            }
+          }
+        }
+
+        // Asegurar usuario_id (igual que el patrón de visitas).
+        if (datosNube['usuario_id'] == null) {
+          final activeUserId = _supabase.auth.currentUser?.id;
+          if (activeUserId != null) {
+            datosNube['usuario_id'] = activeUserId;
+            await db.update(
+              'buceo_equipamiento_inspecciones_pendientes',
+              {'usuario_id': activeUserId},
+              where: 'id = ?',
+              whereArgs: [id],
+            );
+          }
+        }
+
+        // Upsert cabecera (devolvemos correlativo si lo asigna el trigger).
+        final upserted = await _supabase
+            .from('buceo_equipamiento_inspecciones')
+            .upsert(datosNube, onConflict: 'id')
+            .select('correlativo')
+            .maybeSingle();
+
+        final correlativoAsignado = upserted?['correlativo']?.toString();
+        if (correlativoAsignado != null && correlativoAsignado.isNotEmpty) {
+          await db.update(
+            'buceo_equipamiento_inspecciones_pendientes',
+            {'correlativo': correlativoAsignado},
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+        }
+
+        // Subir respuestas
+        final respuestas = await db.query(
+          'buceo_equipamiento_respuestas_pendientes',
+          where: 'inspeccion_id = ?',
+          whereArgs: [id],
+        );
+        for (final r in respuestas) {
+          final payload = <String, dynamic>{
+            'id': r['id'],
+            'inspeccion_id': r['inspeccion_id'],
+            'item_id': r['item_id'],
+            'estado': r['estado'],
+            'observacion': r['observacion'],
+            'criticidad': r['criticidad'],
+            'foto_path': r['foto_path'],
+          };
+          try {
+            await _supabase
+                .from('buceo_equipamiento_respuestas')
+                .upsert(payload, onConflict: 'id');
+            await db.update(
+              'buceo_equipamiento_respuestas_pendientes',
+              {'subido': 1},
+              where: 'id = ?',
+              whereArgs: [r['id']],
+            );
+          } catch (e) {
+            debugPrint("⚠️ Error subiendo respuesta Buceo ${r['id']}: $e");
+          }
+        }
+
+        // Subir PDF (si hay path local y no hay url remota aún)
+        String? pdfUrlNube = row['pdf_url'] as String?;
+        if (estadoFinal == 'En Seguimiento' &&
+            pdfPathLocal != null &&
+            (pdfUrlNube == null || pdfUrlNube.isEmpty)) {
+          final file = File(pdfPathLocal);
+          if (file.existsSync()) {
+            try {
+              final pathStorage = '$id/BuceoEquipamiento_$id.pdf';
+              await _supabase.storage
+                  .from('pdfs_visitas')
+                  .upload(
+                    pathStorage,
+                    file,
+                    fileOptions: const FileOptions(upsert: true),
+                  );
+              pdfUrlNube = _supabase.storage
+                  .from('pdfs_visitas')
+                  .getPublicUrl(pathStorage);
+              await _supabase
+                  .from('buceo_equipamiento_inspecciones')
+                  .update({'pdf_url': pdfUrlNube})
+                  .eq('id', id);
+              debugPrint("✅ PDF Buceo subido: $pdfUrlNube");
+            } catch (e) {
+              debugPrint("⚠️ Error subiendo PDF Buceo: $e");
+            }
+          }
+        }
+
+        // Marcar como subido sólo si no hay PDF pendiente
+        final pdfPendiente =
+            pdfPathLocal != null && (pdfUrlNube == null || pdfUrlNube.isEmpty);
+        if (!pdfPendiente) {
+          await db.update(
+            'buceo_equipamiento_inspecciones_pendientes',
+            {'subido': 1, if (pdfUrlNube != null) 'pdf_url': pdfUrlNube},
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+        }
+
+        count++;
+        debugPrint("✅ Buceo inspección sincronizada OK: $id");
+      } catch (e) {
+        debugPrint("🔥 Error subiendo Buceo $id: $e");
       }
     }
     return count;

@@ -80,10 +80,29 @@ class DraftCardMapper {
 
   /// Inspecciones del módulo Hidroser (`hidroser_inspecciones_pendientes`).
   static DraftCardData fromHidroser(Map<String, dynamic> raw) {
+    final listaCodigo = (raw['lista_codigo'] ?? '').toString().toUpperCase();
+    const kind = DraftKind.hidroserGruaHorquilla;
+
     return DraftCardData(
       id: raw['id'].toString(),
-      kind: DraftKind.hidroserGruaHorquilla,
-      title: _titleForKind(DraftKind.hidroserGruaHorquilla),
+      kind: kind,
+      title: _titleForKind(kind, fallback: listaCodigo),
+      centro: _firstNonEmpty([raw['quien_inspecciona'], raw['lista_codigo']]),
+      fecha: _parseFecha(raw['fecha_realizacion'] ?? raw['created_at']),
+      raw: raw,
+    );
+  }
+
+  /// Inspecciones del módulo Equipamiento de Buceo
+  /// (`buceo_equipamiento_inspecciones_pendientes`).
+  static DraftCardData fromBuceoEquipamiento(Map<String, dynamic> raw) {
+    final listaCodigo = (raw['lista_codigo'] ?? '').toString().toUpperCase();
+    const kind = DraftKind.buceoEquipamiento;
+
+    return DraftCardData(
+      id: raw['id'].toString(),
+      kind: kind,
+      title: _titleForKind(kind, fallback: listaCodigo),
       centro: _firstNonEmpty([raw['quien_inspecciona'], raw['lista_codigo']]),
       fecha: _parseFecha(raw['fecha_realizacion'] ?? raw['created_at']),
       raw: raw,
@@ -140,6 +159,8 @@ class DraftCardMapper {
         return 'Mantención de Extintores';
       case DraftKind.hidroserGruaHorquilla:
         return 'Inspección Grúa Horquilla';
+      case DraftKind.buceoEquipamiento:
+        return 'Inspección Eq. de Buceo';
       case DraftKind.desconocido:
         return fallback?.isNotEmpty == true ? fallback! : 'Borrador';
     }

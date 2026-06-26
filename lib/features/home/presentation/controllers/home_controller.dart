@@ -10,6 +10,7 @@ import '../../../../core/modules/module_registry.dart';
 import '../../../visits/data/repositories/local_visit_repository.dart';
 import '../../../extintores/data/repositories/local_extintor_repository.dart';
 import '../../../hidroser/data/repositories/local_hidroser_repository.dart';
+import '../../../buceo_equipment/data/repositories/local_buceo_equipment_repository.dart';
 import '../../../prosesso/data/repositories/local_prosesso_repository.dart';
 import '../../domain/draft_card_data.dart';
 import '../../domain/draft_card_mapper.dart';
@@ -20,6 +21,7 @@ class HomeController extends ChangeNotifier {
   final _visitRepo = LocalVisitRepository();
   final _extintorRepo = LocalExtintorRepository();
   final _hidroserRepo = LocalHidroserRepository();
+  final _buceoRepo = LocalBuceoEquipmentRepository();
   final _prosessoRepo = LocalProsessoRepository();
   final _connectivity = ConnectivityService();
 
@@ -85,6 +87,7 @@ class HomeController extends ChangeNotifier {
         _extintorRepo.getBorradores(),
         _prosessoRepo.getBorradores(),
         _hidroserRepo.getBorradores(),
+        _buceoRepo.getBorradores(),
       ]);
 
       final inspecciones = resultados[0].map(DraftCardMapper.fromInspeccion);
@@ -92,6 +95,7 @@ class HomeController extends ChangeNotifier {
       final extintores = resultados[2].map(DraftCardMapper.fromExtintor);
       final prosesso = resultados[3].map(DraftCardMapper.fromProsesso);
       final hidroser = resultados[4].map(DraftCardMapper.fromHidroser);
+      final buceo = resultados[5].map(DraftCardMapper.fromBuceoEquipamiento);
 
       // Fusionamos y ordenamos por fecha (del más reciente al más antiguo)
       borradores = [
@@ -100,6 +104,7 @@ class HomeController extends ChangeNotifier {
         ...extintores,
         ...prosesso,
         ...hidroser,
+        ...buceo,
       ]..sort((a, b) => b.fecha.compareTo(a.fecha));
     } catch (e) {
       debugPrint("❌ Error cargando borradores combinados: $e");
@@ -130,6 +135,9 @@ class HomeController extends ChangeNotifier {
           break;
         case DraftKind.hidroserGruaHorquilla:
           await _hidroserRepo.eliminarBorrador(id);
+          break;
+        case DraftKind.buceoEquipamiento:
+          await _buceoRepo.eliminarBorrador(id);
           break;
         case DraftKind.visitaTecnica:
         case DraftKind.visitaChecklistElectricidad:

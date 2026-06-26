@@ -55,7 +55,8 @@ class SupabaseHistoryRepository {
     // Excluir borradores y eliminados
     query = query
         .not('estado', 'eq', 'Eliminada')
-        .not('estado', 'eq', 'En Progreso');
+        .not('estado', 'eq', 'En Progreso')
+        .not('estado', 'eq', 'Borrador');
 
     final response = await query.order('fecha_realizacion', ascending: false);
     final rows = List<Map<String, dynamic>>.from(response);

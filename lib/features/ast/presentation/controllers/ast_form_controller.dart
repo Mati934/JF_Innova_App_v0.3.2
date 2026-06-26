@@ -10,7 +10,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../../core/services/empresa_logo_service.dart';
 import '../../../../core/services/user_session.dart';
 import '../../../sync/services/sync_service.dart';
 import '../../data/repositories/local_ast_repository.dart';
@@ -284,11 +283,14 @@ class AstFormController extends ChangeNotifier {
     final fontReg = await rootBundle.load('assets/fonts/OpenSans-Regular.ttf');
     final fontBold = await rootBundle.load('assets/fonts/OpenSans-Bold.ttf');
 
+    // El módulo AST siempre usa el logo de AquaChile, independientemente de
+    // la empresa activa del usuario.
     Uint8List? logoBytes;
     try {
-      logoBytes = await EmpresaLogoService.instance.getLogoForActiveEmpresa(
-        fallbackAsset: 'assets/images/LogoJFInnova2.png',
+      final logoData = await rootBundle.load(
+        'assets/images/aquachileporfin3.png',
       );
+      logoBytes = logoData.buffer.asUint8List();
     } catch (_) {}
 
     final params = AstPdfIsolateParams(
@@ -364,8 +366,14 @@ class AstFormController extends ChangeNotifier {
   }
 
   String _nombrePdf() {
-    final ref = _informe.correlativo ?? _informe.id.substring(0, 8);
-    return 'AST_$ref'.replaceAll(RegExp(r'\s+'), '_');
+    final numero = _informe.correlativo ?? _informe.id.substring(0, 8);
+    final centro = (_informe.centroNombre ?? '').trim();
+    final partes = <String>[
+      'Informe AST',
+      numero,
+      if (centro.isNotEmpty) centro,
+    ];
+    return partes.join(' ').replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   @override

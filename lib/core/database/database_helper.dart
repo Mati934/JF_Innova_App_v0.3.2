@@ -8,7 +8,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      49; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      50; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -480,6 +480,77 @@ class DatabaseHelper {
     ''');
     await db.execute(
       'CREATE INDEX idx_hidroser_respuestas_inspeccion ON hidroser_respuestas_pendientes(inspeccion_id)',
+    );
+
+    // --- MÓDULO EQUIPAMIENTO DE BUCEO (independiente) ---
+    await db.execute('''
+      CREATE TABLE buceo_equipamiento_listas (
+        codigo TEXT PRIMARY KEY,
+        nombre TEXT NOT NULL,
+        subtitulo TEXT,
+        icono TEXT,
+        orden INTEGER NOT NULL DEFAULT 0,
+        activo INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE buceo_equipamiento_items (
+        id TEXT PRIMARY KEY,
+        lista_codigo TEXT NOT NULL,
+        categoria TEXT NOT NULL,
+        pregunta TEXT NOT NULL,
+        criticidad TEXT,
+        peso INTEGER NOT NULL DEFAULT 1,
+        orden INTEGER NOT NULL DEFAULT 0,
+        activo INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_buceo_eq_items_lista ON buceo_equipamiento_items(lista_codigo)',
+    );
+    await db.execute('''
+      CREATE TABLE buceo_equipamiento_inspecciones_pendientes (
+        id TEXT PRIMARY KEY,
+        usuario_id TEXT,
+        empresa_id TEXT,
+        lista_codigo TEXT NOT NULL,
+        fecha_realizacion TEXT,
+        correlativo TEXT,
+        quien_inspecciona TEXT,
+        observaciones TEXT,
+        campos_extra TEXT,
+        firma_supervisor_nombre TEXT,
+        firma_operador_nombre TEXT,
+        firma_supervisor_image BLOB,
+        firma_operador_image BLOB,
+        estado_final TEXT NOT NULL DEFAULT 'Borrador',
+        pdf_url TEXT,
+        pdf_path_local TEXT,
+        subido INTEGER NOT NULL DEFAULT 0,
+        eliminado INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_buceo_eq_insp_lista ON buceo_equipamiento_inspecciones_pendientes(lista_codigo)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_buceo_eq_insp_estado ON buceo_equipamiento_inspecciones_pendientes(estado_final)',
+    );
+    await db.execute('''
+      CREATE TABLE buceo_equipamiento_respuestas_pendientes (
+        id TEXT PRIMARY KEY,
+        inspeccion_id TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        estado TEXT,
+        observacion TEXT,
+        criticidad TEXT,
+        foto_path TEXT,
+        subido INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_buceo_eq_resp_inspeccion ON buceo_equipamiento_respuestas_pendientes(inspeccion_id)',
     );
 
     // --- MÓDULO AST (Análisis Seguro de Trabajo, independiente) ---
@@ -1351,6 +1422,82 @@ class DatabaseHelper {
       );
       debugPrint("✅ Parche v49 aplicado.");
     }
+
+    if (oldVersion < 50) {
+      debugPrint(
+        "🚀 Aplicando parche v50 (Módulo Equipamiento de Buceo independiente)...",
+      );
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS buceo_equipamiento_listas (
+          codigo TEXT PRIMARY KEY,
+          nombre TEXT NOT NULL,
+          subtitulo TEXT,
+          icono TEXT,
+          orden INTEGER NOT NULL DEFAULT 0,
+          activo INTEGER NOT NULL DEFAULT 1
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS buceo_equipamiento_items (
+          id TEXT PRIMARY KEY,
+          lista_codigo TEXT NOT NULL,
+          categoria TEXT NOT NULL,
+          pregunta TEXT NOT NULL,
+          criticidad TEXT,
+          peso INTEGER NOT NULL DEFAULT 1,
+          orden INTEGER NOT NULL DEFAULT 0,
+          activo INTEGER NOT NULL DEFAULT 1
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_buceo_eq_items_lista ON buceo_equipamiento_items(lista_codigo)',
+      );
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS buceo_equipamiento_inspecciones_pendientes (
+          id TEXT PRIMARY KEY,
+          usuario_id TEXT,
+          empresa_id TEXT,
+          lista_codigo TEXT NOT NULL,
+          fecha_realizacion TEXT,
+          correlativo TEXT,
+          quien_inspecciona TEXT,
+          observaciones TEXT,
+          campos_extra TEXT,
+          firma_supervisor_nombre TEXT,
+          firma_operador_nombre TEXT,
+          firma_supervisor_image BLOB,
+          firma_operador_image BLOB,
+          estado_final TEXT NOT NULL DEFAULT 'Borrador',
+          pdf_url TEXT,
+          pdf_path_local TEXT,
+          subido INTEGER NOT NULL DEFAULT 0,
+          eliminado INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_buceo_eq_insp_lista ON buceo_equipamiento_inspecciones_pendientes(lista_codigo)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_buceo_eq_insp_estado ON buceo_equipamiento_inspecciones_pendientes(estado_final)',
+      );
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS buceo_equipamiento_respuestas_pendientes (
+          id TEXT PRIMARY KEY,
+          inspeccion_id TEXT NOT NULL,
+          item_id TEXT NOT NULL,
+          estado TEXT,
+          observacion TEXT,
+          criticidad TEXT,
+          foto_path TEXT,
+          subido INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_buceo_eq_resp_inspeccion ON buceo_equipamiento_respuestas_pendientes(inspeccion_id)',
+      );
+      debugPrint("✅ Parche v50 aplicado.");
+    }
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -1440,6 +1587,66 @@ class DatabaseHelper {
           numero INTEGER NOT NULL DEFAULT 0,
           titulo TEXT,
           detalle TEXT,
+          foto_path TEXT,
+          subido INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+
+      // Módulo Equipamiento de Buceo: aseguramos tablas aunque un upgrade
+      // previo se interrumpiera.
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS buceo_equipamiento_listas (
+          codigo TEXT PRIMARY KEY,
+          nombre TEXT NOT NULL,
+          subtitulo TEXT,
+          icono TEXT,
+          orden INTEGER NOT NULL DEFAULT 0,
+          activo INTEGER NOT NULL DEFAULT 1
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS buceo_equipamiento_items (
+          id TEXT PRIMARY KEY,
+          lista_codigo TEXT NOT NULL,
+          categoria TEXT NOT NULL,
+          pregunta TEXT NOT NULL,
+          criticidad TEXT,
+          peso INTEGER NOT NULL DEFAULT 1,
+          orden INTEGER NOT NULL DEFAULT 0,
+          activo INTEGER NOT NULL DEFAULT 1
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS buceo_equipamiento_inspecciones_pendientes (
+          id TEXT PRIMARY KEY,
+          usuario_id TEXT,
+          empresa_id TEXT,
+          lista_codigo TEXT NOT NULL,
+          fecha_realizacion TEXT,
+          correlativo TEXT,
+          quien_inspecciona TEXT,
+          observaciones TEXT,
+          campos_extra TEXT,
+          firma_supervisor_nombre TEXT,
+          firma_operador_nombre TEXT,
+          firma_supervisor_image BLOB,
+          firma_operador_image BLOB,
+          estado_final TEXT NOT NULL DEFAULT 'Borrador',
+          pdf_url TEXT,
+          pdf_path_local TEXT,
+          subido INTEGER NOT NULL DEFAULT 0,
+          eliminado INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS buceo_equipamiento_respuestas_pendientes (
+          id TEXT PRIMARY KEY,
+          inspeccion_id TEXT NOT NULL,
+          item_id TEXT NOT NULL,
+          estado TEXT,
+          observacion TEXT,
+          criticidad TEXT,
           foto_path TEXT,
           subido INTEGER NOT NULL DEFAULT 0
         )
@@ -1761,6 +1968,73 @@ class DatabaseHelper {
     final db = await instance.database;
     return await db.query(
       'hidroser_listas',
+      where: 'activo = 1',
+      orderBy: 'orden ASC, nombre ASC',
+    );
+  }
+
+  // --- EQUIPAMIENTO DE BUCEO ----------------------------------------------
+
+  /// Reescribe el catálogo local de listas del módulo Equipamiento de Buceo.
+  Future<void> guardarBuceoEquipamientoListasOffline(
+    List<Map<String, dynamic>> listas,
+  ) async {
+    if (listas.isEmpty) {
+      debugPrint(
+        "⚠️ Advertencia: lista vacía para buceo_equipamiento_listas. Operación cancelada.",
+      );
+      return;
+    }
+    final db = await instance.database;
+    final batch = db.batch();
+    batch.delete('buceo_equipamiento_listas');
+    for (final l in listas) {
+      batch.insert('buceo_equipamiento_listas', {
+        'codigo': l['codigo'],
+        'nombre': l['nombre'],
+        'subtitulo': l['subtitulo'],
+        'icono': l['icono'],
+        'orden': (l['orden'] is num) ? (l['orden'] as num).toInt() : 0,
+        'activo': (l['activo'] == false) ? 0 : 1,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
+    debugPrint("✅ Buceo equipamiento listas guardadas: ${listas.length}");
+  }
+
+  /// Reescribe el catálogo local de items (preguntas) del módulo Buceo.
+  Future<void> guardarBuceoEquipamientoItemsOffline(
+    List<Map<String, dynamic>> items,
+  ) async {
+    if (items.isEmpty) {
+      debugPrint(
+        "⚠️ Advertencia: lista vacía para buceo_equipamiento_items. Operación cancelada.",
+      );
+      return;
+    }
+    final db = await instance.database;
+    final batch = db.batch();
+    batch.delete('buceo_equipamiento_items');
+    for (final it in items) {
+      batch.insert('buceo_equipamiento_items', {
+        'id': it['id'].toString(),
+        'lista_codigo': it['lista_codigo'],
+        'categoria': it['categoria'] ?? 'General',
+        'pregunta': it['pregunta'] ?? '',
+        'criticidad': it['criticidad'],
+        'peso': (it['peso'] is num) ? (it['peso'] as num).toInt() : 1,
+        'orden': (it['orden'] is num) ? (it['orden'] as num).toInt() : 0,
+        'activo': (it['activo'] == false) ? 0 : 1,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
+    debugPrint("✅ Buceo equipamiento items guardados: ${items.length}");
+  }
+
+  Future<List<Map<String, dynamic>>> getBuceoEquipamientoListasActivas() async {
+    final db = await instance.database;
+    return await db.query(
+      'buceo_equipamiento_listas',
       where: 'activo = 1',
       orderBy: 'orden ASC, nombre ASC',
     );

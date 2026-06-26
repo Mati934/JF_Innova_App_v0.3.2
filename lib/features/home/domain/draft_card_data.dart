@@ -12,6 +12,7 @@ enum DraftKind {
   inspeccionExtintores,
   mantencionProsesso,
   hidroserGruaHorquilla,
+  buceoEquipamiento,
   desconocido,
 }
 
@@ -53,6 +54,8 @@ class DraftCardData {
         return Icons.build_circle;
       case DraftKind.hidroserGruaHorquilla:
         return Icons.engineering;
+      case DraftKind.buceoEquipamiento:
+        return Icons.scuba_diving;
       case DraftKind.visitaTecnica:
       case DraftKind.visitaChecklistOtro:
         return Icons.assignment_outlined;
@@ -79,6 +82,8 @@ class DraftCardData {
         return const Color(0xFFC8102E);
       case DraftKind.hidroserGruaHorquilla:
         return const Color(0xFF0277BD);
+      case DraftKind.buceoEquipamiento:
+        return const Color(0xFF005B8A);
       case DraftKind.visitaTecnica:
         return Colors.blue.shade700;
       case DraftKind.visitaChecklistElectricidad:
@@ -105,5 +110,6 @@ class DraftCardData {
       kind == DraftKind.visitaChecklistOtro ||
       kind == DraftKind.inspeccionExtintores ||
       kind == DraftKind.mantencionProsesso ||
-      kind == DraftKind.hidroserGruaHorquilla;
+      kind == DraftKind.hidroserGruaHorquilla ||
+      kind == DraftKind.buceoEquipamiento;
 }

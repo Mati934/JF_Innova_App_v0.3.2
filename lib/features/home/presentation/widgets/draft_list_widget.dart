@@ -9,6 +9,9 @@ import '../../../extintores/presentation/screens/extintor_form_screen.dart';
 import '../../../hidroser/data/repositories/local_hidroser_repository.dart';
 import '../../../hidroser/presentation/screens/hidroser_form_screen.dart';
 import '../../../prosesso/presentation/screens/prosesso_form_screen.dart';
+import '../../../buceo_equipment/data/repositories/local_buceo_equipment_repository.dart';
+import '../../../buceo_equipment/domain/models/buceo_equipment_variant.dart';
+import '../../../buceo_equipment/presentation/screens/buceo_equipment_form_screen.dart';
 
 class DraftListWidget extends StatelessWidget {
   final HomeController controller;
@@ -51,32 +54,48 @@ class DraftListWidget extends StatelessWidget {
       case DraftKind.mantencionProsesso:
         destino = ProsessoFormScreen(borradorInicial: raw);
         break;
-      case DraftKind.hidroserGruaHorquilla:
-        // Necesitamos resolver la lista (cat\u00e1logo) y traer las respuestas
-        // antes de abrir el formulario.
-        final repo = LocalHidroserRepository();
-        final listaCodigo = raw['lista_codigo']?.toString() ?? '';
-        final lista = await repo.getListaByCodigo(listaCodigo);
-        if (lista == null) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'No se encontr\u00f3 la lista \"$listaCodigo\". '
-                  'Sincroniza con la nube e intenta de nuevo.',
-                ),
-              ),
-            );
-          }
-          return;
+      case DraftKind.buceoEquipamiento:
+        {
+          final repo = LocalBuceoEquipmentRepository();
+          final listaCodigo = raw['lista_codigo']?.toString() ?? '';
+          final borradorCompleto = await repo.getInspeccionConRespuestasById(
+            card.id,
+          );
+          final isSam = listaCodigo.toUpperCase() == 'BUCEO_SAM_36M';
+          destino = BuceoEquipmentFormScreen(
+            variant: isSam ? buceoEquipoSamVariant : buceoEquipoSalVariant,
+            borrador: borradorCompleto ?? raw,
+          );
         }
-        final borradorCompleto = await repo.getInspeccionConRespuestasById(
-          card.id,
-        );
-        destino = HidroserFormScreen(
-          lista: lista,
-          borrador: borradorCompleto ?? raw,
-        );
+        break;
+      case DraftKind.hidroserGruaHorquilla:
+        {
+          // Necesitamos resolver la lista (catalogo) y traer las respuestas
+          // antes de abrir el formulario.
+          final repo = LocalHidroserRepository();
+          final listaCodigo = raw['lista_codigo']?.toString() ?? '';
+          final borradorCompleto = await repo.getInspeccionConRespuestasById(
+            card.id,
+          );
+          final lista = await repo.getListaByCodigo(listaCodigo);
+          if (lista == null) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'No se encontró la lista "$listaCodigo". '
+                    'Sincroniza con la nube e intenta de nuevo.',
+                  ),
+                ),
+              );
+            }
+            return;
+          }
+          destino = HidroserFormScreen(
+            lista: lista,
+            borrador: borradorCompleto ?? raw,
+          );
+        }
         break;
       case DraftKind.visitaTecnica:
       case DraftKind.visitaChecklistElectricidad:
@@ -84,13 +103,17 @@ class DraftListWidget extends StatelessWidget {
       case DraftKind.visitaChecklistOtro:
         destino = VisitFormScreen(borrador: raw);
         break;
-      default:
+      case DraftKind.inspeccionBuceo:
+      case DraftKind.inspeccionEmbarcacion:
+      case DraftKind.bitacora:
+      case DraftKind.desconocido:
         destino = InspectionFormScreen(
           activityId: raw['id']?.toString() ?? card.id,
           tipoActividad: raw['tipo_actividad']?.toString() ?? '',
           centroId: raw['centro_id']?.toString() ?? '',
           nombreCentro: raw['nombre_centro']?.toString() ?? '',
         );
+        break;
     }
 
     if (!context.mounted) return;
