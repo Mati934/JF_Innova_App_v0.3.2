@@ -2,7 +2,7 @@
 -- MIGRACION V2: Normalizacion de checklist SAL/SAM (sin tocar migraciones previas)
 -- Objetivo:
 --   1) Eliminar preguntas legacy/no deseadas.
---   2) Dejar SAL y SAM con checklist completo y checklist por buzo.
+--   2) Dejar SAL y SAM con sus catálogos correctos.
 --   3) Sincronizar espejo en formulario_items (compatibilidad).
 --
 -- Idempotente: se puede ejecutar multiples veces.
@@ -50,8 +50,7 @@ WHERE f.tipo_actividad IN ('BUCEO_SAL_20M', 'BUCEO_SAM_36M')
 -- -----------------------------------------------------------------------------
 WITH lista_cfg(lista_codigo, categoria_apoyo) AS (
   VALUES
-    ('BUCEO_SAL_20M', 'Equipos y elementos de apoyo para faenas de 20 metros'),
-    ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros')
+    ('BUCEO_SAL_20M', 'Equipos y elementos de apoyo para faenas de 20 metros')
 ),
 base_questions(categoria_key, pregunta, criticidad, peso, orden) AS (
   VALUES
@@ -132,6 +131,61 @@ base_expandido AS (
   FROM lista_cfg l
   CROSS JOIN base_questions b
 ),
+sam_direct_items(lista_codigo, categoria, pregunta, aplica_por_buzo, criticidad, peso, orden, activo) AS (
+  VALUES
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Compresor de buceo profesional de baja presion, con entrega de volumen y presion, minima de 350 lt./min. y 13 bar respectivamente considerando la operacion de dos buzos, hasta una profundidad maxima de 36 metros', false, 'Intolerable', 1, 10, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Motor combustion en buen estado, sin filtracion, piola de arranque en buen estado.', false, 'Alto', 1, 20, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Nivel de aceite motor y cabezal en buen estado', false, 'Alto', 1, 30, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Estanque acumulador visualmente en buen estado sin golpes ni desgaste, limpio y sin particulas en su interior.', false, 'Alto', 1, 40, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Compresor cuenta con sistemas de filtros de purificacion de aire en buen estado y no saturados', false, 'Intolerable', 1, 50, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Partes moviles compresor protegidas', false, 'Alto', 1, 60, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Correas de transmision en buen estado sin desgaste.', false, 'Alto', 1, 70, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Filtros de aspiracion de aire en buen estado (no saturado/sin humedad o mojado) orientado a barlovento', false, 'Intolerable', 1, 80, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Manguera de toma de aire atoxica y en buen estado, sin desgaste o rotura.', false, 'Intolerable', 1, 90, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Valvula de alivio cabezal en buen estado sin filtracion', false, 'Alto', 1, 100, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Valvula de seguridad en buen estado y regulada a presion de trabajo de 13 bar como minimo.', false, 'Intolerable', 1, 110, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Valvula corte rapido en buen estado, salida del acumulador.', false, 'Alto', 1, 120, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Manguera de alta presion operativa, sin desgaste o rotura', false, 'Intolerable', 1, 130, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Valvula de retencion operativa y en buen estado', false, 'Alto', 1, 140, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Valvula de despiche acumulador operativo sin filtracion', false, 'Alto', 1, 150, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Manometro operativo (Numeros legibles, Buen estado esfera de vidrio, Aguja funciona)', false, 'Alto', 1, 160, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Niples y conectores de compresor general sin corrosion y en buen estado', false, 'Alto', 1, 170, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Banco auxiliar (botellas cargadas a alta presion) volumen minimo de 48 lt. y 204 bar. (sin corrosion ni filtracion)', false, 'Intolerable', 1, 180, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Panel de control de gases de superficie (consola) en buen estado sin corrosion ni filtracion', false, 'Alto', 1, 190, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Indicadores panel control de gases (manometros) Numeros legibles, Buen estado esfera de vidrio, Aguja funciona.', false, 'Alto', 1, 200, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Sistema de comunicaciones operativa, en buen estado y bateria cargada.', false, 'Intolerable', 1, 210, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Conectores bananas y hi-use 4 pin, en buen estado y operativos.', false, 'Alto', 1, 220, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Mascara facial con comunicaciones en buen estado, sin filtracion, purga operativa y con membrana, broches sin desgaste ni trizados.', false, 'Intolerable', 1, 230, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Umbilical en buen estado', false, 'Intolerable', 1, 240, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Latiguillo compresor 5M en buen estado niples sin corrosion ni filtracion', false, 'Alto', 1, 250, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Manifold Block Kirby Morgan en buen estado, sin corrosion, valvula de retencion operativa y sin filtracion', false, 'Alto', 1, 260, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Botellas de emergencia de 5ltrs con manometro y regulador 1 y 2 estado, operativos sin filtracion y cargadas.', false, 'Intolerable', 1, 270, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Arnes de buceo antienredo con hebilla de escape rapido en buen estado', false, 'Intolerable', 1, 280, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Mosqueton de acero inoxidable', false, 'Medio', 1, 290, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Manillas adecuadas para transporte', false, 'Medio', 1, 300, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Ruedas en buen estado', false, 'Medio', 1, 310, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Bandera alfa', false, 'Intolerable', 1, 320, true),
+  ('BUCEO_SAM_36M', 'Equipos y elementos de apoyo para faenas de 36 metros', 'Otros', false, 'Bajo', 1, 330, true),
+  ('BUCEO_SAM_36M', 'Manguera de buceo', 'Buen estado visual', false, 'Intolerable', 1, 400, true),
+  ('BUCEO_SAM_36M', 'Manguera de buceo', 'Cumple con las marcas reglamentarias cada 10 m.', false, 'Intolerable', 1, 410, true),
+  ('BUCEO_SAM_36M', 'Manguera de buceo', 'Cumple con no tener roturas y/o rayas en sus tramos', false, 'Intolerable', 1, 420, true),
+  ('BUCEO_SAM_36M', 'Manguera de buceo', 'Valvula de retencion en buen estado', false, 'Alto', 1, 430, true),
+  ('BUCEO_SAM_36M', 'Manguera de buceo', 'Apta para continuar su uso en faena', false, 'Intolerable', 1, 440, true),
+  ('BUCEO_SAM_36M', 'Union compresora / manguera de buceo', 'Buen estado Niple de union', false, 'Alto', 1, 500, true),
+  ('BUCEO_SAM_36M', 'Emergencia', 'Botiquin de primeros auxilios basico', false, 'Intolerable', 1, 600, true),
+  ('BUCEO_SAM_36M', 'Emergencia', 'Procedimiento o Manual de 1 Auxilios (plastificado)', false, 'Intolerable', 1, 610, true),
+  ('BUCEO_SAM_36M', 'Emergencia', 'Unidad de O2 medicinal para emergencia', false, 'Intolerable', 1, 620, true),
+  ('BUCEO_SAM_36M', 'Emergencia', 'Tablas de Descompresion Plastificadas (I a V)', false, 'Intolerable', 1, 630, true),
+  ('BUCEO_SAM_36M', 'Documentos', 'Permiso de buceo autorizado por la AAMM', false, 'Intolerable', 1, 700, true),
+  ('BUCEO_SAM_36M', 'Documentos', 'Matriculas del personal de buzos vigentes', false, 'Intolerable', 1, 710, true),
+  ('BUCEO_SAM_36M', 'Documentos', 'Matricula del compresor vigente', false, 'Intolerable', 1, 720, true),
+  ('BUCEO_SAM_36M', 'Documentos', 'Plan de contingencia en caso de accidentes de buceo', false, 'Intolerable', 1, 730, true),
+  ('BUCEO_SAM_36M', 'Documentos', 'Resolucion de autorizacion del plan de contingencia o carta de entrega', false, 'Intolerable', 1, 740, true),
+  ('BUCEO_SAM_36M', 'Documentos', 'Bitacora de buceo y lista de chequeo diaria de faena', false, 'Alto', 1, 750, true),
+  ('BUCEO_SAM_36M', 'Documentos', 'Bitacora de mantencion del compresor u otro respaldo de trazabilidad', false, 'Alto', 1, 760, true),
+  ('BUCEO_SAM_36M', 'Documentos', 'Examenes pre/ocupacionales por buzo aptos', false, 'Intolerable', 1, 770, true),
+  ('BUCEO_SAM_36M', 'Documentos', 'Registro de entrega de EPP para buceo y trabajo en superficie', false, 'Alto', 1, 780, true)
+),
 personal_expandido AS (
   SELECT
     l.lista_codigo,
@@ -150,6 +204,8 @@ canonical AS (
   SELECT * FROM base_expandido
   UNION ALL
   SELECT * FROM personal_expandido
+  UNION ALL
+  SELECT * FROM sam_direct_items
 ),
 upsert_items AS (
   INSERT INTO public.buceo_equipamiento_items (
