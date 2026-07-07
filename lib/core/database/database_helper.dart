@@ -8,7 +8,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      50; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      51; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -342,38 +342,6 @@ class DatabaseHelper {
         criticidad TEXT,
         foto_path TEXT,
         subido INTEGER DEFAULT 0
-      )
-    ''');
-
-    // --- MÓDULO TICKETS DE REQUERIMIENTOS ---
-    await db.execute('''
-      CREATE TABLE ticket_categorias (
-        id TEXT PRIMARY KEY,
-        nombre TEXT,
-        activo INTEGER DEFAULT 1
-      )
-    ''');
-
-    await db.execute('''
-      CREATE TABLE tickets_pendientes (
-        id TEXT PRIMARY KEY,
-        codigo_ticket TEXT,
-        empresa_id TEXT,
-        area_id TEXT,
-        centro_id TEXT,
-        embarcacion_id TEXT,
-        actividad_id TEXT,
-        categoria_id TEXT,
-        categoria_otro TEXT,
-        descripcion TEXT,
-        solicitante_id TEXT,
-        responsable_id TEXT,
-        estado TEXT,
-        criticidad TEXT,
-        fecha_tentativa_cierre TEXT,
-        created_at TEXT,
-        subido INTEGER DEFAULT 0,
-        eliminado INTEGER DEFAULT 0
       )
     ''');
 
@@ -1497,6 +1465,17 @@ class DatabaseHelper {
         'CREATE INDEX IF NOT EXISTS idx_buceo_eq_resp_inspeccion ON buceo_equipamiento_respuestas_pendientes(inspeccion_id)',
       );
       debugPrint("✅ Parche v50 aplicado.");
+    }
+
+    if (oldVersion < 51) {
+      debugPrint(
+        "🚀 Aplicando parche v51 (Módulo Tickets rediseñado: 100% online, sin tablas locales)...",
+      );
+      // El nuevo módulo de Tickets vive solo en Supabase (ver docs/PLAN_TICKETS_MVP.md).
+      // Se eliminan las tablas locales del diseño viejo (ticket_categorias, tickets_pendientes).
+      await db.execute('DROP TABLE IF EXISTS ticket_categorias');
+      await db.execute('DROP TABLE IF EXISTS tickets_pendientes');
+      debugPrint("✅ Parche v51 aplicado.");
     }
   }
 

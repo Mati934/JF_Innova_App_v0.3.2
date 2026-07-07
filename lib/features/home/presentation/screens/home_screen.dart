@@ -4,6 +4,7 @@ import 'package:jf_innova_app/core/theme/app_theme.dart';
 import 'package:jf_innova_app/core/services/user_session.dart';
 import 'package:jf_innova_app/core/modules/module_registry.dart';
 import 'package:jf_innova_app/shared/branding/app_logo.dart';
+import 'package:jf_innova_app/features/tickets/presentation/widgets/ticket_header_badge_button.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/draft_list_widget.dart';
 import '../widgets/module_selector_grid.dart';
@@ -64,7 +65,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 14),
                         ModuleSelectorGrid(
-                          modules: _controller.enabledModules,
+                          // Tickets no se muestra como tarjeta cuadrada: tiene su
+                          // propia viñeta de notificación en el header (ver
+                          // TicketHeaderBadgeButton) aunque siga siendo un módulo
+                          // más para efectos de permisos/activación por empresa.
+                          modules: _controller.enabledModules
+                              .where((m) => m.moduleKey != 'TICKETS')
+                              .toList(),
                           onModuleTap: _onModuleTap,
                         ),
                         const SizedBox(height: 32),
@@ -247,9 +254,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildActionButtons() {
+    final ticketsHabilitado = _controller.enabledModules.any(
+      (m) => m.moduleKey == 'TICKETS',
+    );
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (ticketsHabilitado) ...[
+          const TicketHeaderBadgeButton(),
+          const SizedBox(width: 6),
+        ],
         if (!_controller.isOnline)
           Container(
             margin: const EdgeInsets.only(right: 6),

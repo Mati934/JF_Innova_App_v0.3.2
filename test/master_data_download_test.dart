@@ -19,7 +19,6 @@ void main() {
       'formulario_items',
       'personal_externo',
       'empresas',
-      'ticket_categorias',
       'usuarios',
     ];
 
@@ -30,14 +29,14 @@ void main() {
     ];
 
     test(
-      'Existen 9 tablas obligatorias + 3 condicionales = 12 en Future.wait',
+      'Existen 8 tablas obligatorias + 3 condicionales = 11 en Future.wait',
       () {
-        expect(tablasObligatorias.length, 9);
+        expect(tablasObligatorias.length, 8);
         expect(tablasCondicionales.length, 3);
         expect(
           tablasObligatorias.length + tablasCondicionales.length,
-          12,
-          reason: 'descargarDatosMaestros descarga 12 tablas en Future.wait',
+          11,
+          reason: 'descargarDatosMaestros descarga 11 tablas en Future.wait',
         );
       },
     );
@@ -272,11 +271,7 @@ void main() {
         [
           {'id': 'e1', 'nombre': 'Empresa 1', 'es_administradora': false},
         ],
-        // 7: ticket_categorias
-        [
-          {'id': 'tc1', 'nombre': 'Cat 1', 'activo': true},
-        ],
-        // 8: usuarios
+        // 7: usuarios
         [
           {
             'id': 'u1',
@@ -289,7 +284,7 @@ void main() {
             'roles': {'nombre': 'Administrador'},
           },
         ],
-        // 9: empresa_modulos (condicional)
+        // 8: empresa_modulos (condicional)
         [
           {
             'id': 'em1',
@@ -299,28 +294,28 @@ void main() {
             'orden': 0,
           },
         ],
-        // 10: usuario_empresas (condicional)
+        // 9: usuario_empresas (condicional)
         [
           {'id': 'ue1', 'usuario_id': 'u1', 'empresa_id': 'e1'},
         ],
-        // 11: empresa_areas (condicional)
+        // 10: empresa_areas (condicional)
         [
           {'id': 'ea1', 'empresa_id': 'e1', 'area_id': 'a1'},
         ],
       ];
     }
 
-    test('Future.wait retorna exactamente 12 resultados', () {
+    test('Future.wait retorna exactamente 11 resultados', () {
       final results = crearResultadosCompletos();
       expect(
         results.length,
-        12,
-        reason: 'descargarDatosMaestros espera 12 resultados de Future.wait',
+        11,
+        reason: 'descargarDatosMaestros espera 11 resultados de Future.wait',
       );
     });
 
     test(
-      'Todas las 9 tablas obligatorias tienen datos (detecta descarga incompleta)',
+      'Todas las 8 tablas obligatorias tienen datos (detecta descarga incompleta)',
       () {
         final results = crearResultadosCompletos();
         final tablasConIndice = {
@@ -331,8 +326,7 @@ void main() {
           'formulario_items': 4,
           'personal_externo': 5,
           'empresas': 6,
-          'ticket_categorias': 7,
-          'usuarios': 8,
+          'usuarios': 7,
         };
 
         for (final entry in tablasConIndice.entries) {
@@ -360,7 +354,6 @@ void main() {
         'formulario_items',
         'personal_externo',
         'empresas',
-        'ticket_categorias',
         'usuarios',
       ];
 

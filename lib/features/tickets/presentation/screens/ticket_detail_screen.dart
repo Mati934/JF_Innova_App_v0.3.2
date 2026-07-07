@@ -1,512 +1,373 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:jf_innova_app/core/database/database_helper.dart';
-import 'package:jf_innova_app/core/theme/app_theme.dart';
-import 'package:jf_innova_app/features/tickets/domain/models/ticket_model.dart';
-import 'package:jf_innova_app/features/tickets/presentation/controllers/ticket_controller.dart';
-import 'package:jf_innova_app/features/tickets/presentation/screens/ticket_form_screen.dart';
+import 'package:intl/intl.dart';
+
+import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/widgets/gradient_app_bar.dart';
+import '../controllers/ticket_detail_controller.dart';
+import '../widgets/ticket_card.dart';
+import '../widgets/ticket_item_tile.dart';
+import '../../domain/models/ticket_historial_entry.dart';
 
 class TicketDetailScreen extends StatefulWidget {
-  final TicketModel ticket;
-  final TicketController controller;
-
-  const TicketDetailScreen({
-    super.key,
-    required this.ticket,
-    required this.controller,
-  });
+  final String ticketId;
+  const TicketDetailScreen({super.key, required this.ticketId});
 
   @override
   State<TicketDetailScreen> createState() => _TicketDetailScreenState();
 }
 
 class _TicketDetailScreenState extends State<TicketDetailScreen> {
-  late TicketModel _ticket;
-
-  String? _empresaNombre;
-  String? _areaNombre;
-  String? _categoriaNombre;
-  String? _solicitanteNombre;
-  String? _responsableNombre;
-
-  String? get _currentUserId => Supabase.instance.client.auth.currentUser?.id;
-
-  TicketController get controller => widget.controller;
+  late final TicketDetailController _ctrl;
 
   @override
   void initState() {
     super.initState();
-    _ticket = widget.ticket;
-    _resolveNames();
+    _ctrl = TicketDetailController(widget.ticketId);
   }
 
-  Future<void> _resolveNames() async {
-    final db = DatabaseHelper.instance;
-    final results = await Future.wait([
-      db.getAllEmpresas(),
-      db.getAreas(),
-      db.getAllUsuarios(),
-    ]);
-
-    final empresas = results[0];
-    final areas = results[1];
-    final usuarios = results[2];
-
-    await controller.loadCategorias();
-
-    if (!mounted) return;
-
-    setState(() {
-      _empresaNombre = _findName(empresas, _ticket.empresaId);
-      _areaNombre = _ticket.areaId != null
-          ? _findName(areas, _ticket.areaId!)
-          : null;
-      _solicitanteNombre = _findName(
-        usuarios,
-        _ticket.solicitanteId,
-        nameKey: 'nombre_completo',
-      );
-      _responsableNombre = _ticket.responsableId != null
-          ? _findName(
-              usuarios,
-              _ticket.responsableId!,
-              nameKey: 'nombre_completo',
-            )
-          : null;
-      _categoriaNombre = controller.categorias
-          .where((c) => c.id == _ticket.categoriaId)
-          .map((c) => c.nombre)
-          .firstOrNull;
-    });
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
   }
 
-  static String? _findName(
-    List<Map<String, dynamic>> list,
-    String id, {
-    String nameKey = 'nombre',
-  }) {
-    for (final item in list) {
-      if (item['id'] == id) return item[nameKey] as String?;
-    }
-    return null;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Acciones – Tomar / Cerrar
-  // ---------------------------------------------------------------------------
-
-  Future<void> _tomarTicket() async {
-    final userId = _currentUserId;
-    if (userId == null) return;
-
-    final updated = _ticket.copyWith(
-      responsableId: userId,
-      estado: 'En proceso',
+  void _mostrarMensaje(String? mensaje, {bool esError = true}) {
+    if (mensaje == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: esError ? Colors.red.shade700 : Colors.green.shade700,
+      ),
     );
-
-    final ok = await controller.updateTicket(updated);
-    if (!mounted) return;
-    if (ok) {
-      setState(() => _ticket = updated);
-      await _resolveNames();
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Ticket tomado con éxito.')));
-    }
   }
 
-  Future<void> _cerrarTicket() async {
-    final confirm = await showDialog<bool>(
+  Future<void> _tomar() async {
+    final error = await _ctrl.tomar();
+    _mostrarMensaje(
+      error ?? (error == null ? 'Ticket tomado.' : null),
+      esError: error != null,
+    );
+  }
+
+  Future<void> _soltar() async {
+    final error = await _ctrl.soltar();
+    _mostrarMensaje(
+      error ?? 'Ticket soltado (quedó parcial).',
+      esError: error != null,
+    );
+  }
+
+  Future<void> _aprobar() async {
+    final confirmar = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Cerrar Ticket'),
+        title: const Text('Aprobar ticket'),
         content: const Text(
-          '¿Estás seguro de que quieres cerrar este ticket? Esta acción no se puede deshacer.',
+          'El ticket quedará Cerrado en forma definitiva. ¿Continuar?',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancelar'),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+          FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Cerrar Ticket',
-              style: TextStyle(color: Colors.white),
-            ),
+            child: const Text('Aprobar'),
           ),
         ],
       ),
     );
-
-    if (confirm != true || !mounted) return;
-
-    final updated = _ticket.copyWith(estado: 'Cerrado');
-    final ok = await controller.updateTicket(updated);
-    if (!mounted) return;
-    if (ok) {
-      setState(() => _ticket = updated);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Ticket cerrado.')));
-    }
+    if (confirmar != true) return;
+    final error = await _ctrl.aprobar();
+    _mostrarMensaje(
+      error ?? 'Ticket aprobado y cerrado.',
+      esError: error != null,
+    );
   }
 
-  // ---------------------------------------------------------------------------
-  // Build
-  // ---------------------------------------------------------------------------
+  Future<void> _finalizar() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Finalizar ticket'),
+        content: const Text(
+          'El ticket pasará a "Pendiente de revisión" para que un administrador '
+          'lo apruebe o rechace. ¿Continuar?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Finalizar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+    final error = await _ctrl.finalizar();
+    _mostrarMensaje(
+      error ?? 'Ticket finalizado, pendiente de revisión.',
+      esError: error != null,
+    );
+  }
+
+  Future<void> _eliminar() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Eliminar ticket'),
+        content: const Text(
+          'El ticket dejará de aparecer en el listado para todos. Esta acción '
+          'no se puede deshacer. ¿Continuar?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+    final error = await _ctrl.eliminar();
+    if (!mounted) return;
+    if (error != null) {
+      _mostrarMensaje(error, esError: true);
+      return;
+    }
+    Navigator.pop(context);
+  }
+
+  Future<void> _rechazar() async {
+    final motivoCtrl = TextEditingController();
+    final motivo = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Rechazar ticket'),
+        content: TextField(
+          controller: motivoCtrl,
+          maxLines: 3,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Motivo del rechazo *',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (motivoCtrl.text.trim().isEmpty) return;
+              Navigator.pop(context, motivoCtrl.text.trim());
+            },
+            child: const Text('Rechazar'),
+          ),
+        ],
+      ),
+    );
+    if (motivo == null || motivo.isEmpty) return;
+    final error = await _ctrl.rechazar(motivo);
+    _mostrarMensaje(error ?? 'Ticket rechazado.', esError: error != null);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final estadoLower = _ticket.estado.toLowerCase();
-    final esAbierto = estadoLower == 'abierto';
-    final esEnProceso = estadoLower == 'en proceso';
-    final esCerrado = estadoLower == 'cerrado';
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Detalle del Ticket'),
-        actions: [
-          if (!esCerrado)
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: 'Editar',
-              onPressed: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => TicketFormScreen(
-                      controller: controller,
-                      ticket: _ticket,
-                    ),
-                  ),
-                );
-                if (mounted) {
-                  await controller.loadTickets();
-                  final updated = controller.tickets.firstWhere(
-                    (t) => t.id == _ticket.id,
-                    orElse: () => _ticket,
-                  );
-                  if (mounted) setState(() => _ticket = updated);
-                  _resolveNames();
-                }
-              },
-            ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(context),
-            const SizedBox(height: 24),
-            _buildMetadataSection(),
-            const SizedBox(height: 24),
-            _buildDescriptionSection(context),
-            const SizedBox(height: 24),
-            // ── Acciones ─────────────────────────────────────────
-            if (esAbierto) _buildTomarButton(context),
-            if (esEnProceso) _buildCerrarButton(context),
-            if (esCerrado) _buildCerradoBanner(),
-            SizedBox(height: MediaQuery.of(context).padding.bottom + 24),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Secciones
-  // ---------------------------------------------------------------------------
-
-  Widget _buildHeader(BuildContext context) {
-    final bool isPending = _ticket.codigoTicket == null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          isPending ? 'Pendiente de Sincronización' : _ticket.codigoTicket!,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            color: isPending ? Colors.grey.shade400 : AppTheme.primaryBlue,
-            fontStyle: isPending ? FontStyle.italic : FontStyle.normal,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            _EstadoBadge(estado: _ticket.estado),
-            const SizedBox(width: 12),
-            _CriticidadBadge(criticidad: _ticket.criticidad),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMetadataSection() {
-    final categoriaLabel = _ticket.categoriaOtro != null
-        ? 'Otro: ${_ticket.categoriaOtro}'
-        : (_categoriaNombre ?? _ticket.categoriaId);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _SectionTitle('Información General'),
-        const SizedBox(height: 10),
-        _MetaRow(
-          icon: Icons.category_outlined,
-          label: 'Categoría',
-          value: categoriaLabel,
-        ),
-        if (_ticket.empresaId.isNotEmpty)
-          _MetaRow(
-            icon: Icons.business_outlined,
-            label: 'Empresa',
-            value: _empresaNombre ?? _ticket.empresaId,
-          ),
-        if (_ticket.areaId != null)
-          _MetaRow(
-            icon: Icons.location_on_outlined,
-            label: 'Área',
-            value: _areaNombre ?? _ticket.areaId!,
-          ),
-        _MetaRow(
-          icon: Icons.person_outline,
-          label: 'Solicitante',
-          value: _solicitanteNombre ?? _ticket.solicitanteId,
-        ),
-        if (_ticket.responsableId != null)
-          _MetaRow(
-            icon: Icons.engineering_outlined,
-            label: 'Responsable',
-            value: _responsableNombre ?? _ticket.responsableId!,
-          ),
-        _MetaRow(
-          icon: Icons.calendar_today_outlined,
-          label: 'Fecha Tentativa de Cierre',
-          value: _ticket.fechaTentativaCierre != null
-              ? _formatDate(_ticket.fechaTentativaCierre!)
-              : 'No definida',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDescriptionSection(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _SectionTitle('Descripción'),
-        const SizedBox(height: 10),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Text(
-            _ticket.descripcion,
-            style: const TextStyle(fontSize: 15, height: 1.6),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTomarButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: ListenableBuilder(
-        listenable: controller,
-        builder: (context, _) => ElevatedButton.icon(
-          onPressed: controller.isSaving ? null : _tomarTicket,
-          icon: controller.isSaving
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : const Icon(Icons.handshake_outlined),
-          label: const Text('Tomar Ticket'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.primaryBlue,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCerrarButton(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.blue.shade50,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.blue.shade100),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.engineering_outlined,
-                size: 18,
-                color: Colors.blue.shade700,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Tomado por: ${_responsableNombre ?? 'tí'}',
-                style: TextStyle(
-                  color: Colors.blue.shade700,
-                  fontWeight: FontWeight.w500,
+    return ListenableBuilder(
+      listenable: _ctrl,
+      builder: (context, _) {
+        return Scaffold(
+          backgroundColor: const Color(0xFFF4F6F8),
+          appBar: GradientAppBar(
+            title: Text(_ctrl.ticket?.codigoTicket ?? 'Ticket'),
+            actions: [
+              if (_ctrl.puedoEliminar)
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Eliminar ticket',
+                  onPressed: _ctrl.isProcessing ? null : _eliminar,
                 ),
-              ),
             ],
           ),
-        ),
-        const SizedBox(height: 12),
-        ListenableBuilder(
-          listenable: controller,
-          builder: (context, _) => ElevatedButton.icon(
-            onPressed: controller.isSaving ? null : _cerrarTicket,
-            icon: controller.isSaving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.check_circle_outline),
-            label: const Text('Cerrar Ticket'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+          body: _buildBody(),
+          bottomNavigationBar: _buildAcciones(),
+        );
+      },
+    );
+  }
+
+  Widget _buildBody() {
+    if (_ctrl.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_ctrl.errorMessage != null || _ctrl.ticket == null) {
+      return Center(child: Text(_ctrl.errorMessage ?? 'No encontrado'));
+    }
+    final t = _ctrl.ticket!;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                t.tituloVisible,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-          ),
+            TicketEstadoChip(estado: t.estado),
+          ],
         ),
+        const SizedBox(height: 8),
+        if (t.rechazado && t.motivoRechazo != null)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Rechazado por ${_ctrl.nombreDe(t.rechazadoPorId)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red.shade800,
+                    fontSize: 12.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  t.motivoRechazo!,
+                  style: TextStyle(color: Colors.red.shade900, fontSize: 12.5),
+                ),
+              ],
+            ),
+          ),
+        Text(t.motivo, style: const TextStyle(fontSize: 13.5)),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            Text(
+              'Generado por: ${_ctrl.nombreDe(t.generadoPorId)}',
+              style: _metaStyle,
+            ),
+            if (t.tomadoPorId != null)
+              Text(
+                'Tomado por: ${_ctrl.nombreDe(t.tomadoPorId)}',
+                style: _metaStyle,
+              ),
+            if (t.numeroInforme != null)
+              Text('Informe: ${t.numeroInforme}', style: _metaStyle),
+            if (t.fechaLimite != null)
+              Text(
+                'Vence: ${DateFormat('dd/MM/yyyy').format(t.fechaLimite!)}',
+                style: _metaStyle.copyWith(
+                  color: t.estaVencido ? Colors.red.shade700 : null,
+                  fontWeight: t.estaVencido ? FontWeight.bold : null,
+                ),
+              ),
+          ],
+        ),
+        // Si el ticket no tiene observaciones asociadas (ej. ticket de tipo
+        // SOLICITUD) no tiene sentido mostrar la sección: confunde al usuario
+        // ver "Observaciones (0/0 subsanadas)" cuando no hay nada que subsanar.
+        if (_ctrl.items.isNotEmpty) ...[
+          const Divider(height: 32),
+          Text(
+            'Observaciones (${_ctrl.items.where((i) => i.subsanado).length}/${_ctrl.items.length} subsanadas)',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+          const SizedBox(height: 10),
+          ..._ctrl.items.map(
+            (item) => TicketItemTile(
+              item: item,
+              puedeEditar: _ctrl.puedoSubsanar && !_ctrl.isProcessing,
+              procesando: _ctrl.isProcessing,
+              onCambiar: (subsanado, foto) async {
+                final error = await _ctrl.marcarItem(
+                  item: item,
+                  subsanado: subsanado,
+                  foto: foto,
+                );
+                _mostrarMensaje(error, esError: true);
+              },
+            ),
+          ),
+        ],
+        const Divider(height: 32),
+        const Text(
+          'Historial',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
+        const SizedBox(height: 8),
+        if (_ctrl.historial.isEmpty)
+          Text(
+            'Sin movimientos todavía.',
+            style: TextStyle(color: Colors.grey.shade600),
+          )
+        else
+          ..._ctrl.historial.map(_buildHistorialRow),
       ],
     );
   }
 
-  Widget _buildCerradoBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.lock_outline, color: Colors.grey.shade500),
-          const SizedBox(width: 8),
-          Text(
-            'Este ticket está cerrado.',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  TextStyle get _metaStyle =>
+      TextStyle(fontSize: 12, color: Colors.grey.shade700);
 
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
-
-  String _formatDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/'
-        '${date.month.toString().padLeft(2, '0')}/'
-        '${date.year}';
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Widgets privados de apoyo
-// ---------------------------------------------------------------------------
-
-class _SectionTitle extends StatelessWidget {
-  final String text;
-
-  const _SectionTitle(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text.toUpperCase(),
-      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-        color: Colors.grey.shade500,
-        letterSpacing: 1.2,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-}
-
-class _MetaRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _MetaRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildHistorialRow(TicketHistorialEntry h) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: Colors.grey.shade500),
-          const SizedBox(width: 12),
+          const Padding(
+            padding: EdgeInsets.only(top: 3),
+            child: Icon(Icons.circle, size: 6, color: AppTheme.primaryBlue),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade500,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
+                  '${_ctrl.nombreDe(h.usuarioId)} · ${h.accion.label}',
                   style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
+                if (h.comentario != null && h.comentario!.isNotEmpty)
+                  Text(
+                    h.comentario!,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                  ),
+                if (h.createdAt != null)
+                  Text(
+                    DateFormat(
+                      'dd/MM/yyyy HH:mm',
+                    ).format(h.createdAt!.toLocal()),
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  ),
               ],
             ),
           ),
@@ -514,87 +375,89 @@ class _MetaRow extends StatelessWidget {
       ),
     );
   }
-}
 
-class _EstadoBadge extends StatelessWidget {
-  final String estado;
+  Widget? _buildAcciones() {
+    if (_ctrl.ticket == null) return null;
+    final acciones = <Widget>[];
 
-  const _EstadoBadge({required this.estado});
-
-  @override
-  Widget build(BuildContext context) {
-    final (bgColor, textColor) = _colorsForEstado(estado.toLowerCase());
-    return Chip(
-      label: Text(estado),
-      backgroundColor: bgColor,
-      labelStyle: TextStyle(
-        color: textColor,
-        fontWeight: FontWeight.w600,
-        fontSize: 12,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    );
-  }
-
-  static (Color, Color) _colorsForEstado(String estado) {
-    switch (estado) {
-      case 'abierto':
-        return (Colors.red.shade50, Colors.red.shade700);
-      case 'en proceso':
-      case 'en progreso':
-        return (Colors.blue.shade50, Colors.blue.shade700);
-      case 'resuelto':
-        return (Colors.green.shade50, Colors.green.shade700);
-      case 'cerrado':
-        return (Colors.grey.shade100, Colors.grey.shade600);
-      default:
-        return (Colors.orange.shade50, Colors.orange.shade800);
-    }
-  }
-}
-
-class _CriticidadBadge extends StatelessWidget {
-  final String criticidad;
-
-  const _CriticidadBadge({required this.criticidad});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _colorForCriticidad(criticidad.toLowerCase());
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          criticidad,
-          style: TextStyle(
-            fontSize: 13,
-            color: color,
-            fontWeight: FontWeight.w600,
+    if (_ctrl.puedoTomar) {
+      acciones.add(
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: _ctrl.isProcessing ? null : _tomar,
+            icon: const Icon(Icons.pan_tool_outlined),
+            label: const Text('Tomar ticket'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.primaryBlue,
+            ),
           ),
         ),
-      ],
-    );
-  }
-
-  static Color _colorForCriticidad(String c) {
-    switch (c) {
-      case 'bajo':
-        return Colors.green;
-      case 'medio':
-        return Colors.orange;
-      case 'alto':
-        return Colors.deepOrange;
-      case 'intolerable':
-        return Colors.red.shade800;
-      default:
-        return Colors.grey;
+      );
     }
+    if (_ctrl.puedoSoltar) {
+      acciones.add(
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _ctrl.isProcessing ? null : _soltar,
+            icon: const Icon(Icons.pause_circle_outline),
+            label: const Text('Soltar'),
+          ),
+        ),
+      );
+    }
+    if (_ctrl.puedoFinalizar) {
+      acciones.add(
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: _ctrl.isProcessing ? null : _finalizar,
+            icon: const Icon(Icons.send_rounded),
+            label: const Text('Finalizar'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.teal.shade700,
+            ),
+          ),
+        ),
+      );
+    }
+    if (_ctrl.puedoRevisar) {
+      acciones.addAll([
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _ctrl.isProcessing ? null : _rechazar,
+            icon: const Icon(Icons.close_rounded, color: Colors.red),
+            label: const Text('Rechazar', style: TextStyle(color: Colors.red)),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Colors.red),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: _ctrl.isProcessing ? null : _aprobar,
+            icon: const Icon(Icons.check_rounded),
+            label: const Text('Aprobar'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.green.shade700,
+            ),
+          ),
+        ),
+      ]);
+    }
+
+    if (acciones.isEmpty) return null;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            for (int i = 0; i < acciones.length; i++) ...[
+              if (i > 0) const SizedBox(width: 10),
+              acciones[i],
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:jf_innova_app/core/database/database_helper.dart';
-import 'package:jf_innova_app/core/theme/app_theme.dart';
-import 'package:jf_innova_app/features/tickets/data/repositories/local_ticket_repository.dart';
-import 'package:jf_innova_app/features/tickets/data/repositories/supabase_ticket_repository.dart';
-import 'package:jf_innova_app/features/tickets/presentation/controllers/ticket_controller.dart';
-import 'package:jf_innova_app/features/tickets/presentation/screens/ticket_detail_screen.dart';
-import 'package:jf_innova_app/features/tickets/presentation/screens/ticket_form_screen.dart';
-import 'package:jf_innova_app/features/tickets/presentation/widgets/ticket_card.dart';
-import 'package:jf_innova_app/shared/widgets/custom_filter_sheet.dart';
+
+import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/widgets/custom_filter_sheet.dart';
+import '../../../../shared/widgets/gradient_app_bar.dart';
+import '../../../history/presentation/screens/history_screen.dart';
+import '../controllers/ticket_list_controller.dart';
+import '../widgets/ticket_card.dart';
+import '../widgets/ticket_offline_block.dart';
+import 'ticket_detail_screen.dart';
+import 'ticket_solicitud_form_screen.dart';
 
 class TicketListScreen extends StatefulWidget {
   const TicketListScreen({super.key});
@@ -18,145 +18,113 @@ class TicketListScreen extends StatefulWidget {
 }
 
 class _TicketListScreenState extends State<TicketListScreen> {
-  late final TicketController _controller;
-  Map<String, String> _activeFilters = {};
-
-  // Mapas de lookup para resolver IDs a nombres legibles
-  Map<String, String> _usuariosMap = {};
-  Map<String, String> _empresasMap = {};
-  Map<String, String> _areasMap = {};
-  Map<String, String> _actividadesMap = {}; // actividadId → numero_reporte
-
-  String? get _currentUserId => Supabase.instance.client.auth.currentUser?.id;
+  late final TicketListController _ctrl;
 
   @override
   void initState() {
     super.initState();
-    _controller = TicketController(LocalTicketRepository());
-    _controller.loadTickets();
-    _loadLookups();
-    _syncDesdeSupabase();
+    _ctrl = TicketListController();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
-  Future<void> _syncDesdeSupabase() async {
-    try {
-      await SupabaseTicketRepository().descargarTicketsDesdeSupabase();
-      if (mounted) _controller.loadTickets();
-    } catch (_) {}
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _ctrl,
+      builder: (context, _) {
+        return Scaffold(
+          backgroundColor: const Color(0xFFF4F6F8),
+          appBar: GradientAppBar(
+            title: const Text('Tickets'),
+            actions: [
+              if (!_ctrl.isBlocked)
+                IconButton(
+                  icon: const Icon(Icons.filter_list_rounded),
+                  tooltip: 'Filtros',
+                  onPressed: _openFilterSheet,
+                ),
+            ],
+          ),
+          floatingActionButton: _ctrl.isBlocked
+              ? null
+              : FloatingActionButton.extended(
+                  onPressed: _onNuevoTicket,
+                  backgroundColor: AppTheme.primaryBlue,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Nuevo ticket'),
+                ),
+          body: _buildBody(),
+        );
+      },
+    );
   }
 
-  Future<void> _loadLookups() async {
-    try {
-      final db = DatabaseHelper.instance;
-      final results = await Future.wait([
-        db.getAllUsuarios(),
-        db.getAllEmpresas(),
-        db.getAreas(),
-      ]);
-
-      // Cargar informes desde Supabase para mostrar numero_reporte en tarjetas
-      final actividadesMap = <String, String>{};
-      try {
-        final response = await Supabase.instance.client
-            .from('actividades')
-            .select('id, numero_informe')
-            .not('numero_informe', 'is', null);
-        for (final e in List<Map<String, dynamic>>.from(response)) {
-          final id = e['id'] as String?;
-          final num = e['numero_informe'];
-          if (id != null && num != null) {
-            actividadesMap[id] = num.toString();
-          }
-        }
-      } catch (_) {}
-
-      if (!mounted) return;
-      setState(() {
-        _usuariosMap = {
-          for (final u in results[0])
-            u['id'] as String: (u['nombre_completo'] as String?) ?? '',
-        };
-        _empresasMap = {
-          for (final e in results[1])
-            e['id'] as String: (e['nombre'] as String?) ?? '',
-        };
-        _areasMap = {
-          for (final a in results[2])
-            a['id'] as String: (a['nombre'] as String?) ?? '',
-        };
-        _actividadesMap = actividadesMap;
-      });
-    } catch (e) {
-      debugPrint('❌ [TicketListScreen] Error cargando lookups: $e');
+  Widget _buildBody() {
+    if (_ctrl.isBlocked) {
+      return TicketOfflineBlock(onRetry: () => _ctrl.cargarTickets());
     }
+    if (_ctrl.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_ctrl.errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(_ctrl.errorMessage!, textAlign: TextAlign.center),
+        ),
+      );
+    }
+    if (_ctrl.tickets.isEmpty) {
+      return const Center(child: Text('No hay tickets para mostrar.'));
+    }
+    return RefreshIndicator(
+      onRefresh: () => _ctrl.cargarTickets(),
+      child: ListView.builder(
+        padding: const EdgeInsets.only(top: 8, bottom: 90),
+        itemCount: _ctrl.tickets.length,
+        itemBuilder: (context, i) {
+          final t = _ctrl.tickets[i];
+          return TicketCard(
+            ticket: t,
+            generadoPorNombre: _ctrl.nombreDe(t.generadoPorId),
+            tomadoPorNombre: t.tomadoPorId != null
+                ? _ctrl.nombreDe(t.tomadoPorId)
+                : null,
+            esMio:
+                t.tomadoPorId != null && t.tomadoPorId == _ctrl.usuarioActualId,
+            onTap: () => _abrirDetalle(t.id),
+            onTomar: () => _tomarTicket(t.id),
+          );
+        },
+      ),
+    );
   }
 
-  List<FilterDef> _buildTicketFilterDefs() {
-    const criticidades = ['Bajo', 'Medio', 'Alto', 'Intolerable'];
-    const estados = ['Abierto', 'En Proceso', 'Cerrado'];
+  Future<void> _abrirDetalle(String ticketId) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => TicketDetailScreen(ticketId: ticketId)),
+    );
+    _ctrl.cargarTickets();
+  }
 
-    return [
-      FilterDef(
-        key: 'empresa_id',
-        label: 'Empresa',
-        icon: Icons.business_rounded,
-        items: _empresasMap.values.toList(),
-        enableSearch: _empresasMap.length > 5,
-        resolveId: (name) => _empresasMap.entries
-            .firstWhere(
-              (e) => e.value == name,
-              orElse: () => MapEntry(name, name),
-            )
-            .key,
-        resolveDisplayName: (id) => _empresasMap[id] ?? id,
-      ),
-      FilterDef(
-        key: 'area_id',
-        label: 'Área',
-        icon: Icons.map_outlined,
-        items: _areasMap.values.toList(),
-        enableSearch: _areasMap.length > 5,
-        resolveId: (name) => _areasMap.entries
-            .firstWhere(
-              (e) => e.value == name,
-              orElse: () => MapEntry(name, name),
-            )
-            .key,
-        resolveDisplayName: (id) => _areasMap[id] ?? id,
-      ),
-      FilterDef(
-        key: 'solicitante_id',
-        label: 'Solicitante',
-        icon: Icons.person_rounded,
-        items: _usuariosMap.values.toList(),
-        enableSearch: true,
-        resolveId: (name) => _usuariosMap.entries
-            .firstWhere(
-              (e) => e.value == name,
-              orElse: () => MapEntry(name, name),
-            )
-            .key,
-        resolveDisplayName: (id) => _usuariosMap[id] ?? id,
-      ),
-      FilterDef(
-        key: 'criticidad',
-        label: 'Criticidad',
-        icon: Icons.warning_amber_rounded,
-        items: criticidades,
-      ),
-      FilterDef(
-        key: 'estado',
-        label: 'Estado',
-        icon: Icons.flag_rounded,
-        items: estados,
-      ),
-    ];
+  Future<void> _tomarTicket(String ticketId) async {
+    final error = await _ctrl.tomarTicket(ticketId);
+    if (!mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: Colors.red.shade700),
+      );
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Ticket tomado.')));
+    }
   }
 
   void _openFilterSheet() {
@@ -167,165 +135,149 @@ class _TicketListScreenState extends State<TicketListScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (_) => CustomFilterSheet(
-        currentFilters: _activeFilters,
-        filterDefs: _buildTicketFilterDefs(),
-        onApply: (filters) {
-          setState(() => _activeFilters = filters);
-          _controller.applyFilters(filters);
-        },
+        currentFilters: _ctrl.activeFilters,
+        filterDefs: _buildFilterDefs(),
+        onApply: (filters) => _ctrl.applyFilters(filters),
       ),
     );
   }
 
-  void _clearFilters() {
-    setState(() => _activeFilters = {});
-    _controller.applyFilters({});
+  List<FilterDef> _buildFilterDefs() {
+    return [
+      const FilterDef(
+        key: 'estado',
+        label: 'Estado',
+        icon: Icons.flag_outlined,
+        items: [
+          'Abierto',
+          'Tomado',
+          'Parcial',
+          'Pendiente de revisión',
+          'Cerrado',
+        ],
+        resolveId: _estadoLabelToValue,
+        resolveDisplayName: _estadoValueToLabel,
+      ),
+      const FilterDef(
+        key: 'tipo_ticket',
+        label: 'Tipo',
+        icon: Icons.category_outlined,
+        items: ['Revisión de observaciones', 'Solicitud'],
+        resolveId: _tipoLabelToValue,
+        resolveDisplayName: _tipoValueToLabel,
+      ),
+      const FilterDef(
+        key: 'tipo_inspeccion',
+        label: 'Tipo de inspección',
+        icon: Icons.assignment_outlined,
+        items: ['Buceo', 'Embarcación'],
+        resolveId: _tipoInspeccionLabelToValue,
+        resolveDisplayName: _tipoInspeccionValueToLabel,
+      ),
+    ];
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tickets'),
-        actions: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.filter_list_rounded),
-                tooltip: 'Filtrar',
-                onPressed: _openFilterSheet,
-              ),
-              if (_activeFilters.isNotEmpty)
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AppTheme.logoYellow,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
+  void _onNuevoTicket() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFFE3F2FD),
+                child: Icon(
+                  Icons.rule_folder_outlined,
+                  color: AppTheme.primaryBlue,
                 ),
-            ],
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppTheme.primaryBlue,
-        foregroundColor: Colors.white,
-        tooltip: 'Nuevo Ticket',
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => TicketFormScreen(controller: _controller),
+              ),
+              title: const Text('Desde una inspección'),
+              subtitle: const Text(
+                'Genera un ticket automático desde el historial (buceo/embarcación).',
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HistoryScreen()),
+                );
+              },
             ),
-          ).then((_) => _loadLookups());
-        },
-        child: const Icon(Icons.add_rounded),
-      ),
-      body: ListenableBuilder(
-        listenable: _controller,
-        builder: (context, _) {
-          if (_controller.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (_controller.errorMessage != null) {
-            return _buildErrorState(_controller.errorMessage!);
-          }
-
-          if (_controller.tickets.isEmpty) {
-            return _buildEmptyState();
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            itemCount: _controller.tickets.length,
-            itemBuilder: (context, index) {
-              final ticket = _controller.tickets[index];
-              return TicketCard(
-                ticket: ticket,
-                currentUserId: _currentUserId,
-                solicitanteNombre: _usuariosMap[ticket.solicitanteId],
-                responsableNombre: ticket.responsableId != null
-                    ? _usuariosMap[ticket.responsableId!]
-                    : null,
-                empresaNombre: _empresasMap[ticket.empresaId],
-                areaNombre: ticket.areaId != null
-                    ? _areasMap[ticket.areaId!]
-                    : null,
-                numeroInforme: ticket.actividadId != null
-                    ? _actividadesMap[ticket.actividadId!]
-                    : null,
-                onDelete: () => _controller.deleteTicket(ticket.id),
-                onTap: () => Navigator.push(
+            const Divider(height: 1),
+            ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFFE3F2FD),
+                child: Icon(
+                  Icons.chat_bubble_outline,
+                  color: AppTheme.primaryBlue,
+                ),
+              ),
+              title: const Text('Solicitud'),
+              subtitle: const Text(
+                'Ticket libre, con un texto describiendo lo que se requiere.',
+              ),
+              onTap: () async {
+                Navigator.pop(context);
+                await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => TicketDetailScreen(
-                      ticket: ticket,
-                      controller: _controller,
-                    ),
+                    builder: (_) => const TicketSolicitudFormScreen(),
                   ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.inbox_outlined, size: 64, color: Colors.grey.shade400),
-          const SizedBox(height: 16),
-          Text(
-            _activeFilters.isNotEmpty
-                ? 'Ningún ticket coincide con los filtros aplicados.'
-                : 'No hay tickets registrados.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-          ),
-          if (_activeFilters.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            TextButton.icon(
-              icon: const Icon(Icons.clear),
-              label: const Text('Limpiar filtros'),
-              onPressed: _clearFilters,
+                );
+                _ctrl.cargarTickets();
+              },
             ),
+            const SizedBox(height: 10),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorState(String message) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.error_outline_rounded,
-            size: 48,
-            color: AppTheme.logoRed,
-          ),
-          const SizedBox(height: 12),
-          Text(message, style: const TextStyle(color: AppTheme.logoRed)),
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-            onPressed: _controller.loadTickets,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Reintentar'),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
+
+String _estadoLabelToValue(String label) => switch (label) {
+  'Abierto' => 'ABIERTO',
+  'Tomado' => 'TOMADO',
+  'Parcial' => 'PARCIAL',
+  'Pendiente de revisión' => 'FINALIZADO_PENDIENTE_REVISION',
+  'Cerrado' => 'CERRADO',
+  _ => label,
+};
+
+String _estadoValueToLabel(String value) => switch (value) {
+  'ABIERTO' => 'Abierto',
+  'TOMADO' => 'Tomado',
+  'PARCIAL' => 'Parcial',
+  'FINALIZADO_PENDIENTE_REVISION' => 'Pendiente de revisión',
+  'CERRADO' => 'Cerrado',
+  _ => value,
+};
+
+String _tipoLabelToValue(String label) => switch (label) {
+  'Revisión de observaciones' => 'REVISION_OBSERVACIONES',
+  'Solicitud' => 'SOLICITUD',
+  _ => label,
+};
+
+String _tipoValueToLabel(String value) => switch (value) {
+  'REVISION_OBSERVACIONES' => 'Revisión de observaciones',
+  'SOLICITUD' => 'Solicitud',
+  _ => value,
+};
+
+String _tipoInspeccionLabelToValue(String label) => switch (label) {
+  'Buceo' => 'INSPECCION_BUCEO',
+  'Embarcación' => 'INSPECCION_EMBARCACION',
+  _ => label,
+};
+
+String _tipoInspeccionValueToLabel(String value) => switch (value) {
+  'INSPECCION_BUCEO' => 'Buceo',
+  'INSPECCION_EMBARCACION' => 'Embarcación',
+  _ => value,
+};

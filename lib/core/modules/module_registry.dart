@@ -11,6 +11,7 @@ import '../../features/buceo_equipment/presentation/screens/buceo_equipment_modu
 
 import '../../features/admin/presentation/screens/master_data_admin_screen.dart';
 import '../../features/history/presentation/screens/history_screen.dart';
+import '../../features/tickets/presentation/screens/ticket_list_screen.dart';
 
 class ModuleDefinition {
   final String moduleKey;
@@ -110,6 +111,14 @@ class ModuleRegistry {
       icon: Icons.history,
       color: Colors.blueGrey,
       screenBuilder: (_) => const HistoryScreen(),
+    ),
+    ModuleDefinition(
+      moduleKey: 'TICKETS',
+      title: 'Tickets',
+      subtitle: 'Seguimiento de observaciones',
+      icon: Icons.confirmation_number_outlined,
+      color: const Color(0xFFB23B00),
+      screenBuilder: (_) => const TicketListScreen(),
     ),
     ModuleDefinition(
       moduleKey: 'RENDICIONES',

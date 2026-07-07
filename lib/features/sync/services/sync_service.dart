@@ -6,14 +6,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/database/database_helper.dart';
 import '../../../core/utils/rut_utils.dart';
 import '../../../core/services/user_session.dart';
-import '../../../features/tickets/data/repositories/supabase_ticket_repository.dart';
 import '../../../features/inspection/services/deferred_pdf_service.dart';
 import 'dart:convert';
 
 class SyncService {
   final _supabase = Supabase.instance.client;
   final _dbHelper = DatabaseHelper.instance;
-  final _ticketRepo = SupabaseTicketRepository();
 
   // --- 1. DESCARGAR DATOS MAESTROS (Down-Sync) ---
   // Cada tabla se descarga independientemente: si una falla, las demás se guardan igual.
@@ -89,15 +87,7 @@ class SyncService {
             .from('empresas')
             .select('id, nombre, es_administradora, logo_url'),
       ),
-      // 7: ticket_categorias
-      descargarTabla(
-        'ticket_categorias',
-        _supabase
-            .from('ticket_categorias')
-            .select('id, nombre, activo')
-            .eq('activo', true),
-      ),
-      // 8: usuarios
+      // 7: usuarios
       descargarTabla(
         'usuarios',
         _supabase
@@ -106,7 +96,7 @@ class SyncService {
               'id, rut, nombre_completo, email, rol_id, telefono, empresa_id, roles (nombre)',
             ),
       ),
-      // 9: empresa_modulos (condicional)
+      // 8: empresa_modulos (condicional)
       descargarTabla(
         'empresa_modulos',
         empresaId != null
@@ -116,7 +106,7 @@ class SyncService {
                   .eq('empresa_id', empresaId)
             : Future.value(<Map<String, dynamic>>[]),
       ),
-      // 10: usuario_empresas (condicional)
+      // 9: usuario_empresas (condicional)
       descargarTabla(
         'usuario_empresas',
         userId != null
@@ -126,7 +116,7 @@ class SyncService {
                   .eq('usuario_id', userId)
             : Future.value(<Map<String, dynamic>>[]),
       ),
-      // 11: empresa_areas (condicional — solo para empresa activa)
+      // 10: empresa_areas (condicional — solo para empresa activa)
       descargarTabla(
         'empresa_areas',
         empresaId != null
@@ -136,7 +126,7 @@ class SyncService {
                   .eq('empresa_id', empresaId)
             : Future.value(<Map<String, dynamic>>[]),
       ),
-      // 12: formulario_campos_extra (master data por checklist)
+      // 11: formulario_campos_extra (master data por checklist)
       descargarTabla(
         'formulario_campos_extra',
         _supabase
@@ -146,7 +136,7 @@ class SyncService {
             .order('tipo_actividad')
             .order('orden'),
       ),
-      // 13: hidroser_listas (catálogo de listas de chequeo del módulo Hidroser)
+      // 12: hidroser_listas (catálogo de listas de chequeo del módulo Hidroser)
       descargarTabla(
         'hidroser_listas',
         _supabase
@@ -155,7 +145,7 @@ class SyncService {
             .eq('activo', true)
             .order('orden'),
       ),
-      // 14: buceo_equipamiento_listas (catálogo del módulo Equipamiento de Buceo)
+      // 13: buceo_equipamiento_listas (catálogo del módulo Equipamiento de Buceo)
       descargarTabla(
         'buceo_equipamiento_listas',
         _supabase
@@ -164,7 +154,7 @@ class SyncService {
             .eq('activo', true)
             .order('orden'),
       ),
-      // 15: buceo_equipamiento_items (preguntas del checklist de buceo)
+      // 14: buceo_equipamiento_items (preguntas del checklist de buceo)
       descargarTabla(
         'buceo_equipamiento_items',
         _supabase
@@ -316,32 +306,12 @@ class SyncService {
       }
     }
 
-    // 7: ticket_categorias
+    // 7: usuarios
     if (futures[7] != null) {
       try {
         await _dbHelper.guardarMaestros(
-          'ticket_categorias',
-          List<Map<String, dynamic>>.from(futures[7]!),
-        );
-        tablasDescargadas.add('ticket_categorias');
-      } catch (e, stack) {
-        debugPrint("⚠️ Error guardando ticket_categorias en SQLite: $e");
-        FirebaseCrashlytics.instance.recordError(
-          e,
-          stack,
-          reason: 'guardarMaestros SQLite: ticket_categorias',
-          fatal: false,
-        );
-        tablasFallidas.add('ticket_categorias');
-      }
-    }
-
-    // 8: usuarios
-    if (futures[8] != null) {
-      try {
-        await _dbHelper.guardarMaestros(
           'usuarios',
-          List<Map<String, dynamic>>.from(futures[8]!),
+          List<Map<String, dynamic>>.from(futures[7]!),
         );
         tablasDescargadas.add('usuarios');
       } catch (e, stack) {
@@ -356,21 +326,12 @@ class SyncService {
       }
     }
 
-    // Descargar tickets (independiente)
-    try {
-      await _ticketRepo.descargarTicketsDesdeSupabase();
-    } catch (e, stack) {
-      debugPrint("⚠️ Error descargando tickets: $e");
-      FirebaseCrashlytics.instance.recordError(
-        e,
-        stack,
-        reason: 'descargarTicketsDesdeSupabase',
-        fatal: false,
-      );
-    }
+    // Modulo Tickets: es 100% online (Supabase Realtime, sin tabla de
+    // categorias local), no usa cola local de sincronizacion.
+    // Ver docs/PLAN_TICKETS_MVP.md.
 
-    // 9: empresa_modulos (condicional)
-    final modulosData = futures[9];
+    // 8: empresa_modulos (condicional)
+    final modulosData = futures[8];
     if (modulosData != null && modulosData.isNotEmpty) {
       try {
         await _dbHelper.guardarMaestros(
@@ -392,8 +353,8 @@ class SyncService {
       }
     }
 
-    // 10: usuario_empresas (condicional)
-    final ueData = futures[10];
+    // 9: usuario_empresas (condicional)
+    final ueData = futures[9];
     if (ueData != null && ueData.isNotEmpty) {
       try {
         await _dbHelper.guardarMaestros(
@@ -418,8 +379,8 @@ class SyncService {
       }
     }
 
-    // 11: empresa_areas (condicional)
-    final eaData = futures[11];
+    // 10: empresa_areas (condicional)
+    final eaData = futures[10];
     if (eaData != null && eaData.isNotEmpty) {
       try {
         await _dbHelper.guardarMaestros(
@@ -441,11 +402,11 @@ class SyncService {
       }
     }
 
-    // 12: formulario_campos_extra
-    if (futures.length > 12 && futures[12] != null) {
+    // 11: formulario_campos_extra
+    if (futures.length > 11 && futures[11] != null) {
       try {
         await _dbHelper.guardarCamposExtraOffline(
-          List<Map<String, dynamic>>.from(futures[12]!),
+          List<Map<String, dynamic>>.from(futures[11]!),
         );
         tablasDescargadas.add('formulario_campos_extra');
       } catch (e, stack) {
@@ -460,11 +421,11 @@ class SyncService {
       }
     }
 
-    // 13: hidroser_listas
-    if (futures.length > 13 && futures[13] != null) {
+    // 12: hidroser_listas
+    if (futures.length > 12 && futures[12] != null) {
       try {
         await _dbHelper.guardarHidroserListasOffline(
-          List<Map<String, dynamic>>.from(futures[13]!),
+          List<Map<String, dynamic>>.from(futures[12]!),
         );
         tablasDescargadas.add('hidroser_listas');
       } catch (e, stack) {
@@ -479,11 +440,11 @@ class SyncService {
       }
     }
 
-    // 14: buceo_equipamiento_listas
-    if (futures.length > 14 && futures[14] != null) {
+    // 13: buceo_equipamiento_listas
+    if (futures.length > 13 && futures[13] != null) {
       try {
         await _dbHelper.guardarBuceoEquipamientoListasOffline(
-          List<Map<String, dynamic>>.from(futures[14]!),
+          List<Map<String, dynamic>>.from(futures[13]!),
         );
         tablasDescargadas.add('buceo_equipamiento_listas');
       } catch (e, stack) {
@@ -500,11 +461,11 @@ class SyncService {
       }
     }
 
-    // 15: buceo_equipamiento_items
-    if (futures.length > 15 && futures[15] != null) {
+    // 14: buceo_equipamiento_items
+    if (futures.length > 14 && futures[14] != null) {
       try {
         await _dbHelper.guardarBuceoEquipamientoItemsOffline(
-          List<Map<String, dynamic>>.from(futures[15]!),
+          List<Map<String, dynamic>>.from(futures[14]!),
         );
         tablasDescargadas.add('buceo_equipamiento_items');
       } catch (e, stack) {
@@ -562,8 +523,7 @@ class SyncService {
       await _sincronizarRespuestas();
       await _sincronizarFotos();
 
-      // 5. Subir Tickets pendientes
-      await _ticketRepo.syncTicketsHaciaSupabase();
+      // 5. Modulo Tickets: 100% online, no requiere subir pendientes aqui.
 
       // 6. Subir configuración de módulos por empresa
       await _sincronizarEmpresaModulos();
@@ -605,7 +565,6 @@ class SyncService {
       'formulario_items',
       'personal_externo',
       'empresas',
-      'ticket_categorias',
       'usuarios',
     ];
 
@@ -671,13 +630,6 @@ class SyncService {
                 .from('empresas')
                 .select('id, nombre, es_administradora, logo_url');
             await _dbHelper.guardarMaestros('empresas', data);
-            break;
-          case 'ticket_categorias':
-            data = await _supabase
-                .from('ticket_categorias')
-                .select('id, nombre, activo')
-                .eq('activo', true);
-            await _dbHelper.guardarMaestros('ticket_categorias', data);
             break;
           case 'usuarios':
             data = await _supabase

@@ -1,24 +1,99 @@
+/// Origen de un ticket: generado desde una inspección o solicitado manualmente.
+enum TicketOrigen {
+  inspeccion,
+  solicitud;
+
+  String get value => switch (this) {
+    TicketOrigen.inspeccion => 'INSPECCION',
+    TicketOrigen.solicitud => 'SOLICITUD',
+  };
+
+  static TicketOrigen fromValue(String? value) => switch (value) {
+    'INSPECCION' => TicketOrigen.inspeccion,
+    _ => TicketOrigen.solicitud,
+  };
+}
+
+/// Categoría visible del ticket (para filtros).
+enum TicketTipo {
+  revisionObservaciones,
+  solicitud;
+
+  String get value => switch (this) {
+    TicketTipo.revisionObservaciones => 'REVISION_OBSERVACIONES',
+    TicketTipo.solicitud => 'SOLICITUD',
+  };
+
+  String get label => switch (this) {
+    TicketTipo.revisionObservaciones => 'Revisión de observaciones',
+    TicketTipo.solicitud => 'Solicitud',
+  };
+
+  static TicketTipo fromValue(String? value) => switch (value) {
+    'REVISION_OBSERVACIONES' => TicketTipo.revisionObservaciones,
+    _ => TicketTipo.solicitud,
+  };
+}
+
+/// Estados del ciclo de vida de un ticket (ver docs/PLAN_TICKETS_MVP.md §4.1).
+enum TicketEstado {
+  abierto,
+  tomado,
+  parcial,
+  finalizadoPendienteRevision,
+  cerrado;
+
+  String get value => switch (this) {
+    TicketEstado.abierto => 'ABIERTO',
+    TicketEstado.tomado => 'TOMADO',
+    TicketEstado.parcial => 'PARCIAL',
+    TicketEstado.finalizadoPendienteRevision => 'FINALIZADO_PENDIENTE_REVISION',
+    TicketEstado.cerrado => 'CERRADO',
+  };
+
+  String get label => switch (this) {
+    TicketEstado.abierto => 'Abierto',
+    TicketEstado.tomado => 'Tomado',
+    TicketEstado.parcial => 'Parcial',
+    TicketEstado.finalizadoPendienteRevision => 'Pendiente de revisión',
+    TicketEstado.cerrado => 'Cerrado',
+  };
+
+  static TicketEstado fromValue(String? value) => switch (value) {
+    'TOMADO' => TicketEstado.tomado,
+    'PARCIAL' => TicketEstado.parcial,
+    'FINALIZADO_PENDIENTE_REVISION' => TicketEstado.finalizadoPendienteRevision,
+    'CERRADO' => TicketEstado.cerrado,
+    _ => TicketEstado.abierto,
+  };
+}
+
 class TicketModel {
   final String id;
-  final String? codigoTicket; // Es null antes de insertarse en la BD
-
+  final String? codigoTicket;
   final String empresaId;
+  final TicketOrigen origen;
+  final TicketTipo tipoTicket;
+  final String? inspeccionId;
+  final String? tipoInspeccion;
+  final String? numeroInforme;
   final String? areaId;
   final String? centroId;
   final String? embarcacionId;
-  final String? actividadId;
-
-  final String categoriaId;
-  final String? categoriaOtro;
-
-  final String descripcion;
-  final String solicitanteId;
-  final String? responsableId;
-
-  final String estado;
-  final String criticidad;
-  final DateTime? fechaTentativaCierre;
-
+  final String? asunto;
+  final String motivo;
+  final String generadoPorId;
+  final TicketEstado estado;
+  final String? tomadoPorId;
+  final DateTime? fechaLimite;
+  final String? revisadoPorId;
+  final DateTime? revisadoAt;
+  final bool rechazado;
+  final String? motivoRechazo;
+  final String? rechazadoPorId;
+  final DateTime? rechazadoAt;
+  final Map<String, dynamic> camposExtra;
+  final bool eliminado;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -26,60 +101,45 @@ class TicketModel {
     required this.id,
     this.codigoTicket,
     required this.empresaId,
+    required this.origen,
+    required this.tipoTicket,
+    this.inspeccionId,
+    this.tipoInspeccion,
+    this.numeroInforme,
     this.areaId,
     this.centroId,
     this.embarcacionId,
-    this.actividadId,
-    required this.categoriaId,
-    this.categoriaOtro,
-    required this.descripcion,
-    required this.solicitanteId,
-    this.responsableId,
-    this.estado = 'Abierto',
-    this.criticidad = 'Medio',
-    this.fechaTentativaCierre,
+    this.asunto,
+    required this.motivo,
+    required this.generadoPorId,
+    this.estado = TicketEstado.abierto,
+    this.tomadoPorId,
+    this.fechaLimite,
+    this.revisadoPorId,
+    this.revisadoAt,
+    this.rechazado = false,
+    this.motivoRechazo,
+    this.rechazadoPorId,
+    this.rechazadoAt,
+    this.camposExtra = const {},
+    this.eliminado = false,
     this.createdAt,
     this.updatedAt,
   });
 
-  TicketModel copyWith({
-    String? id,
-    String? codigoTicket,
-    String? empresaId,
-    String? areaId,
-    String? centroId,
-    String? embarcacionId,
-    String? actividadId,
-    String? categoriaId,
-    String? categoriaOtro,
-    String? descripcion,
-    String? solicitanteId,
-    String? responsableId,
-    String? estado,
-    String? criticidad,
-    DateTime? fechaTentativaCierre,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-  }) {
-    return TicketModel(
-      id: id ?? this.id,
-      codigoTicket: codigoTicket ?? this.codigoTicket,
-      empresaId: empresaId ?? this.empresaId,
-      areaId: areaId ?? this.areaId,
-      centroId: centroId ?? this.centroId,
-      embarcacionId: embarcacionId ?? this.embarcacionId,
-      actividadId: actividadId ?? this.actividadId,
-      categoriaId: categoriaId ?? this.categoriaId,
-      categoriaOtro: categoriaOtro ?? this.categoriaOtro,
-      descripcion: descripcion ?? this.descripcion,
-      solicitanteId: solicitanteId ?? this.solicitanteId,
-      responsableId: responsableId ?? this.responsableId,
-      estado: estado ?? this.estado,
-      criticidad: criticidad ?? this.criticidad,
-      fechaTentativaCierre: fechaTentativaCierre ?? this.fechaTentativaCierre,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-    );
+  /// Título corto para mostrar en listas: usa [asunto] si existe, si no
+  /// recorta el inicio de [motivo].
+  String get tituloVisible {
+    final a = asunto?.trim();
+    if (a != null && a.isNotEmpty) return a;
+    final m = motivo.trim();
+    return m.length > 60 ? '${m.substring(0, 60)}…' : m;
+  }
+
+  bool get estaVencido {
+    if (fechaLimite == null) return false;
+    if (estado == TicketEstado.cerrado) return false;
+    return fechaLimite!.isBefore(DateTime.now());
   }
 
   factory TicketModel.fromMap(Map<String, dynamic> map) {
@@ -87,48 +147,64 @@ class TicketModel {
       id: map['id'] as String,
       codigoTicket: map['codigo_ticket'] as String?,
       empresaId: map['empresa_id'] as String,
+      origen: TicketOrigen.fromValue(map['origen'] as String?),
+      tipoTicket: TicketTipo.fromValue(map['tipo_ticket'] as String?),
+      inspeccionId: map['inspeccion_id'] as String?,
+      tipoInspeccion: map['tipo_inspeccion'] as String?,
+      numeroInforme: map['numero_informe'] as String?,
       areaId: map['area_id'] as String?,
       centroId: map['centro_id'] as String?,
       embarcacionId: map['embarcacion_id'] as String?,
-      actividadId: map['actividad_id'] as String?,
-      categoriaId: map['categoria_id'] as String,
-      categoriaOtro: map['categoria_otro'] as String?,
-      descripcion: map['descripcion'] as String,
-      solicitanteId: map['solicitante_id'] as String,
-      responsableId: map['responsable_id'] as String?,
-      estado: map['estado'] as String? ?? 'Abierto',
-      criticidad: map['criticidad'] as String? ?? 'Medio',
-      fechaTentativaCierre: map['fecha_tentativa_cierre'] != null
-          ? DateTime.tryParse(map['fecha_tentativa_cierre'])
+      asunto: map['asunto'] as String?,
+      motivo: map['motivo'] as String? ?? '',
+      generadoPorId: map['generado_por_id'] as String,
+      estado: TicketEstado.fromValue(map['estado'] as String?),
+      tomadoPorId: map['tomado_por_id'] as String?,
+      fechaLimite: map['fecha_limite'] != null
+          ? DateTime.tryParse(map['fecha_limite'].toString())
           : null,
+      revisadoPorId: map['revisado_por_id'] as String?,
+      revisadoAt: map['revisado_at'] != null
+          ? DateTime.tryParse(map['revisado_at'].toString())
+          : null,
+      rechazado: map['rechazado'] == true,
+      motivoRechazo: map['motivo_rechazo'] as String?,
+      rechazadoPorId: map['rechazado_por_id'] as String?,
+      rechazadoAt: map['rechazado_at'] != null
+          ? DateTime.tryParse(map['rechazado_at'].toString())
+          : null,
+      camposExtra:
+          (map['campos_extra_json'] as Map?)?.cast<String, dynamic>() ??
+          const {},
+      eliminado: map['eliminado'] == true,
       createdAt: map['created_at'] != null
-          ? DateTime.tryParse(map['created_at'])
+          ? DateTime.tryParse(map['created_at'].toString())
           : null,
       updatedAt: map['updated_at'] != null
-          ? DateTime.tryParse(map['updated_at'])
+          ? DateTime.tryParse(map['updated_at'].toString())
           : null,
     );
   }
 
-  Map<String, dynamic> toMap() {
+  /// Datos para INSERT (no incluye campos que la BD maneja sola: codigo_ticket,
+  /// estado inicial, timestamps).
+  Map<String, dynamic> toInsertMap() {
     return {
       'id': id,
-      // No mandamos codigoTicket al crear, la BD lo genera
       'empresa_id': empresaId,
+      'origen': origen.value,
+      'tipo_ticket': tipoTicket.value,
+      'inspeccion_id': inspeccionId,
+      'tipo_inspeccion': tipoInspeccion,
+      'numero_informe': numeroInforme,
       'area_id': areaId,
       'centro_id': centroId,
       'embarcacion_id': embarcacionId,
-      'actividad_id': actividadId,
-      'categoria_id': categoriaId,
-      'categoria_otro': categoriaOtro,
-      'descripcion': descripcion,
-      'solicitante_id': solicitanteId,
-      'responsable_id': responsableId,
-      'estado': estado,
-      'criticidad': criticidad,
-      'fecha_tentativa_cierre': fechaTentativaCierre?.toIso8601String(),
-      'created_at': createdAt?.toIso8601String(),
-      // No mandamos updatedAt, lo maneja Supabase
+      'asunto': asunto,
+      'motivo': motivo,
+      'generado_por_id': generadoPorId,
+      'fecha_limite': fechaLimite?.toIso8601String(),
+      'campos_extra_json': camposExtra,
     };
   }
 }

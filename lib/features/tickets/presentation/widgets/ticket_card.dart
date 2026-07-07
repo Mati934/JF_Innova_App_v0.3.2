@@ -1,493 +1,210 @@
 import 'package:flutter/material.dart';
-import 'package:jf_innova_app/core/theme/app_theme.dart';
-import 'package:jf_innova_app/features/tickets/domain/models/ticket_model.dart';
+import 'package:intl/intl.dart';
 
-/// Tarjeta reutilizable para representar un [TicketModel] en cualquier listado.
-///
-/// Muestra: código, estado, descripción, solicitante, empresa, área,
-/// responsable, fecha de creación y fecha tentativa de cierre.
+import '../../../../core/theme/app_theme.dart';
+import '../../domain/models/ticket_model.dart';
+
+class TicketEstadoChip extends StatelessWidget {
+  final TicketEstado estado;
+  const TicketEstadoChip({super.key, required this.estado});
+
+  Color get _color => switch (estado) {
+    TicketEstado.abierto => Colors.orange.shade700,
+    TicketEstado.tomado => AppTheme.primaryBlue,
+    TicketEstado.parcial => Colors.deepPurple,
+    TicketEstado.finalizadoPendienteRevision => Colors.teal.shade700,
+    TicketEstado.cerrado => Colors.green.shade700,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: _color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _color.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        estado.label,
+        style: TextStyle(
+          color: _color,
+          fontWeight: FontWeight.bold,
+          fontSize: 11,
+        ),
+      ),
+    );
+  }
+}
+
+/// Tarjeta que representa un [TicketModel] en el listado del módulo.
 class TicketCard extends StatelessWidget {
   final TicketModel ticket;
+  final String generadoPorNombre;
+  final String? tomadoPorNombre;
+  final bool esMio;
   final VoidCallback onTap;
-  final String? currentUserId;
-  final VoidCallback? onDelete;
-
-  // Nombres resueltos (pasados desde la pantalla que conoce los maestros)
-  final String? solicitanteNombre;
-  final String? responsableNombre;
-  final String? empresaNombre;
-  final String? areaNombre;
-  final String? numeroInforme;
+  final VoidCallback? onTomar;
 
   const TicketCard({
     super.key,
     required this.ticket,
+    required this.generadoPorNombre,
     required this.onTap,
-    this.currentUserId,
-    this.onDelete,
-    this.solicitanteNombre,
-    this.responsableNombre,
-    this.empresaNombre,
-    this.areaNombre,
-    this.numeroInforme,
+    this.tomadoPorNombre,
+    this.esMio = false,
+    this.onTomar,
   });
-
-  bool get _canDelete =>
-      onDelete != null &&
-      currentUserId != null &&
-      ticket.solicitanteId == currentUserId;
-
-  Color get _accentColor {
-    switch (ticket.estado.toLowerCase()) {
-      case 'abierto':
-        return Colors.red.shade500;
-      case 'en proceso':
-      case 'en progreso':
-        return Colors.blue.shade500;
-      case 'resuelto':
-        return Colors.green.shade500;
-      case 'cerrado':
-        return Colors.green.shade500;
-      default:
-        return Colors.orange.shade400;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
-      shadowColor: Colors.black12,
-      clipBehavior: Clip.hardEdge,
+    final fecha = ticket.createdAt != null
+        ? DateFormat('dd/MM/yyyy HH:mm').format(ticket.createdAt!.toLocal())
+        : '--';
+    final puedeTomar =
+        onTomar != null &&
+        (ticket.estado == TicketEstado.abierto ||
+            ticket.estado == TicketEstado.parcial);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: esMio
+              ? AppTheme.primaryBlue.withValues(alpha: 0.5)
+              : Colors.grey.shade200,
+          width: esMio ? 1.4 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: InkWell(
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Barra de color izquierda según estado
-              Container(width: 5, color: _accentColor),
-
-              // Contenido principal
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHeader(context),
-                      const SizedBox(height: 6),
-                      _buildDescripcion(),
-                      const SizedBox(height: 10),
-                      Container(height: 1, color: Colors.grey.shade100),
-                      const SizedBox(height: 8),
-                      _buildInfoGrid(),
-                      const SizedBox(height: 8),
-                      _buildFooter(),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Secciones
-  // ---------------------------------------------------------------------------
-
-  Widget _buildHeader(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text(
-          ticket.codigoTicket ?? 'Pendiente de sync',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-            color: ticket.codigoTicket != null
-                ? AppTheme.primaryBlue
-                : Colors.grey.shade400,
-            fontStyle: ticket.codigoTicket != null
-                ? FontStyle.normal
-                : FontStyle.italic,
-          ),
-        ),
-        if (numeroInforme != null) ...[
-          const SizedBox(width: 6),
-          _InformeBadge(numero: numeroInforme!),
-        ],
-        const Spacer(),
-        _EstadoChip(estado: ticket.estado),
-        if (_canDelete) ...[
-          const SizedBox(width: 2),
-          IconButton(
-            icon: Icon(
-              Icons.delete_outline_rounded,
-              size: 18,
-              color: Colors.red.shade300,
-            ),
-            padding: const EdgeInsets.all(4),
-            constraints: const BoxConstraints(),
-            tooltip: 'Eliminar',
-            onPressed: () => _confirmDelete(context),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildDescripcion() {
-    return Text(
-      ticket.descripcion,
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.4),
-    );
-  }
-
-  Widget _buildInfoGrid() {
-    final solicitante = solicitanteNombre ?? _shortId(ticket.solicitanteId);
-    final empresa = empresaNombre ?? '—';
-    final area = areaNombre ?? '—';
-    final responsable = responsableNombre;
-
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _InfoItem(
-                icon: Icons.person_outline_rounded,
-                label: 'Solicitante',
-                value: solicitante,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _InfoItem(
-                icon: Icons.business_rounded,
-                label: 'Empresa',
-                value: empresa,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Expanded(
-              child: _InfoItem(
-                icon: Icons.engineering_outlined,
-                label: 'Responsable',
-                value: responsable ?? 'Sin asignar',
-                dimmed: responsable == null,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _InfoItem(
-                icon: Icons.category_outlined,
-                label: 'Área',
-                value: area,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFooter() {
-    final diasRestantes = ticket.fechaTentativaCierre?.difference(DateTime.now()).inDays;
-
-    return Row(
-      children: [
-        Icon(
-          Icons.calendar_today_outlined,
-          size: 11,
-          color: Colors.grey.shade400,
-        ),
-        const SizedBox(width: 3),
-        Text(
-          ticket.createdAt != null
-              ? _formatDate(ticket.createdAt!)
-              : 'Sin fecha',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
-        ),
-        if (ticket.fechaTentativaCierre != null) ...[
-          const SizedBox(width: 10),
-          Container(
-            width: 3,
-            height: 3,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Icon(Icons.event_outlined, size: 11, color: Colors.grey.shade400),
-          const SizedBox(width: 3),
-          Text(
-            'Cierre: ${_formatDate(ticket.fechaTentativaCierre!)}',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
-          ),
-        ],
-        const Spacer(),
-        if (diasRestantes != null) _DiasRestantesBadge(dias: diasRestantes),
-      ],
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
-
-  Future<void> _confirmDelete(BuildContext context) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Eliminar Ticket'),
-        content: const Text(
-          '¿Estás seguro de que quieres eliminar este ticket?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Eliminar',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirm == true) onDelete?.call();
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/'
-        '${date.month.toString().padLeft(2, '0')}/'
-        '${date.year}';
-  }
-
-  String _shortId(String id) => id.length > 8 ? '${id.substring(0, 8)}...' : id;
-}
-
-// ---------------------------------------------------------------------------
-// Widgets internos
-// ---------------------------------------------------------------------------
-
-class _InfoItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final bool dimmed;
-
-  const _InfoItem({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.dimmed = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 1),
-          child: Icon(
-            icon,
-            size: 13,
-            color: dimmed ? Colors.grey.shade300 : Colors.grey.shade500,
-          ),
-        ),
-        const SizedBox(width: 5),
-        Expanded(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey.shade400,
-                  height: 1.1,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      ticket.tituloVisible,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TicketEstadoChip(estado: ticket.estado),
+                ],
               ),
-              Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: dimmed ? FontWeight.normal : FontWeight.w500,
-                  color: dimmed ? Colors.grey.shade400 : Colors.grey.shade800,
-                ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  _MiniChip(
+                    icon: Icons.confirmation_number_outlined,
+                    text: ticket.codigoTicket ?? 'Sin código',
+                  ),
+                  _MiniChip(
+                    icon: ticket.tipoTicket == TicketTipo.solicitud
+                        ? Icons.chat_bubble_outline
+                        : Icons.rule_folder_outlined,
+                    text: ticket.tipoTicket.label,
+                  ),
+                  if (ticket.rechazado)
+                    const _MiniChip(
+                      icon: Icons.report_gmailerrorred_outlined,
+                      text: 'Rechazado',
+                      color: Colors.red,
+                    ),
+                  if (ticket.estaVencido)
+                    const _MiniChip(
+                      icon: Icons.alarm_outlined,
+                      text: 'Vencido',
+                      color: Colors.red,
+                    ),
+                ],
               ),
+              const SizedBox(height: 8),
+              Text(
+                'Generado por $generadoPorNombre · $fecha',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+              if (tomadoPorNombre != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    'Tomado por $tomadoPorNombre',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.primaryBlue,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              if (puedeTomar) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: OutlinedButton.icon(
+                    onPressed: onTomar,
+                    icon: const Icon(Icons.pan_tool_outlined, size: 16),
+                    label: const Text('Tomar'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.primaryBlue,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
 
-class _EstadoChip extends StatelessWidget {
-  final String estado;
-
-  const _EstadoChip({required this.estado});
+class _MiniChip extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color? color;
+  const _MiniChip({required this.icon, required this.text, this.color});
 
   @override
   Widget build(BuildContext context) {
-    final (bgColor, dotColor, textColor) = _colorsForEstado(
-      estado.toLowerCase(),
-    );
-
+    final c = color ?? Colors.grey.shade700;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: dotColor.withValues(alpha: 0.35), width: 0.8),
+        color: c.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 5),
-          Text(
-            estado.toUpperCase(),
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: textColor,
-              letterSpacing: 0.4,
-            ),
-          ),
+          Icon(icon, size: 12, color: c),
+          const SizedBox(width: 4),
+          Text(text, style: TextStyle(fontSize: 11, color: c)),
         ],
       ),
-    );
-  }
-
-  static (Color, Color, Color) _colorsForEstado(String estado) {
-    switch (estado) {
-      case 'abierto':
-        return (Colors.red.shade50, Colors.red.shade500, Colors.red.shade700);
-      case 'en proceso':
-      case 'en progreso':
-        return (
-          Colors.blue.shade50,
-          Colors.blue.shade500,
-          Colors.blue.shade700,
-        );
-      case 'resuelto':
-        return (
-          Colors.green.shade50,
-          Colors.green.shade500,
-          Colors.green.shade700,
-        );
-      case 'cerrado':
-        return (
-          Colors.green.shade50,
-          Colors.green.shade500,
-          Colors.green.shade700,
-        );
-      default:
-        return (
-          Colors.orange.shade50,
-          Colors.orange.shade400,
-          Colors.orange.shade800,
-        );
-    }
-  }
-}
-
-class _InformeBadge extends StatelessWidget {
-  final String numero;
-  const _InformeBadge({required this.numero});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.grey.shade300, width: 0.5),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.description_outlined,
-            size: 10,
-            color: Colors.grey.shade500,
-          ),
-          const SizedBox(width: 3),
-          Text(
-            numero,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey.shade600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DiasRestantesBadge extends StatelessWidget {
-  final int dias;
-  const _DiasRestantesBadge({required this.dias});
-
-  @override
-  Widget build(BuildContext context) {
-    final Color color;
-    final String label;
-    if (dias < 0) {
-      color = Colors.red.shade600;
-      label = 'Vencido';
-    } else if (dias == 0) {
-      color = Colors.orange.shade600;
-      label = 'Hoy';
-    } else {
-      color = dias <= 3 ? Colors.orange.shade500 : Colors.grey.shade500;
-      label = '$dias d';
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.timer_outlined, size: 11, color: color),
-        const SizedBox(width: 3),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: color,
-          ),
-        ),
-      ],
     );
   }
 }

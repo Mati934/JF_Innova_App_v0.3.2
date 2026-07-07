@@ -1264,7 +1264,7 @@ void main() {
       };
 
       datosFoto['inspeccion_respuesta_id'] = respuestaIdNube;
-    
+
       expect(datosFoto['inspeccion_respuesta_id'], 'resp-uuid-001');
     });
   });
@@ -1512,17 +1512,11 @@ void main() {
       // 2. _sincronizarVisitas (padres independientes)
       // 3. _sincronizarRespuestas (hijos de actividades)
       // 4. _sincronizarFotos (hijos de respuestas)
-      // 5. syncTicketsHaciaSupabase
+      // 5. Módulo Tickets: 100% online (Supabase Realtime), sin cola local.
 
       // La actividad DEBE existir antes de respuestas (FK constraint)
       // Las respuestas DEBEN existir antes de fotos (FK constraint)
-      final orden = [
-        'actividades',
-        'visitas',
-        'respuestas',
-        'fotos',
-        'tickets',
-      ];
+      final orden = ['actividades', 'visitas', 'respuestas', 'fotos'];
 
       expect(
         orden.indexOf('actividades') < orden.indexOf('respuestas'),

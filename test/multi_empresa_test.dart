@@ -209,8 +209,8 @@ void main() {
   // TESTS: ModuleRegistry
   // ===================================================================
   group('ModuleRegistry - Registro Global', () {
-    test('tiene 9 módulos registrados', () {
-      expect(ModuleRegistry.all.length, 9);
+    test('tiene 11 módulos registrados', () {
+      expect(ModuleRegistry.all.length, 11);
     });
 
     test('cada módulo tiene key única', () {
@@ -305,18 +305,23 @@ void main() {
       ]);
     });
 
-    test('TICKETS no está en defaults ni en registry', () {
-      expect(
-        ModuleRegistry.defaultModuleKeys.contains('TICKETS'),
-        false,
-        reason: 'Tickets fue removido del registry',
-      );
-      expect(
-        ModuleRegistry.byKey('TICKETS'),
-        isNull,
-        reason: 'Tickets ya no existe en el registry',
-      );
-    });
+    test(
+      'TICKETS no está en defaults, pero sí existe en el registry (rediseñado)',
+      () {
+        expect(
+          ModuleRegistry.defaultModuleKeys.contains('TICKETS'),
+          false,
+          reason:
+              'Tickets se activa manualmente por empresa, no viene por defecto',
+        );
+        expect(
+          ModuleRegistry.byKey('TICKETS'),
+          isNotNull,
+          reason:
+              'Tickets fue rediseñado (ver docs/PLAN_TICKETS_MVP.md) y vuelve a existir en el registry',
+        );
+      },
+    );
 
     test('ADMIN no está en defaults', () {
       expect(
