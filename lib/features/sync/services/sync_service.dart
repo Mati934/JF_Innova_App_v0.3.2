@@ -519,6 +519,9 @@ class SyncService {
       // 3.c Subir informes del módulo AST (independientes)
       int astSubidos = await _sincronizarAst();
 
+      // 3.d Subir registros del módulo Merieux (Visitas + Extintores, independientes)
+      int merieuxSubidos = await _sincronizarMerieux();
+
       // 4. Subir Hijos (Respuestas y Fotos)
       await _sincronizarRespuestas();
       await _sincronizarFotos();
@@ -533,7 +536,8 @@ class SyncService {
           visitasSubidas +
           hidroserSubidas +
           buceoSubidas +
-          astSubidos;
+          astSubidos +
+          merieuxSubidos;
     } catch (e) {
       debugPrint("❌ Error en sincronización global: $e");
     }
@@ -2020,6 +2024,222 @@ class SyncService {
         debugPrint("✅ AST informe sincronizado OK: $id");
       } catch (e) {
         debugPrint("🔥 Error subiendo AST $id: $e");
+      }
+    }
+    return count;
+  }
+
+  /// Sincroniza los 2 submódulos Merieux (Visitas + Extintores), que
+  /// comparten cabecera `merieux_visitas`. Mismo patrón que
+  /// `_sincronizarHidroser`/`_sincronizarAst`.
+  Future<int> _sincronizarMerieux() async {
+    final db = await _dbHelper.database;
+    final pendientes = await db.query(
+      'merieux_visitas_pendientes',
+      where: 'subido = 0',
+    );
+    if (pendientes.isEmpty) return 0;
+
+    int count = 0;
+    for (final row in pendientes) {
+      final id = row['id'] as String;
+      final estaEliminado = (row['eliminado'] as int?) == 1;
+      final tipoActividad =
+          row['tipo_actividad'] as String? ?? 'MERIEUX_VISITAS';
+
+      if (estaEliminado) {
+        try {
+          debugPrint("🗑️ Eliminando Merieux zombie en nube: $id");
+          await _supabase
+              .from('merieux_visitas')
+              .update({'estado_final': 'Eliminada', 'eliminado': true})
+              .eq('id', id);
+          await db.delete(
+            'merieux_visitas_pendientes',
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+          await db.delete(
+            'merieux_visita_respuestas_pendientes',
+            where: 'visita_id = ?',
+            whereArgs: [id],
+          );
+          await db.delete(
+            'merieux_extintores_pendientes',
+            where: 'visita_id = ?',
+            whereArgs: [id],
+          );
+        } catch (e) {
+          debugPrint("❌ Error eliminando Merieux zombie (offline?): $e");
+        }
+        continue;
+      }
+
+      try {
+        debugPrint("🚀 Sync Merieux ($tipoActividad): $id");
+
+        final datosNube = Map<String, dynamic>.from(row);
+        datosNube.remove('subido');
+        datosNube.remove('eliminado');
+        datosNube.remove('signature_image');
+        final String? pdfPathLocal = datosNube.remove('pdf_path_local');
+        // El correlativo lo asigna el trigger en Supabase.
+        datosNube.remove('correlativo');
+
+        final rawCamposExtra = datosNube['campos_extra'];
+        if (rawCamposExtra is String) {
+          try {
+            datosNube['campos_extra'] = rawCamposExtra.trim().isEmpty
+                ? <String, dynamic>{}
+                : jsonDecode(rawCamposExtra);
+          } catch (_) {
+            datosNube['campos_extra'] = <String, dynamic>{};
+          }
+        }
+        datosNube['eliminado'] = false;
+
+        if (datosNube['usuario_id'] == null) {
+          final activeUserId = _supabase.auth.currentUser?.id;
+          if (activeUserId != null) {
+            datosNube['usuario_id'] = activeUserId;
+            await db.update(
+              'merieux_visitas_pendientes',
+              {'usuario_id': activeUserId},
+              where: 'id = ?',
+              whereArgs: [id],
+            );
+          }
+        }
+
+        final upserted = await _supabase
+            .from('merieux_visitas')
+            .upsert(datosNube, onConflict: 'id')
+            .select('correlativo')
+            .maybeSingle();
+
+        final correlativoAsignado = upserted?['correlativo']?.toString();
+        if (correlativoAsignado != null && correlativoAsignado.isNotEmpty) {
+          await db.update(
+            'merieux_visitas_pendientes',
+            {'correlativo': correlativoAsignado},
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+        }
+
+        if (tipoActividad == 'MERIEUX_EXTINTORES') {
+          final extintores = await db.query(
+            'merieux_extintores_pendientes',
+            where: 'visita_id = ?',
+            whereArgs: [id],
+          );
+          for (final ext in extintores) {
+            final payload = Map<String, dynamic>.from(ext);
+            payload.remove('subido');
+            final rawRespuestas = payload['respuestas_json'];
+            if (rawRespuestas is String) {
+              try {
+                payload['respuestas_json'] = rawRespuestas.trim().isEmpty
+                    ? <String, dynamic>{}
+                    : jsonDecode(rawRespuestas);
+              } catch (_) {
+                payload['respuestas_json'] = <String, dynamic>{};
+              }
+            }
+            final rawFotos = payload['fotos_json'];
+            if (rawFotos is String) {
+              try {
+                payload['fotos_json'] = rawFotos.trim().isEmpty
+                    ? <String>[]
+                    : jsonDecode(rawFotos);
+              } catch (_) {
+                payload['fotos_json'] = <String>[];
+              }
+            }
+            payload['visita_id'] = id;
+            try {
+              await _supabase
+                  .from('merieux_extintores')
+                  .upsert(payload, onConflict: 'id');
+            } catch (e) {
+              debugPrint("⚠️ Error subiendo extintor Merieux ${ext['id']}: $e");
+            }
+          }
+        } else {
+          final respuestas = await db.query(
+            'merieux_visita_respuestas_pendientes',
+            where: 'visita_id = ?',
+            whereArgs: [id],
+          );
+          for (final r in respuestas) {
+            final payload = <String, dynamic>{
+              'id': r['id'],
+              'visita_id': r['visita_id'],
+              'item_id': r['item_id'],
+              'estado': r['estado'],
+              'observacion': r['observacion'],
+              'criticidad': r['criticidad'],
+              'foto_path': r['foto_path'],
+            };
+            try {
+              await _supabase
+                  .from('merieux_visita_respuestas')
+                  .upsert(payload, onConflict: 'id');
+              await db.update(
+                'merieux_visita_respuestas_pendientes',
+                {'subido': 1},
+                where: 'id = ?',
+                whereArgs: [r['id']],
+              );
+            } catch (e) {
+              debugPrint("⚠️ Error subiendo respuesta Merieux ${r['id']}: $e");
+            }
+          }
+        }
+
+        String? pdfUrlNube = row['pdf_url'] as String?;
+        if (pdfPathLocal != null &&
+            (pdfUrlNube == null || pdfUrlNube.isEmpty)) {
+          final file = File(pdfPathLocal);
+          if (file.existsSync()) {
+            try {
+              final pathStorage = '$id/Merieux_$id.pdf';
+              await _supabase.storage
+                  .from('pdfs_visitas')
+                  .upload(
+                    pathStorage,
+                    file,
+                    fileOptions: const FileOptions(upsert: true),
+                  );
+              pdfUrlNube = _supabase.storage
+                  .from('pdfs_visitas')
+                  .getPublicUrl(pathStorage);
+              await _supabase
+                  .from('merieux_visitas')
+                  .update({'pdf_url': pdfUrlNube})
+                  .eq('id', id);
+              debugPrint("✅ PDF Merieux subido: $pdfUrlNube");
+            } catch (e) {
+              debugPrint("⚠️ Error subiendo PDF Merieux: $e");
+            }
+          }
+        }
+
+        final pdfPendiente =
+            pdfPathLocal != null && (pdfUrlNube == null || pdfUrlNube.isEmpty);
+        if (!pdfPendiente) {
+          await db.update(
+            'merieux_visitas_pendientes',
+            {'subido': 1, if (pdfUrlNube != null) 'pdf_url': pdfUrlNube},
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+        }
+
+        count++;
+        debugPrint("✅ Merieux sincronizado OK: $id");
+      } catch (e) {
+        debugPrint("🔥 Error subiendo Merieux $id: $e");
       }
     }
     return count;

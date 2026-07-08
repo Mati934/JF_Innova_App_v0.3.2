@@ -11,11 +11,13 @@ import '../../../../shared/utils/debouncer.dart';
 import '../../../inspection/domain/models/formulario_item.dart';
 import '../../../sync/services/sync_service.dart';
 import '../../data/repositories/local_prosesso_repository.dart';
+import '../../domain/models/extintor_grid_controller.dart';
 import '../../domain/models/prosesso_extintor_state.dart';
 import '../../domain/models/prosesso_report_data.dart';
 import '../../services/prosesso_pdf_service.dart';
 
-class ProsessoFormController extends ChangeNotifier {
+class ProsessoFormController extends ChangeNotifier
+    implements ExtintorGridController {
   bool _disposed = false;
 
   final _repository = LocalProsessoRepository();
@@ -158,6 +160,7 @@ class ProsessoFormController extends ChangeNotifier {
     _safeNotify();
   }
 
+  @override
   void duplicarExtintor(int index) {
     final origen = extintores[index];
     final nuevo =
@@ -180,6 +183,7 @@ class ProsessoFormController extends ChangeNotifier {
     _safeNotify();
   }
 
+  @override
   void eliminarExtintor(int index) {
     if (extintores.length <= 1) return;
     final lista = List<ExtintorProsessoState>.from(extintores)..removeAt(index);
@@ -208,6 +212,7 @@ class ProsessoFormController extends ChangeNotifier {
     _safeNotify();
   }
 
+  @override
   void marcarTodoCumple(int index) {
     final e = extintores[index];
     extintores = List.from(extintores)
@@ -220,6 +225,7 @@ class ProsessoFormController extends ChangeNotifier {
     _safeNotify();
   }
 
+  @override
   void clonarDelAnterior(int index) {
     if (index == 0) return;
     final origen = extintores[index - 1];
@@ -229,6 +235,7 @@ class ProsessoFormController extends ChangeNotifier {
     _safeNotify();
   }
 
+  @override
   void responderPunto(int extIdx, String itemId, EstadoPuntoProsesso estado) {
     final e = extintores[extIdx];
     final pIdx = e.puntos.indexWhere((p) => p.itemId == itemId);
@@ -252,26 +259,38 @@ class ProsessoFormController extends ChangeNotifier {
     _safeNotify();
   }
 
+  @override
   void updatePlanta(int i, String v) =>
       _updateExt(i, (e) => e.copyWith(planta: v));
+  @override
   void updateUbicacion(int i, String v) =>
       _updateExt(i, (e) => e.copyWith(ubicacion: v));
+  @override
   void updateSector(int i, String v) =>
       _updateExt(i, (e) => e.copyWith(ubicacionSector: v));
+  @override
   void updateUbic2(int i, String v) =>
       _updateExt(i, (e) => e.copyWith(ubicacion2: v));
+  @override
   void updateCertificado(int i, String v) =>
       _updateExt(i, (e) => e.copyWith(certificado: v));
+  @override
   void updateAnio(int i, String v) =>
       _updateExt(i, (e) => e.copyWith(anio: int.tryParse(v)));
+  @override
   void updateTipo(int i, String v) => _updateExt(i, (e) => e.copyWith(tipo: v));
+  @override
   void updatePeso(int i, String v) => _updateExt(i, (e) => e.copyWith(peso: v));
+  @override
   void updateKg(int i, String v) => _updateExt(i, (e) => e.copyWith(kg: v));
+  @override
   void updateFechaVenc(int i, String v) =>
       _updateExt(i, (e) => e.copyWith(fechaVencimiento: v));
+  @override
   void updateObservaciones(int i, String v) =>
       _updateExt(i, (e) => e.copyWith(observaciones: v));
 
+  @override
   void toggleExpandido(int i) {
     extintores = List.from(extintores)
       ..[i] = extintores[i].copyWith(expandido: !extintores[i].expandido);

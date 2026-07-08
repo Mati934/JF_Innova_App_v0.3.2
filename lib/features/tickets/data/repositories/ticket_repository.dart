@@ -35,6 +35,7 @@ class TicketRepository {
     String? centroId,
     String? embarcacionId,
     String? areaId,
+    String? contratistaId,
   }) async {
     var query = _client.from('tickets').select().eq('eliminado', false);
 
@@ -47,6 +48,9 @@ class TicketRepository {
     if (embarcacionId != null)
       query = query.eq('embarcacion_id', embarcacionId);
     if (areaId != null) query = query.eq('area_id', areaId);
+    if (contratistaId != null) {
+      query = query.eq('contratista_id', contratistaId);
+    }
 
     final rows = await query.order('created_at', ascending: false);
     return (rows as List)
@@ -135,6 +139,42 @@ class TicketRepository {
   /// tarjetas/detalle).
   Future<Map<String, String>> getNombresEmbarcaciones(List<String> ids) =>
       _resolverNombres('embarcaciones', ids);
+
+  /// Catálogo completo de áreas (para el selector de filtros).
+  Future<List<Map<String, dynamic>>> getCatalogoAreas() async {
+    final rows = await _client
+        .from('areas')
+        .select('id, nombre')
+        .order('nombre');
+    return (rows as List).cast<Map<String, dynamic>>();
+  }
+
+  /// Catálogo completo de centros (para el selector de filtros).
+  Future<List<Map<String, dynamic>>> getCatalogoCentros() async {
+    final rows = await _client
+        .from('centros')
+        .select('id, nombre')
+        .order('nombre');
+    return (rows as List).cast<Map<String, dynamic>>();
+  }
+
+  /// Catálogo completo de embarcaciones (para el selector de filtros).
+  Future<List<Map<String, dynamic>>> getCatalogoEmbarcaciones() async {
+    final rows = await _client
+        .from('embarcaciones')
+        .select('id, nombre')
+        .order('nombre');
+    return (rows as List).cast<Map<String, dynamic>>();
+  }
+
+  /// Catálogo completo de contratistas (para el selector de filtros).
+  Future<List<Map<String, dynamic>>> getCatalogoContratistas() async {
+    final rows = await _client
+        .from('contratistas')
+        .select('id, nombre')
+        .order('nombre');
+    return (rows as List).cast<Map<String, dynamic>>();
+  }
 
   Future<Map<String, String>> _resolverNombres(
     String tabla,
@@ -228,6 +268,17 @@ class TicketRepository {
       areaId = centro?['area_id'] as String?;
     }
 
+    // El ticket hereda el contratista dueño de la embarcación (si aplica).
+    String? contratistaId;
+    if (embarcacionId != null) {
+      final embarcacion = await _client
+          .from('embarcaciones')
+          .select('contratista_id')
+          .eq('id', embarcacionId)
+          .maybeSingle();
+      contratistaId = embarcacion?['contratista_id'] as String?;
+    }
+
     final ticket = TicketModel(
       id: _uuid.v4(),
       empresaId: empresaId,
@@ -239,6 +290,7 @@ class TicketRepository {
       areaId: areaId,
       centroId: centroId,
       embarcacionId: embarcacionId,
+      contratistaId: contratistaId,
       asunto: asunto,
       motivo: motivo,
       generadoPorId: generadoPorId,
@@ -407,6 +459,7 @@ class TicketRepository {
     String? areaId,
     String? centroId,
     String? embarcacionId,
+    String? contratistaId,
     DateTime? fechaLimite,
   }) async {
     final ticket = TicketModel(
@@ -417,6 +470,7 @@ class TicketRepository {
       areaId: areaId,
       centroId: centroId,
       embarcacionId: embarcacionId,
+      contratistaId: contratistaId,
       asunto: asunto,
       motivo: motivo,
       generadoPorId: generadoPorId,

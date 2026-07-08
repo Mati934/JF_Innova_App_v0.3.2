@@ -12,6 +12,10 @@ import '../../features/buceo_equipment/presentation/screens/buceo_equipment_modu
 import '../../features/admin/presentation/screens/master_data_admin_screen.dart';
 import '../../features/history/presentation/screens/history_screen.dart';
 import '../../features/tickets/presentation/screens/ticket_list_screen.dart';
+import '../../features/merieux/presentation/screens/merieux_visita_module_screen.dart';
+import '../../features/merieux/presentation/screens/merieux_extintores_module_screen.dart';
+
+const Color kMerieuxColor = Color(0xFF1B3B6F);
 
 class ModuleDefinition {
   final String moduleKey;
@@ -119,6 +123,22 @@ class ModuleRegistry {
       icon: Icons.confirmation_number_outlined,
       color: const Color(0xFFB23B00),
       screenBuilder: (_) => const TicketListScreen(),
+    ),
+    ModuleDefinition(
+      moduleKey: 'MERIEUX_VISITAS',
+      title: 'Merieux · Visitas',
+      subtitle: 'Registro de Visita',
+      icon: Icons.assignment_outlined,
+      color: kMerieuxColor,
+      screenBuilder: (_) => const MerieuxVisitaModuleScreen(),
+    ),
+    ModuleDefinition(
+      moduleKey: 'MERIEUX_EXTINTORES',
+      title: 'Merieux · Extintores',
+      subtitle: 'Mantención de Extintores',
+      icon: Icons.fire_extinguisher,
+      color: kMerieuxColor,
+      screenBuilder: (_) => const MerieuxExtintoresModuleScreen(),
     ),
     ModuleDefinition(
       moduleKey: 'RENDICIONES',

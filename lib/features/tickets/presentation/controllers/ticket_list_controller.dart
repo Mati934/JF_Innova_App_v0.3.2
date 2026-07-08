@@ -21,7 +21,14 @@ class TicketListController extends ChangeNotifier {
   Map<String, String> nombresEmbarcaciones = {};
   Map<String, ({int total, int subsanados})> conteoItems = {};
 
-  // Filtros activos (claves: estado, tipo_ticket, tipo_inspeccion, centro_id, embarcacion_id, area_id)
+  // Catálogos completos para los selectores de filtro (no solo los ids
+  // usados por los tickets cargados, sino todo el listado disponible).
+  List<Map<String, dynamic>> catalogoAreas = [];
+  List<Map<String, dynamic>> catalogoCentros = [];
+  List<Map<String, dynamic>> catalogoEmbarcaciones = [];
+  List<Map<String, dynamic>> catalogoContratistas = [];
+
+  // Filtros activos (claves: estado, tipo_ticket, tipo_inspeccion, centro_id, embarcacion_id, area_id, contratista_id)
   Map<String, String> activeFilters = {};
 
   RealtimeChannel? _channel;
@@ -47,7 +54,28 @@ class TicketListController extends ChangeNotifier {
 
   Future<void> _init() async {
     await cargarTickets();
+    _cargarCatalogosFiltro();
     _suscribirRealtime();
+  }
+
+  Future<void> _cargarCatalogosFiltro() async {
+    try {
+      final resultados = await Future.wait([
+        _repo.getCatalogoAreas(),
+        _repo.getCatalogoCentros(),
+        _repo.getCatalogoEmbarcaciones(),
+        _repo.getCatalogoContratistas(),
+      ]);
+      catalogoAreas = resultados[0];
+      catalogoCentros = resultados[1];
+      catalogoEmbarcaciones = resultados[2];
+      catalogoContratistas = resultados[3];
+      _safeNotify();
+    } catch (e) {
+      debugPrint(
+        '⚠️ [TicketListController] No se pudieron cargar catálogos de filtro: $e',
+      );
+    }
   }
 
   void _suscribirRealtime() {
@@ -75,6 +103,7 @@ class TicketListController extends ChangeNotifier {
         centroId: activeFilters['centro_id'],
         embarcacionId: activeFilters['embarcacion_id'],
         areaId: activeFilters['area_id'],
+        contratistaId: activeFilters['contratista_id'],
       );
       // Los tickets tomados por el usuario actual van primero (decisión 13).
       final miId = usuarioActualId;

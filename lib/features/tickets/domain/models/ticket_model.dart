@@ -80,6 +80,7 @@ class TicketModel {
   final String? areaId;
   final String? centroId;
   final String? embarcacionId;
+  final String? contratistaId;
   final String? asunto;
   final String motivo;
   final String generadoPorId;
@@ -109,6 +110,7 @@ class TicketModel {
     this.areaId,
     this.centroId,
     this.embarcacionId,
+    this.contratistaId,
     this.asunto,
     required this.motivo,
     required this.generadoPorId,
@@ -155,6 +157,7 @@ class TicketModel {
       areaId: map['area_id'] as String?,
       centroId: map['centro_id'] as String?,
       embarcacionId: map['embarcacion_id'] as String?,
+      contratistaId: map['contratista_id'] as String?,
       asunto: map['asunto'] as String?,
       motivo: map['motivo'] as String? ?? '',
       generadoPorId: map['generado_por_id'] as String,
@@ -200,6 +203,7 @@ class TicketModel {
       'area_id': areaId,
       'centro_id': centroId,
       'embarcacion_id': embarcacionId,
+      'contratista_id': contratistaId,
       'asunto': asunto,
       'motivo': motivo,
       'generado_por_id': generadoPorId,

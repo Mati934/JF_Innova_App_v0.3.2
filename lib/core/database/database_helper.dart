@@ -8,7 +8,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      51; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      53; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -566,6 +566,88 @@ class DatabaseHelper {
     ''');
     await db.execute(
       'CREATE INDEX idx_ast_hallazgos_informe ON ast_hallazgos_pendientes(informe_id)',
+    );
+
+    // --- MÓDULO MERIEUX (independiente, 2 submódulos: Visitas + Extintores) ---
+    await db.execute('''
+      CREATE TABLE merieux_visitas_pendientes (
+        id TEXT PRIMARY KEY,
+        usuario_id TEXT,
+        empresa_id TEXT,
+        tipo_actividad TEXT NOT NULL,
+        checklist_tipo TEXT,
+        profesional TEXT,
+        fono_profesional TEXT,
+        correo_profesional TEXT,
+        region TEXT,
+        area TEXT,
+        jefatura_a_cargo TEXT,
+        origen_actividad TEXT,
+        fecha_realizacion TEXT,
+        hora_inicio TEXT,
+        hora_termino TEXT,
+        correo_1 TEXT,
+        correo_2 TEXT,
+        campos_extra TEXT,
+        observaciones TEXT,
+        correlativo TEXT,
+        estado_final TEXT NOT NULL DEFAULT 'En Progreso',
+        firma_nombre TEXT,
+        signature_image BLOB,
+        pdf_url TEXT,
+        pdf_path_local TEXT,
+        subido INTEGER NOT NULL DEFAULT 0,
+        eliminado INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_merieux_visitas_tipo ON merieux_visitas_pendientes(tipo_actividad)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_merieux_visitas_estado ON merieux_visitas_pendientes(estado_final)',
+    );
+
+    await db.execute('''
+      CREATE TABLE merieux_visita_respuestas_pendientes (
+        id TEXT PRIMARY KEY,
+        visita_id TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        estado TEXT,
+        observacion TEXT,
+        criticidad TEXT,
+        foto_path TEXT,
+        subido INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_merieux_visita_respuestas_visita ON merieux_visita_respuestas_pendientes(visita_id)',
+    );
+
+    await db.execute('''
+      CREATE TABLE merieux_extintores_pendientes (
+        id TEXT PRIMARY KEY,
+        visita_id TEXT NOT NULL,
+        numero INTEGER NOT NULL DEFAULT 0,
+        planta TEXT,
+        ubicacion TEXT,
+        ubicacion_sector TEXT,
+        ubicacion_2 TEXT,
+        certificado TEXT,
+        anio INTEGER,
+        tipo TEXT,
+        peso TEXT,
+        kg TEXT,
+        fecha_vencimiento TEXT,
+        observaciones TEXT,
+        respuestas_json TEXT,
+        fotos_json TEXT,
+        subido INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_merieux_extintores_visita ON merieux_extintores_pendientes(visita_id)',
     );
 
     debugPrint("✅ Base de datos v$_dbVersion inicializada.");
@@ -1476,6 +1558,105 @@ class DatabaseHelper {
       await db.execute('DROP TABLE IF EXISTS ticket_categorias');
       await db.execute('DROP TABLE IF EXISTS tickets_pendientes');
       debugPrint("✅ Parche v51 aplicado.");
+    }
+
+    if (oldVersion < 52) {
+      debugPrint(
+        "🚀 Aplicando parche v52 (Módulo Merieux: Visitas + Extintores, independiente)...",
+      );
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS merieux_visitas_pendientes (
+          id TEXT PRIMARY KEY,
+          usuario_id TEXT,
+          empresa_id TEXT,
+          tipo_actividad TEXT NOT NULL,
+          checklist_tipo TEXT,
+          profesional TEXT,
+          fono_profesional TEXT,
+          correo_profesional TEXT,
+          region TEXT,
+          area TEXT,
+          jefatura_a_cargo TEXT,
+          origen_actividad TEXT,
+          fecha_realizacion TEXT,
+          hora_inicio TEXT,
+          hora_termino TEXT,
+          correo_1 TEXT,
+          correo_2 TEXT,
+          campos_extra TEXT,
+          observaciones TEXT,
+          correlativo TEXT,
+          estado_final TEXT NOT NULL DEFAULT 'En Progreso',
+          signature_image BLOB,
+          pdf_url TEXT,
+          pdf_path_local TEXT,
+          subido INTEGER NOT NULL DEFAULT 0,
+          eliminado INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_merieux_visitas_tipo ON merieux_visitas_pendientes(tipo_actividad)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_merieux_visitas_estado ON merieux_visitas_pendientes(estado_final)',
+      );
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS merieux_visita_respuestas_pendientes (
+          id TEXT PRIMARY KEY,
+          visita_id TEXT NOT NULL,
+          item_id TEXT NOT NULL,
+          estado TEXT,
+          observacion TEXT,
+          criticidad TEXT,
+          foto_path TEXT,
+          subido INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_merieux_visita_respuestas_visita ON merieux_visita_respuestas_pendientes(visita_id)',
+      );
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS merieux_extintores_pendientes (
+          id TEXT PRIMARY KEY,
+          visita_id TEXT NOT NULL,
+          numero INTEGER NOT NULL DEFAULT 0,
+          planta TEXT,
+          ubicacion TEXT,
+          ubicacion_sector TEXT,
+          ubicacion_2 TEXT,
+          certificado TEXT,
+          anio INTEGER,
+          tipo TEXT,
+          peso TEXT,
+          kg TEXT,
+          fecha_vencimiento TEXT,
+          observaciones TEXT,
+          respuestas_json TEXT,
+          fotos_json TEXT,
+          subido INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_merieux_extintores_visita ON merieux_extintores_pendientes(visita_id)',
+      );
+      debugPrint("✅ Parche v52 aplicado.");
+    }
+
+    if (oldVersion < 53) {
+      debugPrint(
+        "🚀 Aplicando parche v53 (Merieux: nombre editable de firma)...",
+      );
+      await db.transaction((txn) async {
+        await _safeAddColumn(
+          txn,
+          "merieux_visitas_pendientes",
+          "firma_nombre",
+          "TEXT",
+        );
+      });
+      debugPrint("✅ Parche v53 aplicado.");
     }
   }
 

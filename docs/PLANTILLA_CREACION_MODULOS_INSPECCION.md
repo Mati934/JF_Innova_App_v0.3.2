@@ -1,13 +1,13 @@
 # Plantilla Base — Creación de Módulos de Inspección
 
-Fecha: 2026-06-26
+Fecha: 2026-06-26 (actualizada 2026-07-08 con lecciones de Merieux)
 Estado: Plantilla reutilizable (alineada al código actual)
 
 > Esta plantilla describe el **patrón de "módulo independiente"** usado por
-> los módulos `Hidroser`, `AST` y `Equipamiento de Buceo`. Cada módulo tiene
-> **sus propias tablas** (local + Supabase), su propio repositorio, su
-> controlador, su servicio de PDF y su rama de sincronización. No se reutilizan
-> tablas de otros módulos.
+> los módulos `Hidroser`, `AST`, `Equipamiento de Buceo` y `Merieux`. Cada
+> módulo tiene **sus propias tablas** (local + Supabase), su propio
+> repositorio, su controlador, su servicio de PDF y su rama de
+> sincronización. No se reutilizan tablas de otros módulos.
 
 ---
 
@@ -377,4 +377,49 @@ flutter test test/<modulo>_test.dart
 [ ] Rama en historial_unificado
 [ ] flutter analyze limpio + pruebas
 [ ] Ejecutar migración SQL en Supabase (al final)
+```
+
+---
+
+## 15) Lecciones aprendidas (Merieux, 2026-07-08)
+
+1. **§9 (Borradores en Home) es OPCIONAL, no obligatorio.** AST y Merieux NO
+   están wireados a `draft_card_mapper.dart`/`home_controller.dart`/
+   `draft_list_widget.dart` — cada uno gestiona sus propios borradores dentro
+   de su propio `ModuleScreen` (lista + FAB "Nuevo"). Solo agregá el wiring a
+   Home si el usuario lo pide explícitamente; si el módulo más reciente
+   (`AST`) no lo hizo, replicá esa decisión por defecto.
+2. **`getBorradores()` NO debería filtrar por `usuario_id`.** La base SQLite
+   es local por dispositivo (normalmente 1 sesión activa a la vez), así que
+   filtrar por `usuario_id` solo agrega un punto de falla silencioso si ese
+   campo no quedó seteado a tiempo al guardar. Seguir el patrón de
+   `LocalAstRepository.getBorradores()`: filtrar solo por
+   `estado_final`/`eliminado` (+ el discriminador del submódulo si aplica,
+   ej. `tipo_actividad`).
+3. **Patrón de firma = "toca para firmar"**, NO un pad de firma siempre
+   visible embebido en el formulario. Es una vista previa (imagen o "Sin
+   firma") + un botón "Firmar/Re-firmar" que abre un `showDialog` con el
+   `Signature` widget (ver `_FirmaBlock`/`_firmar()` en
+   `hidroser_form_screen.dart`). Extraído como widget compartido en
+   `lib/shared/widgets/tap_to_sign_field.dart` (`TapToSignField`) — usalo
+   directo en vez de duplicar el patrón otra vez.
+4. **Si el checklist de un submódulo nuevo es idéntico al de otro módulo ya
+   existente** (ej. Merieux Extintores == Prosesso), NO reescribas la UI del
+   checklist: extraé una interfaz mínima con los métodos que el widget
+   necesita del controller (ver `ExtintorGridController` en
+   `lib/features/prosesso/domain/models/extintor_grid_controller.dart`), hacé
+   que ambos controllers la implementen, y reusá el widget existente
+   (`ProsessoExtintorCard`) tal cual. Mismo criterio aplica a cualquier otro
+   checklist compartido a futuro.
+5. **Nunca uses `setState(() => variable = future())`** con sintaxis flecha:
+   la expresión de asignación devuelve el valor asignado (un `Future`), y
+   `setState` lanza `FlutterError` si el callback retorna un `Future`. Usá
+   siempre body con bloque: `setState(() { variable = future(); });`.
+6. **Autoguardado al salir, sin botón manual de "Guardar borrador".** Todos
+   los formularios de inspección guardan el borrador silenciosamente al
+   cerrar/retroceder (`PopScope(canPop: false, onPopInvokedWithResult: ...)`
+   + `guardarBorradorSilencioso()`), mostrando un snackbar breve
+   ("Guardando borrador...") y recién ahí hacen `Navigator.pop`. No agregues
+   un botón explícito "Guardar como borrador" — es inconsistente con el resto
+   de los módulos y el usuario puede perder el hábito de simplemente salir.
 ```

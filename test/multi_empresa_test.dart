@@ -209,8 +209,8 @@ void main() {
   // TESTS: ModuleRegistry
   // ===================================================================
   group('ModuleRegistry - Registro Global', () {
-    test('tiene 11 módulos registrados', () {
-      expect(ModuleRegistry.all.length, 11);
+    test('tiene 13 módulos registrados', () {
+      expect(ModuleRegistry.all.length, 13);
     });
 
     test('cada módulo tiene key única', () {
@@ -233,6 +233,8 @@ void main() {
           'MANTENCION_PROSESSO',
           'HIDROSER',
           'AST',
+          'MERIEUX_VISITAS',
+          'MERIEUX_EXTINTORES',
           'ADMIN',
           'HISTORY',
           'RENDICIONES',

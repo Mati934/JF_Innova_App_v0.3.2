@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/models/extintor_grid_controller.dart';
 import '../../domain/models/prosesso_extintor_state.dart';
-import '../controllers/prosesso_form_controller.dart';
 
 class ProsessoExtintorCard extends StatelessWidget {
-  final ProsessoFormController controller;
+  final ExtintorGridController controller;
   final int index;
   final ExtintorProsessoState extintor;
 

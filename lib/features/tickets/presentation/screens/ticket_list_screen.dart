@@ -152,7 +152,7 @@ class _TicketListScreenState extends State<TicketListScreen> {
   }
 
   List<FilterDef> _buildFilterDefs() {
-    return [
+    final defs = <FilterDef>[
       const FilterDef(
         key: 'estado',
         label: 'Estado',
@@ -184,6 +184,68 @@ class _TicketListScreenState extends State<TicketListScreen> {
         resolveDisplayName: _tipoInspeccionValueToLabel,
       ),
     ];
+
+    defs.add(
+      _catalogFilterDef(
+        key: 'area_id',
+        label: 'Área',
+        icon: Icons.apartment_outlined,
+        catalogo: _ctrl.catalogoAreas,
+      ),
+    );
+    defs.add(
+      _catalogFilterDef(
+        key: 'centro_id',
+        label: 'Centro',
+        icon: Icons.location_city_rounded,
+        catalogo: _ctrl.catalogoCentros,
+      ),
+    );
+    defs.add(
+      _catalogFilterDef(
+        key: 'embarcacion_id',
+        label: 'Embarcación',
+        icon: Icons.directions_boat_outlined,
+        catalogo: _ctrl.catalogoEmbarcaciones,
+      ),
+    );
+    defs.add(
+      _catalogFilterDef(
+        key: 'contratista_id',
+        label: 'Contratista',
+        icon: Icons.business_center_outlined,
+        catalogo: _ctrl.catalogoContratistas,
+      ),
+    );
+
+    return defs;
+  }
+
+  /// Arma un [FilterDef] genérico a partir de un catálogo `[{id, nombre}]`.
+  FilterDef _catalogFilterDef({
+    required String key,
+    required String label,
+    required IconData icon,
+    required List<Map<String, dynamic>> catalogo,
+  }) {
+    final mapa = {
+      for (final c in catalogo)
+        c['id'].toString(): (c['nombre'] as String?) ?? '',
+    };
+    return FilterDef(
+      key: key,
+      label: label,
+      icon: icon,
+      items: mapa.values.toList(),
+      enableSearch: mapa.length > 5,
+      resolveId: (name) => mapa.entries
+          .firstWhere(
+            (e) => e.value == name,
+            orElse: () => MapEntry(name, name),
+          )
+          .key,
+      resolveDisplayName: (id) => mapa[id] ?? id,
+    );
   }
 
   void _onNuevoTicket() {
