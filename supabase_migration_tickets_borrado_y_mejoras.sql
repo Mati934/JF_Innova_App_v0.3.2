@@ -42,6 +42,44 @@ CREATE TRIGGER trg_ticket_borrado_permiso
 -- -----------------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_tickets_eliminado ON public.tickets(eliminado);
 
+-- -----------------------------------------------------------------------------
+-- C) `ticket_items`: guardar categoría/número/pregunta por separado (para el
+--    rediseño de la tarjeta de ítem a subsanar, en vez de tenerlos
+--    concatenados dentro de `descripcion`). Solo aplican a ítems de origen
+--    RESPUESTA_INSPECCION; para FOTO_OBSERVACION quedan en NULL.
+-- -----------------------------------------------------------------------------
+ALTER TABLE public.ticket_items
+  ADD COLUMN IF NOT EXISTS categoria       TEXT,
+  ADD COLUMN IF NOT EXISTS numero_pregunta INTEGER,
+  ADD COLUMN IF NOT EXISTS pregunta        TEXT;
+
+-- Backfill best-effort de ítems ya existentes (creados antes de este cambio)
+-- a partir de la respuesta de inspección original referenciada.
+UPDATE public.ticket_items ti
+SET
+  pregunta        = fi.pregunta,
+  categoria       = fi.categoria,
+  numero_pregunta = fi.orden
+FROM public.inspeccion_respuestas ir
+JOIN public.formulario_items fi ON fi.id = ir.item_id
+WHERE ti.origen_item = 'RESPUESTA_INSPECCION'
+  AND ti.referencia_id = ir.id
+  AND ti.pregunta IS NULL;
+
+-- -----------------------------------------------------------------------------
+-- D) BUG: el índice único "1 ticket automático por inspección" no consideraba
+--    el borrado lógico. Si el ticket automático de una inspección se
+--    eliminaba (`eliminado = true`), la BD seguía bloqueando la creación de
+--    uno nuevo para la misma inspección porque el índice viejo no excluía
+--    los eliminados. Se recrea el índice agregando `AND eliminado = false`
+--    para que un ticket eliminado ya no cuente como "el automático vigente".
+-- -----------------------------------------------------------------------------
+DROP INDEX IF EXISTS public.uq_tickets_inspeccion_automatico;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_tickets_inspeccion_automatico
+  ON public.tickets(inspeccion_id)
+  WHERE origen = 'INSPECCION' AND inspeccion_id IS NOT NULL AND eliminado = false;
+
 COMMIT;
 
 -- =============================================================================

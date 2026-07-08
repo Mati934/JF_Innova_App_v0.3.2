@@ -55,8 +55,12 @@ class _TicketListScreenState extends State<TicketListScreen> {
               : FloatingActionButton.extended(
                   onPressed: _onNuevoTicket,
                   backgroundColor: AppTheme.primaryBlue,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Nuevo ticket'),
+                  foregroundColor: Colors.white,
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  label: const Text(
+                    'Nuevo ticket',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
           body: _buildBody(),
         );
@@ -86,15 +90,20 @@ class _TicketListScreenState extends State<TicketListScreen> {
       onRefresh: () => _ctrl.cargarTickets(),
       child: ListView.builder(
         padding: const EdgeInsets.only(top: 8, bottom: 90),
-        itemCount: _ctrl.tickets.length,
+        itemCount: _ctrl.tickets.length + 1,
         itemBuilder: (context, i) {
-          final t = _ctrl.tickets[i];
+          if (i == 0) return const _TicketUrgenciaLegend();
+          final t = _ctrl.tickets[i - 1];
+          final progreso = _ctrl.progresoDe(t.id);
           return TicketCard(
             ticket: t,
             generadoPorNombre: _ctrl.nombreDe(t.generadoPorId),
             tomadoPorNombre: t.tomadoPorId != null
                 ? _ctrl.nombreDe(t.tomadoPorId)
                 : null,
+            centroNombre: _ctrl.nombreCentro(t.centroId),
+            embarcacionNombre: _ctrl.nombreEmbarcacion(t.embarcacionId),
+            progreso: progreso,
             esMio:
                 t.tomadoPorId != null && t.tomadoPorId == _ctrl.usuarioActualId,
             onTap: () => _abrirDetalle(t.id),
@@ -281,3 +290,51 @@ String _tipoInspeccionValueToLabel(String value) => switch (value) {
   'INSPECCION_EMBARCACION' => 'Embarcación',
   _ => value,
 };
+
+/// Referencia de colores de la barra lateral de [TicketCard]: ayuda a
+/// interpretar de un vistazo qué tickets requieren atención urgente.
+class _TicketUrgenciaLegend extends StatelessWidget {
+  const _TicketUrgenciaLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 4, 18, 10),
+      child: Wrap(
+        spacing: 14,
+        runSpacing: 6,
+        children: const [
+          _LegendDot(color: Color(0xFFB71C1C), label: 'vencido'),
+          _LegendDot(color: Color(0xFFF9A825), label: 'vence pronto'),
+          _LegendDot(color: AppTheme.primaryBlue, label: 'en curso'),
+          _LegendDot(color: Color(0xFF455A64), label: 'cerrado'),
+        ],
+      ),
+    );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _LegendDot({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+        ),
+      ],
+    );
+  }
+}

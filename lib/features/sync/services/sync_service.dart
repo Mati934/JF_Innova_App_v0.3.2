@@ -2059,7 +2059,9 @@ class SyncService {
         // ✅ CORRECCIÓN: El ID de la tabla inspeccion_respuestas en Supabase es un UUID (String), no un int.
         String? respuestaIdNube;
 
-        if (itemId != null && itemId != 'visita_general') {
+        if (itemId != null &&
+            itemId != 'visita_general' &&
+            !itemId.startsWith('verif_')) {
           final respuestaData = await _supabase
               .from('inspeccion_respuestas')
               .select('id')
@@ -2071,10 +2073,25 @@ class SyncService {
             // Asignamos el String directamente
             respuestaIdNube = respuestaData['id'] as String;
           } else {
-            debugPrint(
-              "⚠️ Foto huérfana para item $itemId. Saltando hasta sync de respuestas.",
-            );
-            continue;
+            // ¿El item_id corresponde a una pregunta real del formulario?
+            // Si sí, la respuesta aún no sincronizó: reintentar más tarde.
+            // Si no, es una "foto con observación" libre (UUID local
+            // generado por agregarFotosConObservacion, no una pregunta) y
+            // debe subirse igual, sin vínculo a inspeccion_respuestas, para
+            // no perderla silenciosamente.
+            final esPreguntaReal = await _supabase
+                .from('formulario_items')
+                .select('id')
+                .eq('id', itemId)
+                .maybeSingle();
+
+            if (esPreguntaReal != null) {
+              debugPrint(
+                "⚠️ Foto huérfana para item $itemId. Saltando hasta sync de respuestas.",
+              );
+              continue;
+            }
+            // Foto con observación libre: se sube sin inspeccion_respuesta_id.
           }
         }
 

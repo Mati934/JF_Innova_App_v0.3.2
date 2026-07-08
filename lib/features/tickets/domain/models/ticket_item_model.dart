@@ -32,6 +32,21 @@ class TicketItemModel {
   final int orden;
   final DateTime? createdAt;
 
+  /// Categoría de la pregunta original (solo aplica a ítems de origen
+  /// [TicketItemOrigen.respuestaInspeccion]; viene de `formulario_items.categoria`).
+  final String? categoria;
+
+  /// Número/orden de la pregunta dentro del checklist original (solo aplica
+  /// a ítems de origen [TicketItemOrigen.respuestaInspeccion]; viene de
+  /// `formulario_items.orden`).
+  final int? numeroPregunta;
+
+  /// Texto de la pregunta (título del ítem). Solo aplica a ítems de origen
+  /// [TicketItemOrigen.respuestaInspeccion]. Para
+  /// [TicketItemOrigen.fotoObservacion] es null: en ese caso [descripcion]
+  /// ya contiene el texto de la observación de la foto.
+  final String? pregunta;
+
   const TicketItemModel({
     required this.id,
     required this.ticketId,
@@ -45,6 +60,9 @@ class TicketItemModel {
     this.subsanadoAt,
     this.orden = 0,
     this.createdAt,
+    this.categoria,
+    this.numeroPregunta,
+    this.pregunta,
   });
 
   TicketItemModel copyWith({bool? subsanado, String? fotoSubsanacionUrl}) {
@@ -61,6 +79,9 @@ class TicketItemModel {
       subsanadoAt: subsanadoAt,
       orden: orden,
       createdAt: createdAt,
+      categoria: categoria,
+      numeroPregunta: numeroPregunta,
+      pregunta: pregunta,
     );
   }
 
@@ -82,6 +103,9 @@ class TicketItemModel {
       createdAt: map['created_at'] != null
           ? DateTime.tryParse(map['created_at'].toString())
           : null,
+      categoria: map['categoria'] as String?,
+      numeroPregunta: map['numero_pregunta'] as int?,
+      pregunta: map['pregunta'] as String?,
     );
   }
 
@@ -94,6 +118,9 @@ class TicketItemModel {
       'descripcion': descripcion,
       'foto_original_url': fotoOriginalUrl,
       'orden': orden,
+      'categoria': categoria,
+      'numero_pregunta': numeroPregunta,
+      'pregunta': pregunta,
     };
   }
 }

@@ -454,11 +454,13 @@ class InspectionFormController extends ChangeNotifier {
             continue;
           }
           // Si es nueva, la guardamos
+          // Sin descripción real: así el generador de tickets no la confunde
+          // con una "foto con observación".
           final rutaSegura = await (_repo).saveFoto(
             activityId: activityId,
             itemId: null,
             file: XFile(f.path),
-            descripcion: 'General',
+            descripcion: '',
           );
           listaSegura.add(File(rutaSegura));
         }
@@ -949,12 +951,14 @@ class InspectionFormController extends ChangeNotifier {
     }
 
     // B. Fotos Generales
+    // Sin descripción real (cadena vacía): así el generador de tickets no
+    // las confunde con "fotos con observación" (ver _armarItemsDesdeInspeccion).
     for (var f in fotosGenerales) {
       listaFotosParaRepo.add({
         'actividad_id': activityId,
         'item_id': null,
         'local_path': f.path,
-        'descripcion': 'General',
+        'descripcion': '',
         'subido': 0,
       });
     }

@@ -17,6 +17,9 @@ class TicketListController extends ChangeNotifier {
   String? errorMessage;
   List<TicketModel> tickets = [];
   Map<String, String> nombresUsuarios = {};
+  Map<String, String> nombresCentros = {};
+  Map<String, String> nombresEmbarcaciones = {};
+  Map<String, ({int total, int subsanados})> conteoItems = {};
 
   // Filtros activos (claves: estado, tipo_ticket, tipo_inspeccion, centro_id, embarcacion_id, area_id)
   Map<String, String> activeFilters = {};
@@ -89,7 +92,26 @@ class TicketListController extends ChangeNotifier {
         ...tickets.map((t) => t.generadoPorId),
         ...tickets.map((t) => t.tomadoPorId).whereType<String>(),
       }.toList();
-      nombresUsuarios = await _repo.getNombresUsuarios(ids);
+      final centroIds = tickets
+          .map((t) => t.centroId)
+          .whereType<String>()
+          .toList();
+      final embarcacionIds = tickets
+          .map((t) => t.embarcacionId)
+          .whereType<String>()
+          .toList();
+      final ticketIds = tickets.map((t) => t.id).toList();
+
+      final resultados = await Future.wait([
+        _repo.getNombresUsuarios(ids),
+        _repo.getNombresCentros(centroIds),
+        _repo.getNombresEmbarcaciones(embarcacionIds),
+        _repo.getConteoItemsPorTicket(ticketIds),
+      ]);
+      nombresUsuarios = resultados[0] as Map<String, String>;
+      nombresCentros = resultados[1] as Map<String, String>;
+      nombresEmbarcaciones = resultados[2] as Map<String, String>;
+      conteoItems = resultados[3] as Map<String, ({int total, int subsanados})>;
     } catch (e) {
       errorMessage = 'No se pudieron cargar los tickets: $e';
       debugPrint('⚠️ [TicketListController] $errorMessage');
@@ -120,6 +142,16 @@ class TicketListController extends ChangeNotifier {
     if (userId == null) return '—';
     return nombresUsuarios[userId] ?? 'Usuario';
   }
+
+  String? nombreCentro(String? centroId) =>
+      centroId == null ? null : nombresCentros[centroId];
+
+  String? nombreEmbarcacion(String? embarcacionId) =>
+      embarcacionId == null ? null : nombresEmbarcaciones[embarcacionId];
+
+  /// Progreso de subsanación de un ticket (null si no tiene ítems).
+  ({int total, int subsanados})? progresoDe(String ticketId) =>
+      conteoItems[ticketId];
 
   void _safeNotify() {
     if (!_disposed) notifyListeners();

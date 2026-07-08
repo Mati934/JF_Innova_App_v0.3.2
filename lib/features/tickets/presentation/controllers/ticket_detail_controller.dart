@@ -24,6 +24,8 @@ class TicketDetailController extends ChangeNotifier {
   List<TicketItemModel> items = [];
   List<TicketHistorialEntry> historial = [];
   Map<String, String> nombresUsuarios = {};
+  String? nombreCentro;
+  String? nombreEmbarcacion;
 
   TicketDetailController(this.ticketId) {
     cargar();
@@ -92,6 +94,14 @@ class TicketDetailController extends ChangeNotifier {
       items = its;
       historial = hist;
       nombresUsuarios = await _repo.getNombresUsuarios(ids);
+      nombreCentro = t.centroId != null
+          ? (await _repo.getNombresCentros([t.centroId!]))[t.centroId!]
+          : null;
+      nombreEmbarcacion = t.embarcacionId != null
+          ? (await _repo.getNombresEmbarcaciones([
+              t.embarcacionId!,
+            ]))[t.embarcacionId!]
+          : null;
     } catch (e) {
       errorMessage = 'No se pudo cargar el ticket: $e';
       debugPrint('⚠️ [TicketDetailController] $errorMessage');

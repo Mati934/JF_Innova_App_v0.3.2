@@ -64,7 +64,9 @@ class TicketRepository {
     return TicketModel.fromMap(row);
   }
 
-  /// Ticket automático ya existente para una inspección (si lo hay).
+  /// Ticket automático ya existente para una inspección (si lo hay). Ignora
+  /// los tickets eliminados (borrado lógico): si el único ticket automático
+  /// previo fue eliminado, se debe poder generar uno nuevo.
   Future<TicketModel?> getTicketAutomaticoDeInspeccion(
     String inspeccionId,
   ) async {
@@ -73,6 +75,7 @@ class TicketRepository {
         .select()
         .eq('inspeccion_id', inspeccionId)
         .eq('origen', TicketOrigen.inspeccion.value)
+        .eq('eliminado', false)
         .maybeSingle();
     if (row == null) return null;
     return TicketModel.fromMap(row);
@@ -121,6 +124,61 @@ class TicketRepository {
     return {
       for (final r in (rows as List))
         (r['id'] as String): (r['nombre_completo'] as String? ?? 'Usuario'),
+    };
+  }
+
+  /// Resuelve nombres de centros en lote (para mostrar en tarjetas/detalle).
+  Future<Map<String, String>> getNombresCentros(List<String> ids) =>
+      _resolverNombres('centros', ids);
+
+  /// Resuelve nombres de embarcaciones en lote (para mostrar en
+  /// tarjetas/detalle).
+  Future<Map<String, String>> getNombresEmbarcaciones(List<String> ids) =>
+      _resolverNombres('embarcaciones', ids);
+
+  Future<Map<String, String>> _resolverNombres(
+    String tabla,
+    List<String> ids,
+  ) async {
+    final unicos = ids.toSet().toList();
+    if (unicos.isEmpty) return {};
+    final rows = await _client
+        .from(tabla)
+        .select('id, nombre')
+        .inFilter('id', unicos);
+    return {
+      for (final r in (rows as List))
+        (r['id'] as String): (r['nombre'] as String? ?? '—'),
+    };
+  }
+
+  /// Cuenta, en lote, cuántos ítems tiene cada ticket y cuántos ya están
+  /// subsanados (para la barra de progreso de la tarjeta del listado).
+  Future<Map<String, ({int total, int subsanados})>> getConteoItemsPorTicket(
+    List<String> ticketIds,
+  ) async {
+    final unicos = ticketIds.toSet().toList();
+    if (unicos.isEmpty) return {};
+    final rows = await _client
+        .from('ticket_items')
+        .select('ticket_id, subsanado')
+        .inFilter('ticket_id', unicos);
+
+    final totales = <String, int>{};
+    final subsanados = <String, int>{};
+    for (final r in (rows as List)) {
+      final ticketId = r['ticket_id'] as String;
+      totales[ticketId] = (totales[ticketId] ?? 0) + 1;
+      if (r['subsanado'] == true) {
+        subsanados[ticketId] = (subsanados[ticketId] ?? 0) + 1;
+      }
+    }
+    return {
+      for (final ticketId in totales.keys)
+        ticketId: (
+          total: totales[ticketId]!,
+          subsanados: subsanados[ticketId] ?? 0,
+        ),
     };
   }
 
@@ -189,14 +247,24 @@ class TicketRepository {
 
     await _client.from('tickets').insert(ticket.toInsertMap());
 
-    final items = await _armarItemsDesdeInspeccion(
-      ticketId: ticket.id,
-      inspeccionId: inspeccionId,
-    );
-    if (items.isNotEmpty) {
-      await _client
-          .from('ticket_items')
-          .insert(items.map((e) => e.toInsertMap()).toList());
+    try {
+      final items = await _armarItemsDesdeInspeccion(
+        ticketId: ticket.id,
+        inspeccionId: inspeccionId,
+      );
+      if (items.isNotEmpty) {
+        await _client
+            .from('ticket_items')
+            .insert(items.map((e) => e.toInsertMap()).toList());
+      }
+    } catch (e) {
+      // Si no se pudieron armar/insertar los ítems, no dejamos un ticket
+      // "fantasma" sin observaciones: además de confundir al usuario, el
+      // índice único de "1 ticket automático por inspección" bloquearía
+      // cualquier reintento posterior para la misma inspección. Se revierte
+      // el ticket recién creado y se relanza el error original.
+      await _client.from('tickets').delete().eq('id', ticket.id);
+      rethrow;
     }
 
     final creado = await getTicketById(ticket.id);
@@ -254,15 +322,20 @@ class TicketRepository {
         .whereType<String>()
         .toList();
 
-    Map<String, String> preguntasPorItemId = {};
+    Map<String, ({String pregunta, String? categoria, int? orden})>
+    preguntasPorItemId = {};
     if (itemIds.isNotEmpty) {
       final preguntas = await _client
           .from('formulario_items')
-          .select('id, pregunta')
+          .select('id, pregunta, categoria, orden')
           .inFilter('id', itemIds);
       preguntasPorItemId = {
         for (final p in (preguntas as List))
-          (p['id'] as String): (p['pregunta'] as String? ?? 'Ítem'),
+          (p['id'] as String): (
+            pregunta: p['pregunta'] as String? ?? 'Ítem',
+            categoria: p['categoria'] as String?,
+            orden: p['orden'] as int?,
+          ),
       };
     }
 
@@ -286,7 +359,7 @@ class TicketRepository {
     for (final r in respuestasNc) {
       final respuestaId = r['id'] as String;
       final itemId = r['item_id'] as String?;
-      final pregunta = preguntasPorItemId[itemId] ?? 'Ítem sin descripción';
+      final info = preguntasPorItemId[itemId];
       final observacion = (r['observacion'] as String?)?.trim();
       items.add(
         TicketItemModel(
@@ -294,9 +367,12 @@ class TicketRepository {
           ticketId: ticketId,
           origenItem: TicketItemOrigen.respuestaInspeccion,
           referenciaId: respuestaId,
+          pregunta: info?.pregunta ?? 'Ítem sin descripción',
+          categoria: info?.categoria,
+          numeroPregunta: info?.orden,
           descripcion: observacion != null && observacion.isNotEmpty
-              ? '$pregunta — $observacion'
-              : pregunta,
+              ? observacion
+              : 'Sin observación adicional del inspector.',
           fotoOriginalUrl: fotoPorRespuestaId[respuestaId],
           orden: orden++,
         ),
