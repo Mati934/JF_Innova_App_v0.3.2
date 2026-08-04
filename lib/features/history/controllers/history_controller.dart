@@ -71,12 +71,37 @@ class HistoryController extends ChangeNotifier {
     _safeNotify();
 
     try {
-      final result = await _cloudRepo.getHistorialGlobal(
+      final cloudResult = await _cloudRepo.getHistorialGlobal(
         esAdmin: esAdmin,
         filtroCentroId: filtroCentroId,
         filtroUsuarioId: filtroUsuarioId,
         filtroModulo: filtroModulo,
       );
+
+      // Siempre fusionamos con historial local para no perder visibilidad de
+      // registros finalizados que aún no llegaron a la nube.
+      final localRepo = LocalHistoryRepository();
+      final localRecords = await localRepo.getAllInspections();
+      final localMapped = localRecords.map((r) {
+        return <String, dynamic>{
+          'id': r['id'],
+          'modulo': 'Inspección',
+          'tipo_registro': r['tipo_actividad'],
+          'estado': r['estado_final'],
+          'ubicacion': r['centro_nombre'] ?? 'Sin ubicación',
+          'fecha_realizacion': r['fecha_realizacion'],
+          'numero_reporte': r['numero_reporte'],
+          'pdf_url': r['pdf_url'],
+          'pdf_path_local': r['pdf_path_local'],
+          'inspector_nombre': r['inspector_nombre'] ?? 'Usuario',
+          'numero_seguimiento': r['numero_seguimiento'] ?? 0,
+          'centro_id': null,
+          'embarcacion_id': null,
+          'subido': r['subido'] ?? 0,
+        };
+      }).toList();
+
+      final result = mergeCloudAndLocalRecords(cloudResult, localMapped);
       if (seq != _loadSequence) return; // Descarta resultado stale
       records = result;
       debugPrint("☁️ Historial unificado cargado: ${records.length} registros");
@@ -116,6 +141,38 @@ class HistoryController extends ChangeNotifier {
         _safeNotify();
       }
     }
+  }
+
+  @visibleForTesting
+  static List<Map<String, dynamic>> mergeCloudAndLocalRecords(
+    List<Map<String, dynamic>> cloud,
+    List<Map<String, dynamic>> local,
+  ) {
+    // Preferimos nube para IDs repetidos y agregamos locales faltantes.
+    final mergedById = <String, Map<String, dynamic>>{};
+
+    for (final row in cloud) {
+      final id = row['id']?.toString();
+      if (id == null || id.isEmpty) continue;
+      mergedById[id] = Map<String, dynamic>.from(row);
+    }
+
+    for (final row in local) {
+      final id = row['id']?.toString();
+      if (id == null || id.isEmpty) continue;
+      mergedById.putIfAbsent(id, () => Map<String, dynamic>.from(row));
+    }
+
+    final list = mergedById.values.toList();
+    list.sort((a, b) {
+      final fa = DateTime.tryParse(a['fecha_realizacion']?.toString() ?? '');
+      final fb = DateTime.tryParse(b['fecha_realizacion']?.toString() ?? '');
+      if (fa == null && fb == null) return 0;
+      if (fa == null) return 1;
+      if (fb == null) return -1;
+      return fb.compareTo(fa);
+    });
+    return list;
   }
 
   // --- Mutadores de Filtros ---

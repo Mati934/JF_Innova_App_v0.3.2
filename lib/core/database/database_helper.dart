@@ -8,7 +8,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      53; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      55; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -648,6 +648,114 @@ class DatabaseHelper {
     ''');
     await db.execute(
       'CREATE INDEX idx_merieux_extintores_visita ON merieux_extintores_pendientes(visita_id)',
+    );
+
+    // --- MÓDULO CORREO (MVP) ---
+    await db.execute('''
+      CREATE TABLE correo_plantillas (
+        id TEXT PRIMARY KEY,
+        nombre TEXT NOT NULL,
+        asunto_template TEXT NOT NULL,
+        cuerpo_template TEXT NOT NULL,
+        modulo TEXT,
+        empresa_id TEXT,
+        variables_permitidas TEXT,
+        activo INTEGER NOT NULL DEFAULT 1,
+        version INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT,
+        updated_at TEXT,
+        updated_by TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE correo_listas (
+        id TEXT PRIMARY KEY,
+        nombre TEXT NOT NULL,
+        proposito TEXT,
+        activo INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT,
+        updated_at TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE correo_lista_destinatarios (
+        id TEXT PRIMARY KEY,
+        lista_id TEXT NOT NULL,
+        nombre TEXT,
+        correo TEXT NOT NULL,
+        tipo_sugerido TEXT NOT NULL DEFAULT 'to',
+        activo INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE correo_configuracion (
+        id TEXT PRIMARY KEY,
+        empresa_id TEXT,
+        modulo TEXT NOT NULL,
+        plantilla_id TEXT NOT NULL,
+        lista_id TEXT NOT NULL,
+        prioridad INTEGER NOT NULL DEFAULT 0,
+        activo INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT,
+        updated_at TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE correo_eventos (
+        id TEXT PRIMARY KEY,
+        inspeccion_id TEXT,
+        empresa_id TEXT,
+        usuario_id TEXT,
+        event_type TEXT NOT NULL,
+        event_timestamp TEXT NOT NULL,
+        resultado_evento TEXT NOT NULL,
+        canal TEXT,
+        template_id TEXT,
+        template_version INTEGER,
+        asunto_generado TEXT,
+        adjunto_nombre TEXT,
+        adjunto_tipo TEXT,
+        error_code TEXT,
+        error_message TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE correo_pendientes (
+        id TEXT PRIMARY KEY,
+        registro_id TEXT NOT NULL,
+        modulo_key TEXT NOT NULL,
+        empresa_id TEXT,
+        usuario_id TEXT,
+        config_id TEXT,
+        lista_id TEXT,
+        estado TEXT NOT NULL DEFAULT 'pendiente',
+        payload_json TEXT,
+        intentos INTEGER NOT NULL DEFAULT 0,
+        ultimo_error TEXT,
+        created_at TEXT,
+        updated_at TEXT
+      )
+    ''');
+    await db.execute(
+      "CREATE UNIQUE INDEX idx_correo_pendiente_unique ON correo_pendientes(registro_id, modulo_key)",
+    );
+    await db.execute(
+      "CREATE INDEX idx_correo_pendiente_estado ON correo_pendientes(estado, updated_at)",
+    );
+    await db.execute('''
+      CREATE TABLE correo_usuario_asignacion (
+        id TEXT PRIMARY KEY,
+        usuario_id TEXT NOT NULL,
+        config_id TEXT,
+        lista_id TEXT,
+        activo INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT,
+        updated_at TEXT
+      )
+    ''');
+    await db.execute(
+      "CREATE INDEX idx_correo_usuario_asig ON correo_usuario_asignacion(usuario_id, activo)",
     );
 
     debugPrint("✅ Base de datos v$_dbVersion inicializada.");
@@ -1658,6 +1766,122 @@ class DatabaseHelper {
       });
       debugPrint("✅ Parche v53 aplicado.");
     }
+
+    if (oldVersion < 54) {
+      debugPrint("🚀 Aplicando parche v54 (Módulo correo)...");
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS correo_plantillas (
+          id TEXT PRIMARY KEY,
+          nombre TEXT NOT NULL,
+          asunto_template TEXT NOT NULL,
+          cuerpo_template TEXT NOT NULL,
+          modulo TEXT,
+          empresa_id TEXT,
+          variables_permitidas TEXT,
+          activo INTEGER NOT NULL DEFAULT 1,
+          version INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT,
+          updated_at TEXT,
+          updated_by TEXT
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS correo_listas (
+          id TEXT PRIMARY KEY,
+          nombre TEXT NOT NULL,
+          proposito TEXT,
+          activo INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT,
+          updated_at TEXT
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS correo_lista_destinatarios (
+          id TEXT PRIMARY KEY,
+          lista_id TEXT NOT NULL,
+          nombre TEXT,
+          correo TEXT NOT NULL,
+          tipo_sugerido TEXT NOT NULL DEFAULT 'to',
+          activo INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS correo_configuracion (
+          id TEXT PRIMARY KEY,
+          empresa_id TEXT,
+          modulo TEXT NOT NULL,
+          plantilla_id TEXT NOT NULL,
+          lista_id TEXT NOT NULL,
+          prioridad INTEGER NOT NULL DEFAULT 0,
+          activo INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT,
+          updated_at TEXT
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS correo_eventos (
+          id TEXT PRIMARY KEY,
+          inspeccion_id TEXT,
+          empresa_id TEXT,
+          usuario_id TEXT,
+          event_type TEXT NOT NULL,
+          event_timestamp TEXT NOT NULL,
+          resultado_evento TEXT NOT NULL,
+          canal TEXT,
+          template_id TEXT,
+          template_version INTEGER,
+          asunto_generado TEXT,
+          adjunto_nombre TEXT,
+          adjunto_tipo TEXT,
+          error_code TEXT,
+          error_message TEXT
+        )
+      ''');
+      debugPrint("✅ Parche v54 aplicado.");
+    }
+
+    if (oldVersion < 55) {
+      debugPrint("🚀 Aplicando parche v55 (Cola de correos offline)...");
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS correo_pendientes (
+          id TEXT PRIMARY KEY,
+          registro_id TEXT NOT NULL,
+          modulo_key TEXT NOT NULL,
+          empresa_id TEXT,
+          usuario_id TEXT,
+          config_id TEXT,
+          lista_id TEXT,
+          estado TEXT NOT NULL DEFAULT 'pendiente',
+          payload_json TEXT,
+          intentos INTEGER NOT NULL DEFAULT 0,
+          ultimo_error TEXT,
+          created_at TEXT,
+          updated_at TEXT
+        )
+      ''');
+      await db.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_correo_pendiente_unique ON correo_pendientes(registro_id, modulo_key)",
+      );
+      await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_correo_pendiente_estado ON correo_pendientes(estado, updated_at)",
+      );
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS correo_usuario_asignacion (
+          id TEXT PRIMARY KEY,
+          usuario_id TEXT NOT NULL,
+          config_id TEXT,
+          lista_id TEXT,
+          activo INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT,
+          updated_at TEXT
+        )
+      ''');
+      await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_correo_usuario_asig ON correo_usuario_asignacion(usuario_id, activo)",
+      );
+      debugPrint("✅ Parche v55 aplicado.");
+    }
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -1811,6 +2035,114 @@ class DatabaseHelper {
           subido INTEGER NOT NULL DEFAULT 0
         )
       ''');
+
+      // Módulo Correo: asegurar esquema aunque no haya corrido onUpgrade.
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS correo_plantillas (
+          id TEXT PRIMARY KEY,
+          nombre TEXT NOT NULL,
+          asunto_template TEXT NOT NULL,
+          cuerpo_template TEXT NOT NULL,
+          modulo TEXT,
+          empresa_id TEXT,
+          variables_permitidas TEXT,
+          activo INTEGER NOT NULL DEFAULT 1,
+          version INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT,
+          updated_at TEXT,
+          updated_by TEXT
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS correo_listas (
+          id TEXT PRIMARY KEY,
+          nombre TEXT NOT NULL,
+          proposito TEXT,
+          activo INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT,
+          updated_at TEXT
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS correo_lista_destinatarios (
+          id TEXT PRIMARY KEY,
+          lista_id TEXT NOT NULL,
+          nombre TEXT,
+          correo TEXT NOT NULL,
+          tipo_sugerido TEXT NOT NULL DEFAULT 'to',
+          activo INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS correo_configuracion (
+          id TEXT PRIMARY KEY,
+          empresa_id TEXT,
+          modulo TEXT NOT NULL,
+          plantilla_id TEXT NOT NULL,
+          lista_id TEXT NOT NULL,
+          prioridad INTEGER NOT NULL DEFAULT 0,
+          activo INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT,
+          updated_at TEXT
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS correo_eventos (
+          id TEXT PRIMARY KEY,
+          inspeccion_id TEXT,
+          empresa_id TEXT,
+          usuario_id TEXT,
+          event_type TEXT NOT NULL,
+          event_timestamp TEXT NOT NULL,
+          resultado_evento TEXT NOT NULL,
+          canal TEXT,
+          template_id TEXT,
+          template_version INTEGER,
+          asunto_generado TEXT,
+          adjunto_nombre TEXT,
+          adjunto_tipo TEXT,
+          error_code TEXT,
+          error_message TEXT
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS correo_pendientes (
+          id TEXT PRIMARY KEY,
+          registro_id TEXT NOT NULL,
+          modulo_key TEXT NOT NULL,
+          empresa_id TEXT,
+          usuario_id TEXT,
+          config_id TEXT,
+          lista_id TEXT,
+          estado TEXT NOT NULL DEFAULT 'pendiente',
+          payload_json TEXT,
+          intentos INTEGER NOT NULL DEFAULT 0,
+          ultimo_error TEXT,
+          created_at TEXT,
+          updated_at TEXT
+        )
+      ''');
+      await db.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_correo_pendiente_unique ON correo_pendientes(registro_id, modulo_key)",
+      );
+      await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_correo_pendiente_estado ON correo_pendientes(estado, updated_at)",
+      );
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS correo_usuario_asignacion (
+          id TEXT PRIMARY KEY,
+          usuario_id TEXT NOT NULL,
+          config_id TEXT,
+          lista_id TEXT,
+          activo INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT,
+          updated_at TEXT
+        )
+      ''');
+      await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_correo_usuario_asig ON correo_usuario_asignacion(usuario_id, activo)",
+      );
     } catch (e, st) {
       debugPrint("❌ Error reparando esquema crítico: $e\n$st");
       rethrow;

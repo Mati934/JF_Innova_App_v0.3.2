@@ -48,7 +48,11 @@ class HidroserFormController extends ChangeNotifier {
   // --- ESTADO ---------------------------------------------------------
   bool isLoading = false;
   bool isSaving = false;
+  bool _isFinalized = false;
   String? errorMessage;
+  String? lastSavedPdfPath;
+  String? lastSavedRegistroId;
+  bool lastSyncSucceeded = false;
 
   late String inspeccionId;
   DateTime fechaRealizacion = DateTime.now();
@@ -430,6 +434,7 @@ class HidroserFormController extends ChangeNotifier {
   Future<bool> guardarDefinitivo() async {
     if (isSaving) return false;
     isSaving = true;
+    _isFinalized = true;
     errorMessage = null;
     notifyListeners();
     try {
@@ -442,6 +447,7 @@ class HidroserFormController extends ChangeNotifier {
       final pdfPath = '${dir.path}/hidroser_${insp.id}.pdf';
       await File(pdfPath).writeAsBytes(pdfBytes);
       insp.pdfPathLocal = pdfPath;
+      lastSavedPdfPath = pdfPath;
 
       final respuestas = items
           .map(
@@ -459,12 +465,21 @@ class HidroserFormController extends ChangeNotifier {
           .toList();
 
       await _repo.guardarInspeccion(insp, respuestas);
+      lastSavedRegistroId = insp.id;
 
-      // Sync (fire-and-forget — el SyncService maneja errores y reintenta)
-      unawaited(_sync.sincronizarTodo());
+      // Sync inmediato: se intenta altiro, pero si falla la inspección queda
+      // guardada localmente para reintento posterior.
+      try {
+        await _sync.sincronizarTodo();
+        lastSyncSucceeded = true;
+      } catch (e) {
+        lastSyncSucceeded = false;
+        debugPrint('⚠️ Sync inmediato Hidroser falló (queda pendiente): $e');
+      }
       return true;
     } catch (e, st) {
       errorMessage = 'Error guardando inspección: $e';
+      _isFinalized = false;
       debugPrint('❌ $errorMessage\n$st');
       return false;
     } finally {
@@ -486,6 +501,7 @@ class HidroserFormController extends ChangeNotifier {
     // Si todavía no terminó de cargar la lista o no hay nada que guardar,
     // no creamos borradores vacíos.
     if (isLoading) return false;
+    if (_isFinalized) return false;
     if (items.isEmpty && !_hayDatosCabecera()) return false;
     try {
       final insp = _buildInspeccionModel(estadoFinal: 'Borrador');

@@ -7,6 +7,7 @@ import '../../../core/database/database_helper.dart';
 import '../../../core/utils/rut_utils.dart';
 import '../../../core/services/user_session.dart';
 import '../../../features/inspection/services/deferred_pdf_service.dart';
+import '../../../features/email/services/email_pending_service.dart';
 import 'dart:convert';
 
 class SyncService {
@@ -540,6 +541,12 @@ class SyncService {
           merieuxSubidos;
     } catch (e) {
       debugPrint("❌ Error en sincronización global: $e");
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        StackTrace.current,
+        reason: 'sincronizarTodo: bloque principal',
+        fatal: false,
+      );
     }
 
     // 7. Generar PDFs diferidos SIEMPRE (fuera del try/catch principal)
@@ -549,6 +556,17 @@ class SyncService {
       await _generarPdfsDiferidos();
     } catch (e) {
       debugPrint("⚠️ Error en generación de PDFs diferidos: $e");
+    }
+
+    try {
+      final promoted = await EmailPendingService().promoteReadyAfterSync();
+      if (promoted > 0) {
+        debugPrint(
+          "📧 $promoted correos pendientes quedaron listos tras sincronización.",
+        );
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error promoviendo cola de correos pendientes: $e");
     }
 
     return totalSubidas;
@@ -776,6 +794,21 @@ class SyncService {
         datosParaNube.remove('pdf_path_local');
         datosParaNube.remove('app_version');
 
+        // Auto-curación: algunas filas legacy pueden venir sin usuario_id.
+        // Si hay sesión activa, lo inyectamos para evitar rechazo por RLS.
+        if (datosParaNube['usuario_id'] == null) {
+          final activeUserId = _supabase.auth.currentUser?.id;
+          if (activeUserId != null) {
+            datosParaNube['usuario_id'] = activeUserId;
+            await db.update(
+              'actividades_pendientes',
+              {'usuario_id': activeUserId},
+              where: 'id = ?',
+              whereArgs: [activityId],
+            );
+          }
+        }
+
         // --- 1. VERIFICACIÓN ESTRICTA EN LA NUBE ---
         final checkNube = await _supabase
             .from('actividades')
@@ -899,20 +932,123 @@ class SyncService {
         }
 
         // --- 3. MARCAR COMO SUBIDO LOCALMENTE ---
-        await db.update(
-          'actividades_pendientes',
-          {'subido': 1},
-          where: 'id = ?',
-          whereArgs: [activityId],
-        );
+        // Si hay un PDF local pendiente de subir, dejamos subido=0 para reintento.
+        final pdfPendiente =
+            pdfPathLocal != null &&
+            pdfPathLocal.isNotEmpty &&
+            ((pdfUrlActual == null) || pdfUrlActual.isEmpty);
+
+        if (!pdfPendiente) {
+          await db.update(
+            'actividades_pendientes',
+            {'subido': 1},
+            where: 'id = ?',
+            whereArgs: [activityId],
+          );
+        }
 
         count++;
         debugPrint("✅ Actividad subida OK: $activityId");
       } catch (e) {
         debugPrint("🔥 Error subiendo actividad $activityId: $e");
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          StackTrace.current,
+          reason: 'sincronizarActividades: $activityId',
+          fatal: false,
+        );
       }
     }
     return count;
+  }
+
+  /// Cuenta cabeceras pendientes de sincronizar para evitar mensajes engañosos
+  /// de "todo sincronizado" cuando aún hay trabajo en cola.
+  Future<int> contarPendientesCabecera() async {
+    final db = await _dbHelper.database;
+    final tablas = [
+      'actividades_pendientes',
+      'visitas_tecnicas_pendientes',
+      'hidroser_inspecciones_pendientes',
+      'buceo_equipamiento_inspecciones_pendientes',
+      'ast_informes_pendientes',
+      'merieux_visitas_pendientes',
+    ];
+
+    int total = 0;
+    for (final tabla in tablas) {
+      final count = Sqflite.firstIntValue(
+        await db.rawQuery('SELECT COUNT(*) FROM $tabla WHERE subido = 0'),
+      );
+      total += count ?? 0;
+    }
+    return total;
+  }
+
+  /// Lista registros pendientes de sincronización para mostrar una vista
+  /// operativa (tipo "Borrador 2.0") en la app.
+  Future<List<Map<String, dynamic>>> listarPendientesSincronizacion() async {
+    final db = await _dbHelper.database;
+    final fuentes = const [
+      {'tabla': 'actividades_pendientes', 'modulo': 'INSPECCION'},
+      {'tabla': 'visitas_tecnicas_pendientes', 'modulo': 'VISITAS'},
+      {'tabla': 'hidroser_inspecciones_pendientes', 'modulo': 'HIDROSER'},
+      {
+        'tabla': 'buceo_equipamiento_inspecciones_pendientes',
+        'modulo': 'BUCEO_EQUIPAMIENTO',
+      },
+      {'tabla': 'ast_informes_pendientes', 'modulo': 'AST'},
+      {'tabla': 'merieux_visitas_pendientes', 'modulo': 'MERIEUX'},
+    ];
+
+    final items = <Map<String, dynamic>>[];
+
+    for (final f in fuentes) {
+      final tabla = f['tabla']!;
+      final modulo = f['modulo']!;
+
+      final rows = await db.query(tabla, where: 'subido = 0');
+
+      for (final row in rows) {
+        final eliminadoRaw = row['eliminado'];
+        final bool eliminado = eliminadoRaw == 1 || eliminadoRaw == true;
+        if (eliminado) continue;
+
+        final pdfPathLocal = row['pdf_path_local']?.toString();
+        final pdfUrl = row['pdf_url']?.toString();
+        final bool pdfPendiente =
+            pdfPathLocal != null &&
+            pdfPathLocal.isNotEmpty &&
+            (pdfUrl == null || pdfUrl.isEmpty);
+
+        items.add({
+          'id': row['id']?.toString() ?? '',
+          'tabla': tabla,
+          'modulo': modulo,
+          'tipo_actividad': row['tipo_actividad']?.toString() ?? modulo,
+          'estado_final': row['estado_final']?.toString() ?? 'Pendiente',
+          'fecha_realizacion': row['fecha_realizacion']?.toString(),
+          'numero_reporte':
+              row['numero_reporte']?.toString() ??
+              row['correlativo']?.toString(),
+          'pdf_pendiente': pdfPendiente,
+          'motivo': pdfPendiente
+              ? 'PDF pendiente por subir'
+              : 'Registro pendiente por sincronizar',
+        });
+      }
+    }
+
+    items.sort((a, b) {
+      final da = DateTime.tryParse(a['fecha_realizacion']?.toString() ?? '');
+      final dbt = DateTime.tryParse(b['fecha_realizacion']?.toString() ?? '');
+      if (da == null && dbt == null) return 0;
+      if (da == null) return 1;
+      if (dbt == null) return -1;
+      return dbt.compareTo(da);
+    });
+
+    return items;
   }
 
   Future<void> _sincronizarVerificacionesEmbarcacion(

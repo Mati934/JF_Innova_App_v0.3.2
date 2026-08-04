@@ -14,6 +14,9 @@ import '../../features/history/presentation/screens/history_screen.dart';
 import '../../features/tickets/presentation/screens/ticket_list_screen.dart';
 import '../../features/merieux/presentation/screens/merieux_visita_module_screen.dart';
 import '../../features/merieux/presentation/screens/merieux_extintores_module_screen.dart';
+import '../../features/email/presentation/screens/email_setup_screen.dart';
+import '../../features/email/presentation/screens/email_outbox_screen.dart';
+import '../../features/email/presentation/screens/email_admin_screen.dart';
 
 const Color kMerieuxColor = Color(0xFF1B3B6F);
 
@@ -141,6 +144,31 @@ class ModuleRegistry {
       screenBuilder: (_) => const MerieuxExtintoresModuleScreen(),
     ),
     ModuleDefinition(
+      moduleKey: 'EMAIL_TEST',
+      title: 'Correo prueba',
+      subtitle: 'Caso base de correo',
+      icon: Icons.email_outlined,
+      color: Colors.indigo,
+      screenBuilder: (_) => const EmailSetupScreen(),
+    ),
+    ModuleDefinition(
+      moduleKey: 'EMAIL_OUTBOX',
+      title: 'Bandeja correos',
+      subtitle: 'Pendientes y sincronización',
+      icon: Icons.outbox_outlined,
+      color: Colors.indigo,
+      screenBuilder: (_) => const EmailOutboxScreen(),
+    ),
+    ModuleDefinition(
+      moduleKey: 'EMAIL_ADMIN',
+      title: 'Admin Correos',
+      subtitle: 'Plantillas y listas',
+      icon: Icons.mark_email_read_outlined,
+      color: Colors.indigo.shade700,
+      requiresAdmin: true,
+      screenBuilder: (_) => const EmailAdminScreen(),
+    ),
+    ModuleDefinition(
       moduleKey: 'RENDICIONES',
       title: 'Rendiciones',
       subtitle: 'Gastos',
@@ -166,6 +194,7 @@ class ModuleRegistry {
     'INSPECCION',
     'VISITA_R003',
     'VISITA_R004',
+    'EMAIL_OUTBOX',
     'RENDICIONES',
   ];
 }

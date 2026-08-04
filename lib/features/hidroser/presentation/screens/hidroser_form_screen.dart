@@ -6,10 +6,15 @@ import 'package:provider/provider.dart';
 import 'package:signature/signature.dart';
 
 import '../../../../core/modules/hidroser_checklists.dart';
+import '../../../../core/services/user_session.dart';
 import '../../../../shared/services/image_service.dart';
 import '../../../../shared/widgets/form_inputs/gallery_input.dart';
 import '../../../inspection/presentation/widgets/category_header.dart';
 import '../../../inspection/presentation/widgets/question_card.dart';
+import '../../../email/services/email_dispatch_service.dart';
+import '../../../email/services/email_flow_service.dart';
+import '../../../email/services/email_pending_service.dart';
+import '../../../../core/utils/safe_area_utils.dart';
 import '../../domain/models/hidroser_lista.dart';
 import '../controllers/hidroser_form_controller.dart';
 
@@ -35,6 +40,7 @@ class _HidroserFormView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ctrl = context.watch<HidroserFormController>();
+    final safeBottom = SafeAreaUtils.safeBottomInset(context, extra: 16);
     final fechaFmt = DateFormat(
       'dd/MM/yyyy HH:mm',
     ).format(ctrl.fechaRealizacion);
@@ -189,7 +195,7 @@ class _HidroserFormView extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
+                    SizedBox(height: safeBottom),
                   ],
                 ),
               ),
@@ -222,14 +228,168 @@ class _HidroserFormView extends StatelessWidget {
     final ok = await ctrl.guardarDefinitivo();
     if (!context.mounted) return;
     if (ok) {
+      await _tryOpenConfiguredEmail(context, ctrl);
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inspección guardada correctamente.')),
+      );
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<bool> _confirmarPrepararCorreo(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Preparar correo'),
+        content: const Text('¿Deseas preparar el correo en este momento?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Ahora no'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Sí, preparar'),
+          ),
+        ],
+      ),
+    );
+
+    return result ?? false;
+  }
+
+  Future<void> _tryOpenConfiguredEmail(
+    BuildContext context,
+    HidroserFormController ctrl,
+  ) async {
+    final fechaIso = DateFormat('yyyy-MM-dd').format(ctrl.fechaRealizacion);
+    final hora = DateFormat('HH:mm').format(ctrl.fechaRealizacion);
+
+    final supervisor = ctrl.firmaSupervisorNombreCtrl.text.trim().isNotEmpty
+        ? ctrl.firmaSupervisorNombreCtrl.text.trim()
+        : (ctrl.quienInspeccionaCtrl.text.trim().isNotEmpty
+              ? ctrl.quienInspeccionaCtrl.text.trim()
+              : 'Supervisor responsable');
+
+    final moduleKeys = <String>[
+      if (ctrl.lista.codigo.toUpperCase() == 'GRUA_HORQUILLA_PFA')
+        'hidroser_grua_horquilla',
+      'hidroser',
+    ];
+
+    final dispatch = await EmailDispatchService().resolveForModules(
+      moduleKeys: moduleKeys,
+      empresaId: UserSession().empresaId,
+      usuarioId: UserSession().userId,
+      templateValues: {
+        'fecha_inspeccion': fechaIso,
+        'hora_inspeccion': hora,
+        'supervisor_nombre': supervisor,
+      },
+    );
+
+    if (dispatch == null || !context.mounted) return;
+
+    final registroId = ctrl.lastSavedRegistroId ?? ctrl.inspeccionId;
+    final empresaId = UserSession().empresaId;
+    final usuarioId = UserSession().userId;
+
+    if (!ctrl.lastSyncSucceeded) {
+      await EmailPendingService().enqueuePending(
+        registroId: registroId,
+        moduleKey: dispatch.moduleKey,
+        empresaId: empresaId,
+        usuarioId: usuarioId,
+        configId: dispatch.configId,
+        listaId: dispatch.listaId,
+        subject: dispatch.subject,
+        body: dispatch.body,
+        recipients: dispatch.suggestedRecipients,
+        estado: 'pendiente_sync',
+        attachmentPath: ctrl.lastSavedPdfPath,
+      );
+
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Inspección guardada. Se sincronizará en segundo plano.',
+            'Correo pendiente: se ofrecerá cuando el registro sincronice.',
           ),
         ),
       );
-      Navigator.of(context).pop();
+      return;
+    }
+
+    final abrirCorreo = await _confirmarPrepararCorreo(context);
+    if (!abrirCorreo) {
+      await EmailPendingService().enqueuePending(
+        registroId: registroId,
+        moduleKey: dispatch.moduleKey,
+        empresaId: empresaId,
+        usuarioId: usuarioId,
+        configId: dispatch.configId,
+        listaId: dispatch.listaId,
+        subject: dispatch.subject,
+        body: dispatch.body,
+        recipients: dispatch.suggestedRecipients,
+        estado: 'pendiente',
+        attachmentPath: ctrl.lastSavedPdfPath,
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
+
+    await EmailPendingService().markOpened(
+      registroId: registroId,
+      moduleKey: dispatch.moduleKey,
+    );
+
+    if (!context.mounted) return;
+
+    final previewResult = await EmailFlowService.openPreview(
+      context: context,
+      subject: dispatch.subject,
+      body: dispatch.body,
+      recipients: dispatch.suggestedRecipients,
+      suggestedRecipients: dispatch.suggestedRecipients,
+      attachmentName: 'lista_verificacion_grua_horquilla.pdf',
+      attachmentPath: ctrl.lastSavedPdfPath,
+    );
+
+    final sent = previewResult?['sent'] == true;
+    if (sent) {
+      await EmailPendingService().deleteByRegistro(
+        registroId: registroId,
+        moduleKey: dispatch.moduleKey,
+      );
+    } else {
+      final recipientsDynamic = previewResult?['recipients'];
+      final recipients = recipientsDynamic is List
+          ? recipientsDynamic
+                .map((e) => e.toString().trim())
+                .where((e) => e.isNotEmpty)
+                .toList()
+          : dispatch.suggestedRecipients;
+
+      await EmailPendingService().enqueuePending(
+        registroId: registroId,
+        moduleKey: dispatch.moduleKey,
+        empresaId: empresaId,
+        usuarioId: usuarioId,
+        configId: dispatch.configId,
+        listaId: dispatch.listaId,
+        subject: (previewResult?['subject'] ?? dispatch.subject).toString(),
+        body: (previewResult?['body'] ?? dispatch.body).toString(),
+        recipients: recipients,
+        estado: 'pendiente',
+        attachmentPath:
+            (previewResult?['attachment_path'] ?? ctrl.lastSavedPdfPath)
+                ?.toString(),
+      );
     }
   }
 

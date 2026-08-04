@@ -14,6 +14,7 @@ import '../../../buceo_equipment/data/repositories/local_buceo_equipment_reposit
 import '../../../prosesso/data/repositories/local_prosesso_repository.dart';
 import '../../domain/draft_card_data.dart';
 import '../../domain/draft_card_mapper.dart';
+import '../../../../core/errors/app_error_utils.dart';
 
 class HomeController extends ChangeNotifier {
   final _syncService = SyncService();
@@ -48,7 +49,9 @@ class HomeController extends ChangeNotifier {
   // Variables de Sincronización
   bool isSyncing = false;
   String? syncMessage;
+  String? syncErrorCode;
   bool isError = false;
+  int pendingSyncCount = 0;
 
   // Variables de Borradores
   List<DraftCardData> borradores = [];
@@ -72,7 +75,19 @@ class HomeController extends ChangeNotifier {
   Future<void> _inicializarDatos() async {
     await _cargarPerfil(); // 100% Offline
     await cargarBorradores();
+    await recargarPendientesSync();
     _sincronizarSilencioso(); // Background sync para maestros y subidas
+  }
+
+  Future<void> recargarPendientesSync() async {
+    try {
+      pendingSyncCount = await _syncService.contarPendientesCabecera();
+    } catch (e) {
+      debugPrint('⚠️ Error contando pendientes sync: $e');
+      pendingSyncCount = 0;
+    } finally {
+      _safeNotify();
+    }
   }
 
   // --- LÓGICA DE BORRADORES ---
@@ -226,6 +241,7 @@ class HomeController extends ChangeNotifier {
   Future<void> recargarParaEmpresa() async {
     await _cargarModulosHabilitados();
     await cargarBorradores();
+    await recargarPendientesSync();
     if (isOnline) {
       await _syncService.descargarDatosMaestros();
       await _cargarModulosHabilitados();
@@ -254,8 +270,15 @@ class HomeController extends ChangeNotifier {
       // 2. Descargar datos maestros
       await _syncService.descargarDatosMaestros();
       await _cargarModulosHabilitados();
-    } catch (e) {
+      await recargarPendientesSync();
+    } catch (e, st) {
       debugPrint("⚠️ Error en sync silencioso: $e");
+      await AppErrorUtils.capture(
+        e,
+        st,
+        scope: 'SNC',
+        reason: 'HomeController._sincronizarSilencioso',
+      );
     } finally {
       isSyncing = false;
       _safeNotify();
@@ -267,13 +290,19 @@ class HomeController extends ChangeNotifier {
 
     isSyncing = true;
     syncMessage = "Sincronizando...";
+    syncErrorCode = null;
     isError = false;
     _safeNotify();
 
     try {
       final subidos = await _syncService.sincronizarTodo();
+      final pendientes = await _syncService.contarPendientesCabecera();
+      pendingSyncCount = pendientes;
       if (subidos > 0) {
         syncMessage = "✅ Se subieron $subidos registros.";
+      } else if (pendientes > 0) {
+        syncMessage =
+            "⚠️ Aún hay $pendientes registros pendientes. Reintenta con mejor señal.";
       } else {
         syncMessage = "👍 Todo sincronizado.";
       }
@@ -281,9 +310,17 @@ class HomeController extends ChangeNotifier {
       await cargarBorradores(); // Refresca UI si se eliminaron zombies
       await _syncService.descargarDatosMaestros();
       await _cargarModulosHabilitados();
-    } catch (e) {
+    } catch (e, st) {
+      final code = await AppErrorUtils.capture(
+        e,
+        st,
+        scope: 'SNC',
+        reason: 'HomeController.ejecutarSincronizacion',
+      );
       isError = true;
-      syncMessage = "Error de red al sincronizar.";
+      syncErrorCode = code;
+      syncMessage =
+          "Error al sincronizar. Revisa conexión e intenta nuevamente.";
     } finally {
       isSyncing = false;
       _safeNotify();

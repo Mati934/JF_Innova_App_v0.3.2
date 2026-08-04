@@ -163,7 +163,8 @@ class _AuthGateState extends State<AuthGate> {
               e is SocketException ||
               e is HttpException ||
               errorStr.contains('Failed host lookup') ||
-              errorStr.contains('Connection refused');
+              errorStr.contains('Connection refused') ||
+              errorStr.contains('AuthRetryableFetchException');
 
           final esErrorDeSeguridad =
               e is AuthException ||
@@ -185,14 +186,21 @@ class _AuthGateState extends State<AuthGate> {
             debugPrint("🔥 [AuthGate] Error crítico leyendo SQLite: $dbError");
           }
 
-          if (esErrorDeSeguridad) {
+          if (esErrorDeSeguridad && !existePerfilLocal) {
             debugPrint(
-              "🛑 [AuthGate] Token zombie detectado. Revocando acceso por seguridad.",
+              "🛑 [AuthGate] Error de seguridad sin caché local. Revocando acceso.",
             );
             await Supabase.instance.client.auth.signOut();
-          } else if (esErrorDeRed && existePerfilLocal) {
+          } else if ((esErrorDeSeguridad || esErrorDeRed) &&
+              existePerfilLocal) {
             debugPrint(
-              "🌐 [AuthGate] Modo Offline activado: Sin red, pero perfil local válido.",
+              "🌐 [AuthGate] Modo Offline activado con perfil local válido.",
+            );
+            FirebaseCrashlytics.instance.recordError(
+              e,
+              StackTrace.current,
+              reason: 'AuthGate init fallback con perfil local',
+              fatal: false,
             );
           } else {
             debugPrint(

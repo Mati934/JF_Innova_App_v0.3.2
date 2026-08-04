@@ -3,11 +3,13 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:jf_innova_app/core/theme/app_theme.dart';
 import 'package:jf_innova_app/core/services/user_session.dart';
 import 'package:jf_innova_app/core/modules/module_registry.dart';
+import 'package:jf_innova_app/core/errors/app_error_utils.dart';
 import 'package:jf_innova_app/shared/branding/app_logo.dart';
 import 'package:jf_innova_app/features/tickets/presentation/widgets/ticket_header_badge_button.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/draft_list_widget.dart';
 import '../widgets/module_selector_grid.dart';
+import '../../../sync/presentation/screens/sync_pending_screen.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -38,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, child) {
         final empresaNombre = UserSession().empresaNombre;
         final cantidadBorradores = _controller.borradores.length;
+        final pendientesSync = _controller.pendingSyncCount;
 
         return Scaffold(
           backgroundColor: const Color(0xFFF4F6F8),
@@ -45,12 +48,13 @@ class _HomeScreenState extends State<HomeScreen> {
             color: AppTheme.primaryBlue,
             onRefresh: () async {
               await _controller.cargarBorradores();
+              await _controller.recargarPendientesSync();
               await _controller.recargarModulos();
             },
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
-                _buildHeader(empresaNombre),
+                _buildHeader(empresaNombre, cantidadBorradores),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
@@ -86,6 +90,20 @@ class _HomeScreenState extends State<HomeScreen> {
                               : null,
                         ),
                         const SizedBox(height: 8),
+                        _SyncPendingQuickAction(
+                          pendientesSync: pendientesSync,
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const SyncPendingScreen(),
+                              ),
+                            );
+                            await _controller.recargarPendientesSync();
+                            await _controller.cargarBorradores();
+                          },
+                        ),
+                        const SizedBox(height: 10),
                         DraftListWidget(controller: _controller),
                         const SizedBox(height: 24),
                         Center(
@@ -133,9 +151,18 @@ class _HomeScreenState extends State<HomeScreen> {
   // ---------------------------------------------------------------------------
   // HEADER (Sliver con gradiente + saludo + acciones)
   // ---------------------------------------------------------------------------
-  Widget _buildHeader(String? empresaNombre) {
+  Widget _buildHeader(String? empresaNombre, int cantidadBorradores) {
+    final correoHabilitado = _controller.enabledModules.any(
+      (m) => m.moduleKey == 'EMAIL_OUTBOX',
+    );
+    final pillCount = 2 + (correoHabilitado ? 1 : 0);
+    final anchoPantalla = MediaQuery.of(context).size.width;
+    final pillsPorFilaEstimado = anchoPantalla < 380 ? 2 : 3;
+    final pillRows = (pillCount / pillsPorFilaEstimado).ceil().clamp(1, 3);
+    final expandedHeight = 220.0 + ((pillRows - 1) * 34.0);
+
     return SliverAppBar(
-      expandedHeight: 220,
+      expandedHeight: expandedHeight,
       pinned: true,
       stretch: true,
       backgroundColor: AppTheme.primaryBlue,
@@ -244,6 +271,39 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ],
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _InfoPill(
+                        icon: _controller.isOnline
+                            ? Icons.cloud_done
+                            : Icons.cloud_off,
+                        label: _controller.isOnline ? 'Online' : 'Offline',
+                        tone: _controller.isOnline
+                            ? Colors.green.shade600
+                            : Colors.orange.shade700,
+                      ),
+                      if (correoHabilitado)
+                        _InfoPill(
+                          icon: Icons.assignment_late_outlined,
+                          label: cantidadBorradores == 1
+                              ? '1 borrador'
+                              : '$cantidadBorradores borradores',
+                          tone: Colors.blue.shade700,
+                        ),
+                      _InfoPill(
+                        icon: Icons.cloud_upload_outlined,
+                        label: _controller.pendingSyncCount == 1
+                            ? '1 por subir'
+                            : '${_controller.pendingSyncCount} por subir',
+                        tone: _controller.pendingSyncCount > 0
+                            ? Colors.orange.shade700
+                            : Colors.green.shade700,
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -293,14 +353,29 @@ class _HomeScreenState extends State<HomeScreen> {
               : () async {
                   await _controller.ejecutarSincronizacion();
                   if (mounted && _controller.syncMessage != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(_controller.syncMessage!),
-                        backgroundColor: _controller.isError
-                            ? Colors.red
-                            : Colors.green.shade700,
-                      ),
-                    );
+                    if (_controller.isError) {
+                      final code =
+                          _controller.syncErrorCode ??
+                          AppErrorUtils.newCode(scope: 'SNC');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        AppErrorUtils.buildErrorSnackBar(
+                          message: _controller.syncMessage!,
+                          code: code,
+                        ),
+                      );
+                    } else {
+                      final esAdvertencia = _controller.syncMessage!.startsWith(
+                        '⚠️',
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(_controller.syncMessage!),
+                          backgroundColor: esAdvertencia
+                              ? Colors.orange.shade700
+                              : Colors.green.shade700,
+                        ),
+                      );
+                    }
                   }
                 },
         ),
@@ -395,6 +470,99 @@ class _HomeScreenState extends State<HomeScreen> {
         MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
     }
+  }
+}
+
+class _SyncPendingQuickAction extends StatelessWidget {
+  final int pendientesSync;
+  final VoidCallback onTap;
+
+  const _SyncPendingQuickAction({
+    required this.pendientesSync,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.cloud_upload_outlined,
+                  color: pendientesSync > 0
+                      ? Colors.orange.shade700
+                      : Colors.green.shade700,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    pendientesSync > 0
+                        ? 'Ver pendientes de sincronización ($pendientesSync)'
+                        : 'Ver estado de sincronización',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const Icon(Icons.chevron_right),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color tone;
+
+  const _InfoPill({
+    required this.icon,
+    required this.label,
+    required this.tone,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              shadows: [
+                Shadow(color: tone.withValues(alpha: 0.45), blurRadius: 10),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

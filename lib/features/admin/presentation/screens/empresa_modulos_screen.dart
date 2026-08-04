@@ -28,6 +28,11 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
 
+  void _setStateSafe(VoidCallback fn) {
+    if (!mounted) return;
+    setState(fn);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -35,13 +40,13 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
   }
 
   Future<void> _cargarEmpresas() async {
-    setState(() => _isLoading = true);
+    _setStateSafe(() => _isLoading = true);
     try {
       final session = UserSession();
       if (session.esSuperAdmin) {
         // Super-admin: ve todas las empresas
         final empresas = await _dbHelper.getAllEmpresas();
-        setState(() {
+        _setStateSafe(() {
           _empresas = empresas;
           _isLoading = false;
         });
@@ -53,12 +58,12 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
       }
     } catch (e) {
       debugPrint('Error cargando empresas: $e');
-      setState(() => _isLoading = false);
+      _setStateSafe(() => _isLoading = false);
     }
   }
 
   Future<void> _cargarModulosDeEmpresa(String empresaId) async {
-    setState(() => _isLoading = true);
+    _setStateSafe(() => _isLoading = true);
     try {
       debugPrint('═══════════════════════════════════════');
       debugPrint('📂 CARGANDO MÓDULOS para empresa: $empresaId');
@@ -116,28 +121,32 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
       }
       debugPrint('═══════════════════════════════════════');
 
-      setState(() => _isLoading = false);
+      _setStateSafe(() => _isLoading = false);
     } catch (e) {
       debugPrint('Error cargando módulos: $e');
-      setState(() => _isLoading = false);
+      _setStateSafe(() => _isLoading = false);
     }
   }
 
   Future<void> _guardarCambios() async {
     if (_selectedEmpresaId == null) return;
 
-    setState(() => _isSaving = true);
+    _setStateSafe(() => _isSaving = true);
     try {
       final db = await _dbHelper.database;
       final batch = db.batch();
 
       debugPrint('═══════════════════════════════════════');
-      debugPrint('📝 GUARDANDO MÓDULOS para empresa: $_selectedEmpresaNombre ($_selectedEmpresaId)');
+      debugPrint(
+        '📝 GUARDANDO MÓDULOS para empresa: $_selectedEmpresaNombre ($_selectedEmpresaId)',
+      );
 
       for (var entry in _modulos.entries) {
         final key = entry.key;
         final state = entry.value;
-        debugPrint('  ${state.habilitado ? "✅" : "❌"} $key (orden: ${state.orden})');
+        debugPrint(
+          '  ${state.habilitado ? "✅" : "❌"} $key (orden: ${state.orden})',
+        );
 
         batch.insert('empresa_modulos', {
           'id': state.id,
@@ -150,7 +159,9 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
       }
 
       await batch.commit(noResult: true);
-      debugPrint('💾 SQLite OK — ${_modulos.length} módulos guardados (subido=0)');
+      debugPrint(
+        '💾 SQLite OK — ${_modulos.length} módulos guardados (subido=0)',
+      );
 
       // Verificar lo que quedó en SQLite
       final verificacion = await db.query(
@@ -158,9 +169,13 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
         where: 'empresa_id = ?',
         whereArgs: [_selectedEmpresaId],
       );
-      debugPrint('🔍 Verificación SQLite: ${verificacion.length} filas para esta empresa');
+      debugPrint(
+        '🔍 Verificación SQLite: ${verificacion.length} filas para esta empresa',
+      );
       for (var row in verificacion) {
-        debugPrint('  → ${row['modulo_key']}: habilitado=${row['habilitado']}, subido=${row['subido']}');
+        debugPrint(
+          '  → ${row['modulo_key']}: habilitado=${row['habilitado']}, subido=${row['subido']}',
+        );
       }
 
       // Sincronizar inmediatamente a Supabase
@@ -178,7 +193,9 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
         if (postSync.isEmpty) {
           debugPrint('✅ Todos los módulos sincronizados (subido=1)');
         } else {
-          debugPrint('⚠️ ${postSync.length} módulos aún pendientes (subido=0):');
+          debugPrint(
+            '⚠️ ${postSync.length} módulos aún pendientes (subido=0):',
+          );
           for (var row in postSync) {
             debugPrint('  → ${row['modulo_key']}');
           }
@@ -207,7 +224,7 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
         );
       }
     } finally {
-      setState(() => _isSaving = false);
+      _setStateSafe(() => _isSaving = false);
     }
   }
 
@@ -219,7 +236,9 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
           .select('id, empresa_id, modulo_key, habilitado, orden')
           .eq('empresa_id', empresaId);
 
-      debugPrint('☁️ Supabase retornó ${data.length} módulos para empresa $empresaId');
+      debugPrint(
+        '☁️ Supabase retornó ${data.length} módulos para empresa $empresaId',
+      );
       for (var row in data) {
         debugPrint('  → ${row['modulo_key']}: habilitado=${row['habilitado']}');
       }
@@ -233,7 +252,9 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
         );
         debugPrint('💾 Módulos de Supabase guardados en SQLite');
       } else {
-        debugPrint('⚠️ Supabase no tiene módulos para esta empresa (tabla vacía o no configurada)');
+        debugPrint(
+          '⚠️ Supabase no tiene módulos para esta empresa (tabla vacía o no configurada)',
+        );
       }
     } catch (e) {
       debugPrint('⚠️ Error descargando módulos de empresa $empresaId: $e');

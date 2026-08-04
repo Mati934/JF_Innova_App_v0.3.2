@@ -8,6 +8,7 @@ import 'package:jf_innova_app/features/inspection/presentation/widgets/headers/b
 import '../../../../shared/services/image_service.dart';
 import '../../../../shared/widgets/confirm_finalize_dialog.dart';
 import '../../../../shared/widgets/form_inputs/gallery_input.dart';
+import '../../../../core/errors/app_error_utils.dart';
 import '../controllers/inspection_form_controller.dart';
 import '../widgets/question_card.dart';
 import '../widgets/category_header.dart';
@@ -41,9 +42,19 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
 
   void _onControllerUpdate() {
     if (_controller.errorMessage != null && mounted) {
+      final code = AppErrorUtils.newCode(scope: 'INP');
+      unawaited(
+        AppErrorUtils.capture(
+          Exception(_controller.errorMessage!),
+          StackTrace.current,
+          scope: 'INP',
+          reason: 'InspectionFormScreen._onControllerUpdate',
+        ),
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_controller.errorMessage!),
+        AppErrorUtils.buildErrorSnackBar(
+          message: _controller.errorMessage!,
+          code: code,
           backgroundColor: Colors.orange,
         ),
       );
@@ -131,17 +142,17 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
           ),
         );
       } else {
-        // El error ya se muestra via el listener, pero reforzamos con color rojo
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _controller.errorMessage ??
-                  '❌ No se pudo finalizar. Error interno al guardar datos.',
+        // Si el listener no mostró un error detallado, mostramos un fallback
+        // con código para soporte.
+        if (_controller.errorMessage == null) {
+          final code = AppErrorUtils.newCode(scope: 'INP');
+          ScaffoldMessenger.of(context).showSnackBar(
+            AppErrorUtils.buildErrorSnackBar(
+              message: 'No se pudo finalizar. Error interno al guardar datos.',
+              code: code,
             ),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+          );
+        }
         _controller.clearError();
       }
     }
