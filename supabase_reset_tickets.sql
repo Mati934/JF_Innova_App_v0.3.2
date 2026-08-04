@@ -5,23 +5,41 @@
 -- tomando el siguiente valor de la secuencia `ticket_codigo_seq`.
 -- Este script reinicia esa secuencia para que el proximo ticket sea 0001.
 --
--- Los datos de prueba (tickets, ticket_items, ticket_historial_tomas,
--- ticket_notificaciones) ya fueron borrados via API (service_role_api_key) el
--- 2026-07-07. Solo falta reiniciar la secuencia, que es DDL y requiere
--- correrse manualmente aqui en el SQL Editor de Supabase.
+-- IMPORTANTE:
+-- - Si todavia existen tickets con codigo_ticket asignado, reiniciar la
+--   secuencia por si sola puede provocar codigos repetidos.
+-- - Desde que se agrego hallazgo unico, ahora tambien existen relaciones a
+--   `nc_hallazgos`, `nc_hallazgo_ocurrencias` y opcionalmente
+--   `ticket_item_subsanaciones`.
 --
--- ADVERTENCIA: si en el futuro quedan tickets con correlativos ya asignados,
--- reiniciar la secuencia hara que los proximos tickets repitan esos numeros.
--- Reinicia SOLO si la tabla tickets esta vacia (o asumes el riesgo).
+-- Usa UNA de estas opciones:
+--   OPCION A: reinicio protegido (solo si tickets esta vacia)
+--   OPCION B: borrado total + reinicio real desde 1
 -- =============================================================================
 
-ALTER SEQUENCE public.ticket_codigo_seq RESTART WITH 1;
+-- -----------------------------------------------------------------------------
+-- OPCION A (RECOMENDADA): reinicia solo si la tabla tickets esta vacia.
+-- Si no esta vacia, lanza error y NO toca la secuencia.
+-- -----------------------------------------------------------------------------
+DO $$
+BEGIN
+	IF EXISTS (SELECT 1 FROM public.tickets LIMIT 1) THEN
+		RAISE EXCEPTION
+			'No se puede reiniciar ticket_codigo_seq: la tabla public.tickets no esta vacia.';
+	END IF;
+
+	ALTER SEQUENCE public.ticket_codigo_seq RESTART WITH 1;
+END $$;
 
 -- -----------------------------------------------------------------------------
--- OPCION B (por si necesitas volver a borrar datos + reiniciar en un solo paso
---           la proxima vez). Descomenta si hace falta.
+-- OPCION B (REINICIO REAL DESDE 1): borrar TODO el modulo tickets y reiniciar.
+-- Descomenta este bloque SOLO si quieres partir limpio.
 -- -----------------------------------------------------------------------------
 -- TRUNCATE TABLE public.tickets CASCADE;
+-- -- Si quieres partir limpio tambien en el modelo de hallazgos, descomenta:
+-- -- TRUNCATE TABLE public.nc_hallazgo_ocurrencias CASCADE;
+-- -- TRUNCATE TABLE public.nc_hallazgos CASCADE;
+-- -- TRUNCATE TABLE public.ticket_item_subsanaciones CASCADE;
 -- ALTER SEQUENCE public.ticket_codigo_seq RESTART WITH 1;
 
 -- -----------------------------------------------------------------------------

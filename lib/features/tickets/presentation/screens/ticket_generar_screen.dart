@@ -36,6 +36,7 @@ class _TicketGenerarScreenState extends State<TicketGenerarScreen> {
   String? _yaExisteMensaje;
   int _cantidadNoCumple = 0;
   int _cantidadFotosConObservacion = 0;
+  TicketGeneracionPreview? _preview;
 
   @override
   void initState() {
@@ -45,23 +46,21 @@ class _TicketGenerarScreenState extends State<TicketGenerarScreen> {
 
   Future<void> _verificarTicketExistente() async {
     try {
-      final existente = await _repo.getTicketAutomaticoDeInspeccion(
-        widget.inspeccionId,
-      );
-      if (existente != null) {
-        _yaExisteMensaje =
-            'Ya existe un ticket generado para esta inspección '
-            '(${existente.codigoTicket ?? existente.id}). '
-            'No se puede generar otro automático desde la misma inspección.';
+      final empresaId = UserSession().empresaId;
+      if (empresaId == null) {
+        _yaExisteMensaje = 'No se pudo resolver la empresa activa.';
       } else {
-        final conteo = await _repo.contarObservacionesPotenciales(
-          widget.inspeccionId,
-        );
-        _cantidadNoCumple = conteo.noCumple;
-        _cantidadFotosConObservacion = conteo.fotosConObservacion;
+        final preview = await _repo
+            .previewGeneracionDesdeInspeccionPorHallazgos(
+              widget.inspeccionId,
+              empresaId,
+            );
+        _preview = preview;
+        _cantidadNoCumple = preview.cantidadNoCumple;
+        _cantidadFotosConObservacion = preview.cantidadFotosConObservacion;
       }
     } catch (e) {
-      // Si falla la verificación, se deja continuar; el backend igual lo bloquea.
+      _yaExisteMensaje = 'No se pudo previsualizar la generación: $e';
     } finally {
       if (mounted) setState(() => _verificando = false);
     }
@@ -134,7 +133,7 @@ class _TicketGenerarScreenState extends State<TicketGenerarScreen> {
 
     setState(() => _guardando = true);
     try {
-      final ticket = await _repo.generarDesdeInspeccion(
+      final resultado = await _repo.generarDesdeInspeccionPorHallazgos(
         inspeccionId: widget.inspeccionId,
         empresaId: empresaId,
         generadoPorId: userId,
@@ -145,13 +144,35 @@ class _TicketGenerarScreenState extends State<TicketGenerarScreen> {
         fechaLimite: _conFechaLimite ? _fechaLimite : null,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Ticket generado.')));
+
+      final total = resultado.totalTicketsInvolucrados;
+      if (total == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se encontraron hallazgos NC para generar tickets.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final ticketNavegable = resultado.creados.isNotEmpty
+          ? resultado.creados.first
+          : resultado.reutilizados.first;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Proceso listo: ${resultado.creados.length} ticket(s) creados, '
+            '${resultado.reutilizados.length} reutilizado(s).',
+          ),
+        ),
+      );
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => TicketDetailScreen(ticketId: ticket.id),
+          builder: (_) => TicketDetailScreen(ticketId: ticketNavegable.id),
         ),
       );
     } catch (e) {
@@ -168,115 +189,268 @@ class _TicketGenerarScreenState extends State<TicketGenerarScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const GradientAppBar(title: Text('Generar ticket')),
-      body: _verificando
-          ? const Center(child: CircularProgressIndicator())
-          : _yaExisteMensaje != null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+      body: SafeArea(
+        child: _verificando
+            ? const Center(child: CircularProgressIndicator())
+            : _yaExisteMensaje != null
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 48,
+                        color: Colors.grey.shade500,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(_yaExisteMensaje!, textAlign: TextAlign.center),
+                    ],
+                  ),
+                ),
+              )
+            : Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
                   children: [
-                    Icon(
-                      Icons.info_outline,
-                      size: 48,
-                      color: Colors.grey.shade500,
+                    if (widget.numeroInforme != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'Informe: ${widget.numeroInforme}',
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                      ),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryBlue.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'Se procesarán los "No Cumple" de la inspección con regla de '
+                        'hallazgo único: 1 hallazgo = 1 ticket. Si el hallazgo ya tiene '
+                        'ticket activo, se reutiliza el mismo.',
+                        style: TextStyle(fontSize: 12.5),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (_preview != null) ...[
+                      _PreviewResumen(preview: _preview!),
+                      const SizedBox(height: 16),
+                      if (_preview!.hallazgos
+                          .where((h) => h.seCrearaTicket)
+                          .isNotEmpty)
+                        _PreviewLista(
+                          titulo: 'Se crearán tickets',
+                          color: Colors.green.shade700,
+                          items: _preview!.hallazgos
+                              .where((h) => h.seCrearaTicket)
+                              .toList(),
+                        ),
+                      if (_preview!.hallazgos
+                          .where((h) => h.seCrearaTicket)
+                          .isNotEmpty)
+                        const SizedBox(height: 12),
+                      if (_preview!.hallazgos
+                          .where((h) => !h.seCrearaTicket)
+                          .isNotEmpty)
+                        _PreviewLista(
+                          titulo:
+                              'No se crearán porque ya existe ticket activo',
+                          color: Colors.orange.shade800,
+                          items: _preview!.hallazgos
+                              .where((h) => !h.seCrearaTicket)
+                              .toList(),
+                        ),
+                      if (_preview!.usaFlujoLegacySinNc) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.amber.shade300),
+                          ),
+                          child: const Text(
+                            'Esta inspección no tiene NC con item_id. Si la generas igual, '
+                            'caerá al flujo legacy y se creará un ticket único por fotos con observación.',
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                    ],
+                    TextFormField(
+                      controller: _asuntoCtrl,
+                      maxLength: 60,
+                      decoration: const InputDecoration(
+                        labelText: 'Asunto (opcional)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _motivoCtrl,
+                      maxLines: 5,
+                      decoration: const InputDecoration(
+                        labelText: 'Motivo del ticket *',
+                        hintText: '¿Por qué se genera este ticket?',
+                        border: OutlineInputBorder(),
+                        alignLabelWithHint: true,
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'El motivo es obligatorio'
+                          : null,
                     ),
                     const SizedBox(height: 12),
-                    Text(_yaExisteMensaje!, textAlign: TextAlign.center),
+                    SwitchListTile(
+                      value: _conFechaLimite,
+                      onChanged: (v) => setState(() => _conFechaLimite = v),
+                      title: const Text('Definir fecha límite'),
+                      subtitle: const Text('Desactivada por defecto'),
+                      activeThumbColor: AppTheme.primaryBlue,
+                    ),
+                    if (_conFechaLimite)
+                      ListTile(
+                        leading: const Icon(Icons.event_outlined),
+                        title: Text(
+                          _fechaLimite == null
+                              ? 'Seleccionar fecha'
+                              : '${_fechaLimite!.day}/${_fechaLimite!.month}/${_fechaLimite!.year}',
+                        ),
+                        onTap: _elegirFecha,
+                      ),
+                    const SizedBox(height: 24),
+                    FilledButton.icon(
+                      onPressed: _guardando ? null : _generar,
+                      icon: _guardando
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.confirmation_number_outlined),
+                      label: Text(
+                        _guardando ? 'Procesando…' : 'Generar tickets',
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.primaryBlue,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
                   ],
                 ),
               ),
-            )
-          : Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (widget.numeroInforme != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        'Informe: ${widget.numeroInforme}',
-                        style: TextStyle(color: Colors.grey.shade600),
-                      ),
-                    ),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryBlue.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Text(
-                      'Se armará automáticamente con los "No Cumple" y las fotos con '
-                      'observación de esta inspección. Cada uno quedará como un ítem '
-                      'independiente para ir subsanando por separado.',
-                      style: TextStyle(fontSize: 12.5),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _asuntoCtrl,
-                    maxLength: 60,
-                    decoration: const InputDecoration(
-                      labelText: 'Asunto (opcional)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _motivoCtrl,
-                    maxLines: 5,
-                    decoration: const InputDecoration(
-                      labelText: 'Motivo del ticket *',
-                      hintText: '¿Por qué se genera este ticket?',
-                      border: OutlineInputBorder(),
-                      alignLabelWithHint: true,
-                    ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'El motivo es obligatorio'
-                        : null,
-                  ),
-                  const SizedBox(height: 12),
-                  SwitchListTile(
-                    value: _conFechaLimite,
-                    onChanged: (v) => setState(() => _conFechaLimite = v),
-                    title: const Text('Definir fecha límite'),
-                    subtitle: const Text('Desactivada por defecto'),
-                    activeThumbColor: AppTheme.primaryBlue,
-                  ),
-                  if (_conFechaLimite)
-                    ListTile(
-                      leading: const Icon(Icons.event_outlined),
-                      title: Text(
-                        _fechaLimite == null
-                            ? 'Seleccionar fecha'
-                            : '${_fechaLimite!.day}/${_fechaLimite!.month}/${_fechaLimite!.year}',
-                      ),
-                      onTap: _elegirFecha,
-                    ),
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: _guardando ? null : _generar,
-                    icon: _guardando
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.confirmation_number_outlined),
-                    label: Text(_guardando ? 'Generando…' : 'Generar ticket'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppTheme.primaryBlue,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
-                ],
-              ),
+      ),
+    );
+  }
+}
+
+class _PreviewResumen extends StatelessWidget {
+  final TicketGeneracionPreview preview;
+
+  const _PreviewResumen({required this.preview});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Resumen previo',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade800,
             ),
+          ),
+          const SizedBox(height: 6),
+          Text('Hallazgos NC detectados: ${preview.cantidadNoCumple}'),
+          Text('Tickets nuevos a crear: ${preview.ticketsNuevos}'),
+          Text(
+            'Hallazgos con ticket activo existente: ${preview.ticketsReutilizados}',
+          ),
+          if (preview.cantidadFotosConObservacion > 0)
+            Text(
+              'Fotos con observación: ${preview.cantidadFotosConObservacion}',
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreviewLista extends StatelessWidget {
+  final String titulo;
+  final Color color;
+  final List<TicketGeneracionPreviewItem> items;
+
+  const _PreviewLista({
+    required this.titulo,
+    required this.color,
+    required this.items,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+            child: Text(
+              titulo,
+              style: TextStyle(fontWeight: FontWeight.bold, color: color),
+            ),
+          ),
+          ...items.map(
+            (item) => ListTile(
+              dense: true,
+              leading: CircleAvatar(
+                radius: 16,
+                backgroundColor: color.withValues(alpha: 0.12),
+                child: Text(
+                  item.numeroPregunta?.toString() ?? 'NC',
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+              title: Text(item.pregunta),
+              subtitle: Text(
+                [
+                  if (item.categoria != null && item.categoria!.isNotEmpty)
+                    item.categoria!,
+                  if (item.observacion != null && item.observacion!.isNotEmpty)
+                    item.observacion!,
+                  if (item.ticketActivoExistente != null)
+                    'Ticket: ${item.ticketActivoExistente!.codigoTicket ?? item.ticketActivoExistente!.id}',
+                ].join(' · '),
+              ),
+              trailing: item.seCrearaTicket
+                  ? Icon(Icons.add_circle_outline, color: color)
+                  : Icon(Icons.link, color: color),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

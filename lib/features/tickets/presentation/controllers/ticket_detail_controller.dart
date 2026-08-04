@@ -26,6 +26,7 @@ class TicketDetailController extends ChangeNotifier {
   Map<String, String> nombresUsuarios = {};
   String? nombreCentro;
   String? nombreEmbarcacion;
+  String? pdfUrlInspeccion;
 
   TicketDetailController(this.ticketId) {
     cargar();
@@ -93,6 +94,9 @@ class TicketDetailController extends ChangeNotifier {
       ticket = t;
       items = its;
       historial = hist;
+      pdfUrlInspeccion = t.inspeccionId != null
+          ? await _repo.getPdfUrlInspeccion(t.inspeccionId!)
+          : null;
       nombresUsuarios = await _repo.getNombresUsuarios(ids);
       nombreCentro = t.centroId != null
           ? (await _repo.getNombresCentros([t.centroId!]))[t.centroId!]

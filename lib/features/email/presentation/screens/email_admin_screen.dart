@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/safe_area_utils.dart';
+import '../../../../shared/widgets/custom_dropdown.dart';
 import '../../services/email_admin_service.dart';
 
 class EmailAdminScreen extends StatefulWidget {
@@ -37,6 +38,7 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
   List<Map<String, dynamic>> _lists = const [];
   List<Map<String, dynamic>> _configs = const [];
   List<Map<String, dynamic>> _users = const [];
+  List<Map<String, dynamic>> _empresas = const [];
   List<Map<String, dynamic>> _assignments = const [];
 
   final Map<String, List<Map<String, dynamic>>> _recipientsCache = {};
@@ -87,6 +89,7 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
       final lists = await _service.getLists();
       final configs = await _service.getConfigs();
       final users = await _service.getUsers();
+      final empresas = await _service.getEmpresas();
       final assignments = await _service.getAssignments();
 
       if (!mounted) return;
@@ -95,6 +98,7 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
         _lists = lists;
         _configs = configs;
         _users = users;
+        _empresas = empresas;
         _assignments = assignments;
       });
     } finally {
@@ -108,13 +112,95 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
     setState(() => _recipientsCache[listaId] = recipients);
   }
 
+  String _empresaLabel(Map<String, dynamic> empresa) {
+    final nombre = empresa['nombre']?.toString().trim() ?? '';
+    final rut = empresa['rut']?.toString().trim() ?? '';
+    if (nombre.isEmpty && rut.isEmpty) return 'Empresa';
+    if (rut.isEmpty) return nombre;
+    if (nombre.isEmpty) return rut;
+    return '$nombre ($rut)';
+  }
+
+  String _empresaDisplayFromId(dynamic empresaId) {
+    final id = empresaId?.toString() ?? '';
+    if (id.isEmpty) return 'Todas las empresas';
+    for (final empresa in _empresas) {
+      if (empresa['id']?.toString() == id) {
+        return _empresaLabel(empresa);
+      }
+    }
+    return 'ID $id';
+  }
+
+  List<String> _buildModuloOptions() {
+    final base = <String>{
+      'inspeccion',
+      'visita_r003',
+      'visita_r004',
+      'extintores',
+      'mantencion_prosesso',
+      'prosesso',
+      'hidroser',
+      'hidroser_grua_horquilla',
+      'hidroser_soldadora',
+      'ast',
+      'buceo_equipamiento',
+      'tickets',
+      'buceo',
+      'merieux_visitas',
+      'merieux_extintores',
+    };
+
+    for (final t in _templates) {
+      final m = t['modulo']?.toString().trim() ?? '';
+      if (m.isNotEmpty) base.add(m);
+    }
+    for (final c in _configs) {
+      final m = c['modulo']?.toString().trim() ?? '';
+      if (m.isNotEmpty) base.add(m);
+    }
+
+    final list = base.toList()..sort();
+    return list;
+  }
+
+  Widget _buildTutorialBox(String title, List<String> tips) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryBlue.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.primaryBlue.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.tips_and_updates_outlined, size: 16),
+              const SizedBox(width: 6),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...tips.map(
+            (tip) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text('• $tip', style: const TextStyle(fontSize: 13)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showTemplateDialog({Map<String, dynamic>? row}) async {
     final nombreCtrl = TextEditingController(
       text: row?['nombre']?.toString() ?? '',
     );
-    final moduloCtrl = TextEditingController(
-      text: row?['modulo']?.toString() ?? '',
-    );
+    String modulo = row?['modulo']?.toString() ?? '';
+    final moduloOptions = _buildModuloOptions();
     final asuntoCtrl = TextEditingController(
       text: row?['asunto_template']?.toString() ?? '',
     );
@@ -141,16 +227,24 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
             ctx,
             maxWidth: 620,
             children: [
+              _buildTutorialBox('Como crear un modelo', const [
+                'Nombre: usa algo claro, por ejemplo "Hidroser - Informe final".',
+                'Modulo: define en que proceso se aplica este correo.',
+                'Puedes usar variables en asunto y cuerpo para completar datos automaticamente.',
+              ]),
               TextField(
                 controller: nombreCtrl,
                 decoration: const InputDecoration(labelText: 'Nombre'),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: moduloCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Proceso o formulario (ej: hidroser)',
-                ),
+              CustomDropdown(
+                label: 'Proceso o formulario',
+                icon: Icons.work_outline_rounded,
+                items: moduloOptions,
+                value: modulo.isEmpty ? null : modulo,
+                hintText: 'Selecciona o agrega un modulo',
+                onChanged: (v) => setLocalState(() => modulo = v ?? ''),
+                onAddNew: (text) => setLocalState(() => modulo = text),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -204,7 +298,7 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
       nombre: nombreCtrl.text,
       asuntoTemplate: asuntoCtrl.text,
       cuerpoTemplate: cuerpoCtrl.text,
-      modulo: moduloCtrl.text,
+      modulo: modulo,
       variablesPermitidas: varsCtrl.text,
       activo: activo,
     );
@@ -234,6 +328,10 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
             ctx,
             maxWidth: 560,
             children: [
+              _buildTutorialBox('Como crear una lista', const [
+                'Agrupa correos por objetivo: operacion, cliente o respaldo.',
+                'Usa nombres cortos y un proposito entendible para todo el equipo.',
+              ]),
               TextField(
                 controller: nombreCtrl,
                 decoration: const InputDecoration(labelText: 'Nombre'),
@@ -289,6 +387,7 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
       text: row?['correo']?.toString() ?? '',
     );
     String tipo = row?['tipo_sugerido']?.toString() ?? 'to';
+    const tipoOptions = ['TO', 'CC', 'CCO'];
     bool activo = (row?['activo'] as int? ?? 1) == 1;
 
     final save = await showDialog<bool>(
@@ -306,6 +405,10 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
             ctx,
             maxWidth: 560,
             children: [
+              _buildTutorialBox('Como agregar destinatarios', const [
+                'TO: receptor principal. CC: copia visible. CCO: copia oculta.',
+                'Puedes crear listas por cliente o por tipo de proceso.',
+              ]),
               TextField(
                 controller: nombreCtrl,
                 decoration: const InputDecoration(labelText: 'Nombre'),
@@ -316,18 +419,13 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
                 decoration: const InputDecoration(labelText: 'Correo'),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: tipo,
-                isExpanded: true,
-                items: const [
-                  DropdownMenuItem(value: 'to', child: Text('TO')),
-                  DropdownMenuItem(value: 'cc', child: Text('CC')),
-                  DropdownMenuItem(value: 'cco', child: Text('CCO')),
-                ],
-                onChanged: (v) => setLocalState(() => tipo = v ?? 'to'),
-                decoration: const InputDecoration(
-                  labelText: 'Tipo de envio sugerido',
-                ),
+              CustomDropdown(
+                label: 'Tipo de envio sugerido',
+                items: tipoOptions,
+                value: tipo.toUpperCase(),
+                enableSearch: false,
+                onChanged: (v) =>
+                    setLocalState(() => tipo = (v ?? 'TO').toLowerCase()),
               ),
               const SizedBox(height: 8),
               SwitchListTile(
@@ -367,17 +465,59 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
   }
 
   Future<void> _showConfigDialog({Map<String, dynamic>? row}) async {
-    final moduloCtrl = TextEditingController(
-      text: row?['modulo']?.toString() ?? '',
-    );
-    final empresaCtrl = TextEditingController(
-      text: row?['empresa_id']?.toString() ?? '',
-    );
+    String modulo = row?['modulo']?.toString() ?? '';
+    final moduloOptions = _buildModuloOptions();
+
+    final templateNameById = {
+      for (final t in _templates)
+        t['id'].toString(): (t['nombre']?.toString() ?? 'Modelo de correo'),
+    };
+    final listNameById = {
+      for (final l in _lists)
+        l['id'].toString(): (l['nombre']?.toString() ?? 'Lista'),
+    };
+
+    final templateOptions = _templates
+        .map((t) => t['nombre']?.toString() ?? 'Modelo de correo')
+        .toList();
+    final listOptions = _lists
+        .map((l) => l['nombre']?.toString() ?? 'Lista')
+        .toList();
+
+    final empresaLabelById = <String, String>{};
+    final empresaIdByLabel = <String, String>{};
+    for (final e in _empresas) {
+      final id = e['id']?.toString() ?? '';
+      if (id.isEmpty) continue;
+      final label = _empresaLabel(e);
+      empresaLabelById[id] = label;
+      empresaIdByLabel[label] = id;
+    }
+
+    const todasEmpresasLabel = 'Todas las empresas';
+    final empresaOptions = <String>[
+      todasEmpresasLabel,
+      ...empresaIdByLabel.keys,
+    ];
+
     final prioridadCtrl = TextEditingController(
       text: (row?['prioridad'] ?? 0).toString(),
     );
     String? plantillaId = row?['plantilla_id']?.toString();
     String? listaId = row?['lista_id']?.toString();
+    String selectedTemplate = plantillaId == null
+        ? ''
+        : (templateNameById[plantillaId] ?? '');
+    String selectedList = listaId == null ? '' : (listNameById[listaId] ?? '');
+
+    final currentEmpresaId = row?['empresa_id']?.toString() ?? '';
+    String selectedEmpresa = currentEmpresaId.isEmpty
+        ? todasEmpresasLabel
+        : (empresaLabelById[currentEmpresaId] ?? 'ID $currentEmpresaId');
+    if (!empresaOptions.contains(selectedEmpresa)) {
+      empresaOptions.add(selectedEmpresa);
+    }
+
     bool activo = (row?['activo'] as int? ?? 1) == 1;
 
     final save = await showDialog<bool>(
@@ -395,86 +535,60 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
             ctx,
             maxWidth: 620,
             children: [
-              TextField(
-                controller: moduloCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Proceso o formulario',
-                  helperText:
-                      'Ej: hidroser, hidroser_grua_horquilla, visita_r003',
-                ),
+              _buildTutorialBox('Como crear una regla', const [
+                'Selecciona modulo, modelo y lista para definir que se enviara.',
+                'Empresa es opcional: "Todas las empresas" aplica como regla general.',
+                'Prioridad menor gana primero: 0 se evalua antes que 1.',
+              ]),
+              CustomDropdown(
+                label: 'Proceso o formulario',
+                icon: Icons.work_outline_rounded,
+                items: moduloOptions,
+                value: modulo.isEmpty ? null : modulo,
+                hintText: 'Ej: hidroser, ast, tickets',
+                onChanged: (v) => setLocalState(() => modulo = v ?? ''),
+                onAddNew: (text) => setLocalState(() => modulo = text),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: plantillaId,
-                isExpanded: true,
-                items: _templates
-                    .map(
-                      (t) => DropdownMenuItem<String>(
-                        value: t['id'].toString(),
-                        child: Text(
-                          t['nombre']?.toString() ?? 'Modelo de correo',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    )
-                    .toList(),
-                selectedItemBuilder: (context) => _templates
-                    .map(
-                      (t) => Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          t['nombre']?.toString() ?? 'Modelo de correo',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setLocalState(() => plantillaId = v),
-                decoration: const InputDecoration(
-                  labelText: 'Modelo de correo',
-                ),
+              CustomDropdown(
+                label: 'Modelo de correo',
+                icon: Icons.description_outlined,
+                items: templateOptions,
+                value: selectedTemplate.isEmpty ? null : selectedTemplate,
+                onChanged: (name) => setLocalState(() {
+                  selectedTemplate = name ?? '';
+                  plantillaId = templateNameById.entries
+                      .firstWhere(
+                        (entry) => entry.value == selectedTemplate,
+                        orElse: () => const MapEntry('', ''),
+                      )
+                      .key;
+                }),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: listaId,
-                isExpanded: true,
-                items: _lists
-                    .map(
-                      (l) => DropdownMenuItem<String>(
-                        value: l['id'].toString(),
-                        child: Text(
-                          l['nombre']?.toString() ?? 'Lista',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    )
-                    .toList(),
-                selectedItemBuilder: (context) => _lists
-                    .map(
-                      (l) => Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          l['nombre']?.toString() ?? 'Lista',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setLocalState(() => listaId = v),
-                decoration: const InputDecoration(
-                  labelText: 'Lista de destinatarios',
-                ),
+              CustomDropdown(
+                label: 'Lista de destinatarios',
+                icon: Icons.groups_outlined,
+                items: listOptions,
+                value: selectedList.isEmpty ? null : selectedList,
+                onChanged: (name) => setLocalState(() {
+                  selectedList = name ?? '';
+                  listaId = listNameById.entries
+                      .firstWhere(
+                        (entry) => entry.value == selectedList,
+                        orElse: () => const MapEntry('', ''),
+                      )
+                      .key;
+                }),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: empresaCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Empresa (ID opcional)',
-                  helperText: 'Vacio = aplica a todas',
+              CustomDropdown(
+                label: 'Empresa',
+                icon: Icons.business_outlined,
+                items: empresaOptions,
+                value: selectedEmpresa,
+                onChanged: (v) => setLocalState(
+                  () => selectedEmpresa = v ?? todasEmpresasLabel,
                 ),
               ),
               const SizedBox(height: 12),
@@ -508,14 +622,22 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
       ),
     );
 
-    if (save != true || plantillaId == null || listaId == null) return;
+    if (save != true ||
+        plantillaId == null ||
+        listaId == null ||
+        plantillaId!.isEmpty ||
+        listaId!.isEmpty) {
+      return;
+    }
 
     await _service.upsertConfig(
       id: row?['id']?.toString(),
-      modulo: moduloCtrl.text,
+      modulo: modulo,
       plantillaId: plantillaId!,
       listaId: listaId!,
-      empresaId: empresaCtrl.text,
+      empresaId: selectedEmpresa == todasEmpresasLabel
+          ? ''
+          : (empresaIdByLabel[selectedEmpresa] ?? ''),
       prioridad: int.tryParse(prioridadCtrl.text) ?? 0,
       activo: activo,
     );
@@ -527,6 +649,46 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
     String? usuarioId = row?['usuario_id']?.toString();
     String? configId = row?['config_id']?.toString();
     String? listaId = row?['lista_id']?.toString();
+
+    final userNameById = {
+      for (final u in _users)
+        u['id'].toString(): ((u['nombre_completo'] ?? '').toString().isNotEmpty)
+            ? (u['nombre_completo'] ?? '').toString()
+            : (u['email']?.toString() ?? 'Usuario'),
+    };
+    final configNameById = {
+      for (final c in _configs)
+        c['id'].toString():
+            '${c['modulo']} · ${c['template_nombre'] ?? 'Modelo de correo'}',
+    };
+    final listNameById = {
+      for (final l in _lists)
+        l['id'].toString(): (l['nombre']?.toString() ?? 'Lista'),
+    };
+
+    const sinRegla = 'Sin regla';
+    const sinLista = 'Sin lista';
+
+    String selectedUser = usuarioId == null
+        ? ''
+        : (userNameById[usuarioId] ?? '');
+    String selectedRule = configId == null
+        ? sinRegla
+        : (configNameById[configId] ?? sinRegla);
+    String selectedList = listaId == null
+        ? sinLista
+        : (listNameById[listaId] ?? sinLista);
+
+    final userOptions = _users
+        .map(
+          (u) => ((u['nombre_completo'] ?? '').toString().isNotEmpty)
+              ? (u['nombre_completo'] ?? '').toString()
+              : (u['email']?.toString() ?? 'Usuario'),
+        )
+        .toList();
+    final ruleOptions = <String>[sinRegla, ...configNameById.values];
+    final listOptions = <String>[sinLista, ...listNameById.values];
+
     bool activo = (row?['activo'] as int? ?? 1) == 1;
 
     final save = await showDialog<bool>(
@@ -546,133 +708,67 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
             ctx,
             maxWidth: 620,
             children: [
-              DropdownButtonFormField<String>(
-                initialValue: usuarioId,
-                isExpanded: true,
-                items: _users
-                    .map(
-                      (u) => DropdownMenuItem<String>(
-                        value: u['id'].toString(),
-                        child: Text(
-                          ((u['nombre_completo'] ?? '').toString().isNotEmpty)
-                              ? (u['nombre_completo'] ?? '').toString()
-                              : (u['email']?.toString() ?? 'Usuario'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    )
-                    .toList(),
-                selectedItemBuilder: (context) => _users
-                    .map(
-                      (u) => Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          ((u['nombre_completo'] ?? '').toString().isNotEmpty)
-                              ? (u['nombre_completo'] ?? '').toString()
-                              : (u['email']?.toString() ?? 'Usuario'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setLocalState(() => usuarioId = v),
-                decoration: const InputDecoration(labelText: 'Usuario'),
+              _buildTutorialBox('Como funciona permisos', const [
+                'Usuario es obligatorio para definir a quien aplica.',
+                'Regla y lista son opcionales: si no defines una, se usa la configuracion general.',
+                'Activa/desactiva sin borrar para cambios temporales.',
+              ]),
+              CustomDropdown(
+                label: 'Usuario',
+                icon: Icons.person_outline,
+                items: userOptions,
+                value: selectedUser.isEmpty ? null : selectedUser,
+                onChanged: (name) => setLocalState(() {
+                  selectedUser = name ?? '';
+                  usuarioId = userNameById.entries
+                      .firstWhere(
+                        (entry) => entry.value == selectedUser,
+                        orElse: () => const MapEntry('', ''),
+                      )
+                      .key;
+                }),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: configId ?? '',
-                isExpanded: true,
-                items: [
-                  const DropdownMenuItem<String>(
-                    value: '',
-                    child: Text('Sin regla'),
-                  ),
-                  ..._configs.map(
-                    (c) => DropdownMenuItem<String>(
-                      value: c['id'].toString(),
-                      child: Text(
-                        '${c['modulo']} · ${c['template_nombre'] ?? 'Modelo de correo'}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                ],
-                selectedItemBuilder: (context) => [
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Sin regla',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  ..._configs.map(
-                    (c) => Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        '${c['modulo']} · ${c['template_nombre'] ?? 'Modelo de correo'}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                ],
-                onChanged: (v) => setLocalState(
-                  () => configId = (v == null || v.isEmpty) ? null : v,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Regla de envio (opcional)',
-                ),
+              CustomDropdown(
+                label: 'Regla de envio (opcional)',
+                icon: Icons.alt_route_rounded,
+                items: ruleOptions,
+                value: selectedRule,
+                onChanged: (name) => setLocalState(() {
+                  selectedRule = name ?? sinRegla;
+                  configId = selectedRule == sinRegla
+                      ? null
+                      : configNameById.entries
+                            .firstWhere(
+                              (entry) => entry.value == selectedRule,
+                              orElse: () => const MapEntry('', ''),
+                            )
+                            .key;
+                  if (configId != null && configId!.isEmpty) {
+                    configId = null;
+                  }
+                }),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: listaId ?? '',
-                isExpanded: true,
-                items: [
-                  const DropdownMenuItem<String>(
-                    value: '',
-                    child: Text('Sin lista'),
-                  ),
-                  ..._lists.map(
-                    (l) => DropdownMenuItem<String>(
-                      value: l['id'].toString(),
-                      child: Text(
-                        l['nombre']?.toString() ?? 'Lista',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                ],
-                selectedItemBuilder: (context) => [
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Sin lista',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  ..._lists.map(
-                    (l) => Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        l['nombre']?.toString() ?? 'Lista',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                ],
-                onChanged: (v) => setLocalState(
-                  () => listaId = (v == null || v.isEmpty) ? null : v,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Lista (opcional)',
-                ),
+              CustomDropdown(
+                label: 'Lista (opcional)',
+                icon: Icons.rule_folder_outlined,
+                items: listOptions,
+                value: selectedList,
+                onChanged: (name) => setLocalState(() {
+                  selectedList = name ?? sinLista;
+                  listaId = selectedList == sinLista
+                      ? null
+                      : listNameById.entries
+                            .firstWhere(
+                              (entry) => entry.value == selectedList,
+                              orElse: () => const MapEntry('', ''),
+                            )
+                            .key;
+                  if (listaId != null && listaId!.isEmpty) {
+                    listaId = null;
+                  }
+                }),
               ),
               const SizedBox(height: 8),
               SwitchListTile(
@@ -974,6 +1070,10 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
             _InfoTag(
               icon: Icons.groups_outlined,
               label: 'Lista: ${row['lista_nombre'] ?? '-'}',
+            ),
+            _InfoTag(
+              icon: Icons.business_outlined,
+              label: 'Empresa: ${_empresaDisplayFromId(row['empresa_id'])}',
             ),
             _InfoTag(
               icon: Icons.flag_outlined,

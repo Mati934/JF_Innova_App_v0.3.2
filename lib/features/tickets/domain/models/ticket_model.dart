@@ -75,6 +75,7 @@ class TicketModel {
   final TicketOrigen origen;
   final TicketTipo tipoTicket;
   final String? inspeccionId;
+  final String? hallazgoId;
   final String? tipoInspeccion;
   final String? numeroInforme;
   final String? areaId;
@@ -105,6 +106,7 @@ class TicketModel {
     required this.origen,
     required this.tipoTicket,
     this.inspeccionId,
+    this.hallazgoId,
     this.tipoInspeccion,
     this.numeroInforme,
     this.areaId,
@@ -152,6 +154,7 @@ class TicketModel {
       origen: TicketOrigen.fromValue(map['origen'] as String?),
       tipoTicket: TicketTipo.fromValue(map['tipo_ticket'] as String?),
       inspeccionId: map['inspeccion_id'] as String?,
+      hallazgoId: map['hallazgo_id'] as String?,
       tipoInspeccion: map['tipo_inspeccion'] as String?,
       numeroInforme: map['numero_informe'] as String?,
       areaId: map['area_id'] as String?,
@@ -198,6 +201,7 @@ class TicketModel {
       'origen': origen.value,
       'tipo_ticket': tipoTicket.value,
       'inspeccion_id': inspeccionId,
+      'hallazgo_id': hallazgoId,
       'tipo_inspeccion': tipoInspeccion,
       'numero_informe': numeroInforme,
       'area_id': areaId,

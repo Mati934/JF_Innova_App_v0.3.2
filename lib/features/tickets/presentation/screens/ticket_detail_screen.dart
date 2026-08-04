@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/gradient_app_bar.dart';
@@ -367,6 +368,10 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             t.motivo,
             style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
           ),
+          if (_ctrl.pdfUrlInspeccion != null) ...[
+            const SizedBox(height: 12),
+            _TicketPdfButton(pdfUrl: _ctrl.pdfUrlInspeccion!),
+          ],
           if (infoItems.isNotEmpty) ...[
             const Divider(height: 22),
             _buildInfoGrid(infoItems),
@@ -694,6 +699,55 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _TicketPdfButton extends StatefulWidget {
+  final String pdfUrl;
+
+  const _TicketPdfButton({required this.pdfUrl});
+
+  @override
+  State<_TicketPdfButton> createState() => _TicketPdfButtonState();
+}
+
+class _TicketPdfButtonState extends State<_TicketPdfButton> {
+  bool _opening = false;
+
+  Future<void> _openPdf() async {
+    setState(() => _opening = true);
+    try {
+      final uri = Uri.parse(widget.pdfUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo abrir el PDF del informe.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _opening = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: _opening ? null : _openPdf,
+      icon: _opening
+          ? const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.picture_as_pdf_outlined, size: 18),
+      label: const Text('Ver PDF del informe'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: Colors.red.shade700,
+        side: BorderSide(color: Colors.red.shade200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
     );
   }

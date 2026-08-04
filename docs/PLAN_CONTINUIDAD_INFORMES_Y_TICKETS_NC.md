@@ -344,6 +344,21 @@ Para arrancar sin frenar operación:
 - Si reaparece con ticket cerrado: ticket nuevo.
 - Si cambia empresa/contratista: no heredar ticket anterior; registrar nueva responsabilidad en la empresa vigente.
 
+## 15) Verificación de aplicación real (2026-08-03)
+
+Estado verificado en código y migraciones del repo:
+- La estrategia de hallazgo único está definida en este documento, pero NO está implementada aún en producción.
+- No existen tablas `nc_hallazgos` ni `nc_hallazgo_ocurrencias` en migraciones SQL aplicables.
+- No hay enlace operativo `hallazgo_id` en la creación automática de tickets actual.
+- El flujo actual de tickets sigue siendo por inspección (`inspeccion_id`) y no por hallazgo deduplicado.
+
+Evidencia guardada en repo (minibase de validación):
+- `docs/data/hallazgos_unicos_aquachile_snapshot_2026-08-03.json`
+
+Diseño técnico completo para implementación:
+- `docs/IMPLEMENTACION_HALLAZGO_UNICO_NC.md`
+- `supabase_migration_nc_hallazgos_unicos_v1.sql`
+
 ---
 
 Documento vivo.

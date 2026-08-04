@@ -154,6 +154,11 @@ class EmailAdminService {
     return db.query('usuarios', orderBy: 'nombre_completo ASC');
   }
 
+  Future<List<Map<String, dynamic>>> getEmpresas() async {
+    final db = await _dbHelper.database;
+    return db.query('empresas', orderBy: 'nombre ASC');
+  }
+
   Future<List<Map<String, dynamic>>> getAssignments() async {
     final db = await _dbHelper.database;
     return db.rawQuery('''

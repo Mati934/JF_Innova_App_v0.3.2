@@ -17,6 +17,63 @@ class TicketAccionFallidaException implements Exception {
   String toString() => mensaje;
 }
 
+/// Resultado agregado de la generación automática por hallazgos únicos.
+class TicketGeneracionResultado {
+  final List<TicketModel> creados;
+  final List<TicketModel> reutilizados;
+  final int respuestasNcProcesadas;
+
+  const TicketGeneracionResultado({
+    required this.creados,
+    required this.reutilizados,
+    required this.respuestasNcProcesadas,
+  });
+
+  int get totalTicketsInvolucrados => creados.length + reutilizados.length;
+}
+
+class TicketGeneracionPreviewItem {
+  final String itemId;
+  final String pregunta;
+  final String? categoria;
+  final int? numeroPregunta;
+  final String? observacion;
+  final String? hallazgoId;
+  final TicketModel? ticketActivoExistente;
+
+  const TicketGeneracionPreviewItem({
+    required this.itemId,
+    required this.pregunta,
+    this.categoria,
+    this.numeroPregunta,
+    this.observacion,
+    this.hallazgoId,
+    this.ticketActivoExistente,
+  });
+
+  bool get seCrearaTicket => ticketActivoExistente == null;
+}
+
+class TicketGeneracionPreview {
+  final List<TicketGeneracionPreviewItem> hallazgos;
+  final int cantidadNoCumple;
+  final int cantidadFotosConObservacion;
+  final bool usaFlujoLegacySinNc;
+
+  const TicketGeneracionPreview({
+    required this.hallazgos,
+    required this.cantidadNoCumple,
+    required this.cantidadFotosConObservacion,
+    required this.usaFlujoLegacySinNc,
+  });
+
+  int get ticketsNuevos =>
+      hallazgos.where((hallazgo) => hallazgo.seCrearaTicket).length;
+
+  int get ticketsReutilizados =>
+      hallazgos.where((hallazgo) => !hallazgo.seCrearaTicket).length;
+}
+
 /// Repositorio 100% online del módulo de Tickets (ver docs/PLAN_TICKETS_MVP.md).
 /// No existen tablas `_pendientes` en SQLite: todo se lee/escribe directo en
 /// Supabase. La visibilidad por empresa/admin la aplica RLS en el servidor.
@@ -45,8 +102,9 @@ class TicketRepository {
       query = query.eq('tipo_inspeccion', tipoInspeccion);
     }
     if (centroId != null) query = query.eq('centro_id', centroId);
-    if (embarcacionId != null)
+    if (embarcacionId != null) {
       query = query.eq('embarcacion_id', embarcacionId);
+    }
     if (areaId != null) query = query.eq('area_id', areaId);
     if (contratistaId != null) {
       query = query.eq('contratista_id', contratistaId);
@@ -66,6 +124,15 @@ class TicketRepository {
         .maybeSingle();
     if (row == null) return null;
     return TicketModel.fromMap(row);
+  }
+
+  Future<String?> getPdfUrlInspeccion(String inspeccionId) async {
+    final row = await _client
+        .from('actividades')
+        .select('pdf_url')
+        .eq('id', inspeccionId)
+        .maybeSingle();
+    return row?['pdf_url'] as String?;
   }
 
   /// Ticket automático ya existente para una inspección (si lo hay). Ignora
@@ -226,9 +293,552 @@ class TicketRepository {
   // CREACIÓN
   // ---------------------------------------------------------------------
 
+  /// Previsualiza qué hallazgos crearán ticket nuevo y cuáles ya tienen un
+  /// ticket activo asociado.
+  Future<TicketGeneracionPreview> previewGeneracionDesdeInspeccionPorHallazgos(
+    String inspeccionId,
+    String empresaId,
+  ) async {
+    final conteo = await contarObservacionesPotenciales(inspeccionId);
+
+    final actividad = await _client
+        .from('actividades')
+        .select('id, tipo_actividad, centro_id, embarcacion_id')
+        .eq('id', inspeccionId)
+        .maybeSingle();
+    if (actividad == null) {
+      throw TicketAccionFallidaException(
+        'No se encontró la inspección indicada.',
+      );
+    }
+
+    final tipoInspeccion = actividad['tipo_actividad'] as String?;
+    final centroId = actividad['centro_id'] as String?;
+    final embarcacionId = actividad['embarcacion_id'] as String?;
+    if (tipoInspeccion == null || tipoInspeccion.isEmpty) {
+      throw TicketAccionFallidaException(
+        'La inspección no tiene tipo de actividad válido.',
+      );
+    }
+
+    final respuestasNc = await _client
+        .from('inspeccion_respuestas')
+        .select('id, item_id, observacion')
+        .eq('actividad_id', inspeccionId)
+        .eq('estado', 'NC');
+
+    final ncRows = (respuestasNc as List)
+        .cast<Map<String, dynamic>>()
+        .where((row) => row['item_id'] != null)
+        .toList();
+
+    if (ncRows.isEmpty) {
+      return TicketGeneracionPreview(
+        hallazgos: const [],
+        cantidadNoCumple: conteo.noCumple,
+        cantidadFotosConObservacion: conteo.fotosConObservacion,
+        usaFlujoLegacySinNc: conteo.fotosConObservacion > 0,
+      );
+    }
+
+    if (embarcacionId == null && centroId == null) {
+      throw TicketAccionFallidaException(
+        'No se puede previsualizar continuidad del hallazgo: '
+        'la inspección no tiene embarcación ni centro asociado.',
+      );
+    }
+
+    final itemIds = ncRows
+        .map((row) => row['item_id'] as String)
+        .toSet()
+        .toList(growable: false);
+    final preguntas = await _client
+        .from('formulario_items')
+        .select('id, pregunta, categoria, orden')
+        .inFilter('id', itemIds);
+    final preguntasPorItemId = {
+      for (final p in (preguntas as List))
+        (p['id'] as String): (
+          pregunta: p['pregunta'] as String? ?? 'Ítem sin descripción',
+          categoria: p['categoria'] as String?,
+          orden: p['orden'] as int?,
+        ),
+    };
+
+    final previewItems = <TicketGeneracionPreviewItem>[];
+    final ticketsCache = <String, TicketModel>{};
+    final dedupeMode = embarcacionId != null
+        ? 'EMBARCACION'
+        : 'CENTRO_FALLBACK';
+
+    for (final row in ncRows) {
+      final itemId = row['item_id'] as String;
+      final info = preguntasPorItemId[itemId];
+      final rowsHallazgo = embarcacionId != null
+          ? await _client
+                .from('nc_hallazgos')
+                .select('id')
+                .eq('empresa_id', empresaId)
+                .eq('tipo_actividad', tipoInspeccion)
+                .eq('item_id', itemId)
+                .eq('dedupe_mode', dedupeMode)
+                .eq('embarcacion_id', embarcacionId)
+                .inFilter('estado_hallazgo', ['ABIERTO', 'EN_SEGUIMIENTO'])
+                .limit(1)
+          : await _client
+                .from('nc_hallazgos')
+                .select('id')
+                .eq('empresa_id', empresaId)
+                .eq('tipo_actividad', tipoInspeccion)
+                .eq('item_id', itemId)
+                .eq('dedupe_mode', dedupeMode)
+                .eq('centro_id', centroId!)
+                .inFilter('estado_hallazgo', ['ABIERTO', 'EN_SEGUIMIENTO'])
+                .limit(1);
+
+      String? hallazgoId;
+      TicketModel? existente;
+      if (rowsHallazgo.isNotEmpty) {
+        hallazgoId = rowsHallazgo.first['id'] as String;
+        if (!ticketsCache.containsKey(hallazgoId)) {
+          final ticketActivoRows = await _client
+              .from('tickets')
+              .select()
+              .eq('hallazgo_id', hallazgoId)
+              .eq('eliminado', false)
+              .neq('estado', TicketEstado.cerrado.value)
+              .limit(1);
+          if (ticketActivoRows.isNotEmpty) {
+            ticketsCache[hallazgoId] = TicketModel.fromMap(
+              ticketActivoRows.first as Map<String, dynamic>,
+            );
+          }
+        }
+        existente = ticketsCache[hallazgoId];
+      }
+
+      previewItems.add(
+        TicketGeneracionPreviewItem(
+          itemId: itemId,
+          pregunta: info?.pregunta ?? 'Ítem sin descripción',
+          categoria: info?.categoria,
+          numeroPregunta: info?.orden,
+          observacion: (row['observacion'] as String?)?.trim(),
+          hallazgoId: hallazgoId,
+          ticketActivoExistente: existente,
+        ),
+      );
+    }
+
+    return TicketGeneracionPreview(
+      hallazgos: previewItems,
+      cantidadNoCumple: conteo.noCumple,
+      cantidadFotosConObservacion: conteo.fotosConObservacion,
+      usaFlujoLegacySinNc: false,
+    );
+  }
+
   /// Genera el ticket automático de tipo REVISION_OBSERVACIONES a partir de
   /// una inspección de buceo/embarcación ya finalizada.
   Future<TicketModel> generarDesdeInspeccion({
+    required String inspeccionId,
+    required String empresaId,
+    required String generadoPorId,
+    required String motivo,
+    String? asunto,
+    DateTime? fechaLimite,
+  }) async {
+    final resultado = await generarDesdeInspeccionPorHallazgos(
+      inspeccionId: inspeccionId,
+      empresaId: empresaId,
+      generadoPorId: generadoPorId,
+      motivo: motivo,
+      asunto: asunto,
+      fechaLimite: fechaLimite,
+    );
+
+    if (resultado.creados.isNotEmpty) {
+      return resultado.creados.first;
+    }
+    if (resultado.reutilizados.isNotEmpty) {
+      return resultado.reutilizados.first;
+    }
+    throw TicketAccionFallidaException(
+      'No se encontraron hallazgos NC para generar tickets automáticos.',
+    );
+  }
+
+  /// Nuevo flujo: 1 hallazgo NC = 1 ticket.
+  ///
+  /// - Si el hallazgo ya existe y tiene ticket activo, reutiliza ese ticket.
+  /// - Si el hallazgo existe pero no tiene ticket activo, crea ticket nuevo.
+  /// - Si el hallazgo no existe, crea hallazgo + ocurrencia + ticket nuevo.
+  Future<TicketGeneracionResultado> generarDesdeInspeccionPorHallazgos({
+    required String inspeccionId,
+    required String empresaId,
+    required String generadoPorId,
+    required String motivo,
+    String? asunto,
+    DateTime? fechaLimite,
+  }) async {
+    try {
+      return await _generarDesdeInspeccionPorHallazgosCore(
+        inspeccionId: inspeccionId,
+        empresaId: empresaId,
+        generadoPorId: generadoPorId,
+        motivo: motivo,
+        asunto: asunto,
+        fechaLimite: fechaLimite,
+      );
+    } catch (e) {
+      // Compatibilidad temporal: si la migración nueva aún no está ejecutada,
+      // se usa el flujo legacy (1 ticket por inspección) para no bloquear
+      // operación en terreno.
+      final msg = e.toString().toLowerCase();
+      final pareceSchemaIncompleto =
+          msg.contains('nc_hallazgos') ||
+          msg.contains('nc_hallazgo_ocurrencias') ||
+          msg.contains('hallazgo_id') ||
+          msg.contains('42p01') ||
+          msg.contains('42703');
+
+      final indiceLegacyPorInspeccion =
+          msg.contains('uq_tickets_inspeccion_automatico') ||
+          msg.contains('23505');
+
+      if (indiceLegacyPorInspeccion) {
+        throw TicketAccionFallidaException(
+          'La base aún mantiene el índice antiguo de 1 ticket por inspección. '
+          'Debes eliminar/reemplazar `uq_tickets_inspeccion_automatico` para '
+          'permitir 1 ticket por hallazgo único.',
+        );
+      }
+
+      if (!pareceSchemaIncompleto) rethrow;
+
+      final legacy = await _generarDesdeInspeccionLegacy(
+        inspeccionId: inspeccionId,
+        empresaId: empresaId,
+        generadoPorId: generadoPorId,
+        motivo: motivo,
+        asunto: asunto,
+        fechaLimite: fechaLimite,
+      );
+      return TicketGeneracionResultado(
+        creados: [legacy],
+        reutilizados: const [],
+        respuestasNcProcesadas: 0,
+      );
+    }
+  }
+
+  Future<TicketGeneracionResultado> _generarDesdeInspeccionPorHallazgosCore({
+    required String inspeccionId,
+    required String empresaId,
+    required String generadoPorId,
+    required String motivo,
+    String? asunto,
+    DateTime? fechaLimite,
+  }) async {
+    // Nota: con hallazgos únicos, una misma inspección puede terminar
+    // generando múltiples tickets (uno por hallazgo). Por compatibilidad,
+    // si ya existe un ticket legacy de esta inspección, se sigue permitiendo
+    // generar/reutilizar por hallazgo sin bloquear por inspección.
+
+    final actividad = await _client
+        .from('actividades')
+        .select('id, tipo_actividad, numero_informe, centro_id, embarcacion_id')
+        .eq('id', inspeccionId)
+        .maybeSingle();
+    if (actividad == null) {
+      throw TicketAccionFallidaException(
+        'No se encontró la inspección indicada.',
+      );
+    }
+
+    final centroId = actividad['centro_id'] as String?;
+    final embarcacionId = actividad['embarcacion_id'] as String?;
+    final tipoInspeccion = actividad['tipo_actividad'] as String?;
+    if (tipoInspeccion == null || tipoInspeccion.isEmpty) {
+      throw TicketAccionFallidaException(
+        'La inspección no tiene tipo de actividad válido.',
+      );
+    }
+
+    String? areaId;
+    if (centroId != null) {
+      final centro = await _client
+          .from('centros')
+          .select('area_id')
+          .eq('id', centroId)
+          .maybeSingle();
+      areaId = centro?['area_id'] as String?;
+    }
+
+    // El ticket hereda el contratista dueño de la embarcación (si aplica).
+    String? contratistaId;
+    if (embarcacionId != null) {
+      final embarcacion = await _client
+          .from('embarcaciones')
+          .select('contratista_id')
+          .eq('id', embarcacionId)
+          .maybeSingle();
+      contratistaId = embarcacion?['contratista_id'] as String?;
+    }
+
+    final respuestasNc = await _client
+        .from('inspeccion_respuestas')
+        .select('id, item_id, observacion, criticidad_registrada')
+        .eq('actividad_id', inspeccionId)
+        .eq('estado', 'NC');
+
+    final ncRows = (respuestasNc as List)
+        .cast<Map<String, dynamic>>()
+        .where((r) => r['item_id'] != null)
+        .toList();
+
+    if (ncRows.isEmpty) {
+      final legacy = await _generarDesdeInspeccionLegacy(
+        inspeccionId: inspeccionId,
+        empresaId: empresaId,
+        generadoPorId: generadoPorId,
+        motivo: motivo,
+        asunto: asunto,
+        fechaLimite: fechaLimite,
+      );
+      return TicketGeneracionResultado(
+        creados: [legacy],
+        reutilizados: const [],
+        respuestasNcProcesadas: 0,
+      );
+    }
+
+    final itemIds = ncRows
+        .map((r) => r['item_id'] as String)
+        .toSet()
+        .toList(growable: false);
+
+    final preguntas = await _client
+        .from('formulario_items')
+        .select('id, pregunta, categoria, orden')
+        .inFilter('id', itemIds);
+    final preguntasPorItemId = {
+      for (final p in (preguntas as List))
+        (p['id'] as String): (
+          pregunta: p['pregunta'] as String? ?? 'Ítem sin descripción',
+          categoria: p['categoria'] as String?,
+          orden: p['orden'] as int?,
+        ),
+    };
+
+    final fotos = await _client
+        .from('registro_fotografico')
+        .select('foto_url, inspeccion_respuesta_id')
+        .eq('actividad_id', inspeccionId);
+    final fotoPorRespuestaId = <String, String>{};
+    for (final f in (fotos as List)) {
+      final respId = f['inspeccion_respuesta_id'] as String?;
+      final url = f['foto_url'] as String?;
+      if (respId != null && url != null && url.isNotEmpty) {
+        fotoPorRespuestaId[respId] = url;
+      }
+    }
+
+    final creados = <TicketModel>[];
+    final reutilizadosPorId = <String, TicketModel>{};
+
+    for (final row in ncRows) {
+      final respuestaId = row['id'] as String;
+      final itemId = row['item_id'] as String;
+      final observacion = (row['observacion'] as String?)?.trim();
+      final criticidad = row['criticidad_registrada'] as String?;
+
+      if (embarcacionId == null && centroId == null) {
+        throw TicketAccionFallidaException(
+          'No se puede resolver continuidad del hallazgo: '
+          'la inspección no tiene embarcación ni centro asociado.',
+        );
+      }
+
+      final dedupeMode = embarcacionId != null
+          ? 'EMBARCACION'
+          : 'CENTRO_FALLBACK';
+
+      final rowsHallazgo = embarcacionId != null
+          ? await _client
+                .from('nc_hallazgos')
+                .select()
+                .eq('empresa_id', empresaId)
+                .eq('tipo_actividad', tipoInspeccion)
+                .eq('item_id', itemId)
+                .eq('dedupe_mode', dedupeMode)
+                .eq('embarcacion_id', embarcacionId)
+                .inFilter('estado_hallazgo', ['ABIERTO', 'EN_SEGUIMIENTO'])
+                .limit(1)
+          : await _client
+                .from('nc_hallazgos')
+                .select()
+                .eq('empresa_id', empresaId)
+                .eq('tipo_actividad', tipoInspeccion)
+                .eq('item_id', itemId)
+                .eq('dedupe_mode', dedupeMode)
+                .eq('centro_id', centroId!)
+                .inFilter('estado_hallazgo', ['ABIERTO', 'EN_SEGUIMIENTO'])
+                .limit(1);
+
+      Map<String, dynamic>? hallazgo;
+      if (rowsHallazgo.isNotEmpty) {
+        hallazgo = rowsHallazgo.first as Map<String, dynamic>;
+        await _client
+            .from('nc_hallazgos')
+            .update({
+              'criticidad_actual': criticidad,
+              'fecha_ultima_deteccion': DateTime.now().toIso8601String(),
+              'informe_ultima_ocurrencia_id': inspeccionId,
+              'estado_hallazgo': 'EN_SEGUIMIENTO',
+            })
+            .eq('id', hallazgo['id'] as String);
+      } else {
+        final inserted = await _client
+            .from('nc_hallazgos')
+            .insert({
+              'id': _uuid.v4(),
+              'empresa_id': empresaId,
+              'tipo_actividad': tipoInspeccion,
+              'item_id': itemId,
+              'dedupe_mode': dedupeMode,
+              'embarcacion_id': embarcacionId,
+              'centro_id': centroId,
+              'estado_hallazgo': 'ABIERTO',
+              'criticidad_inicial': criticidad,
+              'criticidad_actual': criticidad,
+              'fecha_primera_deteccion': DateTime.now().toIso8601String(),
+              'fecha_ultima_deteccion': DateTime.now().toIso8601String(),
+              'informe_inicial_id': inspeccionId,
+              'informe_ultima_ocurrencia_id': inspeccionId,
+              'creado_por': generadoPorId,
+            })
+            .select()
+            .single();
+        hallazgo = inserted;
+      }
+
+      final hallazgoId = hallazgo['id'] as String;
+
+      final ocurrenciaExistente = await _client
+          .from('nc_hallazgo_ocurrencias')
+          .select('id')
+          .eq('inspeccion_respuesta_id', respuestaId)
+          .maybeSingle();
+
+      String? ocurrenciaId;
+      if (ocurrenciaExistente != null) {
+        ocurrenciaId = ocurrenciaExistente['id'] as String;
+      } else {
+        final insertedOcurrencia = await _client
+            .from('nc_hallazgo_ocurrencias')
+            .insert({
+              'id': _uuid.v4(),
+              'hallazgo_id': hallazgoId,
+              'inspeccion_respuesta_id': respuestaId,
+              'informe_id': inspeccionId,
+              'empresa_id': empresaId,
+              'contratista_id': contratistaId,
+              'centro_id': centroId,
+              'embarcacion_id': embarcacionId,
+              'fecha_ocurrencia': DateTime.now().toIso8601String(),
+              'observacion': observacion,
+              'criticidad_registrada': criticidad,
+              'evidencia_foto_count': fotoPorRespuestaId[respuestaId] == null
+                  ? 0
+                  : 1,
+              'creado_por': generadoPorId,
+            })
+            .select('id')
+            .single();
+        ocurrenciaId = insertedOcurrencia['id'] as String;
+      }
+
+      final ticketActivoRows = await _client
+          .from('tickets')
+          .select()
+          .eq('hallazgo_id', hallazgoId)
+          .eq('eliminado', false)
+          .neq('estado', TicketEstado.cerrado.value)
+          .limit(1);
+
+      if (ticketActivoRows.isNotEmpty) {
+        final t = TicketModel.fromMap(
+          ticketActivoRows.first as Map<String, dynamic>,
+        );
+        reutilizadosPorId[t.id] = t;
+        continue;
+      }
+
+      final info = preguntasPorItemId[itemId];
+      final numeroInforme = actividad['numero_informe']?.toString();
+      final asuntoFinal = (asunto != null && asunto.trim().isNotEmpty)
+          ? asunto.trim()
+          : info != null
+          ? numeroInforme != null && numeroInforme.isNotEmpty
+                ? 'Informe N° $numeroInforme · ${info.pregunta}'
+                : info.pregunta
+          : numeroInforme != null && numeroInforme.isNotEmpty
+          ? 'Informe N° $numeroInforme'
+          : 'Observación de inspección';
+
+      final ticket = TicketModel(
+        id: _uuid.v4(),
+        empresaId: empresaId,
+        origen: TicketOrigen.inspeccion,
+        tipoTicket: TicketTipo.revisionObservaciones,
+        inspeccionId: inspeccionId,
+        tipoInspeccion: tipoInspeccion,
+        numeroInforme: numeroInforme,
+        areaId: areaId,
+        centroId: centroId,
+        embarcacionId: embarcacionId,
+        contratistaId: contratistaId,
+        asunto: asuntoFinal,
+        motivo: motivo,
+        generadoPorId: generadoPorId,
+        fechaLimite: fechaLimite,
+      );
+
+      await _client.from('tickets').insert({
+        ...ticket.toInsertMap(),
+        'hallazgo_id': hallazgoId,
+        'hallazgo_ocurrencia_id': ocurrenciaId,
+      });
+
+      final ticketItem = TicketItemModel(
+        id: _uuid.v4(),
+        ticketId: ticket.id,
+        origenItem: TicketItemOrigen.respuestaInspeccion,
+        referenciaId: respuestaId,
+        pregunta: info?.pregunta ?? 'Ítem sin descripción',
+        categoria: info?.categoria,
+        numeroPregunta: info?.orden,
+        descripcion: observacion != null && observacion.isNotEmpty
+            ? observacion
+            : 'Sin observación adicional del inspector.',
+        fotoOriginalUrl: fotoPorRespuestaId[respuestaId],
+        orden: 0,
+      );
+      await _client.from('ticket_items').insert(ticketItem.toInsertMap());
+
+      final creado = await getTicketById(ticket.id);
+      creados.add(creado ?? ticket);
+    }
+
+    return TicketGeneracionResultado(
+      creados: creados,
+      reutilizados: reutilizadosPorId.values.toList(growable: false),
+      respuestasNcProcesadas: ncRows.length,
+    );
+  }
+
+  Future<TicketModel> _generarDesdeInspeccionLegacy({
     required String inspeccionId,
     required String empresaId,
     required String generadoPorId,
@@ -268,7 +878,6 @@ class TicketRepository {
       areaId = centro?['area_id'] as String?;
     }
 
-    // El ticket hereda el contratista dueño de la embarcación (si aplica).
     String? contratistaId;
     if (embarcacionId != null) {
       final embarcacion = await _client
@@ -605,6 +1214,25 @@ class TicketRepository {
         .select();
 
     final actualizado = TicketItemModel.fromMap((rows as List).first);
+
+    // Auditoría histórica por item: permite reportar última subsanación,
+    // recuento de retrabajos y tiempos de ciclo en dashboard.
+    try {
+      final ticket = await getTicketById(item.ticketId);
+      await _client.from('ticket_item_subsanaciones').insert({
+        'id': _uuid.v4(),
+        'ticket_id': item.ticketId,
+        'ticket_item_id': item.id,
+        'hallazgo_id': ticket?.hallazgoId,
+        'accion': subsanado ? 'SUBSANADO' : 'DESHECHO',
+        'usuario_id': usuarioId,
+        'foto_subsanacion_url': actualizado.fotoSubsanacionUrl,
+      });
+    } catch (e) {
+      debugPrint(
+        '⚠️ [TicketRepository] Error guardando bitácora de subsanación: $e',
+      );
+    }
 
     if (subsanado) {
       await _finalizarSiCorresponde(

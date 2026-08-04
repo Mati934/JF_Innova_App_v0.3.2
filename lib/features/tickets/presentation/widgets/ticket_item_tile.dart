@@ -11,8 +11,8 @@ import '../../domain/models/ticket_item_model.dart';
 /// - Pendiente: tarjeta expandida con número + categoría (o ícono de cámara
 ///   si es una foto con observación), título/observación, foto original y
 ///   botón para adjuntar la foto de subsanación.
-/// - Subsanado: fila compacta de una sola línea (para no ocupar espacio con
-///   observaciones ya resueltas).
+/// - Subsanado: tarjeta compacta pero con evidencia visible para que la etapa
+///   de aprobación pueda revisar la foto de subsanación.
 class TicketItemTile extends StatelessWidget {
   final TicketItemModel item;
   final bool puedeEditar;
@@ -53,60 +53,89 @@ class TicketItemTile extends StatelessWidget {
     final titulo = item.pregunta ?? item.descripcion;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.green.shade200),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.check_rounded, size: 16, color: Colors.green.shade700),
-          const SizedBox(width: 8),
-          if (!_esFoto)
-            _NumeroBadge(numero: item.numeroPregunta, subsanado: true)
-          else
-            Icon(
-              Icons.camera_alt_outlined,
-              size: 15,
-              color: Colors.grey.shade500,
-            ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              titulo,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 6),
-          if (puedeEditar && !procesando)
-            TextButton(
-              onPressed: () => onCambiar(false, null),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: const Size(0, 28),
-                foregroundColor: Colors.grey.shade600,
-              ),
-              child: const Text('Deshacer', style: TextStyle(fontSize: 11)),
-            )
-          else
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                'Ok',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green.shade700,
+          Row(
+            children: [
+              Icon(Icons.check_rounded, size: 16, color: Colors.green.shade700),
+              const SizedBox(width: 8),
+              if (!_esFoto)
+                _NumeroBadge(numero: item.numeroPregunta, subsanado: true)
+              else
+                Icon(
+                  Icons.camera_alt_outlined,
+                  size: 15,
+                  color: Colors.grey.shade500,
+                ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  titulo,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: Colors.grey.shade800,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
+              const SizedBox(width: 6),
+              if (puedeEditar && !procesando)
+                TextButton(
+                  onPressed: () => onCambiar(false, null),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 28),
+                    foregroundColor: Colors.grey.shade600,
+                  ),
+                  child: const Text('Deshacer', style: TextStyle(fontSize: 11)),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Subsanado',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade700,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (item.descripcion.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              item.descripcion,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _LabeledThumbnail(label: 'Original', url: item.fotoOriginalUrl),
+              const SizedBox(width: 10),
+              _LabeledThumbnail(
+                label: 'Subsanación',
+                url: item.fotoSubsanacionUrl,
+                highlight: true,
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -299,6 +328,46 @@ class _Thumbnail extends StatelessWidget {
     color: Colors.grey.shade100,
     child: Icon(Icons.photo_outlined, color: Colors.grey.shade400),
   );
+}
+
+class _LabeledThumbnail extends StatelessWidget {
+  final String label;
+  final String? url;
+  final bool highlight;
+
+  const _LabeledThumbnail({
+    required this.label,
+    required this.url,
+    this.highlight = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = highlight
+        ? Colors.green.shade300
+        : Colors.grey.shade300;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: highlight ? Colors.green.shade700 : Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: borderColor),
+          ),
+          child: _Thumbnail(url: url),
+        ),
+      ],
+    );
+  }
 }
 
 /// Visor de foto a pantalla completa con zoom (pinch-to-zoom) para ver el
