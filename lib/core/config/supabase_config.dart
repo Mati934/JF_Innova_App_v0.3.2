@@ -5,8 +5,4 @@ class SupabaseConfig {
   // Tu llave "anon" (La que empieza con eyJh...)
   static const String anonKey =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1nYWlqbG9ncWJlcW5waXdic3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3OTE5ODAsImV4cCI6MjA4MzM2Nzk4MH0.KdaRzjTtgQrKi77CQM6BSYMwVutHbzo1fiUWnsqUmV4';
-
-  // Llave de servicio (solo para operaciones admin como borrar usuarios)
-  static const String serviceRoleKey =
-      'REMOVED_SUPABASE_SERVICE_ROLE';
 }
