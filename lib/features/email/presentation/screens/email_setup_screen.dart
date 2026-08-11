@@ -16,7 +16,19 @@ class _EmailSetupScreenState extends State<EmailSetupScreen> {
   Future<void> _seedAndOpenPreview() async {
     setState(() => _isLoading = true);
     try {
-      await EmailConfigService().seedCaseBase();
+      final seeded = await EmailConfigService().seedCaseBase();
+      if (!mounted) return;
+
+      if (!seeded) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Ya existen configuraciones de correo. No se cargo el caso demo para evitar sobrescrituras.',
+            ),
+          ),
+        );
+      }
+
       if (!mounted) return;
       Navigator.push(
         context,

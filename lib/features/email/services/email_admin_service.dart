@@ -89,10 +89,26 @@ class EmailAdminService {
   }) async {
     final db = await _dbHelper.database;
     final recId = (id == null || id.isEmpty) ? _uuid.v4() : id;
+    String targetListId = listaId;
+
+    if (id != null && id.isNotEmpty) {
+      // En edición conservamos la lista original para evitar mover
+      // destinatarios por errores de estado/UI.
+      final existing = await db.query(
+        'correo_lista_destinatarios',
+        columns: ['lista_id'],
+        where: 'id = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (existing.isNotEmpty) {
+        targetListId = (existing.first['lista_id'] ?? listaId).toString();
+      }
+    }
 
     await db.insert('correo_lista_destinatarios', {
       'id': recId,
-      'lista_id': listaId,
+      'lista_id': targetListId,
       'nombre': nombre.trim(),
       'correo': correo.trim(),
       'tipo_sugerido': tipoSugerido,
@@ -198,6 +214,45 @@ class EmailAdminService {
 
   Future<void> deleteById(String table, String id) async {
     final db = await _dbHelper.database;
-    await db.delete(table, where: 'id = ?', whereArgs: [id]);
+    await db.transaction((txn) async {
+      if (table == 'correo_listas') {
+        await txn.delete(
+          'correo_lista_destinatarios',
+          where: 'lista_id = ?',
+          whereArgs: [id],
+        );
+        await txn.delete(
+          'correo_usuario_asignacion',
+          where:
+              'lista_id = ? OR config_id IN (SELECT id FROM correo_configuracion WHERE lista_id = ?)',
+          whereArgs: [id, id],
+        );
+        await txn.delete(
+          'correo_configuracion',
+          where: 'lista_id = ?',
+          whereArgs: [id],
+        );
+      } else if (table == 'correo_plantillas') {
+        await txn.delete(
+          'correo_usuario_asignacion',
+          where:
+              'config_id IN (SELECT id FROM correo_configuracion WHERE plantilla_id = ?)',
+          whereArgs: [id],
+        );
+        await txn.delete(
+          'correo_configuracion',
+          where: 'plantilla_id = ?',
+          whereArgs: [id],
+        );
+      } else if (table == 'correo_configuracion') {
+        await txn.delete(
+          'correo_usuario_asignacion',
+          where: 'config_id = ?',
+          whereArgs: [id],
+        );
+      }
+
+      await txn.delete(table, where: 'id = ?', whereArgs: [id]);
+    });
   }
 }

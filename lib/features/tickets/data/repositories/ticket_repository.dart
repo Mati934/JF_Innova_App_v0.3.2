@@ -289,6 +289,80 @@ class TicketRepository {
     };
   }
 
+  /// Trae una referencia resumida del ítem principal por ticket para mostrar
+  /// en la tarjeta del listado (número de ítem y/o categoría).
+  ///
+  /// Regla de prioridad por ticket:
+  /// 1) Primer ítem NO subsanado.
+  /// 2) Si todos están subsanados, primer ítem disponible.
+  /// 3) Orden ascendente por `orden` (y luego por `numero_pregunta`).
+  Future<
+    Map<String, ({int? numeroPregunta, String? categoria, String origenItem})>
+  >
+  getReferenciaItemPorTicket(List<String> ticketIds) async {
+    final unicos = ticketIds.toSet().toList();
+    if (unicos.isEmpty) return {};
+
+    final rows = await _client
+        .from('ticket_items')
+        .select(
+          'ticket_id, numero_pregunta, categoria, origen_item, subsanado, orden',
+        )
+        .inFilter('ticket_id', unicos);
+
+    final byTicket = <String, List<Map<String, dynamic>>>{};
+    for (final row in (rows as List)) {
+      final map = (row as Map).cast<String, dynamic>();
+      final ticketId = map['ticket_id']?.toString() ?? '';
+      if (ticketId.isEmpty) continue;
+      byTicket.putIfAbsent(ticketId, () => <Map<String, dynamic>>[]).add(map);
+    }
+
+    int toInt(dynamic value) {
+      if (value is int) return value;
+      return int.tryParse(value?.toString() ?? '') ?? 0;
+    }
+
+    int? toNullableInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      return int.tryParse(value.toString());
+    }
+
+    final result =
+        <
+          String,
+          ({int? numeroPregunta, String? categoria, String origenItem})
+        >{};
+
+    for (final entry in byTicket.entries) {
+      final items = entry.value;
+      items.sort((a, b) {
+        final aSubsanado = a['subsanado'] == true ? 1 : 0;
+        final bSubsanado = b['subsanado'] == true ? 1 : 0;
+        if (aSubsanado != bSubsanado) return aSubsanado - bSubsanado;
+
+        final byOrden = toInt(a['orden']).compareTo(toInt(b['orden']));
+        if (byOrden != 0) return byOrden;
+
+        final aNumero = toNullableInt(a['numero_pregunta']) ?? 999999;
+        final bNumero = toNullableInt(b['numero_pregunta']) ?? 999999;
+        return aNumero.compareTo(bNumero);
+      });
+
+      final first = items.first;
+      result[entry.key] = (
+        numeroPregunta: toNullableInt(first['numero_pregunta']),
+        categoria: first['categoria']?.toString(),
+        origenItem:
+            first['origen_item']?.toString() ??
+            TicketItemOrigen.respuestaInspeccion.value,
+      );
+    }
+
+    return result;
+  }
+
   // ---------------------------------------------------------------------
   // CREACIÓN
   // ---------------------------------------------------------------------
@@ -410,7 +484,7 @@ class TicketRepository {
               .limit(1);
           if (ticketActivoRows.isNotEmpty) {
             ticketsCache[hallazgoId] = TicketModel.fromMap(
-              ticketActivoRows.first as Map<String, dynamic>,
+              ticketActivoRows.first,
             );
           }
         }
@@ -688,7 +762,7 @@ class TicketRepository {
 
       Map<String, dynamic>? hallazgo;
       if (rowsHallazgo.isNotEmpty) {
-        hallazgo = rowsHallazgo.first as Map<String, dynamic>;
+        hallazgo = rowsHallazgo.first;
         await _client
             .from('nc_hallazgos')
             .update({
@@ -768,9 +842,7 @@ class TicketRepository {
           .limit(1);
 
       if (ticketActivoRows.isNotEmpty) {
-        final t = TicketModel.fromMap(
-          ticketActivoRows.first as Map<String, dynamic>,
-        );
+        final t = TicketModel.fromMap(ticketActivoRows.first);
         reutilizadosPorId[t.id] = t;
         continue;
       }

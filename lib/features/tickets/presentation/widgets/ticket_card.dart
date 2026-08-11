@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/models/ticket_model.dart';
+import '../../domain/models/ticket_item_model.dart';
 
 class TicketEstadoChip extends StatelessWidget {
   final TicketEstado estado;
@@ -56,6 +57,8 @@ class TicketCard extends StatelessWidget {
   final String? centroNombre;
   final String? embarcacionNombre;
   final ({int total, int subsanados})? progreso;
+  final ({int? numeroPregunta, String? categoria, String origenItem})?
+  referenciaItem;
   final bool esMio;
   final VoidCallback onTap;
   final VoidCallback? onTomar;
@@ -69,9 +72,34 @@ class TicketCard extends StatelessWidget {
     this.centroNombre,
     this.embarcacionNombre,
     this.progreso,
+    this.referenciaItem,
     this.esMio = false,
     this.onTomar,
   });
+
+  String _buildItemBadgeText() {
+    final ref = referenciaItem;
+    if (ref == null) {
+      if (progreso != null) {
+        return '${progreso!.subsanados}/${progreso!.total} subsanadas';
+      }
+      return 'Sin observaciones';
+    }
+
+    final categoria = (ref.categoria ?? '').trim();
+    if (ref.origenItem == TicketItemOrigen.fotoObservacion.value) {
+      if (categoria.isNotEmpty) return 'Foto observación · $categoria';
+      return 'Foto observación';
+    }
+
+    final numero = ref.numeroPregunta;
+    if (numero != null && categoria.isNotEmpty) {
+      return 'Ítem $numero · $categoria';
+    }
+    if (numero != null) return 'Ítem $numero';
+    if (categoria.isNotEmpty) return categoria;
+    return 'Ítem de observación';
+  }
 
   _Urgencia get _urgencia {
     if (ticket.estado == TicketEstado.cerrado) {
@@ -278,10 +306,11 @@ class TicketCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              '${progreso!.subsanados}/${progreso!.total} subsanadas',
+                              _buildItemBadgeText(),
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Colors.grey.shade600,
+                                color: Colors.grey.shade700,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],

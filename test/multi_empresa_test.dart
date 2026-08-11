@@ -1,4 +1,5 @@
 // ignore_for_file: unused_local_variable, unnecessary_null_comparison
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jf_innova_app/core/modules/module_registry.dart';
 import 'package:jf_innova_app/core/services/user_session.dart';
@@ -209,8 +210,9 @@ void main() {
   // TESTS: ModuleRegistry
   // ===================================================================
   group('ModuleRegistry - Registro Global', () {
-    test('tiene 13 módulos registrados', () {
-      expect(ModuleRegistry.all.length, 13);
+    test('tiene la cantidad esperada de módulos registrados', () {
+      final expectedCount = kDebugMode ? 16 : 15;
+      expect(ModuleRegistry.all.length, expectedCount);
     });
 
     test('cada módulo tiene key única', () {
@@ -294,8 +296,8 @@ void main() {
   });
 
   group('ModuleRegistry - Default Modules', () {
-    test('defaults tienen 4 módulos', () {
-      expect(ModuleRegistry.defaultModuleKeys.length, 4);
+    test('defaults tienen 5 módulos', () {
+      expect(ModuleRegistry.defaultModuleKeys.length, 5);
     });
 
     test('defaults incluyen los correctos', () {
@@ -303,6 +305,7 @@ void main() {
         'INSPECCION',
         'VISITA_R003',
         'VISITA_R004',
+        'EMAIL_OUTBOX',
         'RENDICIONES',
       ]);
     });
@@ -387,16 +390,16 @@ void main() {
       expect(mods.first.moduleKey, 'INSPECCION');
     });
 
-    test('defaults producen 4 módulos para usuario normal', () {
+    test('defaults producen 5 módulos para usuario normal', () {
       final mods = getEnabledModules(ModuleRegistry.defaultModuleKeys, false);
-      expect(mods.length, 4);
+      expect(mods.length, 5);
     });
 
     test(
-      'defaults producen 4 módulos para admin (ADMIN no está en defaults)',
+      'defaults producen 5 módulos para admin (ADMIN no está en defaults)',
       () {
         final mods = getEnabledModules(ModuleRegistry.defaultModuleKeys, true);
-        expect(mods.length, 4, reason: 'ADMIN no está en defaultModuleKeys');
+        expect(mods.length, 5, reason: 'ADMIN no está en defaultModuleKeys');
       },
     );
   });

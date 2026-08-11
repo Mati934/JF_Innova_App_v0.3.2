@@ -8,7 +8,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      55; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      56; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -707,12 +707,17 @@ class DatabaseHelper {
         inspeccion_id TEXT,
         empresa_id TEXT,
         usuario_id TEXT,
+        config_id TEXT,
+        lista_id TEXT,
+        lista_nombre TEXT,
         event_type TEXT NOT NULL,
         event_timestamp TEXT NOT NULL,
         resultado_evento TEXT NOT NULL,
         canal TEXT,
         template_id TEXT,
+        template_nombre TEXT,
         template_version INTEGER,
+        regla_envio_nombre TEXT,
         asunto_generado TEXT,
         adjunto_nombre TEXT,
         adjunto_tipo TEXT,
@@ -1882,6 +1887,18 @@ class DatabaseHelper {
       );
       debugPrint("✅ Parche v55 aplicado.");
     }
+
+    if (oldVersion < 56) {
+      debugPrint(
+        "🚀 Aplicando parche v56 (metadatos legibles en correo_eventos)...",
+      );
+      await _safeAddColumn(db, 'correo_eventos', 'config_id', 'TEXT');
+      await _safeAddColumn(db, 'correo_eventos', 'lista_id', 'TEXT');
+      await _safeAddColumn(db, 'correo_eventos', 'lista_nombre', 'TEXT');
+      await _safeAddColumn(db, 'correo_eventos', 'template_nombre', 'TEXT');
+      await _safeAddColumn(db, 'correo_eventos', 'regla_envio_nombre', 'TEXT');
+      debugPrint("✅ Parche v56 aplicado.");
+    }
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -2093,12 +2110,17 @@ class DatabaseHelper {
           inspeccion_id TEXT,
           empresa_id TEXT,
           usuario_id TEXT,
+          config_id TEXT,
+          lista_id TEXT,
+          lista_nombre TEXT,
           event_type TEXT NOT NULL,
           event_timestamp TEXT NOT NULL,
           resultado_evento TEXT NOT NULL,
           canal TEXT,
           template_id TEXT,
+          template_nombre TEXT,
           template_version INTEGER,
+          regla_envio_nombre TEXT,
           asunto_generado TEXT,
           adjunto_nombre TEXT,
           adjunto_tipo TEXT,
@@ -2106,6 +2128,11 @@ class DatabaseHelper {
           error_message TEXT
         )
       ''');
+      await _safeAddColumn(db, 'correo_eventos', 'config_id', 'TEXT');
+      await _safeAddColumn(db, 'correo_eventos', 'lista_id', 'TEXT');
+      await _safeAddColumn(db, 'correo_eventos', 'lista_nombre', 'TEXT');
+      await _safeAddColumn(db, 'correo_eventos', 'template_nombre', 'TEXT');
+      await _safeAddColumn(db, 'correo_eventos', 'regla_envio_nombre', 'TEXT');
       await db.execute('''
         CREATE TABLE IF NOT EXISTS correo_pendientes (
           id TEXT PRIMARY KEY,

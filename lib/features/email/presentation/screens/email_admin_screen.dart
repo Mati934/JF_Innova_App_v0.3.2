@@ -100,6 +100,7 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
         _users = users;
         _empresas = empresas;
         _assignments = assignments;
+        _recipientsCache.clear();
       });
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -135,6 +136,8 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
   List<String> _buildModuloOptions() {
     final base = <String>{
       'inspeccion',
+      'inspeccion_buceo',
+      'inspeccion_embarcacion',
       'visita_r003',
       'visita_r004',
       'extintores',
@@ -162,6 +165,121 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
 
     final list = base.toList()..sort();
     return list;
+  }
+
+  List<String> _parseTemplateVariables(String raw) {
+    if (raw.trim().isEmpty) return const [];
+
+    final unique = <String>{};
+    final tokens = raw.split(RegExp(r'[,;\n\r\t ]+'));
+    for (final token in tokens) {
+      final trimmed = token.trim();
+      if (trimmed.isEmpty) continue;
+
+      final withoutBraces = trimmed.replaceAll('{', '').replaceAll('}', '');
+      final cleaned = withoutBraces.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '');
+      if (cleaned.isEmpty) continue;
+      unique.add(cleaned);
+    }
+
+    return unique.toList()..sort();
+  }
+
+  List<String> _defaultTemplateVariablesForModule(String modulo) {
+    const common = [
+      'fecha_inspeccion',
+      'hora_inspeccion',
+      'supervisor_nombre',
+      'tecnico_nombre',
+      'empresa_nombre',
+      'numero_informe',
+      'modulo',
+      'observaciones',
+    ];
+
+    const inspectionExtended = [
+      'area_nombre',
+      'centro_nombre',
+      'numero_informe',
+      'empresa_contratista',
+      'embarcacion_nombre',
+      'actividad_planificada',
+      'estado_faena',
+      'motivo_suspension',
+      'fecha_inspeccion',
+      'hora_inspeccion',
+      'empresa_nombre',
+      'tecnico_nombre',
+      'supervisor_nombre',
+    ];
+
+    final byModule = <String, List<String>>{
+      'inspeccion': inspectionExtended,
+      'inspeccion_buceo': inspectionExtended,
+      'inspeccion_embarcacion': inspectionExtended,
+      'hidroser': ['fecha_inspeccion', 'hora_inspeccion', 'supervisor_nombre'],
+      'hidroser_grua_horquilla': [
+        'fecha_inspeccion',
+        'hora_inspeccion',
+        'supervisor_nombre',
+      ],
+      'hidroser_soldadora': ['fecha_inspeccion', 'hora_inspeccion'],
+      'visita_r003': ['fecha_visita', 'tecnico_nombre', 'empresa_nombre'],
+      'visita_r004': ['fecha_visita', 'tecnico_nombre', 'empresa_nombre'],
+      'extintores': ['fecha_visita', 'tecnico_nombre', 'empresa_nombre'],
+      'ast': ['fecha_inspeccion', 'supervisor_nombre', 'empresa_nombre'],
+      'tickets': ['numero_ticket', 'empresa_nombre', 'tecnico_nombre'],
+      'buceo_equipamiento': [
+        'fecha_inspeccion',
+        'empresa_nombre',
+        'supervisor_nombre',
+      ],
+      'merieux_visitas': ['fecha_visita', 'empresa_nombre', 'tecnico_nombre'],
+      'merieux_extintores': [
+        'fecha_visita',
+        'empresa_nombre',
+        'tecnico_nombre',
+      ],
+    };
+
+    final key = modulo.trim().toLowerCase();
+    return byModule[key] ?? common;
+  }
+
+  List<String> _buildSuggestedTemplateVariables({
+    required String modulo,
+    required String customRaw,
+  }) {
+    final merged = <String>{
+      ..._defaultTemplateVariablesForModule(modulo),
+      ..._parseTemplateVariables(customRaw),
+    };
+    final list = merged.toList()..sort();
+    return list;
+  }
+
+  void _insertTemplateToken(TextEditingController controller, String variable) {
+    final token = '{{$variable}}';
+    final currentText = controller.text;
+
+    var start = controller.selection.start;
+    var end = controller.selection.end;
+    if (start < 0 || end < 0) {
+      start = currentText.length;
+      end = currentText.length;
+    }
+    if (start > end) {
+      final swap = start;
+      start = end;
+      end = swap;
+    }
+
+    final updatedText = currentText.replaceRange(start, end, token);
+    controller.value = controller.value.copyWith(
+      text: updatedText,
+      selection: TextSelection.collapsed(offset: start + token.length),
+      composing: TextRange.empty,
+    );
   }
 
   Widget _buildTutorialBox(String title, List<String> tips) {
@@ -210,84 +328,146 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
     final varsCtrl = TextEditingController(
       text: row?['variables_permitidas']?.toString() ?? '',
     );
+    String insertTarget = 'cuerpo';
     bool activo = (row?['activo'] as int? ?? 1) == 1;
 
     final save = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocalState) => AlertDialog(
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 24,
-          ),
-          title: Text(
-            row == null ? 'Nuevo modelo de correo' : 'Editar modelo de correo',
-          ),
-          content: _buildResponsiveDialogBody(
-            ctx,
-            maxWidth: 620,
-            children: [
-              _buildTutorialBox('Como crear un modelo', const [
-                'Nombre: usa algo claro, por ejemplo "Hidroser - Informe final".',
-                'Modulo: define en que proceso se aplica este correo.',
-                'Puedes usar variables en asunto y cuerpo para completar datos automaticamente.',
-              ]),
-              TextField(
-                controller: nombreCtrl,
-                decoration: const InputDecoration(labelText: 'Nombre'),
-              ),
-              const SizedBox(height: 12),
-              CustomDropdown(
-                label: 'Proceso o formulario',
-                icon: Icons.work_outline_rounded,
-                items: moduloOptions,
-                value: modulo.isEmpty ? null : modulo,
-                hintText: 'Selecciona o agrega un modulo',
-                onChanged: (v) => setLocalState(() => modulo = v ?? ''),
-                onAddNew: (text) => setLocalState(() => modulo = text),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: asuntoCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Asunto del correo',
+        builder: (ctx, setLocalState) {
+          final availableVariables = _buildSuggestedTemplateVariables(
+            modulo: modulo,
+            customRaw: varsCtrl.text,
+          );
+
+          return AlertDialog(
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 24,
+            ),
+            title: Text(
+              row == null
+                  ? 'Nuevo modelo de correo'
+                  : 'Editar modelo de correo',
+            ),
+            content: _buildResponsiveDialogBody(
+              ctx,
+              maxWidth: 620,
+              children: [
+                _buildTutorialBox('Como crear un modelo', const [
+                  'Nombre: usa algo claro, por ejemplo "Hidroser - Informe final".',
+                  'Modulo: define en que proceso se aplica este correo.',
+                  'Puedes usar variables en asunto y cuerpo para completar datos automaticamente.',
+                ]),
+                TextField(
+                  controller: nombreCtrl,
+                  decoration: const InputDecoration(labelText: 'Nombre'),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: cuerpoCtrl,
-                maxLines: 6,
-                decoration: const InputDecoration(
-                  labelText: 'Mensaje del correo',
+                const SizedBox(height: 12),
+                CustomDropdown(
+                  label: 'Proceso o formulario',
+                  icon: Icons.work_outline_rounded,
+                  items: moduloOptions,
+                  value: modulo.isEmpty ? null : modulo,
+                  hintText: 'Selecciona o agrega un modulo',
+                  onChanged: (v) => setLocalState(() => modulo = v ?? ''),
+                  onAddNew: (text) => setLocalState(() => modulo = text),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: varsCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Campos disponibles (separados por coma)',
+                const SizedBox(height: 12),
+                TextField(
+                  controller: asuntoCtrl,
+                  onTap: () => setLocalState(() => insertTarget = 'asunto'),
+                  decoration: const InputDecoration(
+                    labelText: 'Asunto del correo',
+                  ),
                 ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: cuerpoCtrl,
+                  onTap: () => setLocalState(() => insertTarget = 'cuerpo'),
+                  maxLines: 6,
+                  decoration: const InputDecoration(
+                    labelText: 'Mensaje del correo',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: varsCtrl,
+                  onChanged: (_) => setLocalState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Campos disponibles (separados por coma)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Insertar variable en',
+                  style: Theme.of(ctx).textTheme.labelLarge,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Asunto'),
+                      selected: insertTarget == 'asunto',
+                      onSelected: (_) =>
+                          setLocalState(() => insertTarget = 'asunto'),
+                    ),
+                    ChoiceChip(
+                      label: const Text('Mensaje'),
+                      selected: insertTarget == 'cuerpo',
+                      onSelected: (_) =>
+                          setLocalState(() => insertTarget = 'cuerpo'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (availableVariables.isEmpty)
+                  const Text(
+                    'No hay variables detectadas todavia.',
+                    style: TextStyle(color: Colors.black54),
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: availableVariables
+                        .map(
+                          (variable) => ActionChip(
+                            avatar: const Icon(Icons.add, size: 16),
+                            label: Text('{{$variable}}'),
+                            onPressed: () {
+                              final target = insertTarget == 'asunto'
+                                  ? asuntoCtrl
+                                  : cuerpoCtrl;
+                              _insertTemplateToken(target, variable);
+                            },
+                          ),
+                        )
+                        .toList(),
+                  ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: activo,
+                  title: const Text('Activa'),
+                  onChanged: (v) => setLocalState(() => activo = v),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancelar'),
               ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: activo,
-                title: const Text('Activa'),
-                onChanged: (v) => setLocalState(() => activo = v),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Guardar'),
               ),
             ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Guardar'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
 
@@ -812,6 +992,33 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
     await _reloadAll();
   }
 
+  Future<void> _deleteList(String listId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar lista de destinatarios'),
+        content: const Text(
+          'Se eliminaran tambien sus destinatarios, reglas asociadas y permisos relacionados. Esta accion no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await _service.deleteById('correo_listas', listId);
+    await _reloadAll();
+  }
+
   void _showTabHelp() {
     final idx = _activeTabIndex;
     showModalBottomSheet<void>(
@@ -1003,6 +1210,11 @@ class _EmailAdminScreenState extends State<EmailAdminScreen>
                     onPressed: () => _showListDialog(row: row),
                     icon: const Icon(Icons.edit_outlined),
                     label: const Text('Editar lista'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _deleteList(listId),
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Eliminar lista'),
                   ),
                 ],
               ),

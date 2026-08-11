@@ -703,15 +703,6 @@ class BuceoEquipmentFormController extends ChangeNotifier {
     return <String, String>{};
   }
 
-  Map<String, dynamic> _decodeMap(String? raw) {
-    if (raw == null || raw.isEmpty) return {};
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is Map<String, dynamic>) return decoded;
-    } catch (_) {}
-    return {};
-  }
-
   List<Map<String, dynamic>> _decodeList(String? raw) {
     if (raw == null || raw.isEmpty) return [];
     try {

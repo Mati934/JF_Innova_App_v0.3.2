@@ -1,18 +1,26 @@
 # jf_innova_app
 
-A new Flutter project.
+Aplicacion Flutter de operaciones e inspecciones para despliegue Android, web e iOS.
 
-## Getting Started
+## Estado del proyecto
 
-This project is a starting point for a Flutter application.
+El proyecto esta orientado a mantenimiento y estabilizacion. La prioridad es corregir incidencias reales, evitar cambios de alcance y mantener el flujo listo para iPhone con el menor trabajo posible en el Mac.
 
-A few resources to get you started if this is your first Flutter project:
+## Documentacion clave
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- [Preparacion iPhone: handoff a Mac](docs/IOS_HANDOFF_MAC_CHECKLIST.md)
+- [Estrategia de estabilizacion y mantenimiento](docs/ESTABILIZACION_Y_MANTENIMIENTO.md)
+- [Recordatorio: iPhone y acceso por navegador](docs/RECORDATORIO_IPHONE_WEB.md)
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Flujo recomendado
 
+1. Desarrollar y revisar en Windows.
+2. Subir cambios con Git.
+3. En Mac, compilar iOS, firmar y validar en iPhone.
+4. Publicar solo builds de correccion o versionado planificado.
+
+## Comando util
+
+```bash
 flutter build apk --target-platform android-arm64
+```

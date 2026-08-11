@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../../core/theme/app_theme.dart';
 import 'hidroser_checklists.dart';
 import '../../features/inspection/presentation/screens/inspection_setup_screen.dart';
@@ -143,14 +144,15 @@ class ModuleRegistry {
       color: kMerieuxColor,
       screenBuilder: (_) => const MerieuxExtintoresModuleScreen(),
     ),
-    ModuleDefinition(
-      moduleKey: 'EMAIL_TEST',
-      title: 'Correo prueba',
-      subtitle: 'Caso base de correo',
-      icon: Icons.email_outlined,
-      color: Colors.indigo,
-      screenBuilder: (_) => const EmailSetupScreen(),
-    ),
+    if (kDebugMode)
+      ModuleDefinition(
+        moduleKey: 'EMAIL_TEST',
+        title: 'Correo prueba',
+        subtitle: 'Caso base de correo',
+        icon: Icons.email_outlined,
+        color: Colors.indigo,
+        screenBuilder: (_) => const EmailSetupScreen(),
+      ),
     ModuleDefinition(
       moduleKey: 'EMAIL_OUTBOX',
       title: 'Bandeja correos',

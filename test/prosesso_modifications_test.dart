@@ -17,7 +17,7 @@ void main() {
         'fecha_realizacion': '2024-01-01',
       };
       final draft = DraftCardMapper.fromVisita(input);
-      expect(draft?.title, 'Mantención de Extintores');
+      expect(draft.title, 'Mantención de Extintores');
     });
 
     test('ModuleRegistry tiene título Mantención para Prosesso', () {

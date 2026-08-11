@@ -460,9 +460,8 @@ void main() {
         'respuestas_json': jsonEncode(respuestas),
       };
 
-      final fotosBack = jsonDecode(mantencion['fotos_json']! as String) as List;
-      final respBack =
-          jsonDecode(mantencion['respuestas_json']! as String) as Map;
+      final fotosBack = jsonDecode(mantencion['fotos_json']!) as List;
+      final respBack = jsonDecode(mantencion['respuestas_json']!) as Map;
 
       expect(fotosBack.length, 2);
       expect(fotosBack[1], '/storage/füß foto.jpg');

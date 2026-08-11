@@ -1564,6 +1564,44 @@ class InspectionFormController extends ChangeNotifier {
     );
   }
 
+  Future<Map<String, String>> buildEmailTemplateValues() async {
+    final reportData = await _buildReportData(
+      esConsecutiva: (_numeroSeguimiento == 1),
+    );
+
+    final estadoFaena = reportData.estadoGlobal.trim().isEmpty
+        ? 'NO INFORMADO'
+        : reportData.estadoGlobal.toUpperCase();
+
+    final bool esSuspendida = estadoFaena == 'SUSPENDIDA';
+    final String motivoSuspension = esSuspendida
+        ? ((verificacionesBuceo?.observacionGeneral ?? '').trim().isEmpty
+              ? 'Sin motivo informado'
+              : verificacionesBuceo!.observacionGeneral!.trim())
+        : '';
+
+    return {
+      'area_nombre': reportData.area,
+      'centro_nombre': reportData.centro,
+      'numero_informe': reportData.numeroReporte,
+      'empresa_contratista': reportData.empresaContratista,
+      'embarcacion_nombre': reportData.embarcacion,
+      'actividad_planificada': reportData.tipoFaena,
+      'estado_faena': estadoFaena,
+      'motivo_suspension': motivoSuspension,
+
+      // Compatibilidad con plantillas ya existentes.
+      'empresa_nombre': reportData.cliente,
+      'fecha_inspeccion': reportData.fecha,
+      'hora_inspeccion': reportData.horaInicio ?? '--:--',
+      'supervisor_nombre': reportData.supervisor,
+      'tecnico_nombre': reportData.profesional ?? 'No informado',
+      'observaciones': reportData.observacionPrevencionista,
+      'modulo': tipoActividad,
+      'tipo_inspeccion': reportData.tipoFaena,
+    };
+  }
+
   // Agrega esto al final de tu Controller
   Map<String, List<FormularioItem>> agruparPorCategoria() {
     final Map<String, List<FormularioItem>> map = {};
