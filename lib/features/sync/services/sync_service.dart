@@ -329,7 +329,7 @@ class SyncService {
 
     // Modulo Tickets: es 100% online (Supabase Realtime, sin tabla de
     // categorias local), no usa cola local de sincronizacion.
-    // Ver docs/PLAN_TICKETS_MVP.md.
+    // Ver docs/planificacion/02_en_progreso/PLAN_TICKETS_MVP.md.
 
     // 8: empresa_modulos (condicional)
     final modulosData = futures[8];

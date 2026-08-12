@@ -1666,7 +1666,7 @@ class DatabaseHelper {
       debugPrint(
         "🚀 Aplicando parche v51 (Módulo Tickets rediseñado: 100% online, sin tablas locales)...",
       );
-      // El nuevo módulo de Tickets vive solo en Supabase (ver docs/PLAN_TICKETS_MVP.md).
+      // El nuevo módulo de Tickets vive solo en Supabase (ver docs/planificacion/02_en_progreso/PLAN_TICKETS_MVP.md).
       // Se eliminan las tablas locales del diseño viejo (ticket_categorias, tickets_pendientes).
       await db.execute('DROP TABLE IF EXISTS ticket_categorias');
       await db.execute('DROP TABLE IF EXISTS tickets_pendientes');

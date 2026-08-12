@@ -4,7 +4,7 @@
 > Este documento describe el contexto de **multi-tenancy por empresa** que YA está
 > implementado en la app y cómo el Dashboard debe respetarlo.
 >
-> Lee también `DASHBOARD_CONTEXT.md` (raíz) para los requerimientos funcionales.
+> Lee también `docs/planificacion/01_realizados/DASHBOARD_CONTEXT_VALIDADO.md` para los requerimientos funcionales.
 
 ---
 

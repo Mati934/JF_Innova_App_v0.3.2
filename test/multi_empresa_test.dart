@@ -323,7 +323,7 @@ void main() {
           ModuleRegistry.byKey('TICKETS'),
           isNotNull,
           reason:
-              'Tickets fue rediseñado (ver docs/PLAN_TICKETS_MVP.md) y vuelve a existir en el registry',
+              'Tickets fue rediseñado (ver docs/planificacion/02_en_progreso/PLAN_TICKETS_MVP.md) y vuelve a existir en el registry',
         );
       },
     );

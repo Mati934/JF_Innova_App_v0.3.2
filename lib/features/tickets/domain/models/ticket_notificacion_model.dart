@@ -1,4 +1,4 @@
-/// Notificación in-app asociada a un ticket (ver docs/PLAN_TICKETS_MVP.md §8.4).
+/// Notificación in-app asociada a un ticket (ver docs/planificacion/02_en_progreso/PLAN_TICKETS_MVP.md §8.4).
 enum TicketNotificacionTipo {
   tomado,
   parcial,

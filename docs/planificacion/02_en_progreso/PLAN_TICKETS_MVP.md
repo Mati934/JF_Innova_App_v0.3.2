@@ -149,7 +149,8 @@ También debe permitir levantar solicitudes libres (no ligadas a una inspección
 3. Tickets automáticos desde otros módulos (Hidroser, AST, Visitas, Extintores,
    Prosesso, Equipamiento de Buceo) — se evalúa después de validar el MVP.
 4. Reportes/KPI de tickets en el dashboard multi-empresa (se puede reusar la
-   idea del `DASHBOARD_CONTEXT.md`, pero no es parte de este plan).
+   idea de `docs/planificacion/01_realizados/DASHBOARD_CONTEXT_VALIDADO.md`,
+   pero no es parte de este plan).
 
 ## 4) Terminología
 

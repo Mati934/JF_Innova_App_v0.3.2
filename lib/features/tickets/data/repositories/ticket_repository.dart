@@ -74,7 +74,7 @@ class TicketGeneracionPreview {
       hallazgos.where((hallazgo) => !hallazgo.seCrearaTicket).length;
 }
 
-/// Repositorio 100% online del módulo de Tickets (ver docs/PLAN_TICKETS_MVP.md).
+/// Repositorio 100% online del módulo de Tickets (ver docs/planificacion/02_en_progreso/PLAN_TICKETS_MVP.md).
 /// No existen tablas `_pendientes` en SQLite: todo se lee/escribe directo en
 /// Supabase. La visibilidad por empresa/admin la aplica RLS en el servidor.
 class TicketRepository {

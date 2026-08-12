@@ -35,7 +35,7 @@ enum TicketTipo {
   };
 }
 
-/// Estados del ciclo de vida de un ticket (ver docs/PLAN_TICKETS_MVP.md §4.1).
+/// Estados del ciclo de vida de un ticket (ver docs/planificacion/02_en_progreso/PLAN_TICKETS_MVP.md §4.1).
 enum TicketEstado {
   abierto,
   tomado,

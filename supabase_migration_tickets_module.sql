@@ -1,5 +1,5 @@
 -- =============================================================================
--- MIGRACION COMPLETA: Modulo TICKETS (rediseno, ver docs/PLAN_TICKETS_MVP.md)
+-- MIGRACION COMPLETA: Modulo TICKETS (rediseno, ver docs/planificacion/02_en_progreso/PLAN_TICKETS_MVP.md)
 -- Objetivo:
 --   1) Eliminar el diseno viejo de tickets (tabla `tickets` + `ticket_categorias`).
 --   2) Crear el nuevo modelo: tickets, ticket_items, ticket_historial_tomas,
@@ -73,7 +73,7 @@ CREATE INDEX IF NOT EXISTS idx_tickets_tomado_por      ON public.tickets(tomado_
 CREATE INDEX IF NOT EXISTS idx_tickets_inspeccion      ON public.tickets(inspeccion_id);
 
 COMMENT ON TABLE public.tickets IS
-  'Modulo Tickets (seguimiento de no conformidades / solicitudes). 100% online, ver docs/PLAN_TICKETS_MVP.md.';
+  'Modulo Tickets (seguimiento de no conformidades / solicitudes). 100% online, ver docs/planificacion/02_en_progreso/PLAN_TICKETS_MVP.md.';
 
 -- Cada fila = una observacion/no-cumple a subsanar dentro de un ticket.
 CREATE TABLE IF NOT EXISTS public.ticket_items (

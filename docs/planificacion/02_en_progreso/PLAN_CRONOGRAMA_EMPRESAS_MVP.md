@@ -1,7 +1,7 @@
 # Plan Módulo Cronograma de Trabajo por Empresa
 
 Fecha: 2026-08-04
-Estado: Borrador funcional (base para iterar con el tío)
+Estado: En progreso de definicion (retomado para cierre de alcance MVP)
 
 > Documento vivo para aterrizar la nueva función de Cronograma.
 > Objetivo: dejar claridad funcional y técnica antes de implementar.
@@ -68,6 +68,16 @@ Hallazgos del repositorio para no romper la arquitectura existente:
 8. ¿Se quiere evidencia obligatoria al cerrar tarea (comentario/foto/documento)?
 9. ¿La tarea completada debe crear ticket automáticamente cuando detecta hallazgo o solo por botón manual?
 10. ¿Una tarea puede vincularse a más de un módulo destino?
+
+### 4.3 Checklist de cierre inmediato (retoma)
+
+Para pasar de plan a implementacion, cerrar estas 5 decisiones primero:
+
+1. Alcance inicial: Aquachile solamente o multiempresa desde v1.
+2. Rol creador/editor del cronograma: solo admin o admin + supervisor.
+3. Regla al vencer: queda vencida, se reprograma automatica o duplicado programado.
+4. Evidencia obligatoria al completar: comentario, foto o ambos.
+5. Regla de ticket desde cronograma: manual por boton o auto por hallazgo.
 
 ---
 

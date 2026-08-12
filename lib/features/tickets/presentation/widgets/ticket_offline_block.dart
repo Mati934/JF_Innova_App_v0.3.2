@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 
 /// Estado que se muestra cuando el módulo de Tickets requiere internet
-/// (el módulo es 100% online, ver docs/PLAN_TICKETS_MVP.md §7).
+/// (el módulo es 100% online, ver docs/planificacion/02_en_progreso/PLAN_TICKETS_MVP.md §7).
 class TicketOfflineBlock extends StatelessWidget {
   final VoidCallback onRetry;
   const TicketOfflineBlock({super.key, required this.onRetry});
