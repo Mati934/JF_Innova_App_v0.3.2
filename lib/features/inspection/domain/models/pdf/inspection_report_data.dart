@@ -1,4 +1,3 @@
-
 class InspectionReportData {
   final String empresaProveedor;
   final String empresaContratista;
@@ -47,6 +46,8 @@ class InspectionReportData {
 
   final List<PersonalDto> equipo;
   final List<InspectionItemDto> items;
+  final List<ChecklistPhotoDto> checklistPhotos;
+  final List<MandatoryPhotoDto> mandatoryPhotos;
 
   // CLEAN CODE: Lista de rutas
   final List<String> fotosGeneralesPaths;
@@ -88,6 +89,8 @@ class InspectionReportData {
     required this.esAprobado,
     required this.equipo,
     required this.items,
+    this.checklistPhotos = const [],
+    this.mandatoryPhotos = const [],
     required this.fotosGeneralesPaths, // Actualizado
     required this.fotosExtraObservaciones,
     required this.totalCumple,
@@ -148,5 +151,35 @@ class InspectionItemDto {
     this.comentario,
     this.orden = 0,
     this.fotosPaths = const [],
+  });
+}
+
+class ChecklistPhotoDto {
+  final int numero;
+  final String categoria;
+  final String pregunta;
+  final String respuesta;
+  final String? comentario;
+  final List<String> fotosPaths;
+
+  ChecklistPhotoDto({
+    required this.numero,
+    required this.categoria,
+    required this.pregunta,
+    required this.respuesta,
+    this.comentario,
+    this.fotosPaths = const [],
+  });
+}
+
+class MandatoryPhotoDto {
+  final String key;
+  final String title;
+  final String path;
+
+  MandatoryPhotoDto({
+    required this.key,
+    required this.title,
+    required this.path,
   });
 }

@@ -21,6 +21,7 @@ Esta carpeta centraliza planes, contexto y material operativo.
 - `02_en_progreso/PLAN_TICKETS_MVP.md`
 - `02_en_progreso/PLAN_CORREO_OUTLOOK_MVP.md`
 - `02_en_progreso/PLAN_CRONOGRAMA_EMPRESAS_MVP.md`
+- `02_en_progreso/PLAN_REDISENO_INFORME_BUCEO_HTML_V0_2_0.md`
 
 ### Por realizar
 - `03_por_realizar/BOCETO_TICKETS_POR_AREA.md`

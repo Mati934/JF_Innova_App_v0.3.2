@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/database/database_helper.dart';
 import '../../../core/services/empresa_logo_service.dart';
 import '../../../core/services/user_session.dart';
+import '../domain/models/mandatory_buceo_photo_slot.dart';
 import '../domain/models/pdf/inspection_report_data.dart';
 import '../domain/models/buceo_verificacion_model.dart';
 import 'pdf_generator_service.dart';
@@ -266,6 +267,7 @@ class DeferredPdfService {
     final Map<String, List<String>> fotosPorItem = {};
     final List<String> fotosGeneralesPaths = [];
     final List<Map<String, String>> fotosExtraPaths = [];
+    final Map<String, String> mandatoryPhotosByKey = {};
 
     // Obtener set de IDs de items del formulario
     final Set<String> itemIds = itemsDb
@@ -280,6 +282,9 @@ class DeferredPdfService {
       if (itemId == null) {
         // Foto general
         fotosGeneralesPaths.add(localPath);
+      } else if (itemId.startsWith('mandatory::')) {
+        final key = itemId.replaceFirst('mandatory::', '');
+        mandatoryPhotosByKey[key] = localPath;
       } else if (itemIds.contains(itemId)) {
         // Foto de pregunta
         fotosPorItem.putIfAbsent(itemId, () => []).add(localPath);
@@ -294,7 +299,9 @@ class DeferredPdfService {
     int countC = 0, countNC = 0, countNA = 0, countIntolerables = 0;
     double sumPesoC = 0.0, sumPesoNC = 0.0;
     final List<InspectionItemDto> itemsProcesados = [];
+    final List<ChecklistPhotoDto> checklistPhotos = [];
 
+    int globalItemNumber = 1;
     for (var item in itemsDb) {
       final itemId = item['id'] as String;
       final resp = respuestasMap[itemId];
@@ -319,6 +326,19 @@ class DeferredPdfService {
 
       final List<String> fotosPaths = fotosPorItem[itemId] ?? [];
 
+      if (fotosPaths.isNotEmpty) {
+        checklistPhotos.add(
+          ChecklistPhotoDto(
+            numero: globalItemNumber,
+            categoria: item['categoria']?.toString() ?? '',
+            pregunta: item['pregunta']?.toString() ?? '',
+            respuesta: respuesta,
+            comentario: observacion,
+            fotosPaths: fotosPaths,
+          ),
+        );
+      }
+
       itemsProcesados.add(
         InspectionItemDto(
           categoria: item['categoria']?.toString() ?? '',
@@ -330,6 +350,18 @@ class DeferredPdfService {
           fotosPaths: fotosPaths,
         ),
       );
+
+      globalItemNumber++;
+    }
+
+    final List<MandatoryPhotoDto> mandatoryPhotoDtos = [];
+    for (final slot in mandatoryBuceoPhotoSlots) {
+      final path = mandatoryPhotosByKey[slot.key];
+      if (path != null && path.isNotEmpty) {
+        mandatoryPhotoDtos.add(
+          MandatoryPhotoDto(key: slot.key, title: slot.title, path: path),
+        );
+      }
     }
 
     // --- Verificaciones ---
@@ -480,8 +512,8 @@ class DeferredPdfService {
     }
 
     return InspectionReportData(
-      empresaProveedor:
-          (UserSession().empresaNombre ?? 'JF INNOVA').toUpperCase(),
+      empresaProveedor: (UserSession().empresaNombre ?? 'JF INNOVA')
+          .toUpperCase(),
       appVersion: versionApp,
       esConsecutiva: esConsecutiva,
       empresaContratista: nombreEmpresaContratista,
@@ -517,6 +549,8 @@ class DeferredPdfService {
       esAprobado: aprobadoFinal,
       equipo: equipoDto,
       items: itemsProcesados,
+      checklistPhotos: checklistPhotos,
+      mandatoryPhotos: mandatoryPhotoDtos,
       fotosGeneralesPaths: fotosGeneralesPaths,
       fotosExtraObservaciones: fotosExtraPaths,
       totalCumple: countC,

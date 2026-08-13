@@ -13,6 +13,7 @@ import '../controllers/inspection_form_controller.dart';
 import '../widgets/question_card.dart';
 import '../widgets/category_header.dart';
 import '../widgets/fotos_observacion_widget.dart';
+import '../widgets/mandatory_buceo_photos_widget.dart';
 import '../widgets/headers/inspection_header_factory.dart';
 
 class InspectionFormScreen extends StatefulWidget {
@@ -348,6 +349,10 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
     return Column(
       children: [
         const SizedBox(height: 22),
+        if (widget.tipoActividad == 'INSPECCION_BUCEO')
+          MandatoryBuceoPhotosWidget(controller: _controller),
+        if (widget.tipoActividad == 'INSPECCION_BUCEO')
+          const SizedBox(height: 12),
         FotosConObservacionWidget(controller: _controller),
         const SizedBox(height: 18),
         // Sección "Fotos Generales"

@@ -5,6 +5,7 @@ import 'package:jf_innova_app/core/database/database_helper.dart';
 import 'package:jf_innova_app/core/services/empresa_logo_service.dart';
 import 'package:jf_innova_app/core/services/user_session.dart';
 import 'package:jf_innova_app/core/utils/rut_utils.dart';
+import 'package:jf_innova_app/features/inspection/domain/models/mandatory_buceo_photo_slot.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/pdf/inspection_report_data.dart';
 import 'package:jf_innova_app/features/inspection/services/pdf_generator_service.dart';
 import 'package:jf_innova_app/features/sync/services/sync_service.dart';
@@ -69,6 +70,7 @@ class InspectionFormController extends ChangeNotifier {
   final TextEditingController numeroZarpeCtrl = TextEditingController();
 
   List<File> fotosGenerales = [];
+  final Map<String, File> mandatoryPhotos = {};
 
   // --- VARIABLES ESPECÍFICAS DE BUCEO ---
   BuceoVerificacionModel? verificacionesBuceo;
@@ -183,6 +185,9 @@ class InspectionFormController extends ChangeNotifier {
             if (itemId == null) {
               // Regla 1: Sin ID = Galería General
               fotosGenerales.add(file);
+            } else if (itemId.startsWith('mandatory::')) {
+              final mandatoryKey = itemId.replaceFirst('mandatory::', '');
+              mandatoryPhotos[mandatoryKey] = file;
             } else {
               // LÓGICA RELACIONAL DE UUIDs
               final esDePregunta = _items.any(
@@ -407,6 +412,35 @@ class InspectionFormController extends ChangeNotifier {
 
   void eliminarFotoObservacion(String id) {
     fotosConObservacion.removeWhere((e) => e['id'] == id);
+    notifyListeners();
+    _triggerAutoSave();
+  }
+
+  Future<void> setMandatoryPhoto(String key, File file) async {
+    mandatoryPhotos[key] = file;
+    notifyListeners();
+
+    try {
+      if (_repo is LocalInspectionRepository) {
+        final slot = mandatoryBuceoPhotoSlots.firstWhere(
+          (entry) => entry.key == key,
+        );
+        final rutaSegura = await (_repo).saveFoto(
+          activityId: activityId,
+          itemId: mandatoryPhotoItemId(key),
+          file: XFile(file.path),
+          descripcion: slot.title,
+        );
+        mandatoryPhotos[key] = File(rutaSegura);
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error guardando foto obligatoria $key: $e");
+    }
+  }
+
+  void removeMandatoryPhoto(String key) {
+    mandatoryPhotos.remove(key);
     notifyListeners();
     _triggerAutoSave();
   }
@@ -978,6 +1012,19 @@ class InspectionFormController extends ChangeNotifier {
       });
     }
 
+    // D. Fotografias obligatorias
+    for (final slot in mandatoryBuceoPhotoSlots) {
+      final file = mandatoryPhotos[slot.key];
+      if (file == null) continue;
+      listaFotosParaRepo.add({
+        'actividad_id': activityId,
+        'item_id': mandatoryPhotoItemId(slot.key),
+        'local_path': file.path,
+        'descripcion': slot.title,
+        'subido': 0,
+      });
+    }
+
     // 4. Datos Buceo & Participantes
     Map<String, dynamic>? verificacionesMap;
     Map<String, dynamic>? embarcacionMap;
@@ -1365,7 +1412,9 @@ class InspectionFormController extends ChangeNotifier {
     int countC = 0, countNC = 0, countNA = 0, countIntolerables = 0;
     double sumPesoC = 0.0, sumPesoNC = 0.0;
     final List<InspectionItemDto> itemsProcesados = [];
+    final List<ChecklistPhotoDto> checklistPhotos = [];
 
+    int globalItemNumber = 1;
     for (var item in items) {
       final respuesta = respuestas[item.id] ?? 'N/A';
       final observacion = observaciones[item.id] ?? '';
@@ -1392,6 +1441,19 @@ class InspectionFormController extends ChangeNotifier {
         }
       }
 
+      if (fotosPaths.isNotEmpty) {
+        checklistPhotos.add(
+          ChecklistPhotoDto(
+            numero: globalItemNumber,
+            categoria: item.categoria,
+            pregunta: item.pregunta,
+            respuesta: respuesta,
+            comentario: observacion,
+            fotosPaths: fotosPaths,
+          ),
+        );
+      }
+
       itemsProcesados.add(
         InspectionItemDto(
           categoria: item.categoria,
@@ -1404,6 +1466,8 @@ class InspectionFormController extends ChangeNotifier {
               fotosPaths, // <--- CUIDADO: Tienes que actualizar el DTO en tu modelo PDF para aceptar List<String>
         ),
       );
+
+      globalItemNumber++;
     }
 
     if (tipoActividad == 'INSPECCION_BUCEO' && verificacionesBuceo != null) {
@@ -1477,6 +1541,16 @@ class InspectionFormController extends ChangeNotifier {
       }
     }
 
+    final List<MandatoryPhotoDto> mandatoryPhotoDtos = [];
+    for (final slot in mandatoryBuceoPhotoSlots) {
+      final file = mandatoryPhotos[slot.key];
+      if (file != null && await file.exists()) {
+        mandatoryPhotoDtos.add(
+          MandatoryPhotoDto(key: slot.key, title: slot.title, path: file.path),
+        );
+      }
+    }
+
     return InspectionReportData(
       empresaProveedor: (UserSession().empresaNombre ?? 'JF INNOVA')
           .toUpperCase(),
@@ -1538,6 +1612,8 @@ class InspectionFormController extends ChangeNotifier {
       esAprobado: aprobadoFinal,
       equipo: equipoDto,
       items: itemsProcesados,
+      checklistPhotos: checklistPhotos,
+      mandatoryPhotos: mandatoryPhotoDtos,
       fotosGeneralesPaths:
           galeriaGeneralPaths, // <--- Asegúrate de actualizar esto en tu DTO
       fotosExtraObservaciones: fotosExtraPaths,
