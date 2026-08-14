@@ -111,6 +111,16 @@ class BuceoVerificacionModel {
         examenesOcupacionalesVigentes;
   }
 
+  /// El forzado manual tiene prioridad incluso sobre hallazgos intolerables.
+  static bool resolverAprobacionFaena({
+    required BuceoVerificacionModel? verificaciones,
+    required int totalIntolerables,
+  }) {
+    if (verificaciones?.estadoManual == 'APROBADO') return true;
+    if (verificaciones?.estadoManual == 'SUSPENDIDO') return false;
+    return totalIntolerables == 0 && (verificaciones?.faenaHabilitada ?? true);
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'actividad_id': actividadId,

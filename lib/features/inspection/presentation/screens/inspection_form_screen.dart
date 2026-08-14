@@ -7,6 +7,7 @@ import '../../../../shared/widgets/gradient_app_bar.dart';
 import 'package:jf_innova_app/features/inspection/presentation/widgets/headers/buceo_header_widget.dart';
 import '../../../../shared/services/image_service.dart';
 import '../../../../shared/widgets/confirm_finalize_dialog.dart';
+import '../../../../shared/widgets/estado_faena_warning_dialog.dart';
 import '../../../../shared/widgets/form_inputs/gallery_input.dart';
 import '../../../../core/errors/app_error_utils.dart';
 import '../controllers/inspection_form_controller.dart';
@@ -100,6 +101,19 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
   }
 
   void _finalizar() async {
+    final preview = _controller.estadoFaenaPreview;
+    final intolerables = _controller.totalIntolerables;
+    final continuar = await showEstadoFaenaWarningDialog(
+      context,
+      estado: preview.estado,
+      aprobada: preview.aprobada,
+      detalle: intolerables > 0 && preview.aprobada
+          ? 'Hay $intolerables hallazgo(s) intolerable(s) y la faena fue aprobada '
+                'manualmente. Este será el estado registrado en el informe.'
+          : null,
+    );
+    if (!continuar || !mounted) return;
+
     final confirmar = await showConfirmFinalizeDialog(
       context,
       title: 'Finalizar inspección',

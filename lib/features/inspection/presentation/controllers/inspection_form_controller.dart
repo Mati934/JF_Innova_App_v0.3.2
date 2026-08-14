@@ -86,6 +86,27 @@ class InspectionFormController extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   List<FormularioItem> get items => _items;
 
+  int get totalIntolerables {
+    int total = 0;
+    for (final item in _items) {
+      if ((respuestas[item.id] ?? 'N/A') != 'NC') continue;
+      if ((criticidades[item.id] ?? item.criticidad) == 'Intolerable') total++;
+    }
+    return total;
+  }
+
+  /// Estado que quedará registrado en el informe, calculado antes de finalizar.
+  ({bool aprobada, String estado}) get estadoFaenaPreview {
+    if (tipoActividad != 'INSPECCION_BUCEO') {
+      return (aprobada: true, estado: 'REALIZADA');
+    }
+    final aprobada = BuceoVerificacionModel.resolverAprobacionFaena(
+      verificaciones: verificacionesBuceo,
+      totalIntolerables: totalIntolerables,
+    );
+    return (aprobada: aprobada, estado: aprobada ? 'HABILITADA' : 'SUSPENDIDA');
+  }
+
   bool _disposed = false;
 
   @override
@@ -944,6 +965,7 @@ class InspectionFormController extends ChangeNotifier {
           ? numeroFinal
           : null,
       'numero_seguimiento': _numeroSeguimiento,
+      'estado_faena': estadoFaenaPreview.estado,
       'pdf_url': pdfUrlFinal,
       'pdf_path_local': pdfPathLocal, // Para sync posterior cuando no hay red
     };
@@ -1513,9 +1535,10 @@ class InspectionFormController extends ChangeNotifier {
     String estadoGlobalFinal = "FINALIZADA"; // Por defecto para Embarcación
 
     if (tipoActividad == 'INSPECCION_BUCEO') {
-      aprobadoFinal =
-          countIntolerables == 0 &&
-          (verificacionesBuceo?.faenaHabilitada ?? true);
+      aprobadoFinal = BuceoVerificacionModel.resolverAprobacionFaena(
+        verificaciones: verificacionesBuceo,
+        totalIntolerables: countIntolerables,
+      );
 
       estadoGlobalFinal = aprobadoFinal ? "HABILITADA" : "SUSPENDIDA";
     } else {

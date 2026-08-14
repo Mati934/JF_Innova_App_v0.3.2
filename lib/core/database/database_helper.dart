@@ -8,7 +8,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      56; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      57; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -178,6 +178,7 @@ class DatabaseHelper {
         puerto_abierto INTEGER,
         observaciones_generales TEXT,
         estado_final TEXT,
+        estado_faena TEXT,
         numero_reporte TEXT,
         numero_seguimiento INTEGER DEFAULT 0,
         pdf_url TEXT,
@@ -1899,6 +1900,17 @@ class DatabaseHelper {
       await _safeAddColumn(db, 'correo_eventos', 'regla_envio_nombre', 'TEXT');
       debugPrint("✅ Parche v56 aplicado.");
     }
+
+    if (oldVersion < 57) {
+      debugPrint("🚀 Aplicando parche v57 (estado final de faena)...");
+      await _safeAddColumn(
+        db,
+        'actividades_pendientes',
+        'estado_faena',
+        'TEXT',
+      );
+      debugPrint("✅ Parche v57 aplicado.");
+    }
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -1928,6 +1940,12 @@ class DatabaseHelper {
         "BLOB",
       );
       await _safeAddColumn(db, "contratistas", "rut", "TEXT");
+      await _safeAddColumn(
+        db,
+        'actividades_pendientes',
+        'estado_faena',
+        'TEXT',
+      );
       await _safeAddColumn(
         db,
         'extintores_pendientes',

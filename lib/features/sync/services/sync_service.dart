@@ -14,6 +14,9 @@ class SyncService {
   final _supabase = Supabase.instance.client;
   final _dbHelper = DatabaseHelper.instance;
 
+  // Se desactiva sola si la migracion de 'estado_faena' aun no corrio en la nube.
+  static bool _estadoFaenaEnNube = true;
+
   // --- 1. DESCARGAR DATOS MAESTROS (Down-Sync) ---
   // Cada tabla se descarga independientemente: si una falla, las demás se guardan igual.
   Future<List<String>> descargarDatosMaestros() async {
@@ -793,6 +796,9 @@ class SyncService {
         datosParaNube.remove('eliminado');
         datosParaNube.remove('pdf_path_local');
         datosParaNube.remove('app_version');
+        if (!_estadoFaenaEnNube) {
+          datosParaNube.remove('estado_faena');
+        }
 
         // Auto-curación: algunas filas legacy pueden venir sin usuario_id.
         // Si hay sesión activa, lo inyectamos para evitar rechazo por RLS.
@@ -951,6 +957,13 @@ class SyncService {
         debugPrint("✅ Actividad subida OK: $activityId");
       } catch (e) {
         debugPrint("🔥 Error subiendo actividad $activityId: $e");
+        if (_estadoFaenaEnNube && e.toString().contains('estado_faena')) {
+          _estadoFaenaEnNube = false;
+          debugPrint(
+            "⚠️ 'estado_faena' no existe en Supabase. Se omitira hasta aplicar la migracion.",
+          );
+          continue;
+        }
         FirebaseCrashlytics.instance.recordError(
           e,
           StackTrace.current,

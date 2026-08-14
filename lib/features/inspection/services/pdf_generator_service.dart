@@ -189,11 +189,13 @@ class PdfGeneratorService {
         subtitle: _buildCompresorSubtitle(data),
         child: _buildBuceoCompresorCards(data),
       ),
-      pw.SizedBox(height: 16),
-      _buildBuceoSection(
-        title: 'Observaciones Generales',
-        child: _buildBuceoObservations(data),
-      ),
+      if (data.observacionPrevencionista.trim().isNotEmpty) ...[
+        pw.SizedBox(height: 16),
+        _buildBuceoSection(
+          title: 'Observaciones Generales',
+          child: _buildBuceoObservations(data),
+        ),
+      ],
       if (_hasNoCumpleItems(data)) ...[
         pw.SizedBox(height: 16),
         _buildBuceoSectionHeader(
@@ -278,17 +280,7 @@ class PdfGeneratorService {
                             ),
                             child: logoImage != null
                                 ? pw.Image(logoImage, fit: pw.BoxFit.contain)
-                                : pw.Center(
-                                    child: pw.Text(
-                                      data.cliente,
-                                      style: pw.TextStyle(
-                                        fontSize: 8,
-                                        color: _Aq.blue,
-                                        fontWeight: pw.FontWeight.bold,
-                                      ),
-                                      textAlign: pw.TextAlign.center,
-                                    ),
-                                  ),
+                                : pw.SizedBox(),
                           ),
                           pw.SizedBox(width: 12),
                           pw.Container(width: 1, height: 40, color: _Aq.rule),
@@ -342,20 +334,7 @@ class PdfGeneratorService {
                           borderRadius: pw.BorderRadius.circular(12),
                           border: pw.Border.all(color: _Aq.rule, width: 1),
                         ),
-                        child: pw.Row(
-                          children: [
-                            _buildMetaItem('Empresa', data.empresaContratista),
-                            _buildMetaDivider(_Aq.rule),
-                            _buildMetaItem('Matricula', data.matricula),
-                            _buildMetaDivider(_Aq.rule),
-                            _buildMetaItem(
-                              'Profesional',
-                              data.profesional ?? 'No informado',
-                            ),
-                            _buildMetaDivider(_Aq.rule),
-                            _buildMetaItem('Supervisor', data.supervisor),
-                          ],
-                        ),
+                        child: _buildBuceoMetaRow(data),
                       ),
                     ],
                   ),
@@ -481,7 +460,7 @@ class PdfGeneratorService {
             ),
             pw.SizedBox(height: 3),
             pw.Text(
-              value.isEmpty ? 'S/N' : value,
+              value,
               style: pw.TextStyle(
                 fontSize: 9,
                 color: _Aq.ink,
@@ -496,6 +475,24 @@ class PdfGeneratorService {
 
   pw.Widget _buildMetaDivider(PdfColor color) {
     return pw.Container(width: 1, height: 38, color: color);
+  }
+
+  pw.Widget _buildBuceoMetaRow(InspectionReportData data) {
+    final entries = <(String, String)>[
+      ('Empresa', data.empresaContratista),
+      ('Matricula', data.matricula),
+      ('Profesional', data.profesional ?? ''),
+      ('Supervisor', data.supervisor),
+    ].where((entry) => entry.$2.trim().isNotEmpty).toList();
+
+    return pw.Row(
+      children: [
+        for (var index = 0; index < entries.length; index++) ...[
+          _buildMetaItem(entries[index].$1, entries[index].$2),
+          if (index < entries.length - 1) _buildMetaDivider(_Aq.rule),
+        ],
+      ],
+    );
   }
 
   _StatusStyle _statusStyleFor(String? respuesta) {
@@ -626,14 +623,16 @@ class PdfGeneratorService {
               ),
             ],
           ),
-          pw.Text(
-            'Auditoria: ${data.horaInicio ?? '--:--'} - ${data.horaTermino ?? '--:--'} hrs',
-            style: pw.TextStyle(
-              fontSize: 9,
-              color: fg,
-              fontWeight: pw.FontWeight.bold,
+          if ((data.horaInicio ?? '').trim().isNotEmpty &&
+              (data.horaTermino ?? '').trim().isNotEmpty)
+            pw.Text(
+              'Auditoria: ${data.horaInicio} - ${data.horaTermino} hrs',
+              style: pw.TextStyle(
+                fontSize: 9,
+                color: fg,
+                fontWeight: pw.FontWeight.bold,
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -960,9 +959,12 @@ class PdfGeneratorService {
                 ],
               ),
               pw.SizedBox(height: 8),
-              _buildInfoLine('RUT', person.rut),
-              _buildInfoLine('Matricula', person.matricula),
-              _buildInfoLine('Condicion', person.rolEnFaena),
+              if (person.rut.trim().isNotEmpty)
+                _buildInfoLine('RUT', person.rut),
+              if (person.matricula.trim().isNotEmpty)
+                _buildInfoLine('Matricula', person.matricula),
+              if (person.rolEnFaena.trim().isNotEmpty)
+                _buildInfoLine('Condicion', person.rolEnFaena),
             ],
           ),
         );
@@ -985,7 +987,7 @@ class PdfGeneratorService {
               ),
             ),
             pw.TextSpan(
-              text: value.isEmpty ? '-' : value,
+              text: value,
               style: pw.TextStyle(fontSize: 8, color: PdfColors.blueGrey900),
             ),
           ],
@@ -1026,6 +1028,14 @@ class PdfGeneratorService {
 
     return pw.Column(
       children: compresores.map((compresor) {
+        final fields = <(String, String, bool)>[
+          ('Equipo', compresor['nombre'] ?? '', false),
+          ('Matricula', compresor['matricula'] ?? '', false),
+          ('Vigencia', compresor['vigencia'] ?? '', false),
+          ('Vigencia P.H.', compresor['ph'] ?? '', false),
+          ('Buzos', compresor['buzos'] ?? '', true),
+        ].where((field) => field.$2.trim().isNotEmpty).toList();
+
         return pw.Container(
           margin: const pw.EdgeInsets.only(bottom: 8),
           decoration: pw.BoxDecoration(
@@ -1064,27 +1074,12 @@ class PdfGeneratorService {
                   child: pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildCompresorField(
-                        'Equipo',
-                        compresor['nombre'] ?? '-',
-                      ),
-                      _buildCompresorField(
-                        'Matricula',
-                        compresor['matricula'] ?? '-',
-                      ),
-                      _buildCompresorField(
-                        'Vigencia',
-                        compresor['vigencia'] ?? '-',
-                      ),
-                      _buildCompresorField(
-                        'Vigencia P.H.',
-                        compresor['ph'] ?? '-',
-                      ),
-                      _buildCompresorField(
-                        'Buzos',
-                        compresor['buzos'] ?? '0',
-                        center: true,
-                      ),
+                      for (final field in fields)
+                        _buildCompresorField(
+                          field.$1,
+                          field.$2,
+                          center: field.$3,
+                        ),
                     ],
                   ),
                 ),
@@ -1150,9 +1145,7 @@ class PdfGeneratorService {
                 pw.Padding(
                   padding: const pw.EdgeInsets.fromLTRB(14, 14, 14, 14),
                   child: pw.Text(
-                    data.observacionPrevencionista.trim().isEmpty
-                        ? 'Sin observaciones registradas.'
-                        : data.observacionPrevencionista,
+                    data.observacionPrevencionista,
                     style: pw.TextStyle(
                       fontSize: 10,
                       color: _Aq.inkMid,

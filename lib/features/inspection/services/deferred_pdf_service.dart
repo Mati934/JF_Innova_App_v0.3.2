@@ -103,7 +103,11 @@ class DeferredPdfService {
       // 7. Actualizar URLs en SQLite y Supabase
       await db.update(
         'actividades_pendientes',
-        {'pdf_url': pdfUrl, 'pdf_path_local': null},
+        {
+          'pdf_url': pdfUrl,
+          'pdf_path_local': null,
+          'estado_faena': reportData.estadoGlobal,
+        },
         where: 'id = ?',
         whereArgs: [activityId],
       );
@@ -112,6 +116,15 @@ class DeferredPdfService {
           .from('actividades')
           .update({'pdf_url': pdfUrl})
           .eq('id', activityId);
+
+      try {
+        await _supabase
+            .from('actividades')
+            .update({'estado_faena': reportData.estadoGlobal})
+            .eq('id', activityId);
+      } catch (e) {
+        debugPrint("⚠️ [PDF Diferido] No se pudo subir estado_faena: $e");
+      }
 
       debugPrint("✅ [PDF Diferido] Completado: $pdfUrl");
       return true;
@@ -485,9 +498,10 @@ class DeferredPdfService {
     String estadoGlobalFinal = "FINALIZADA";
 
     if (tipoActividad == 'INSPECCION_BUCEO') {
-      aprobadoFinal =
-          countIntolerables == 0 &&
-          (verificacionesBuceo?.faenaHabilitada ?? true);
+      aprobadoFinal = BuceoVerificacionModel.resolverAprobacionFaena(
+        verificaciones: verificacionesBuceo,
+        totalIntolerables: countIntolerables,
+      );
       estadoGlobalFinal = aprobadoFinal ? "HABILITADA" : "SUSPENDIDA";
     } else {
       aprobadoFinal = true;
