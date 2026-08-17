@@ -292,6 +292,36 @@ estadísticas sin necesidad.
 1. Tarjeta nueva "Cronograma" (cuadradito en zona azul de módulos).
 2. Badge opcional: tareas pendientes del mes / vencidas.
 
+## 7.1.1 Entrada de administración
+
+Se agregó un tab "Cronograma" dentro de Admin Maestros
+(`lib/features/admin/presentation/screens/master_data_admin_screen.dart`),
+visible solo para super admin por ahora (hasta que exista el permiso
+`CRONOGRAMA_ADMIN` para habilitar también a Jorge). Apunta a
+`CronogramaAdminScreen` (`lib/features/cronograma/presentation/screens/cronograma_admin_screen.dart`).
+
+## 7.1.2 Estado real de la implementación (2026-08-15)
+
+1. Migración SQL creada en `supabase_migration_cronograma_module.sql` con las
+   15 tablas de la sección 6, RLS completo (`is_cronograma_admin()`,
+   `cronograma_plan_visible()`), triggers de `updated_at` y el campo
+   `tickets.cronograma_tarea_id`. **Pendiente de ejecutar manualmente en el
+   SQL Editor de Supabase** (los `.sql` sueltos no se aplican solos).
+2. CRUD funcional ya implementado y conectado a Supabase (100% online, sin
+   tablas `_pendientes`, igual que Tickets):
+   - Empresas de Cronograma (crear/editar/activar-desactivar).
+   - Grupos de usuarios (crear/editar) + administración de miembros
+     (agregar/quitar usuario desde el listado de `usuarios`).
+   - Código: `lib/features/cronograma/data/repositories/cronograma_repository.dart`,
+     `lib/features/cronograma/presentation/controllers/cronograma_admin_controller.dart`,
+     `lib/features/cronograma/presentation/screens/cronograma_admin_screen.dart`.
+   - Cada sección incluye un cuadro de tutorial (mismo patrón visual que
+     `email_admin_screen.dart`) explicando cómo usarla.
+3. Pendiente de implementar (bloqueado por preguntas a Jorge o por ser de
+   mayor esfuerzo): Plantillas de tarea, Planes/Cronogramas, generación de
+   `cronograma_tareas_programadas`, ciclo de vida (tomar/soltar/completar),
+   vínculo con inspección/tickets, tarjeta en Home y dashboard.
+
 ## 7.2 Pantallas mínimas MVP
 
 1. Lista de empresas y cronogramas visibles para el usuario.

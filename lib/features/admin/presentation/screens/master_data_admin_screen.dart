@@ -32,6 +32,7 @@ class _MasterDataAdminScreenState extends State<MasterDataAdminScreen> {
   @override
   Widget build(BuildContext context) {
     final isSuperAdmin = UserSession().esSuperAdmin;
+    // Admin Maestro: Datos Maestros, Modulos, Usuarios (solo super admin)
     return DefaultTabController(
       length: isSuperAdmin ? 3 : 2,
       child: Scaffold(
@@ -44,6 +45,7 @@ class _MasterDataAdminScreenState extends State<MasterDataAdminScreen> {
             indicatorColor: Colors.white,
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
+            isScrollable: isSuperAdmin,
             tabs: [
               const Tab(icon: Icon(Icons.dataset), text: 'Datos Maestros'),
               const Tab(icon: Icon(Icons.toggle_on), text: 'Modulos'),
@@ -54,9 +56,10 @@ class _MasterDataAdminScreenState extends State<MasterDataAdminScreen> {
         ),
         body: TabBarView(
           children: [
-            _DatosMaestrosTab(controller: _controller),
-            const EmpresaModulosScreen(embedded: true),
-            if (isSuperAdmin) _UsuariosTab(controller: _controller),
+            SafeArea(child: _DatosMaestrosTab(controller: _controller)),
+            SafeArea(child: const EmpresaModulosScreen(embedded: true)),
+            if (isSuperAdmin)
+              SafeArea(child: _UsuariosTab(controller: _controller)),
           ],
         ),
       ),
@@ -1203,7 +1206,10 @@ class _UsuariosTabState extends State<_UsuariosTab> {
   }
 
   Future<void> _confirmarEliminar(Map<String, dynamic> usuario) async {
-    final nombre = usuario['nombre_completo'] as String? ?? usuario['email'] as String? ?? 'Usuario';
+    final nombre =
+        usuario['nombre_completo'] as String? ??
+        usuario['email'] as String? ??
+        'Usuario';
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1227,17 +1233,12 @@ class _UsuariosTabState extends State<_UsuariosTab> {
 
     if (confirmar != true || !mounted) return;
 
-    final error = await widget.controller.deleteUser(
-      usuario['id'] as String,
-    );
+    final error = await widget.controller.deleteUser(usuario['id'] as String);
 
     if (!mounted) return;
     if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $error'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Error: $error'), backgroundColor: Colors.red),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1297,8 +1298,11 @@ class _UsuariosTabState extends State<_UsuariosTab> {
               ),
               title: Text(nombre.isNotEmpty ? nombre : email),
               subtitle: Text(
-                [if (email.isNotEmpty) email, if (rol.isNotEmpty) rol, if (empresa.isNotEmpty) empresa]
-                    .join(' · '),
+                [
+                  if (email.isNotEmpty) email,
+                  if (rol.isNotEmpty) rol,
+                  if (empresa.isNotEmpty) empresa,
+                ].join(' · '),
                 style: const TextStyle(fontSize: 12),
               ),
               trailing: esMiCuenta

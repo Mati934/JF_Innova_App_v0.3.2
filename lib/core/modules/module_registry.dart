@@ -18,6 +18,7 @@ import '../../features/merieux/presentation/screens/merieux_extintores_module_sc
 import '../../features/email/presentation/screens/email_setup_screen.dart';
 import '../../features/email/presentation/screens/email_outbox_screen.dart';
 import '../../features/email/presentation/screens/email_admin_screen.dart';
+import '../../features/cronograma/presentation/screens/cronograma_templates_admin_screen.dart';
 
 const Color kMerieuxColor = Color(0xFF1B3B6F);
 
@@ -169,6 +170,15 @@ class ModuleRegistry {
       color: Colors.indigo.shade700,
       requiresAdmin: true,
       screenBuilder: (_) => const EmailAdminScreen(),
+    ),
+    ModuleDefinition(
+      moduleKey: 'CRONOGRAMA_PLANTILLAS',
+      title: 'Plantillas Cronograma',
+      subtitle: 'Administración de plantillas',
+      icon: Icons.event_note,
+      color: Colors.amber.shade700,
+      requiresAdmin: true,
+      screenBuilder: (_) => const CronogramaTemplatesAdminScreen(),
     ),
     ModuleDefinition(
       moduleKey: 'RENDICIONES',
