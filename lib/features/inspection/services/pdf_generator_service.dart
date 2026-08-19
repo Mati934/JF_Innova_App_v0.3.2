@@ -99,9 +99,7 @@ class PdfGeneratorService {
                 ),
         ),
         footer: (context) => _buildFooter(context, data),
-        build: (context) => esBuceo
-            ? _buildBuceoDocument(data, logoImage)
-            : _buildDefaultDocument(data, logoImage),
+        build: (context) => _buildDefaultDocument(data, logoImage),
       ),
     );
 
@@ -123,6 +121,7 @@ class PdfGeneratorService {
         _buildPersonnelTable(data),
         pw.SizedBox(height: 10),
         _buildSafetyChecklist(data),
+        ..._buildSafetyPhotoGallery(data),
         pw.SizedBox(height: 15),
       ],
       _buildGeneralObservations(data),
@@ -142,6 +141,10 @@ class PdfGeneratorService {
       ),
       pw.SizedBox(height: 10),
       ..._buildCategorizedChecklists(data),
+      if (data.mandatoryPhotos.isNotEmpty) ...[
+        pw.SizedBox(height: 20),
+        ..._buildMandatoryPhotosSection(data.mandatoryPhotos),
+      ],
       if (data.fotosExtraObservaciones.isNotEmpty) ...[
         pw.SizedBox(height: 20),
         ..._buildFotosObservacion(data.fotosExtraObservaciones),
@@ -156,6 +159,7 @@ class PdfGeneratorService {
     ];
   }
 
+  // ignore: unused_element
   List<pw.Widget> _buildBuceoDocument(
     InspectionReportData data,
     pw.MemoryImage? logoImage,
@@ -1545,10 +1549,8 @@ class PdfGeneratorService {
             margin: const pw.EdgeInsets.only(top: 14),
             padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: pw.BoxDecoration(
-              gradient: pw.LinearGradient(colors: [_Aq.blue, _Aq.tealMid]),
-              borderRadius: const pw.BorderRadius.vertical(
-                top: pw.Radius.circular(10),
-              ),
+              color: PdfColors.grey200,
+              border: pw.Border.all(color: PdfColors.grey400, width: 0.6),
             ),
             child: pw.Row(
               children: [
@@ -1557,8 +1559,7 @@ class PdfGeneratorService {
                   style: pw.TextStyle(
                     fontSize: 9,
                     fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.white,
-                    letterSpacing: 1.2,
+                    color: PdfColors.grey900,
                   ),
                 ),
                 pw.Spacer(),
@@ -1566,7 +1567,7 @@ class PdfGeneratorService {
                   'items ${startNumber.toString().padLeft(2, '0')}-${(startNumber + items.length - 1).toString().padLeft(2, '0')}',
                   style: const pw.TextStyle(
                     fontSize: 8,
-                    color: PdfColors.white,
+                    color: PdfColors.grey700,
                   ),
                 ),
               ],
@@ -1583,7 +1584,8 @@ class PdfGeneratorService {
             columnWidths: {
               0: const pw.FixedColumnWidth(34),
               1: const pw.FlexColumnWidth(),
-              2: const pw.FixedColumnWidth(46),
+              2: const pw.FixedColumnWidth(82),
+              3: const pw.FixedColumnWidth(46),
             },
             children: items.map((item) {
               final row = _buildBuceoChecklistRow(item, globalCounter);
@@ -1704,19 +1706,33 @@ class PdfGeneratorService {
                   ),
                 ),
               ],
-              if (item.fotosPaths.isNotEmpty) ...[
-                pw.SizedBox(height: 3),
-                pw.Text(
-                  'Contiene evidencia fotografica en el anexo final.',
-                  style: pw.TextStyle(
-                    fontSize: 6.5,
-                    fontStyle: pw.FontStyle.italic,
-                    color: _Aq.blue,
-                  ),
-                ),
-              ],
             ],
           ),
+        ),
+        pw.Container(
+          alignment: pw.Alignment.center,
+          padding: const pw.EdgeInsets.all(4),
+          decoration: pw.BoxDecoration(
+            border: pw.Border(
+              left: pw.BorderSide(color: _Aq.rule, width: 0.75),
+              right: pw.BorderSide(color: _Aq.rule, width: 0.75),
+            ),
+          ),
+          child: item.fotosPaths.isEmpty
+              ? pw.Text(
+                  '-',
+                  style: pw.TextStyle(fontSize: 8, color: PdfColors.grey500),
+                )
+              : pw.Wrap(
+                  spacing: 3,
+                  runSpacing: 3,
+                  alignment: pw.WrapAlignment.center,
+                  children: item.fotosPaths
+                      .map<pw.Widget>(
+                        (path) => _buildPhotoThumb(path, width: 52, height: 42),
+                      )
+                      .toList(),
+                ),
         ),
         pw.Container(
           alignment: pw.Alignment.center,
@@ -1804,13 +1820,14 @@ class PdfGeneratorService {
                 ),
               if (item.fotosPaths.isNotEmpty) ...[
                 pw.SizedBox(height: 4),
-                pw.Text(
-                  "Contiene evidencia fotografica en el anexo final.",
-                  style: pw.TextStyle(
-                    fontSize: 6,
-                    fontStyle: pw.FontStyle.italic,
-                    color: PdfColors.blue800,
-                  ),
+                pw.Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: item.fotosPaths
+                      .map<pw.Widget>(
+                        (path) => _buildPhotoThumb(path, width: 64, height: 48),
+                      )
+                      .toList(),
                 ),
               ],
             ],
@@ -2434,6 +2451,42 @@ class PdfGeneratorService {
         ],
       ),
     );
+  }
+
+  List<pw.Widget> _buildSafetyPhotoGallery(InspectionReportData data) {
+    const order = ['IV', 'V', 'VI', 'VII', 'VIII'];
+    final photos = <pw.Widget>[];
+
+    for (final key in order) {
+      final path = data.safetyPhotosPaths[key];
+      if (path == null || path.isEmpty || !File(path).existsSync()) continue;
+
+      photos.add(
+        pw.Container(
+          margin: const pw.EdgeInsets.symmetric(horizontal: 6),
+          child: pw.Column(
+            mainAxisSize: pw.MainAxisSize.min,
+            children: [
+              _buildPhotoThumb(path, width: 90, height: 90),
+              pw.SizedBox(height: 4),
+              pw.Text(
+                key,
+                style: pw.TextStyle(
+                  fontSize: 8,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (photos.isEmpty) return [];
+    return [
+      pw.SizedBox(height: 10),
+      pw.Row(mainAxisAlignment: pw.MainAxisAlignment.center, children: photos),
+    ];
   }
 
   pw.Widget _buildCell(String text, {bool isHeader = false}) {

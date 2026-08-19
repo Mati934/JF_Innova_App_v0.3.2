@@ -87,6 +87,11 @@ class _EmailOutboxScreenState extends State<EmailOutboxScreen> {
 
     final sent = result?['sent'] == true;
     if (sent) {
+      await _pendingService.markPreparedExternally(
+        registroId: (row['registro_id'] ?? '').toString(),
+        moduleKey: (row['modulo_key'] ?? '').toString(),
+        result: result ?? const {},
+      );
       await _pendingService.deleteById(id);
     } else {
       final updatedRecipientsDynamic = result?['recipients'];

@@ -292,13 +292,14 @@ estadísticas sin necesidad.
 1. Tarjeta nueva "Cronograma" (cuadradito en zona azul de módulos).
 2. Badge opcional: tareas pendientes del mes / vencidas.
 
-## 7.1.1 Entrada de administración
+## 7.1.1 Entradas separadas
 
-Se agregó un tab "Cronograma" dentro de Admin Maestros
-(`lib/features/admin/presentation/screens/master_data_admin_screen.dart`),
-visible solo para super admin por ahora (hasta que exista el permiso
-`CRONOGRAMA_ADMIN` para habilitar también a Jorge). Apunta a
-`CronogramaAdminScreen` (`lib/features/cronograma/presentation/screens/cronograma_admin_screen.dart`).
+La administración de plantillas se expone como el módulo
+`CRONOGRAMA_PLANTILLAS`, reservado a super admin/`CRONOGRAMA_ADMIN`.
+El cronograma operativo se expone como `CRONOGRAMA_EMPRESAS`, activable por
+empresa desde `empresa_modulos`; solo las empresas habilitadas lo muestran en
+Home. La pantalla operativa presenta una lista lineal de "Qué me toca este
+mes", agrupada por fecha y con estados y acciones del ciclo de vida.
 
 ## 7.1.2 Estado real de la implementación (2026-08-15)
 
@@ -317,10 +318,16 @@ visible solo para super admin por ahora (hasta que exista el permiso
      `lib/features/cronograma/presentation/screens/cronograma_admin_screen.dart`.
    - Cada sección incluye un cuadro de tutorial (mismo patrón visual que
      `email_admin_screen.dart`) explicando cómo usarla.
-3. Pendiente de implementar (bloqueado por preguntas a Jorge o por ser de
-   mayor esfuerzo): Plantillas de tarea, Planes/Cronogramas, generación de
-   `cronograma_tareas_programadas`, ciclo de vida (tomar/soltar/completar),
-   vínculo con inspección/tickets, tarjeta en Home y dashboard.
+3. Implementado en la capa operativa inicial:
+   - `CRONOGRAMA_PLANTILLAS` con tipos, plantillas y asignaciones a empresas
+     cliente.
+   - Generación explícita de un plan anual desde una asignación, copiando sus
+     tareas y creando instancias sin duplicarlas.
+   - `CRONOGRAMA_EMPRESAS` como módulo operativo activable por empresa.
+   - Vista mensual lineal con tomar, iniciar, completar, historial y estados.
+4. Pendiente: selección de grupos/usuarios en cada plan, apertura real del
+   módulo destino o checklist genérico, asociación con inspecciones y mejoras
+   de Tickets. El dashboard sigue fuera del MVP operativo.
 
 ## 7.2 Pantallas mínimas MVP
 
@@ -536,5 +543,5 @@ flujo actual `tarea -> inspección -> tickets` queda preparado.
 
 Antes de cerrar completamente el alcance de producto conviene preguntarle a
 Jorge por la generación de Tickets, notificaciones y futuros indicadores, pero
-no son bloqueantes para comenzar la base técnica. Todavía no se implementará
-código de Flutter ni se ejecutará la migración en Supabase.
+no son bloqueantes para el flujo operativo base. Las migraciones SQL siguen
+requiriendo ejecución manual en el SQL Editor de Supabase.

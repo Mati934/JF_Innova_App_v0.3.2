@@ -13,6 +13,7 @@ class CronogramaTemplatesController extends ChangeNotifier {
   List<Map<String, dynamic>> _tiposTarea = [];
   List<Map<String, dynamic>> _plantillas = [];
   List<Map<String, dynamic>> _asignaciones = [];
+  List<Map<String, dynamic>> _clientesEmpresas = [];
 
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -20,6 +21,8 @@ class CronogramaTemplatesController extends ChangeNotifier {
   List<Map<String, dynamic>> get plantillas => List.unmodifiable(_plantillas);
   List<Map<String, dynamic>> get asignaciones =>
       List.unmodifiable(_asignaciones);
+  List<Map<String, dynamic>> get clientesEmpresas =>
+      List.unmodifiable(_clientesEmpresas);
 
   /// Carga todos los datos iniciales
   Future<void> cargar() async {
@@ -28,10 +31,12 @@ class CronogramaTemplatesController extends ChangeNotifier {
       final tipos = await _repository.getTiposTarea();
       final plantillas = await _repository.getPlantillas();
       final asignaciones = await _repository.getAsignaciones();
+      final clientesEmpresas = await _repository.getClientesEmpresas();
 
       _tiposTarea = tipos;
       _plantillas = plantillas;
       _asignaciones = asignaciones;
+      _clientesEmpresas = clientesEmpresas;
       _error = null;
     } catch (e) {
       _error = 'Error cargando datos: $e';
@@ -230,6 +235,26 @@ class CronogramaTemplatesController extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _error = 'Error desactivando asignación: $e';
+      debugPrint('❌ $e');
+      rethrow;
+    }
+  }
+
+  Future<void> generarCronogramaDesdeAsignacion({
+    required String asignacionId,
+    required DateTime desde,
+    required DateTime hasta,
+  }) async {
+    try {
+      await _repository.generarCronogramaDesdeAsignacion(
+        asignacionId: asignacionId,
+        desde: desde,
+        hasta: hasta,
+      );
+      _error = null;
+      notifyListeners();
+    } catch (e) {
+      _error = 'Error generando cronograma: $e';
       debugPrint('❌ $e');
       rethrow;
     }

@@ -233,6 +233,7 @@ class InspectionFormController extends ChangeNotifier {
 
       // 5. CARGAR DATOS ESPECÍFICOS (BUCEO)
       await cargarDatosEspecificos();
+      await _recuperarFotosVerificacionesDesdePendientes();
     } catch (e) {
       _errorMessage = "Error cargando: $e";
       debugPrint("❌ Error en _init: $e");
@@ -281,6 +282,39 @@ class InspectionFormController extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint("Error cargando datos específicos: $e");
+    }
+  }
+
+  Future<void> _recuperarFotosVerificacionesDesdePendientes() async {
+    if (tipoActividad != 'INSPECCION_BUCEO' ||
+        _repo is! LocalInspectionRepository ||
+        verificacionesBuceo == null) {
+      return;
+    }
+
+    final fotos = await (_repo as LocalInspectionRepository).getFotosPendientes(
+      activityId,
+    );
+    for (final foto in fotos) {
+      final itemId = foto['item_id']?.toString() ?? '';
+      if (!itemId.startsWith('verif_')) continue;
+
+      final nombre = itemId.substring('verif_'.length).split('_').first;
+      final path = foto['local_path']?.toString();
+      if (path == null || path.isEmpty || !File(path).existsSync()) continue;
+
+      switch (nombre) {
+        case 'autorizacion':
+          verificacionesBuceo!.imgAutorizacion ??= path;
+        case 'induccion':
+          verificacionesBuceo!.imgInduccion ??= path;
+        case 'permiso':
+          verificacionesBuceo!.imgPermiso ??= path;
+        case 'plan':
+          verificacionesBuceo!.imgPlan ??= path;
+        case 'examenes':
+          verificacionesBuceo!.imgExamenes ??= path;
+      }
     }
   }
 
@@ -1047,6 +1081,26 @@ class InspectionFormController extends ChangeNotifier {
       });
     }
 
+    // E. Fotografias de verificaciones criticas de buceo
+    final fotosVerificaciones = <String, String?>{
+      'autorizacion': verificacionesBuceo?.imgAutorizacion,
+      'induccion': verificacionesBuceo?.imgInduccion,
+      'permiso': verificacionesBuceo?.imgPermiso,
+      'plan': verificacionesBuceo?.imgPlan,
+      'examenes': verificacionesBuceo?.imgExamenes,
+    };
+    for (final entry in fotosVerificaciones.entries) {
+      final path = entry.value;
+      if (path == null || path.isEmpty || !File(path).existsSync()) continue;
+      listaFotosParaRepo.add({
+        'actividad_id': activityId,
+        'item_id': 'verif_${entry.key}',
+        'local_path': path,
+        'descripcion': 'Verificación: ${entry.key}',
+        'subido': 0,
+      });
+    }
+
     // 4. Datos Buceo & Participantes
     Map<String, dynamic>? verificacionesMap;
     Map<String, dynamic>? embarcacionMap;
@@ -1245,13 +1299,13 @@ class InspectionFormController extends ChangeNotifier {
       if (_repo is LocalInspectionRepository) {
         final rutaSegura = await (_repo).saveFoto(
           activityId: activityId,
-          itemId:
-              "verif_${nombreArchivoBase}_${DateTime.now().millisecondsSinceEpoch}",
+          itemId: "verif_$nombreArchivoBase",
           file: XFile(fotoComprimida.path),
           descripcion: "Verificación: $nombreArchivoBase",
         );
 
         onFotoGuardada(rutaSegura);
+        _triggerAutoSave();
         notifyListeners();
       }
     } catch (e) {

@@ -143,8 +143,8 @@ class EmailDispatchService {
     );
 
     final emails = destinatarios
-        .map((r) => (r['correo'] ?? '').toString().trim())
-        .where((e) => e.isNotEmpty)
+        .map<String>((r) => (r['correo'] ?? '').toString().trim())
+        .where((String email) => email.isNotEmpty)
         .toSet()
         .toList();
 

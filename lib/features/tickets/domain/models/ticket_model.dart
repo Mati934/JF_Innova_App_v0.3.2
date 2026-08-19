@@ -83,7 +83,7 @@ class TicketModel {
   final String? embarcacionId;
   final String? contratistaId;
   final String? asunto;
-  final String motivo;
+  final String? motivo;
   final String generadoPorId;
   final TicketEstado estado;
   final String? tomadoPorId;
@@ -114,7 +114,7 @@ class TicketModel {
     this.embarcacionId,
     this.contratistaId,
     this.asunto,
-    required this.motivo,
+    this.motivo,
     required this.generadoPorId,
     this.estado = TicketEstado.abierto,
     this.tomadoPorId,
@@ -131,13 +131,17 @@ class TicketModel {
     this.updatedAt,
   });
 
-  /// Título corto para mostrar en listas: usa [asunto] si existe, si no
-  /// recorta el inicio de [motivo].
+  /// Título corto para mostrar en listas.
   String get tituloVisible {
     final a = asunto?.trim();
     if (a != null && a.isNotEmpty) return a;
-    final m = motivo.trim();
-    return m.length > 60 ? '${m.substring(0, 60)}…' : m;
+    final m = motivo?.trim();
+    if (m != null && m.isNotEmpty) {
+      return m.length > 60 ? '${m.substring(0, 60)}…' : m;
+    }
+    return origen == TicketOrigen.inspeccion
+        ? 'Observación de inspección'
+        : 'Solicitud';
   }
 
   bool get estaVencido {
@@ -162,7 +166,7 @@ class TicketModel {
       embarcacionId: map['embarcacion_id'] as String?,
       contratistaId: map['contratista_id'] as String?,
       asunto: map['asunto'] as String?,
-      motivo: map['motivo'] as String? ?? '',
+      motivo: map['motivo'] as String?,
       generadoPorId: map['generado_por_id'] as String,
       estado: TicketEstado.fromValue(map['estado'] as String?),
       tomadoPorId: map['tomado_por_id'] as String?,

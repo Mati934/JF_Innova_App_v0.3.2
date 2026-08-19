@@ -32,17 +32,6 @@ class _CronogramaTemplatesAdminScreenState
     'Asigna las plantillas a las empresas cliente. Cuando actives una plantilla para una empresa, se generarán automáticamente los cronogramas según la frecuencia definida.',
   ];
 
-  static const _frecuencias = [
-    'DIARIA',
-    'SEMANAL',
-    'QUINCENAL',
-    'MENSUAL',
-    'TRIMESTRAL',
-    'SEMESTRAL',
-    'ANUAL',
-    'PERSONALIZADA',
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -320,9 +309,21 @@ class _CronogramaTemplatesAdminScreenState
                   subtitle: Text(
                     '$empresaNombre${empresaRut.isNotEmpty ? " ($empresaRut)" : ""}',
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: () => _desactivarAsignacion(id),
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'generar') _showGenerarDialog(id);
+                      if (value == 'desactivar') _desactivarAsignacion(id);
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: 'generar',
+                        child: Text('Generar cronograma'),
+                      ),
+                      PopupMenuItem(
+                        value: 'desactivar',
+                        child: Text('Desactivar asignación'),
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -493,7 +494,13 @@ class _CronogramaTemplatesAdminScreenState
 
   Future<void> _showAsignacionDialog() async {
     final plantillas = _controller.plantillas;
-    String? selectedPlantilla;
+    final empresas = _controller.clientesEmpresas;
+    String? selectedPlantilla = plantillas.isEmpty
+        ? null
+        : plantillas.first['id']?.toString();
+    String? selectedEmpresa = empresas.isEmpty
+        ? null
+        : empresas.first['id']?.toString();
 
     final ok = await showDialog<bool>(
       context: context,
@@ -520,9 +527,21 @@ class _CronogramaTemplatesAdminScreenState
                 },
               ),
               const SizedBox(height: 16),
-              const Text(
-                '(Por implementar: selector de empresa cliente)',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+              DropdownButton<String>(
+                isExpanded: true,
+                hint: const Text('Selecciona una empresa cliente'),
+                value: selectedEmpresa,
+                items: empresas
+                    .map(
+                      (empresa) => DropdownMenuItem(
+                        value: empresa['id']?.toString(),
+                        child: Text(empresa['nombre']?.toString() ?? ''),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (val) {
+                  selectedEmpresa = val;
+                },
               ),
             ],
           ),
@@ -540,11 +559,74 @@ class _CronogramaTemplatesAdminScreenState
       ),
     );
 
-    if (ok != true) return;
+    if (ok != true || selectedPlantilla == null || selectedEmpresa == null) {
+      if (ok == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Selecciona una plantilla y una empresa cliente'),
+          ),
+        );
+      }
+      return;
+    }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Asignación - en desarrollo')));
+    try {
+      await _controller.crearAsignacion(
+        plantillaId: selectedPlantilla!,
+        clienteEmpresaId: selectedEmpresa!,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Asignación creada')));
+      }
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  Future<void> _showGenerarDialog(String asignacionId) async {
+    final now = DateTime.now();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Generar cronograma'),
+        content: const Text(
+          'Se creará un plan y sus tareas programadas para el año actual. '
+          'Las instancias existentes no se duplicarán.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Generar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await _controller.generarCronogramaDesdeAsignacion(
+        asignacionId: asignacionId,
+        desde: DateTime(now.year, 1, 1),
+        hasta: DateTime(now.year, 12, 31),
+      );
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cronograma generado correctamente')),
+        );
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -228,7 +228,11 @@ class _HidroserFormView extends StatelessWidget {
     final ok = await ctrl.guardarDefinitivo();
     if (!context.mounted) return;
     if (ok) {
-      await _tryOpenConfiguredEmail(context, ctrl);
+      try {
+        await _tryOpenConfiguredEmail(context, ctrl);
+      } catch (e, stack) {
+        debugPrint('⚠️ Error preparando correo Hidroser: $e\n$stack');
+      }
 
       if (!context.mounted) return;
 
@@ -323,7 +327,23 @@ class _HidroserFormView extends StatelessWidget {
       return;
     }
 
+    await EmailPendingService().enqueuePending(
+      registroId: registroId,
+      moduleKey: dispatch.moduleKey,
+      empresaId: empresaId,
+      usuarioId: usuarioId,
+      configId: dispatch.configId,
+      listaId: dispatch.listaId,
+      subject: dispatch.subject,
+      body: dispatch.body,
+      recipients: dispatch.suggestedRecipients,
+      estado: 'pendiente',
+      attachmentPath: ctrl.lastSavedPdfPath,
+    );
+
+    if (!context.mounted) return;
     final abrirCorreo = await _confirmarPrepararCorreo(context);
+    if (!context.mounted) return;
     if (!abrirCorreo) {
       await EmailPendingService().enqueuePending(
         registroId: registroId,
@@ -362,6 +382,11 @@ class _HidroserFormView extends StatelessWidget {
 
     final sent = previewResult?['sent'] == true;
     if (sent) {
+      await EmailPendingService().markPreparedExternally(
+        registroId: registroId,
+        moduleKey: dispatch.moduleKey,
+        result: previewResult ?? const {},
+      );
       await EmailPendingService().deleteByRegistro(
         registroId: registroId,
         moduleKey: dispatch.moduleKey,

@@ -8,7 +8,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      57; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      58; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -723,7 +723,13 @@ class DatabaseHelper {
         adjunto_nombre TEXT,
         adjunto_tipo TEXT,
         error_code TEXT,
-        error_message TEXT
+        error_message TEXT,
+        modulo_key TEXT,
+        destinatarios_json TEXT,
+        destinatarios_count INTEGER,
+        subido INTEGER NOT NULL DEFAULT 0,
+        ultimo_error_sync TEXT,
+        synced_at TEXT
       )
     ''');
     await db.execute('''
@@ -1898,6 +1904,7 @@ class DatabaseHelper {
       await _safeAddColumn(db, 'correo_eventos', 'lista_nombre', 'TEXT');
       await _safeAddColumn(db, 'correo_eventos', 'template_nombre', 'TEXT');
       await _safeAddColumn(db, 'correo_eventos', 'regla_envio_nombre', 'TEXT');
+      await _safeAddColumn(db, 'correo_eventos', 'modulo_key', 'TEXT');
       debugPrint("✅ Parche v56 aplicado.");
     }
 
@@ -1910,6 +1917,34 @@ class DatabaseHelper {
         'TEXT',
       );
       debugPrint("✅ Parche v57 aplicado.");
+    }
+
+    if (oldVersion < 58) {
+      debugPrint("🚀 Aplicando parche v58 (métricas y sync de correos)...");
+      await _safeAddColumn(db, 'correo_eventos', 'config_id', 'TEXT');
+      await _safeAddColumn(db, 'correo_eventos', 'lista_id', 'TEXT');
+      await _safeAddColumn(db, 'correo_eventos', 'lista_nombre', 'TEXT');
+      await _safeAddColumn(db, 'correo_eventos', 'template_nombre', 'TEXT');
+      await _safeAddColumn(db, 'correo_eventos', 'regla_envio_nombre', 'TEXT');
+      await _safeAddColumn(db, 'correo_eventos', 'destinatarios_json', 'TEXT');
+      await _safeAddColumn(
+        db,
+        'correo_eventos',
+        'destinatarios_count',
+        'INTEGER',
+      );
+      await _safeAddColumn(
+        db,
+        'correo_eventos',
+        'subido',
+        'INTEGER NOT NULL DEFAULT 0',
+      );
+      await _safeAddColumn(db, 'correo_eventos', 'ultimo_error_sync', 'TEXT');
+      await _safeAddColumn(db, 'correo_eventos', 'synced_at', 'TEXT');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_correo_eventos_sync ON correo_eventos(subido, event_timestamp)',
+      );
+      debugPrint("✅ Parche v58 aplicado.");
     }
   }
 

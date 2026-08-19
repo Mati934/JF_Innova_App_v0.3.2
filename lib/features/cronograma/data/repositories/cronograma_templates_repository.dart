@@ -1,5 +1,4 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter/foundation.dart';
 
 /// Repository 100% online para administración de Plantillas de Cronograma.
 /// Maneja: Tipos de Tarea, Plantillas, Asignaciones a Empresas Cliente.
@@ -79,6 +78,15 @@ class CronogramaTemplatesRepository {
     final response = await _supabase
         .from('cronograma_plantillas')
         .select()
+        .eq('activo', true)
+        .order('nombre');
+    return response as List<Map<String, dynamic>>;
+  }
+
+  Future<List<Map<String, dynamic>>> getClientesEmpresas() async {
+    final response = await _supabase
+        .from('cronograma_clientes_empresas')
+        .select('id, nombre, rut')
         .eq('activo', true)
         .order('nombre');
     return response as List<Map<String, dynamic>>;
@@ -261,4 +269,90 @@ class CronogramaTemplatesRepository {
         .update({'activa': false})
         .eq('id', asignacionId);
   }
+
+  /// Materializa una asignación como plan y crea las instancias del período.
+  Future<void> generarCronogramaDesdeAsignacion({
+    required String asignacionId,
+    required DateTime desde,
+    required DateTime hasta,
+  }) async {
+    final assignment = await _supabase
+        .from('cronograma_plantilla_asignaciones')
+        .select(
+          'plantilla_id, cliente_empresa_id, cronograma_plantillas(nombre)',
+        )
+        .eq('id', asignacionId)
+        .single();
+    final templateId = assignment['plantilla_id'].toString();
+    final clientId = assignment['cliente_empresa_id'].toString();
+    final template = await getPlantillaConTareas(templateId);
+    final templateName = (template['nombre'] ?? 'Cronograma').toString();
+
+    final plan = await _supabase
+        .from('cronograma_planes')
+        .insert({
+          'cliente_empresa_id': clientId,
+          'nombre': templateName,
+          'desde': _date(desde),
+          'hasta': _date(hasta),
+          'activo': true,
+        })
+        .select('id')
+        .single();
+    final planId = plan['id'].toString();
+
+    for (final rawTask in (template['tareas'] as List<dynamic>)) {
+      final task = Map<String, dynamic>.from(rawTask as Map);
+      final planTask = await _supabase
+          .from('cronograma_plan_tareas')
+          .insert({
+            'plan_id': planId,
+            'tipo_tarea_id': task['tipo_tarea_id'],
+            'nombre': task['nombre'],
+            'frecuencia': task['frecuencia'],
+            'desde': _date(desde),
+            'hasta': _date(hasta),
+            'config_periodo_json': task['config_periodo_json'] ?? {},
+            'parametros_json': task['parametros_json'] ?? {},
+            'activo': true,
+          })
+          .select('id')
+          .single();
+      final planTaskId = planTask['id'].toString();
+      for (
+        var day = desde;
+        !day.isAfter(hasta);
+        day = _nextDate(day, task['frecuencia'].toString())
+      ) {
+        await _supabase
+            .from('cronograma_tareas_programadas')
+            .upsert(
+              {
+                'plan_tarea_id': planTaskId,
+                'cliente_empresa_id': clientId,
+                'fecha_programada': _date(day),
+                'estado': 'PROGRAMADA',
+              },
+              onConflict: 'plan_tarea_id,fecha_programada',
+              ignoreDuplicates: true,
+            );
+      }
+    }
+  }
+
+  DateTime _nextDate(DateTime date, String frequency) => switch (frequency) {
+    'DIARIA' => date.add(const Duration(days: 1)),
+    'SEMANAL' => date.add(const Duration(days: 7)),
+    'QUINCENAL' => date.add(const Duration(days: 14)),
+    'MENSUAL' => DateTime(date.year, date.month + 1, date.day),
+    'TRIMESTRAL' => DateTime(date.year, date.month + 3, date.day),
+    'SEMESTRAL' => DateTime(date.year, date.month + 6, date.day),
+    'ANUAL' => DateTime(date.year + 1, date.month, date.day),
+    _ => hastaFallback(date),
+  };
+
+  DateTime hastaFallback(DateTime date) => date.add(const Duration(days: 3650));
+
+  String _date(DateTime value) =>
+      '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 }

@@ -4,7 +4,9 @@ enum TicketHistorialAccion {
   soltado,
   finalizado,
   revisadoAprobado,
-  revisadoRechazado;
+  revisadoRechazado,
+  reabierto,
+  nuevaOcurrencia;
 
   String get value => switch (this) {
     TicketHistorialAccion.tomado => 'TOMADO',
@@ -12,6 +14,8 @@ enum TicketHistorialAccion {
     TicketHistorialAccion.finalizado => 'FINALIZADO',
     TicketHistorialAccion.revisadoAprobado => 'REVISADO_APROBADO',
     TicketHistorialAccion.revisadoRechazado => 'REVISADO_RECHAZADO',
+    TicketHistorialAccion.reabierto => 'REABIERTO',
+    TicketHistorialAccion.nuevaOcurrencia => 'NUEVA_OCURRENCIA',
   };
 
   String get label => switch (this) {
@@ -20,6 +24,8 @@ enum TicketHistorialAccion {
     TicketHistorialAccion.finalizado => 'Finalizó el ticket (envió a revisión)',
     TicketHistorialAccion.revisadoAprobado => 'Aprobó y cerró el ticket',
     TicketHistorialAccion.revisadoRechazado => 'Rechazó el ticket',
+    TicketHistorialAccion.reabierto => 'Reabrió el ticket',
+    TicketHistorialAccion.nuevaOcurrencia => 'Registró nueva evidencia',
   };
 
   static TicketHistorialAccion fromValue(String? value) => switch (value) {
@@ -27,6 +33,8 @@ enum TicketHistorialAccion {
     'FINALIZADO' => TicketHistorialAccion.finalizado,
     'REVISADO_APROBADO' => TicketHistorialAccion.revisadoAprobado,
     'REVISADO_RECHAZADO' => TicketHistorialAccion.revisadoRechazado,
+    'REABIERTO' => TicketHistorialAccion.reabierto,
+    'NUEVA_OCURRENCIA' => TicketHistorialAccion.nuevaOcurrencia,
     _ => TicketHistorialAccion.tomado,
   };
 }

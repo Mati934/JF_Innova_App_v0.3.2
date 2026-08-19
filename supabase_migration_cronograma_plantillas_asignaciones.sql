@@ -55,15 +55,23 @@ CREATE TRIGGER trg_touch_asignaciones_updated_at
 -- RLS: Solo super admin puede ver/modificar (simplificado por ahora)
 ALTER TABLE public.cronograma_plantilla_asignaciones ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS cronograma_plantilla_asignaciones_select
+  ON public.cronograma_plantilla_asignaciones;
 CREATE POLICY cronograma_plantilla_asignaciones_select ON public.cronograma_plantilla_asignaciones
   FOR SELECT USING (public.is_cronograma_admin());
 
+DROP POLICY IF EXISTS cronograma_plantilla_asignaciones_insert
+  ON public.cronograma_plantilla_asignaciones;
 CREATE POLICY cronograma_plantilla_asignaciones_insert ON public.cronograma_plantilla_asignaciones
   FOR INSERT WITH CHECK (public.is_cronograma_admin());
 
+DROP POLICY IF EXISTS cronograma_plantilla_asignaciones_update
+  ON public.cronograma_plantilla_asignaciones;
 CREATE POLICY cronograma_plantilla_asignaciones_update ON public.cronograma_plantilla_asignaciones
   FOR UPDATE USING (public.is_cronograma_admin());
 
+DROP POLICY IF EXISTS cronograma_plantilla_asignaciones_delete
+  ON public.cronograma_plantilla_asignaciones;
 CREATE POLICY cronograma_plantilla_asignaciones_delete ON public.cronograma_plantilla_asignaciones
   FOR DELETE USING (public.is_cronograma_admin());
 

@@ -26,6 +26,7 @@ class EmailPendingService {
     required String reglaEnvioNombre,
     String? asunto,
     String? adjuntoNombre,
+    List<String>? destinatarios,
     String? errorCode,
     String? errorMessage,
   }) async {
@@ -52,6 +53,13 @@ class EmailPendingService {
           : null,
       'error_code': errorCode,
       'error_message': errorMessage,
+      'modulo_key': canal.startsWith('APP_OUTLOOK/')
+          ? canal.substring('APP_OUTLOOK/'.length)
+          : canal,
+      'destinatarios_json': destinatarios == null
+          ? null
+          : jsonEncode(destinatarios),
+      'destinatarios_count': destinatarios?.length,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
@@ -211,6 +219,7 @@ class EmailPendingService {
         reglaEnvioNombre: modulo.isEmpty ? moduleKey : modulo,
         asunto: subject,
         adjuntoNombre: _attachmentNameFromPath(attachmentPath),
+        destinatarios: recipients,
       );
     }
   }
@@ -267,6 +276,52 @@ class EmailPendingService {
         );
       }
     }
+  }
+
+  Future<void> markPreparedExternally({
+    required String registroId,
+    required String moduleKey,
+    required Map<String, dynamic> result,
+  }) async {
+    final db = await DatabaseHelper.instance.database;
+    final row = await db.query(
+      'correo_pendientes',
+      where: 'registro_id = ? AND modulo_key = ?',
+      whereArgs: [registroId, moduleKey],
+      limit: 1,
+    );
+    if (row.isEmpty) return;
+    final current = row.first;
+    final templateMeta = await _getDispatchMetaByConfigId(
+      db,
+      current['config_id']?.toString(),
+    );
+    if (templateMeta == null) return;
+    final modulo = (templateMeta['modulo']?.toString() ?? '').trim();
+    final recipients = (result['recipients'] as List?)
+        ?.map((value) => value.toString())
+        .toList();
+    await _logEvent(
+      db,
+      inspeccionId: registroId,
+      empresaId: current['empresa_id']?.toString(),
+      usuarioId: current['usuario_id']?.toString(),
+      eventType: 'CORREO_PREPARADO_EXTERNO',
+      resultado: 'abierto_externo',
+      canal: _buildCanalLabel(moduleKey),
+      configId: templateMeta['config_id'].toString(),
+      listaId: templateMeta['lista_id']?.toString(),
+      listaNombre: templateMeta['lista_nombre']?.toString(),
+      templateId: templateMeta['template_id'].toString(),
+      templateNombre: templateMeta['template_nombre']?.toString(),
+      templateVersion: templateMeta['template_version'] as int?,
+      reglaEnvioNombre: modulo.isEmpty ? moduleKey : modulo,
+      asunto: result['subject']?.toString(),
+      adjuntoNombre: _attachmentNameFromPath(
+        result['attachment_path']?.toString(),
+      ),
+      destinatarios: recipients,
+    );
   }
 
   Future<void> deleteById(String id) async {

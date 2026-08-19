@@ -25,8 +25,6 @@ class TicketGenerarScreen extends StatefulWidget {
 
 class _TicketGenerarScreenState extends State<TicketGenerarScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _asuntoCtrl = TextEditingController();
-  final _motivoCtrl = TextEditingController();
   final _repo = TicketRepository();
 
   bool _conFechaLimite = false;
@@ -68,8 +66,6 @@ class _TicketGenerarScreenState extends State<TicketGenerarScreen> {
 
   @override
   void dispose() {
-    _asuntoCtrl.dispose();
-    _motivoCtrl.dispose();
     super.dispose();
   }
 
@@ -137,10 +133,6 @@ class _TicketGenerarScreenState extends State<TicketGenerarScreen> {
         inspeccionId: widget.inspeccionId,
         empresaId: empresaId,
         generadoPorId: userId,
-        motivo: _motivoCtrl.text.trim(),
-        asunto: _asuntoCtrl.text.trim().isEmpty
-            ? null
-            : _asuntoCtrl.text.trim(),
         fechaLimite: _conFechaLimite ? _fechaLimite : null,
       );
       if (!mounted) return;
@@ -232,7 +224,7 @@ class _TicketGenerarScreenState extends State<TicketGenerarScreen> {
                       child: const Text(
                         'Se procesarán los "No Cumple" de la inspección con regla de '
                         'hallazgo único: 1 hallazgo = 1 ticket. Si el hallazgo ya tiene '
-                        'ticket activo, se reutiliza el mismo.',
+                        'ticket, se actualiza el mismo expediente con la evidencia nueva.',
                         style: TextStyle(fontSize: 12.5),
                       ),
                     ),
@@ -258,8 +250,7 @@ class _TicketGenerarScreenState extends State<TicketGenerarScreen> {
                           .where((h) => !h.seCrearaTicket)
                           .isNotEmpty)
                         _PreviewLista(
-                          titulo:
-                              'No se crearán porque ya existe ticket activo',
+                          titulo: 'Se actualizarán en el expediente existente',
                           color: Colors.orange.shade800,
                           items: _preview!.hallazgos
                               .where((h) => !h.seCrearaTicket)
@@ -282,29 +273,6 @@ class _TicketGenerarScreenState extends State<TicketGenerarScreen> {
                       ],
                       const SizedBox(height: 16),
                     ],
-                    TextFormField(
-                      controller: _asuntoCtrl,
-                      maxLength: 60,
-                      decoration: const InputDecoration(
-                        labelText: 'Asunto (opcional)',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _motivoCtrl,
-                      maxLines: 5,
-                      decoration: const InputDecoration(
-                        labelText: 'Motivo del ticket *',
-                        hintText: '¿Por qué se genera este ticket?',
-                        border: OutlineInputBorder(),
-                        alignLabelWithHint: true,
-                      ),
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'El motivo es obligatorio'
-                          : null,
-                    ),
-                    const SizedBox(height: 12),
                     SwitchListTile(
                       value: _conFechaLimite,
                       onChanged: (v) => setState(() => _conFechaLimite = v),

@@ -254,7 +254,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
       if (t.numeroInforme != null)
         _InfoItem(
           icon: Icons.description_outlined,
-          label: 'Informe',
+          label: t.hallazgoId != null ? 'Última detección' : 'Informe',
           value: 'N° ${t.numeroInforme}',
         ),
       if (_ctrl.nombreCentro != null)
@@ -364,10 +364,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                 ],
               ),
             ),
-          Text(
-            t.motivo,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-          ),
+          if (t.motivo != null && t.motivo!.trim().isNotEmpty)
+            Text(
+              t.motivo!,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+            ),
           if (_ctrl.pdfUrlInspeccion != null) ...[
             const SizedBox(height: 12),
             _TicketPdfButton(pdfUrl: _ctrl.pdfUrlInspeccion!),

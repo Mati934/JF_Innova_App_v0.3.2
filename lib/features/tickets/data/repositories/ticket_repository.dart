@@ -486,6 +486,20 @@ class TicketRepository {
             ticketsCache[hallazgoId] = TicketModel.fromMap(
               ticketActivoRows.first,
             );
+          } else {
+            final ticketCerradoRows = await _client
+                .from('tickets')
+                .select()
+                .eq('hallazgo_id', hallazgoId)
+                .eq('eliminado', false)
+                .eq('estado', TicketEstado.cerrado.value)
+                .order('updated_at', ascending: false)
+                .limit(1);
+            if (ticketCerradoRows.isNotEmpty) {
+              ticketsCache[hallazgoId] = TicketModel.fromMap(
+                ticketCerradoRows.first,
+              );
+            }
           }
         }
         existente = ticketsCache[hallazgoId];
@@ -518,16 +532,12 @@ class TicketRepository {
     required String inspeccionId,
     required String empresaId,
     required String generadoPorId,
-    required String motivo,
-    String? asunto,
     DateTime? fechaLimite,
   }) async {
     final resultado = await generarDesdeInspeccionPorHallazgos(
       inspeccionId: inspeccionId,
       empresaId: empresaId,
       generadoPorId: generadoPorId,
-      motivo: motivo,
-      asunto: asunto,
       fechaLimite: fechaLimite,
     );
 
@@ -551,17 +561,20 @@ class TicketRepository {
     required String inspeccionId,
     required String empresaId,
     required String generadoPorId,
-    required String motivo,
-    String? asunto,
     DateTime? fechaLimite,
   }) async {
     try {
-      return await _generarDesdeInspeccionPorHallazgosCore(
+      final resultado = await _generarDesdeInspeccionPorHallazgosCore(
         inspeccionId: inspeccionId,
         empresaId: empresaId,
         generadoPorId: generadoPorId,
-        motivo: motivo,
-        asunto: asunto,
+        fechaLimite: fechaLimite,
+      );
+      return _agregarTicketFotosConObservacion(
+        resultado: resultado,
+        inspeccionId: inspeccionId,
+        empresaId: empresaId,
+        generadoPorId: generadoPorId,
         fechaLimite: fechaLimite,
       );
     } catch (e) {
@@ -594,8 +607,6 @@ class TicketRepository {
         inspeccionId: inspeccionId,
         empresaId: empresaId,
         generadoPorId: generadoPorId,
-        motivo: motivo,
-        asunto: asunto,
         fechaLimite: fechaLimite,
       );
       return TicketGeneracionResultado(
@@ -610,8 +621,6 @@ class TicketRepository {
     required String inspeccionId,
     required String empresaId,
     required String generadoPorId,
-    required String motivo,
-    String? asunto,
     DateTime? fechaLimite,
   }) async {
     // Nota: con hallazgos únicos, una misma inspección puede terminar
@@ -672,16 +681,8 @@ class TicketRepository {
         .toList();
 
     if (ncRows.isEmpty) {
-      final legacy = await _generarDesdeInspeccionLegacy(
-        inspeccionId: inspeccionId,
-        empresaId: empresaId,
-        generadoPorId: generadoPorId,
-        motivo: motivo,
-        asunto: asunto,
-        fechaLimite: fechaLimite,
-      );
       return TicketGeneracionResultado(
-        creados: [legacy],
+        creados: [],
         reutilizados: const [],
         respuestasNcProcesadas: 0,
       );
@@ -833,6 +834,8 @@ class TicketRepository {
         ocurrenciaId = insertedOcurrencia['id'] as String;
       }
 
+      final info = preguntasPorItemId[itemId];
+      final numeroInforme = actividad['numero_informe']?.toString();
       final ticketActivoRows = await _client
           .from('tickets')
           .select()
@@ -843,21 +846,54 @@ class TicketRepository {
 
       if (ticketActivoRows.isNotEmpty) {
         final t = TicketModel.fromMap(ticketActivoRows.first);
-        reutilizadosPorId[t.id] = t;
+        await _agregarOcurrenciaAlExpediente(
+          ticket: t,
+          respuestaId: respuestaId,
+          ocurrenciaId: ocurrenciaId,
+          inspeccionId: inspeccionId,
+          numeroInforme: numeroInforme,
+          areaId: areaId,
+          centroId: centroId,
+          embarcacionId: embarcacionId,
+          contratistaId: contratistaId,
+          info: info,
+          observacion: observacion,
+          fotoOriginalUrl: fotoPorRespuestaId[respuestaId],
+          usuarioId: generadoPorId,
+        );
+        reutilizadosPorId[t.id] = await getTicketById(t.id) ?? t;
         continue;
       }
 
-      final info = preguntasPorItemId[itemId];
-      final numeroInforme = actividad['numero_informe']?.toString();
-      final asuntoFinal = (asunto != null && asunto.trim().isNotEmpty)
-          ? asunto.trim()
-          : info != null
-          ? numeroInforme != null && numeroInforme.isNotEmpty
-                ? 'Informe N° $numeroInforme · ${info.pregunta}'
-                : info.pregunta
-          : numeroInforme != null && numeroInforme.isNotEmpty
-          ? 'Informe N° $numeroInforme'
-          : 'Observación de inspección';
+      final ticketCerradoRows = await _client
+          .from('tickets')
+          .select()
+          .eq('hallazgo_id', hallazgoId)
+          .eq('eliminado', false)
+          .eq('estado', TicketEstado.cerrado.value)
+          .order('updated_at', ascending: false)
+          .limit(1);
+
+      if (ticketCerradoRows.isNotEmpty) {
+        final t = TicketModel.fromMap(ticketCerradoRows.first);
+        await _agregarOcurrenciaAlExpediente(
+          ticket: t,
+          respuestaId: respuestaId,
+          ocurrenciaId: ocurrenciaId,
+          inspeccionId: inspeccionId,
+          numeroInforme: numeroInforme,
+          areaId: areaId,
+          centroId: centroId,
+          embarcacionId: embarcacionId,
+          contratistaId: contratistaId,
+          info: info,
+          observacion: observacion,
+          fotoOriginalUrl: fotoPorRespuestaId[respuestaId],
+          usuarioId: generadoPorId,
+        );
+        reutilizadosPorId[t.id] = await getTicketById(t.id) ?? t;
+        continue;
+      }
 
       final ticket = TicketModel(
         id: _uuid.v4(),
@@ -871,8 +907,6 @@ class TicketRepository {
         centroId: centroId,
         embarcacionId: embarcacionId,
         contratistaId: contratistaId,
-        asunto: asuntoFinal,
-        motivo: motivo,
         generadoPorId: generadoPorId,
         fechaLimite: fechaLimite,
       );
@@ -910,12 +944,223 @@ class TicketRepository {
     );
   }
 
+  Future<void> _agregarOcurrenciaAlExpediente({
+    required TicketModel ticket,
+    required String respuestaId,
+    required String ocurrenciaId,
+    required String inspeccionId,
+    required String? numeroInforme,
+    required String? areaId,
+    required String? centroId,
+    required String? embarcacionId,
+    required String? contratistaId,
+    required ({String pregunta, String? categoria, int? orden})? info,
+    required String? observacion,
+    required String? fotoOriginalUrl,
+    required String usuarioId,
+  }) async {
+    final itemExistente = await _client
+        .from('ticket_items')
+        .select('id, foto_original_url')
+        .eq('ticket_id', ticket.id)
+        .eq('referencia_id', respuestaId)
+        .maybeSingle();
+
+    if (itemExistente != null) {
+      final fotoActual = itemExistente['foto_original_url'] as String?;
+      if (fotoOriginalUrl != null &&
+          fotoOriginalUrl.isNotEmpty &&
+          (fotoActual == null || fotoActual.isEmpty)) {
+        await _client
+            .from('ticket_items')
+            .update({'foto_original_url': fotoOriginalUrl})
+            .eq('id', itemExistente['id'] as String);
+      }
+      return;
+    }
+
+    final eraCerrado = ticket.estado == TicketEstado.cerrado;
+    final eraPendienteRevision =
+        ticket.estado == TicketEstado.finalizadoPendienteRevision;
+    final estadoActualizado = eraCerrado
+        ? TicketEstado.abierto
+        : eraPendienteRevision
+        ? TicketEstado.parcial
+        : ticket.estado;
+
+    await _client
+        .from('tickets')
+        .update({
+          'inspeccion_id': inspeccionId,
+          'hallazgo_ocurrencia_id': ocurrenciaId,
+          'numero_informe': numeroInforme,
+          'area_id': areaId,
+          'centro_id': centroId,
+          'embarcacion_id': embarcacionId,
+          'contratista_id': contratistaId,
+          'estado': estadoActualizado.value,
+          if (eraCerrado || eraPendienteRevision) 'tomado_por_id': null,
+          if (eraCerrado) 'revisado_por_id': null,
+          if (eraCerrado) 'revisado_at': null,
+          if (eraCerrado) 'rechazado': false,
+          if (eraCerrado) 'motivo_rechazo': null,
+          if (eraCerrado) 'rechazado_por_id': null,
+          if (eraCerrado) 'rechazado_at': null,
+        })
+        .eq('id', ticket.id);
+
+    final items = await getItems(ticket.id);
+    final siguienteOrden = items.fold<int>(
+      0,
+      (maximo, item) => item.orden >= maximo ? item.orden + 1 : maximo,
+    );
+    await _client
+        .from('ticket_items')
+        .insert(
+          TicketItemModel(
+            id: _uuid.v4(),
+            ticketId: ticket.id,
+            origenItem: TicketItemOrigen.respuestaInspeccion,
+            referenciaId: respuestaId,
+            pregunta: info?.pregunta ?? 'Ítem sin descripción',
+            categoria: info?.categoria,
+            numeroPregunta: info?.orden,
+            descripcion: observacion != null && observacion.isNotEmpty
+                ? observacion
+                : 'Sin observación adicional del inspector.',
+            fotoOriginalUrl: fotoOriginalUrl,
+            orden: siguienteOrden,
+          ).toInsertMap(),
+        );
+
+    final informe = numeroInforme == null || numeroInforme.isEmpty
+        ? 'nueva inspección'
+        : 'Informe N° $numeroInforme';
+    await _registrarHistorial(
+      ticketId: ticket.id,
+      usuarioId: usuarioId,
+      accion: eraCerrado
+          ? TicketHistorialAccion.reabierto
+          : TicketHistorialAccion.nuevaOcurrencia,
+      comentario: eraCerrado
+          ? 'Reabierto por nueva detección en $informe.'
+          : 'Nueva evidencia registrada desde $informe.',
+    );
+  }
+
+  Future<TicketGeneracionResultado> _agregarTicketFotosConObservacion({
+    required TicketGeneracionResultado resultado,
+    required String inspeccionId,
+    required String empresaId,
+    required String generadoPorId,
+    DateTime? fechaLimite,
+  }) async {
+    final fotos = await _client
+        .from('registro_fotografico')
+        .select('id, foto_url, descripcion, inspeccion_respuesta_id')
+        .eq('actividad_id', inspeccionId);
+    final fotosConObservacion = (fotos as List)
+        .cast<Map<String, dynamic>>()
+        .where((foto) {
+          final descripcion = (foto['descripcion'] as String?)?.trim() ?? '';
+          return foto['inspeccion_respuesta_id'] == null &&
+              descripcion.isNotEmpty;
+        })
+        .toList(growable: false);
+
+    if (fotosConObservacion.isEmpty) return resultado;
+
+    final existentes = await _client
+        .from('tickets')
+        .select()
+        .eq('inspeccion_id', inspeccionId)
+        .eq('origen', TicketOrigen.inspeccion.value)
+        .eq('eliminado', false)
+        .contains('campos_extra_json', {'automatico_tipo': 'FOTOS_OBSERVACION'})
+        .limit(1);
+
+    if (existentes.isNotEmpty) {
+      final existente = TicketModel.fromMap(existentes.first);
+      return TicketGeneracionResultado(
+        creados: resultado.creados,
+        reutilizados: [...resultado.reutilizados, existente],
+        respuestasNcProcesadas: resultado.respuestasNcProcesadas,
+      );
+    }
+
+    final actividad = await _client
+        .from('actividades')
+        .select('tipo_actividad, numero_informe, centro_id, embarcacion_id')
+        .eq('id', inspeccionId)
+        .single();
+    final centroId = actividad['centro_id'] as String?;
+    final embarcacionId = actividad['embarcacion_id'] as String?;
+
+    String? areaId;
+    if (centroId != null) {
+      final centro = await _client
+          .from('centros')
+          .select('area_id')
+          .eq('id', centroId)
+          .maybeSingle();
+      areaId = centro?['area_id'] as String?;
+    }
+
+    String? contratistaId;
+    if (embarcacionId != null) {
+      final embarcacion = await _client
+          .from('embarcaciones')
+          .select('contratista_id')
+          .eq('id', embarcacionId)
+          .maybeSingle();
+      contratistaId = embarcacion?['contratista_id'] as String?;
+    }
+
+    final numeroInforme = actividad['numero_informe']?.toString();
+    final ticket = TicketModel(
+      id: _uuid.v4(),
+      empresaId: empresaId,
+      origen: TicketOrigen.inspeccion,
+      tipoTicket: TicketTipo.revisionObservaciones,
+      inspeccionId: inspeccionId,
+      tipoInspeccion: actividad['tipo_actividad'] as String?,
+      numeroInforme: numeroInforme,
+      areaId: areaId,
+      centroId: centroId,
+      embarcacionId: embarcacionId,
+      contratistaId: contratistaId,
+      generadoPorId: generadoPorId,
+      fechaLimite: fechaLimite,
+      camposExtra: const {'automatico_tipo': 'FOTOS_OBSERVACION'},
+    );
+    await _client.from('tickets').insert(ticket.toInsertMap());
+
+    await _client.from('ticket_items').insert([
+      for (var index = 0; index < fotosConObservacion.length; index++)
+        TicketItemModel(
+          id: _uuid.v4(),
+          ticketId: ticket.id,
+          origenItem: TicketItemOrigen.fotoObservacion,
+          referenciaId: fotosConObservacion[index]['id'] as String?,
+          descripcion: (fotosConObservacion[index]['descripcion'] as String?)!
+              .trim(),
+          fotoOriginalUrl: fotosConObservacion[index]['foto_url'] as String?,
+          orden: index,
+        ).toInsertMap(),
+    ]);
+
+    final creado = await getTicketById(ticket.id) ?? ticket;
+    return TicketGeneracionResultado(
+      creados: [...resultado.creados, creado],
+      reutilizados: resultado.reutilizados,
+      respuestasNcProcesadas: resultado.respuestasNcProcesadas,
+    );
+  }
+
   Future<TicketModel> _generarDesdeInspeccionLegacy({
     required String inspeccionId,
     required String empresaId,
     required String generadoPorId,
-    required String motivo,
-    String? asunto,
     DateTime? fechaLimite,
   }) async {
     final existente = await getTicketAutomaticoDeInspeccion(inspeccionId);
@@ -972,8 +1217,6 @@ class TicketRepository {
       centroId: centroId,
       embarcacionId: embarcacionId,
       contratistaId: contratistaId,
-      asunto: asunto,
-      motivo: motivo,
       generadoPorId: generadoPorId,
       fechaLimite: fechaLimite,
     );

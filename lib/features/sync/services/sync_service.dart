@@ -8,6 +8,8 @@ import '../../../core/utils/rut_utils.dart';
 import '../../../core/services/user_session.dart';
 import '../../../features/inspection/services/deferred_pdf_service.dart';
 import '../../../features/email/services/email_pending_service.dart';
+import '../../../features/tickets/data/repositories/ticket_repository.dart';
+import '../../../features/tickets/data/services/ticket_module_gate.dart';
 import 'dart:convert';
 
 class SyncService {
@@ -528,9 +530,12 @@ class SyncService {
 
       // 4. Subir Hijos (Respuestas y Fotos)
       await _sincronizarRespuestas();
-      await _sincronizarFotos();
+      final actividadesConFotosSincronizadas = await _sincronizarFotos();
 
-      // 5. Modulo Tickets: 100% online, no requiere subir pendientes aqui.
+      // 5. Generar tickets despues de que respuestas y fotos ya esten en nube.
+      await _generarTicketsAutomaticosFinalizados(
+        actividadesConFotosSincronizadas: actividadesConFotosSincronizadas,
+      );
 
       // 6. Subir configuración de módulos por empresa
       await _sincronizarEmpresaModulos();
@@ -572,7 +577,130 @@ class SyncService {
       debugPrint("⚠️ Error promoviendo cola de correos pendientes: $e");
     }
 
+    try {
+      await _sincronizarCorreoEventos();
+    } catch (e) {
+      debugPrint("⚠️ Error sincronizando métricas de correo: $e");
+    }
+
     return totalSubidas;
+  }
+
+  Future<int> _sincronizarCorreoEventos() async {
+    final db = await _dbHelper.database;
+    final eventos = await db.query('correo_eventos', where: 'subido = 0');
+    var sincronizados = 0;
+    for (final evento in eventos) {
+      try {
+        final payload = Map<String, dynamic>.from(evento)
+          ..remove('subido')
+          ..remove('ultimo_error_sync')
+          ..remove('synced_at');
+        final rawRecipients = payload['destinatarios_json'];
+        if (rawRecipients is String && rawRecipients.trim().isNotEmpty) {
+          try {
+            payload['destinatarios_json'] = jsonDecode(rawRecipients);
+          } catch (_) {}
+        }
+        await _supabase
+            .from('correo_eventos')
+            .upsert(payload, onConflict: 'id');
+        await db.update(
+          'correo_eventos',
+          {
+            'subido': 1,
+            'ultimo_error_sync': null,
+            'synced_at': DateTime.now().toIso8601String(),
+          },
+          where: 'id = ?',
+          whereArgs: [evento['id']],
+        );
+        sincronizados++;
+      } catch (e) {
+        await db.update(
+          'correo_eventos',
+          {'ultimo_error_sync': e.toString()},
+          where: 'id = ?',
+          whereArgs: [evento['id']],
+        );
+        debugPrint("⚠️ Error subiendo evento de correo ${evento['id']}: $e");
+      }
+    }
+    return sincronizados;
+  }
+
+  Future<void> _generarTicketsAutomaticosFinalizados({
+    Set<String> actividadesConFotosSincronizadas = const {},
+  }) async {
+    final empresaId = UserSession().empresaId;
+    final usuarioId = UserSession().userId;
+    if (empresaId == null || usuarioId == null) return;
+
+    try {
+      if (!await isTicketsModuleEnabled()) return;
+
+      final pendientes = await _supabase
+          .from('actividades')
+          .select('id')
+          .eq('estado_final', 'En Seguimiento')
+          .inFilter('tipo_actividad', [
+            'INSPECCION_BUCEO',
+            'INSPECCION_EMBARCACION',
+          ])
+          .isFilter('tickets_generados_at', null)
+          .limit(50);
+
+      final actividadIds = <String>{
+        for (final actividad in pendientes) actividad['id'] as String,
+      };
+      if (actividadesConFotosSincronizadas.isNotEmpty) {
+        final conFotos = await _supabase
+            .from('actividades')
+            .select('id')
+            .eq('estado_final', 'En Seguimiento')
+            .inFilter('tipo_actividad', [
+              'INSPECCION_BUCEO',
+              'INSPECCION_EMBARCACION',
+            ])
+            .inFilter('id', actividadesConFotosSincronizadas.toList());
+        actividadIds.addAll(
+          (conFotos as List).map((actividad) => actividad['id'] as String),
+        );
+      }
+
+      if (actividadIds.isEmpty) return;
+
+      final tickets = TicketRepository();
+      for (final actividadId in actividadIds) {
+        try {
+          final resultado = await tickets.generarDesdeInspeccionPorHallazgos(
+            inspeccionId: actividadId,
+            empresaId: empresaId,
+            generadoPorId: usuarioId,
+          );
+          await _supabase
+              .from('actividades')
+              .update({
+                'tickets_generados_at': DateTime.now().toIso8601String(),
+              })
+              .eq('id', actividadId);
+          debugPrint(
+            '🎫 Tickets automaticos procesados para $actividadId: '
+            '${resultado.creados.length} creados, '
+            '${resultado.reutilizados.length} reutilizados.',
+          );
+        } catch (e) {
+          debugPrint(
+            '⚠️ No se pudieron generar tickets automaticos para '
+            '$actividadId; se reintentara en el proximo sync: $e',
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint(
+        '⚠️ No se pudo buscar inspecciones para tickets automaticos: $e',
+      );
+    }
   }
 
   /// Verifica qué tablas maestras están vacías en SQLite y las descarga.
@@ -2394,15 +2522,15 @@ class SyncService {
     return count;
   }
 
-  Future<int> _sincronizarFotos() async {
+  Future<Set<String>> _sincronizarFotos() async {
     final db = await _dbHelper.database;
     final fotosPendientes = await db.query(
       'fotos_pendientes',
       where: 'subido = 0',
     );
-    if (fotosPendientes.isEmpty) return 0;
+    if (fotosPendientes.isEmpty) return {};
 
-    int fotosSubidas = 0;
+    final actividadesConFotosSincronizadas = <String>{};
 
     for (var row in fotosPendientes) {
       final localId = row['id'] as int;
@@ -2430,7 +2558,8 @@ class SyncService {
 
         if (itemId != null &&
             itemId != 'visita_general' &&
-            !itemId.startsWith('verif_')) {
+            !itemId.startsWith('verif_') &&
+            !itemId.startsWith('mandatory::')) {
           final respuestaData = await _supabase
               .from('inspeccion_respuestas')
               .select('id')
@@ -2509,13 +2638,13 @@ class SyncService {
           whereArgs: [localId],
         );
 
-        fotosSubidas++;
+        actividadesConFotosSincronizadas.add(actividadId);
         debugPrint("✅ Foto subida exitosamente y enlazada.");
       } catch (e) {
         debugPrint("❌ Error subiendo foto $localId: $e");
       }
     }
-    return fotosSubidas;
+    return actividadesConFotosSincronizadas;
   }
 
   // --- 0. INICIALIZACIÓN CRÍTICA (NUEVO) ---
