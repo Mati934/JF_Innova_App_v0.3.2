@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/custom_filter_sheet.dart';
 import '../../../../shared/widgets/gradient_app_bar.dart';
-import '../../../history/presentation/screens/history_screen.dart';
 import '../controllers/ticket_list_controller.dart';
 import '../widgets/ticket_card.dart';
 import '../widgets/ticket_offline_block.dart';
@@ -341,66 +340,15 @@ class _TicketListScreenState extends State<TicketListScreen> {
     );
   }
 
-  void _onNuevoTicket() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 10),
-            ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFFE3F2FD),
-                child: Icon(
-                  Icons.rule_folder_outlined,
-                  color: AppTheme.primaryBlue,
-                ),
-              ),
-              title: const Text('Desde una inspección'),
-              subtitle: const Text(
-                'Genera un ticket automático desde el historial (buceo/embarcación).',
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const HistoryScreen()),
-                );
-              },
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFFE3F2FD),
-                child: Icon(
-                  Icons.chat_bubble_outline,
-                  color: AppTheme.primaryBlue,
-                ),
-              ),
-              title: const Text('Solicitud'),
-              subtitle: const Text(
-                'Ticket libre, con un texto describiendo lo que se requiere.',
-              ),
-              onTap: () async {
-                Navigator.pop(context);
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const TicketSolicitudFormScreen(),
-                  ),
-                );
-                _ctrl.cargarTickets();
-              },
-            ),
-            const SizedBox(height: 10),
-          ],
-        ),
-      ),
+  // Nota: la opción "Desde una inspección" se removió porque la generación
+  // de tickets automáticos ya no es manual (ver sync_service.dart
+  // _generarTicketsAutomaticosFinalizados). Solo queda la solicitud libre.
+  void _onNuevoTicket() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TicketSolicitudFormScreen()),
     );
+    _ctrl.cargarTickets();
   }
 }
 

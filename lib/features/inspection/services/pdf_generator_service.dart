@@ -125,7 +125,7 @@ class PdfGeneratorService {
         pw.SizedBox(height: 15),
       ],
       _buildGeneralObservations(data),
-      pw.SizedBox(height: 30),
+      pw.SizedBox(height: 12),
       _buildResumenNoCumple(data),
       pw.NewPage(),
       pw.Center(
@@ -142,15 +142,18 @@ class PdfGeneratorService {
       pw.SizedBox(height: 10),
       ..._buildCategorizedChecklists(data),
       if (data.mandatoryPhotos.isNotEmpty) ...[
-        pw.SizedBox(height: 20),
+        pw.SizedBox(height: 12),
         ..._buildMandatoryPhotosSection(data.mandatoryPhotos),
       ],
       if (data.fotosExtraObservaciones.isNotEmpty) ...[
-        pw.SizedBox(height: 20),
-        ..._buildFotosObservacion(data.fotosExtraObservaciones),
+        pw.SizedBox(height: 12),
+        ..._buildFotosObservacion(
+          data.fotosExtraObservaciones,
+          esBuceo: data.tipoFaena.contains('BUCEO'),
+        ),
       ],
       if (data.fotosGeneralesPaths.isNotEmpty) ...[
-        pw.SizedBox(height: 20),
+        pw.SizedBox(height: 12),
         pw.Divider(),
         pw.SizedBox(height: 10),
         ..._buildGeneralGallery(data.fotosGeneralesPaths),
@@ -1421,17 +1424,18 @@ class PdfGeneratorService {
                 vertical: 9,
               ),
               decoration: pw.BoxDecoration(
-                gradient: pw.LinearGradient(colors: [_Aq.blue, _Aq.tealMid]),
+                color: PdfColors.white,
                 borderRadius: const pw.BorderRadius.vertical(
                   top: pw.Radius.circular(13),
                 ),
+                border: pw.Border.all(color: PdfColors.black, width: 0.8),
               ),
               child: pw.Text(
                 item.title,
                 style: pw.TextStyle(
                   fontSize: 8,
                   fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.white,
+                  color: PdfColors.black,
                   letterSpacing: 0.6,
                 ),
                 textAlign: pw.TextAlign.center,
@@ -1446,16 +1450,29 @@ class PdfGeneratorService {
       );
     }).toList();
 
+    // El titulo se une con la primera fila de tarjetas en un solo bloque
+    // para que nunca quede huerfano al final de una pagina (sin forzar
+    // un salto de pagina si aun queda espacio disponible).
+    final rows = _buildCardRows(
+      cards,
+      columns: 2,
+      horizontalSpacing: 10,
+      verticalSpacing: 10,
+      mainAxisAlignment: pw.MainAxisAlignment.center,
+    );
+    if (rows.isEmpty) return [];
+
     return [
-      pw.NewPage(),
-      _buildBuceoSectionHeader(title: 'Fotografias Obligatorias'),
-      ..._buildCardRows(
-        cards,
-        columns: 2,
-        horizontalSpacing: 10,
-        verticalSpacing: 10,
-        mainAxisAlignment: pw.MainAxisAlignment.center,
+      pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          _buildBuceoSectionHeader(
+            title: 'Registros Fotograficos Complementarios',
+          ),
+          rows.first,
+        ],
       ),
+      ...rows.skip(1),
     ];
   }
 
@@ -1544,109 +1561,150 @@ class PdfGeneratorService {
       final int startNumber = globalCounter;
 
       if (esBuceo) {
-        widgets.add(
-          pw.Container(
-            margin: const pw.EdgeInsets.only(top: 14),
-            padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: pw.BoxDecoration(
-              color: PdfColors.grey200,
-              border: pw.Border.all(color: PdfColors.grey400, width: 0.6),
-            ),
-            child: pw.Row(
-              children: [
-                pw.Text(
-                  category.toUpperCase(),
-                  style: pw.TextStyle(
-                    fontSize: 9,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.grey900,
-                  ),
+        final categoryHeader = pw.Container(
+          margin: const pw.EdgeInsets.only(top: 14),
+          padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: pw.BoxDecoration(
+            color: PdfColors.grey200,
+            border: pw.Border.all(color: PdfColors.grey400, width: 0.6),
+          ),
+          child: pw.Row(
+            children: [
+              pw.Text(
+                category.toUpperCase(),
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.grey900,
                 ),
-                pw.Spacer(),
-                pw.Text(
-                  'items ${startNumber.toString().padLeft(2, '0')}-${(startNumber + items.length - 1).toString().padLeft(2, '0')}',
-                  style: const pw.TextStyle(
-                    fontSize: 8,
-                    color: PdfColors.grey700,
-                  ),
+              ),
+              pw.Spacer(),
+              pw.Text(
+                'items ${startNumber.toString().padLeft(2, '0')}-${(startNumber + items.length - 1).toString().padLeft(2, '0')}',
+                style: const pw.TextStyle(
+                  fontSize: 8,
+                  color: PdfColors.grey700,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
+
+        final tableBorder = pw.TableBorder(
+          left: pw.BorderSide(color: _Aq.rule, width: 1),
+          right: pw.BorderSide(color: _Aq.rule, width: 1),
+          bottom: pw.BorderSide(color: _Aq.rule, width: 1),
+        );
+        final Map<int, pw.TableColumnWidth> columnWidths = {
+          0: const pw.FixedColumnWidth(34),
+          1: const pw.FlexColumnWidth(),
+          2: const pw.FixedColumnWidth(82),
+          3: const pw.FixedColumnWidth(46),
+        };
+        final rows = items.map((item) {
+          final row = _buildBuceoChecklistRow(item, globalCounter);
+          globalCounter++;
+          return row;
+        }).toList();
+
+        // El titulo de la categoria se une con la primera fila en un solo
+        // bloque para que nunca quede huerfano al final de una pagina.
         widgets.add(
-          pw.Table(
-            border: pw.TableBorder(
-              left: pw.BorderSide(color: _Aq.rule, width: 1),
-              right: pw.BorderSide(color: _Aq.rule, width: 1),
-              bottom: pw.BorderSide(color: _Aq.rule, width: 1),
-            ),
-            columnWidths: {
-              0: const pw.FixedColumnWidth(34),
-              1: const pw.FlexColumnWidth(),
-              2: const pw.FixedColumnWidth(82),
-              3: const pw.FixedColumnWidth(46),
-            },
-            children: items.map((item) {
-              final row = _buildBuceoChecklistRow(item, globalCounter);
-              globalCounter++;
-              return row;
-            }).toList(),
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              categoryHeader,
+              pw.Table(
+                border: tableBorder,
+                columnWidths: columnWidths,
+                children: [rows.first],
+              ),
+            ],
           ),
         );
+        if (rows.length > 1) {
+          widgets.add(
+            pw.Table(
+              border: tableBorder,
+              columnWidths: columnWidths,
+              children: rows.skip(1).toList(),
+            ),
+          );
+        }
         widgets.add(pw.SizedBox(height: 14));
       } else {
-        widgets.add(
-          pw.Container(
-            width: double.infinity,
-            padding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 8),
-            margin: const pw.EdgeInsets.only(top: 15, bottom: 0),
-            decoration: const pw.BoxDecoration(
-              color: PdfColors.blue50,
-              border: pw.Border(
-                top: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-                left: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-                right: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-              ),
+        final categoryHeader = pw.Container(
+          width: double.infinity,
+          padding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 8),
+          margin: const pw.EdgeInsets.only(top: 15, bottom: 0),
+          decoration: const pw.BoxDecoration(
+            color: PdfColors.blue50,
+            border: pw.Border(
+              top: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+              left: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+              right: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
             ),
-            child: pw.Text(
-              category,
-              style: pw.TextStyle(
-                fontWeight: pw.FontWeight.bold,
-                fontSize: 10,
-                color: PdfColors.blue900,
-              ),
+          ),
+          child: pw.Text(
+            category,
+            style: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold,
+              fontSize: 10,
+              color: PdfColors.blue900,
             ),
           ),
         );
 
+        final tableBorder = pw.TableBorder.all(
+          width: 0.5,
+          color: PdfColors.grey400,
+        );
+        final Map<int, pw.TableColumnWidth> columnWidths = {
+          0: const pw.FixedColumnWidth(25),
+          1: const pw.FlexColumnWidth(4),
+          2: const pw.FixedColumnWidth(35),
+          3: const pw.FlexColumnWidth(3),
+        };
+        final columnHeaderRow = pw.TableRow(
+          decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+          children: [
+            _buildHeaderCell('N°'),
+            _buildHeaderCell('Ítem / Pregunta'),
+            _buildHeaderCell('Est.'),
+            _buildHeaderCell('Observación / Evidencia'),
+          ],
+        );
+        final dataRows = items.map((item) {
+          final row = _buildItemRow(item, globalCounter);
+          globalCounter++;
+          return row;
+        }).toList();
+
+        // El titulo de la categoria se une con el encabezado de columnas y la
+        // primera fila de datos en un solo bloque para que nunca quede
+        // huerfano al final de una pagina.
         widgets.add(
-          pw.Table(
-            border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey400),
-            columnWidths: {
-              0: const pw.FixedColumnWidth(25),
-              1: const pw.FlexColumnWidth(4),
-              2: const pw.FixedColumnWidth(35),
-              3: const pw.FlexColumnWidth(3),
-            },
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.TableRow(
-                decoration: const pw.BoxDecoration(color: PdfColors.grey100),
-                children: [
-                  _buildHeaderCell('N°'),
-                  _buildHeaderCell('Ítem / Pregunta'),
-                  _buildHeaderCell('Est.'),
-                  _buildHeaderCell('Observación / Evidencia'),
-                ],
+              categoryHeader,
+              pw.Table(
+                border: tableBorder,
+                columnWidths: columnWidths,
+                children: [columnHeaderRow, dataRows.first],
               ),
-              ...items.map((item) {
-                final row = _buildItemRow(item, globalCounter);
-                globalCounter++;
-                return row;
-              }),
             ],
           ),
         );
+        if (dataRows.length > 1) {
+          widgets.add(
+            pw.Table(
+              border: tableBorder,
+              columnWidths: columnWidths,
+              children: dataRows.skip(1).toList(),
+            ),
+          );
+        }
       }
     }
     return widgets;
@@ -2317,8 +2375,9 @@ class PdfGeneratorService {
         margin: const pw.EdgeInsets.only(top: 6),
         padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: pw.BoxDecoration(
-          gradient: pw.LinearGradient(colors: [_Aq.blue, _Aq.tealMid]),
+          color: PdfColors.white,
           borderRadius: pw.BorderRadius.circular(10),
+          border: pw.Border.all(color: PdfColors.black, width: 0.8),
         ),
         child: pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -2327,13 +2386,13 @@ class PdfGeneratorService {
               'Generado por Servimaf  |  +56 9 8383 3177  |  v$_pdfVersion',
               style: pw.TextStyle(
                 fontSize: 7,
-                color: PdfColors.white,
+                color: PdfColors.black,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
             pw.Text(
               'Informe N°${data.numeroReporte}  ·  Pag. ${context.pageNumber}/${context.pagesCount}',
-              style: const pw.TextStyle(fontSize: 7, color: PdfColors.white),
+              style: const pw.TextStyle(fontSize: 7, color: PdfColors.black),
             ),
           ],
         ),
@@ -2740,17 +2799,20 @@ class PdfGeneratorService {
 
   // REEMPLAZA ESTE MÉTODO COMPLETO
   List<pw.Widget> _buildFotosObservacion(
-    List<Map<String, String>> fotosExtras,
-  ) {
+    List<Map<String, String>> fotosExtras, {
+    bool esBuceo = true,
+  }) {
     if (fotosExtras.isEmpty) return [];
 
-    List<pw.Widget> widgets = [
-      _buildBuceoSectionHeader(
-        title: 'Fotografias con Observacion Detallada',
-        subtitle:
-            'Imagenes con observaciones especificas no registradas en DPR24',
-      ),
-    ];
+    // Buceo mantiene el titulo largo historico (incluye la mencion a DPR24);
+    // embarcacion usa solo el titulo corto (no aplica DPR24).
+    final header = _buildBuceoSectionHeader(
+      title: esBuceo
+          ? 'Fotografias con Observacion Detallada o no Especificadas en DPR24'
+          : 'Fotografias con Observacion Detallada',
+    );
+
+    List<pw.Widget> items = [];
 
     for (var item in fotosExtras) {
       final String path = item['path'] ?? '';
@@ -2759,7 +2821,7 @@ class PdfGeneratorService {
 
       if (file.existsSync()) {
         // Cada foto es un contenedor independiente que puede saltar de página sin romper el layout
-        widgets.add(
+        items.add(
           pw.Container(
             width: double.infinity,
             margin: const pw.EdgeInsets.only(bottom: 10),
@@ -2802,7 +2864,17 @@ class PdfGeneratorService {
         );
       }
     }
-    return widgets;
+    if (items.isEmpty) return [];
+
+    // El titulo se une con la primera foto en un solo bloque para que
+    // nunca quede huerfano al final de una pagina.
+    return [
+      pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [header, items.first],
+      ),
+      ...items.skip(1),
+    ];
   }
   // Header Nuevo - Más limpio, diseño nuevo
 

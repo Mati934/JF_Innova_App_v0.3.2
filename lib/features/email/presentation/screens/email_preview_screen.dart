@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:flutter_email_sender/flutter_email_sender.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/utils/focus_utils.dart';
@@ -191,8 +191,6 @@ class _EmailPreviewScreenState extends State<EmailPreviewScreen> {
       _bodyController.text,
       _commentsController.text,
     );
-    final encodedSubject = Uri.encodeComponent(rawSubject);
-    final encodedBody = Uri.encodeComponent(rawBody);
     if (_selectedRecipients.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -201,23 +199,28 @@ class _EmailPreviewScreenState extends State<EmailPreviewScreen> {
       return;
     }
 
-    final recipients = _selectedRecipients.join(',');
+    final recipientsList = List<String>.from(_selectedRecipients);
+    final recipients = recipientsList.join(',');
 
     final path = widget.attachmentPath;
     if (path != null && path.trim().isNotEmpty) {
       final file = File(path);
       if (await file.exists()) {
         try {
-          await Share.shareXFiles(
-            [XFile(path)],
-            subject: rawSubject,
-            text: rawBody,
+          await FlutterEmailSender.send(
+            Email(
+              recipients: recipientsList,
+              subject: rawSubject,
+              body: rawBody,
+              attachmentPaths: [path],
+            ),
           );
           if (mounted) {
             Navigator.of(context).pop(_buildDraftResult(sent: true));
           }
           return;
-        } catch (_) {
+        } catch (e) {
+          debugPrint('⚠️ Error abriendo correo con adjunto: $e');
           // Fall through to mailto
         }
       } else if (mounted) {
@@ -231,8 +234,13 @@ class _EmailPreviewScreenState extends State<EmailPreviewScreen> {
       }
     }
 
-    final uri = Uri.parse(
-      'mailto:$recipients?subject=$encodedSubject&body=$encodedBody',
+    // Fallback mailto robusto (ver EmailTemplateService.buildMailtoUri):
+    // destinatarios en to + cc, y asunto/cuerpo acotados para que Outlook no
+    // descarte los parámetros por URI demasiado larga.
+    final uri = EmailTemplateService.buildMailtoUri(
+      recipients: recipientsList,
+      subject: rawSubject,
+      body: rawBody,
     );
 
     final opened =

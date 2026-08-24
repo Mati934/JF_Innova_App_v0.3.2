@@ -228,6 +228,21 @@ class _HidroserFormView extends StatelessWidget {
     final ok = await ctrl.guardarDefinitivo();
     if (!context.mounted) return;
     if (ok) {
+      // Aviso honesto según si el sync de fondo alcanzó a subir o no.
+      // Como ahora el sync no bloquea, aquí normalmente aún está en curso:
+      // informamos que quedó guardada y se sincronizará en segundo plano.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ctrl.lastSyncSucceeded
+                ? 'Inspección guardada y sincronizada.'
+                : 'Inspección guardada. Se sincronizará en segundo plano '
+                      '(puedes revisarla en Sincronización pendiente).',
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
       try {
         await _tryOpenConfiguredEmail(context, ctrl);
       } catch (e, stack) {
@@ -235,10 +250,6 @@ class _HidroserFormView extends StatelessWidget {
       }
 
       if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inspección guardada correctamente.')),
-      );
       Navigator.of(context).pop();
     }
   }
@@ -301,7 +312,14 @@ class _HidroserFormView extends StatelessWidget {
     final empresaId = UserSession().empresaId;
     final usuarioId = UserSession().userId;
 
-    if (!ctrl.lastSyncSucceeded) {
+    // El sync corre en segundo plano desde guardarDefinitivo. Esperamos un
+    // momento acotado a que suba el registro: si sube, el correo se puede
+    // abrir altiro; si no hay red o se agota el tiempo, se encola como
+    // pendiente de sincronización (se ofrecerá cuando el registro suba).
+    final sincronizadoATiempo = await ctrl.esperarSyncConTimeout();
+    if (!context.mounted) return;
+
+    if (!sincronizadoATiempo) {
       await EmailPendingService().enqueuePending(
         registroId: registroId,
         moduleKey: dispatch.moduleKey,

@@ -147,6 +147,40 @@ class _EmailOutboxScreenState extends State<EmailOutboxScreen> {
     }
   }
 
+  /// Nombre legible del módulo (en vez de la clave cruda 'hidroser_grua_...').
+  String _moduloLabel(String moduleKey) {
+    final k = moduleKey.toLowerCase();
+    if (k.contains('grua_horquilla')) return 'Grúa Horquilla';
+    if (k.contains('hidroser')) return 'Hidroser';
+    if (k.contains('buceo')) return 'Inspección Buceo';
+    if (k.contains('embarcacion')) return 'Inspección Embarcación';
+    if (k.contains('extintor')) return 'Extintores';
+    if (k.contains('visita')) return 'Visita Técnica';
+    if (k.contains('ast')) return 'AST';
+    if (k.contains('merieux')) return 'Merieux';
+    if (k.contains('prosesso')) return 'Prosesso';
+    if (k.isEmpty) return 'Módulo desconocido';
+    // Fallback: capitaliza la clave cruda para que al menos sea legible.
+    return moduleKey
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+        .join(' ');
+  }
+
+  /// Fecha corta legible (dd/MM HH:mm) a partir de un ISO string.
+  String _fechaCorta(Object? raw) {
+    if (raw == null) return '';
+    final dt = DateTime.tryParse(raw.toString());
+    if (dt == null) return '';
+    final local = dt.toLocal();
+    final d = local.day.toString().padLeft(2, '0');
+    final m = local.month.toString().padLeft(2, '0');
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return '$d/$m $hh:$mm';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -169,26 +203,49 @@ class _EmailOutboxScreenState extends State<EmailOutboxScreen> {
                       itemBuilder: (context, index) {
                         final row = _items[index];
                         final estado = (row['estado'] ?? '').toString();
-                        final modulo = (row['modulo_key'] ?? '').toString();
-                        final registroId = (row['registro_id'] ?? '')
-                            .toString();
+                        final modulo = _moduloLabel(
+                          (row['modulo_key'] ?? '').toString(),
+                        );
                         final payload = _pendingService.parsePayload(
                           row['payload_json']?.toString(),
                         );
                         final subject = (payload['subject'] ?? '').toString();
+                        final recipientsDyn = payload['recipients'];
+                        final recipients = recipientsDyn is List
+                            ? recipientsDyn
+                                  .map((e) => e.toString().trim())
+                                  .where((e) => e.isNotEmpty)
+                                  .toList()
+                            : <String>[];
+                        final para = recipients.isEmpty
+                            ? 'Sin destinatarios'
+                            : recipients.length == 1
+                            ? 'Para: ${recipients.first}'
+                            : 'Para: ${recipients.first} +${recipients.length - 1}';
+                        final fecha = _fechaCorta(
+                          row['updated_at'] ?? row['created_at'],
+                        );
 
                         return ListTile(
-                          leading: Icon(
-                            Icons.mark_email_unread_outlined,
-                            color: _statusColor(estado),
+                          leading: CircleAvatar(
+                            backgroundColor: _statusColor(
+                              estado,
+                            ).withValues(alpha: 0.15),
+                            child: Icon(
+                              Icons.mark_email_unread_outlined,
+                              color: _statusColor(estado),
+                            ),
                           ),
                           title: Text(
                             subject.isEmpty ? 'Correo sin asunto' : subject,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                           subtitle: Text(
-                            'Módulo: $modulo\nEstado: ${_statusLabel(estado)}\nRegistro: $registroId',
+                            '$para\n$modulo • ${_statusLabel(estado)} • $fecha',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           isThreeLine: true,
                           trailing: IconButton(

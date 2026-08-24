@@ -4,11 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:jf_innova_app/core/theme/app_theme.dart';
-import 'package:jf_innova_app/features/tickets/data/services/ticket_module_gate.dart';
-import 'package:jf_innova_app/features/tickets/presentation/screens/ticket_generar_screen.dart';
-// NOTA: el módulo de Tickets se activa por empresa (empresa_modulos,
-// modulo_key='TICKETS'). Cuando está habilitado, esta tarjeta muestra la
-// opción "Generar ticket" para inspecciones de buceo/embarcación ya subidas.
+// NOTA: la generación de tickets desde inspecciones de buceo/embarcación es
+// 100% automática (ver sync_service.dart _generarTicketsAutomaticosFinalizados),
+// por eso esta tarjeta ya no ofrece un botón manual "Generar ticket".
 
 /// Tarjeta pública que representa un registro unificado del historial
 /// (Inspección o Visita Técnica).
@@ -278,14 +276,6 @@ class HistoryCard extends StatelessWidget {
                     ],
                   ],
                 ),
-                if (esInspeccion &&
-                    isSynced &&
-                    (tipoRegistro == 'INSPECCION_BUCEO' ||
-                        tipoRegistro == 'INSPECCION_EMBARCACION'))
-                  _GenerarTicketAction(
-                    inspeccionId: item['id'].toString(),
-                    numeroInforme: folio,
-                  ),
               ],
             ),
           ),
@@ -372,50 +362,6 @@ class HistoryCardConfig {
       titulo: 'Visita Técnica',
       icon: Icons.handshake,
       accent: Colors.teal.shade700,
-    );
-  }
-}
-
-/// Botón "Generar ticket" para inspecciones de buceo/embarcación. Solo se
-/// dibuja si la empresa activa tiene el módulo TICKETS habilitado.
-class _GenerarTicketAction extends StatelessWidget {
-  final String inspeccionId;
-  final String? numeroInforme;
-
-  const _GenerarTicketAction({required this.inspeccionId, this.numeroInforme});
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<bool>(
-      future: isTicketsModuleEnabled(),
-      builder: (context, snapshot) {
-        if (snapshot.data != true) return const SizedBox.shrink();
-        return Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => TicketGenerarScreen(
-                      inspeccionId: inspeccionId,
-                      numeroInforme: numeroInforme,
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.confirmation_number_outlined, size: 16),
-              label: const Text('Generar ticket'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFFB23B00),
-                side: const BorderSide(color: Color(0xFFB23B00)),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }

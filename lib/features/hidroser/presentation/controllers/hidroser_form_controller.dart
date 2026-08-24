@@ -54,6 +54,11 @@ class HidroserFormController extends ChangeNotifier {
   String? lastSavedRegistroId;
   bool lastSyncSucceeded = false;
 
+  /// Future del sync disparado tras guardar definitivo (corre en segundo
+  /// plano). Permite que el flujo de correo lo espere con timeout en vez de
+  /// asumir al tiro que no se sincronizó.
+  Future<void>? _syncEnCurso;
+
   late String inspeccionId;
   DateTime fechaRealizacion = DateTime.now();
   final TextEditingController quienInspeccionaCtrl = TextEditingController();
@@ -467,15 +472,28 @@ class HidroserFormController extends ChangeNotifier {
       await _repo.guardarInspeccion(insp, respuestas);
       lastSavedRegistroId = insp.id;
 
-      // Sync inmediato: se intenta altiro, pero si falla la inspección queda
-      // guardada localmente para reintento posterior.
-      try {
-        await _sync.sincronizarTodo();
-        lastSyncSucceeded = true;
-      } catch (e) {
-        lastSyncSucceeded = false;
-        debugPrint('⚠️ Sync inmediato Hidroser falló (queda pendiente): $e');
-      }
+      // FIX (2026-08-21): el sync ya NO bloquea el guardado. En el celular,
+      // con red inestable, `sincronizarTodo()` (que además sube el PDF a
+      // Storage y ahora genera tickets) podía quedar colgado indefinidamente
+      // y el botón "Guardar definitivo" nunca retornaba (spinner infinito).
+      // La inspección YA quedó persistida localmente arriba (esa es la red de
+      // seguridad); el sync corre en segundo plano y, si no hay conexión, el
+      // registro queda visible en la cola de pendientes (Home → sincronización).
+      // Lanzamos el sync SIN await, pero guardamos el Future para que el
+      // flujo de correo pueda esperarlo con timeout (ver esperarSyncConTimeout).
+      lastSyncSucceeded = false;
+      _syncEnCurso = _sync
+          .sincronizarTodo()
+          .then((_) {
+            lastSyncSucceeded = true;
+            debugPrint('✅ Sync Hidroser en segundo plano OK ($inspeccionId)');
+          })
+          .catchError((e) {
+            lastSyncSucceeded = false;
+            debugPrint(
+              '⚠️ Sync Hidroser en segundo plano falló (queda pendiente): $e',
+            );
+          });
       return true;
     } catch (e, st) {
       errorMessage = 'Error guardando inspección: $e';
@@ -491,6 +509,25 @@ class HidroserFormController extends ChangeNotifier {
   String _nombrePdf(HidroserInspeccion insp) {
     final ref = insp.correlativo ?? insp.id.substring(0, 8);
     return 'Hidroser_${lista.codigo}_$ref'.replaceAll(RegExp(r'\s+'), '_');
+  }
+
+  /// Espera a que termine el sync en segundo plano (si hay uno en curso),
+  /// con un tope de [timeout]. Devuelve true si el registro quedó sincronizado
+  /// a tiempo; false si no hay sync en curso, falló o se agotó el tiempo.
+  ///
+  /// Se usa para decidir si el correo puede abrirse altiro (registro ya en la
+  /// nube) o debe encolarse como pendiente de sincronización.
+  Future<bool> esperarSyncConTimeout({
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    final fut = _syncEnCurso;
+    if (fut == null) return lastSyncSucceeded;
+    try {
+      await fut.timeout(timeout);
+    } catch (_) {
+      // Timeout o error: tratamos como no sincronizado aún.
+    }
+    return lastSyncSucceeded;
   }
 
   /// Guarda el estado actual del formulario como borrador. Pensado para

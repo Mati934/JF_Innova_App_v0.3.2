@@ -639,10 +639,18 @@ class SyncService {
     try {
       if (!await isTicketsModuleEnabled()) return;
 
+      // Solo se procesan las inspecciones del PROPIO usuario. Razones:
+      //  1) La policy `actividades_owner_write` solo permite UPDATE al dueño
+      //     (o admin): procesar actividades ajenas dejaba el UPDATE de
+      //     tickets_generados_at bloqueado por RLS (0 filas, sin error), así
+      //     que nunca se marcaban y se reprocesaban en cada sync.
+      //  2) El ticket quedaba con generado_por = quien sincronizaba, no el
+      //     autor de la inspección (confusión reportada 2026-08-21).
       final pendientes = await _supabase
           .from('actividades')
           .select('id')
           .eq('estado_final', 'En Seguimiento')
+          .eq('usuario_id', usuarioId)
           .inFilter('tipo_actividad', [
             'INSPECCION_BUCEO',
             'INSPECCION_EMBARCACION',
@@ -658,6 +666,7 @@ class SyncService {
             .from('actividades')
             .select('id')
             .eq('estado_final', 'En Seguimiento')
+            .eq('usuario_id', usuarioId)
             .inFilter('tipo_actividad', [
               'INSPECCION_BUCEO',
               'INSPECCION_EMBARCACION',

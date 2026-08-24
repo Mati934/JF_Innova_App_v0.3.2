@@ -7,6 +7,7 @@ import '../../domain/models/ticket_model.dart';
 import '../../domain/models/ticket_item_model.dart';
 import '../../domain/models/ticket_historial_entry.dart';
 import '../../domain/models/ticket_notificacion_model.dart';
+import '../../domain/ticket_reglas.dart';
 
 /// Se lanza cuando una acción de ciclo de vida no pudo aplicarse porque el
 /// ticket ya cambió de estado en el servidor (ej: alguien más lo tomó primero).
@@ -78,8 +79,13 @@ class TicketGeneracionPreview {
 /// No existen tablas `_pendientes` en SQLite: todo se lee/escribe directo en
 /// Supabase. La visibilidad por empresa/admin la aplica RLS en el servidor.
 class TicketRepository {
-  final SupabaseClient _client = Supabase.instance.client;
+  final SupabaseClient _client;
   static const _uuid = Uuid();
+
+  /// Inyección opcional del cliente (para tests con backend simulado).
+  /// En producción se usa el singleton global de Supabase.
+  TicketRepository({SupabaseClient? client})
+    : _client = client ?? Supabase.instance.client;
 
   // ---------------------------------------------------------------------
   // LECTURA
@@ -563,15 +569,9 @@ class TicketRepository {
     required String generadoPorId,
     DateTime? fechaLimite,
   }) async {
+    late final TicketGeneracionResultado resultado;
     try {
-      final resultado = await _generarDesdeInspeccionPorHallazgosCore(
-        inspeccionId: inspeccionId,
-        empresaId: empresaId,
-        generadoPorId: generadoPorId,
-        fechaLimite: fechaLimite,
-      );
-      return _agregarTicketFotosConObservacion(
-        resultado: resultado,
+      resultado = await _generarDesdeInspeccionPorHallazgosCore(
         inspeccionId: inspeccionId,
         empresaId: empresaId,
         generadoPorId: generadoPorId,
@@ -589,9 +589,13 @@ class TicketRepository {
           msg.contains('42p01') ||
           msg.contains('42703');
 
-      final indiceLegacyPorInspeccion =
-          msg.contains('uq_tickets_inspeccion_automatico') ||
-          msg.contains('23505');
+      // OJO: se compara el NOMBRE EXACTO del índice. Antes se aceptaba
+      // cualquier '23505' (duplicado), lo que reportaba como "índice legacy"
+      // errores que en realidad eran carreras sobre uq_tickets_hallazgo_activo
+      // o uq_tickets_fotos_observacion_automatico (mensaje engañoso).
+      final indiceLegacyPorInspeccion = msg.contains(
+        'uq_tickets_inspeccion_automatico',
+      );
 
       if (indiceLegacyPorInspeccion) {
         throw TicketAccionFallidaException(
@@ -614,6 +618,28 @@ class TicketRepository {
         reutilizados: const [],
         respuestasNcProcesadas: 0,
       );
+    }
+
+    // El ticket de fotos con observación es SECUNDARIO respecto de los
+    // tickets NC: si falla, no debe tumbar la operación completa. Si la
+    // excepción escapaba aquí, el sync nunca marcaba tickets_generados_at y
+    // reprocesaba la inspección en cada sincronización, consumiendo
+    // correlativo en cada intento (incidente 2026-08-21: salto
+    // TCK-2026-0001 -> TCK-2026-0005 con actividades nunca marcadas).
+    try {
+      return await _agregarTicketFotosConObservacion(
+        resultado: resultado,
+        inspeccionId: inspeccionId,
+        empresaId: empresaId,
+        generadoPorId: generadoPorId,
+        fechaLimite: fechaLimite,
+      );
+    } catch (e) {
+      debugPrint(
+        '⚠️ Tickets NC procesados, pero falló el ticket de fotos con '
+        'observación para $inspeccionId (se omite solo ese ticket): $e',
+      );
+      return resultado;
     }
   }
 
@@ -911,11 +937,49 @@ class TicketRepository {
         fechaLimite: fechaLimite,
       );
 
-      await _client.from('tickets').insert({
-        ...ticket.toInsertMap(),
-        'hallazgo_id': hallazgoId,
-        'hallazgo_ocurrencia_id': ocurrenciaId,
-      });
+      try {
+        await _client.from('tickets').insert({
+          ...ticket.toInsertMap(),
+          'hallazgo_id': hallazgoId,
+          'hallazgo_ocurrencia_id': ocurrenciaId,
+        });
+      } on PostgrestException catch (e) {
+        // Carrera entre dos syncs/dispositivos: otro proceso creó el ticket
+        // de este hallazgo entre nuestro SELECT y este INSERT. Se re-lee el
+        // ganador y se agrega la ocurrencia a su expediente.
+        if (e.code == '23505' &&
+            e.message.contains('uq_tickets_hallazgo_activo')) {
+          final ganadorRows = await _client
+              .from('tickets')
+              .select()
+              .eq('hallazgo_id', hallazgoId)
+              .eq('eliminado', false)
+              .neq('estado', TicketEstado.cerrado.value)
+              .limit(1);
+          if (ganadorRows.isNotEmpty) {
+            final ganador = TicketModel.fromMap(ganadorRows.first);
+            await _agregarOcurrenciaAlExpediente(
+              ticket: ganador,
+              respuestaId: respuestaId,
+              ocurrenciaId: ocurrenciaId,
+              inspeccionId: inspeccionId,
+              numeroInforme: numeroInforme,
+              areaId: areaId,
+              centroId: centroId,
+              embarcacionId: embarcacionId,
+              contratistaId: contratistaId,
+              info: info,
+              observacion: observacion,
+              fotoOriginalUrl: fotoPorRespuestaId[respuestaId],
+              usuarioId: generadoPorId,
+            );
+            reutilizadosPorId[ganador.id] =
+                await getTicketById(ganador.id) ?? ganador;
+            continue;
+          }
+        }
+        rethrow;
+      }
 
       final ticketItem = TicketItemModel(
         id: _uuid.v4(),
@@ -931,7 +995,21 @@ class TicketRepository {
         fotoOriginalUrl: fotoPorRespuestaId[respuestaId],
         orden: 0,
       );
-      await _client.from('ticket_items').insert(ticketItem.toInsertMap());
+      try {
+        await _client.from('ticket_items').insert(ticketItem.toInsertMap());
+      } catch (e) {
+        // Rollback: no dejar un ticket fantasma sin ítems (bloquea el índice
+        // único del hallazgo y confunde al usuario). Regresión del flujo por
+        // hallazgos respecto del fix original de 2026-07-06 (TCK-2026-0003).
+        try {
+          await _client.from('tickets').delete().eq('id', ticket.id);
+        } catch (rollbackError) {
+          debugPrint(
+            '⚠️ Rollback de ticket ${ticket.id} falló: $rollbackError',
+          );
+        }
+        rethrow;
+      }
 
       final creado = await getTicketById(ticket.id);
       creados.add(creado ?? ticket);
@@ -1062,9 +1140,10 @@ class TicketRepository {
     final fotosConObservacion = (fotos as List)
         .cast<Map<String, dynamic>>()
         .where((foto) {
-          final descripcion = (foto['descripcion'] as String?)?.trim() ?? '';
           return foto['inspeccion_respuesta_id'] == null &&
-              descripcion.isNotEmpty;
+              TicketReglas.esObservacionFotoReal(
+                foto['descripcion'] as String?,
+              );
         })
         .toList(growable: false);
 
@@ -1135,19 +1214,31 @@ class TicketRepository {
     );
     await _client.from('tickets').insert(ticket.toInsertMap());
 
-    await _client.from('ticket_items').insert([
-      for (var index = 0; index < fotosConObservacion.length; index++)
-        TicketItemModel(
-          id: _uuid.v4(),
-          ticketId: ticket.id,
-          origenItem: TicketItemOrigen.fotoObservacion,
-          referenciaId: fotosConObservacion[index]['id'] as String?,
-          descripcion: (fotosConObservacion[index]['descripcion'] as String?)!
-              .trim(),
-          fotoOriginalUrl: fotosConObservacion[index]['foto_url'] as String?,
-          orden: index,
-        ).toInsertMap(),
-    ]);
+    try {
+      await _client.from('ticket_items').insert([
+        for (var index = 0; index < fotosConObservacion.length; index++)
+          TicketItemModel(
+            id: _uuid.v4(),
+            ticketId: ticket.id,
+            origenItem: TicketItemOrigen.fotoObservacion,
+            referenciaId: fotosConObservacion[index]['id'] as String?,
+            descripcion: (fotosConObservacion[index]['descripcion'] as String?)!
+                .trim(),
+            fotoOriginalUrl: fotosConObservacion[index]['foto_url'] as String?,
+            orden: index,
+          ).toInsertMap(),
+      ]);
+    } catch (e) {
+      // Rollback: no dejar el ticket de fotos sin ítems si el insert falla.
+      try {
+        await _client.from('tickets').delete().eq('id', ticket.id);
+      } catch (rollbackError) {
+        debugPrint(
+          '⚠️ Rollback de ticket de fotos ${ticket.id} falló: $rollbackError',
+        );
+      }
+      rethrow;
+    }
 
     final creado = await getTicketById(ticket.id) ?? ticket;
     return TicketGeneracionResultado(
@@ -1268,8 +1359,10 @@ class TicketRepository {
     var fotosConObservacion = 0;
     for (final f in (fotos as List)) {
       final respId = f['inspeccion_respuesta_id'] as String?;
-      final descripcion = (f['descripcion'] as String?)?.trim() ?? '';
-      if (respId == null && descripcion.isNotEmpty) fotosConObservacion++;
+      final descripcion = f['descripcion'] as String?;
+      if (respId == null && TicketReglas.esObservacionFotoReal(descripcion)) {
+        fotosConObservacion++;
+      }
     }
 
     return (
@@ -1327,7 +1420,7 @@ class TicketRepository {
       final descripcion = (f['descripcion'] as String?)?.trim() ?? '';
       if (respId != null) {
         fotoPorRespuestaId[respId] = f['foto_url'] as String;
-      } else if (descripcion.isNotEmpty) {
+      } else if (TicketReglas.esObservacionFotoReal(descripcion)) {
         fotosGeneralesConObservacion.add(f);
       }
     }

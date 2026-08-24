@@ -55,9 +55,9 @@ dependencies:
   firebase_crashlytics: ^5.0.7
   signature: ^5.5.0
   connectivity_plus: ^6.1.4
-  share_plus: ^10.0.2
   provider: any
   http: ^1.2.0
+  flutter_email_sender: ^8.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

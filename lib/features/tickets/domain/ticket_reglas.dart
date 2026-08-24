@@ -48,4 +48,19 @@ class TicketReglas {
   }) {
     return cantidadNoCumple == 0;
   }
+
+  /// true si una foto suelta (sin respuesta de formulario asociada) tiene una
+  /// observación real escrita por el inspector.
+  ///
+  /// Excluye placeholders escritos por versiones antiguas de la app: la
+  /// galería general se guardaba con la descripción fija 'General' (bug
+  /// corregido 2026-07-07, pero los datos subidos desde la versión publicada
+  /// vieja quedaron así en la nube). Sin este filtro, esas fotos generan un
+  /// ticket FOTOS_OBSERVACION basura con ítems de texto 'General'.
+  static bool esObservacionFotoReal(String? descripcion) {
+    final d = descripcion?.trim() ?? '';
+    if (d.isEmpty) return false;
+    if (d.toLowerCase() == 'general') return false; // placeholder app vieja
+    return true;
+  }
 }

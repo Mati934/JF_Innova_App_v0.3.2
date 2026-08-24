@@ -170,4 +170,31 @@ void main() {
       );
     });
   });
+
+  group('TicketReglas.esObservacionFotoReal', () {
+    test('false con descripción nula o vacía', () {
+      expect(TicketReglas.esObservacionFotoReal(null), isFalse);
+      expect(TicketReglas.esObservacionFotoReal(''), isFalse);
+      expect(TicketReglas.esObservacionFotoReal('   '), isFalse);
+    });
+
+    test('false con el placeholder legacy "General" (fotos de galería '
+        'guardadas por la app vieja, bug 2026-07-07)', () {
+      expect(TicketReglas.esObservacionFotoReal('General'), isFalse);
+      expect(TicketReglas.esObservacionFotoReal('general'), isFalse);
+      expect(TicketReglas.esObservacionFotoReal('  GENERAL  '), isFalse);
+    });
+
+    test('true con una observación real del inspector', () {
+      expect(
+        TicketReglas.esObservacionFotoReal('Se observa corrosión en el casco'),
+        isTrue,
+      );
+      // Una descripción que solo CONTIENE "general" sí es válida.
+      expect(
+        TicketReglas.esObservacionFotoReal('Estado general del equipo malo'),
+        isTrue,
+      );
+    });
+  });
 }

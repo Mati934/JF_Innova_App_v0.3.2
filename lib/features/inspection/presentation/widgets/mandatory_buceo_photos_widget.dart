@@ -37,7 +37,7 @@ class MandatoryBuceoPhotosWidget extends StatelessWidget {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'FOTOGRAFIAS OBLIGATORIAS',
+                    'REGISTROS FOTOGRAFICOS COMPLEMENTARIOS',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF0059A3),
