@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/user_session.dart';
 import '../data/repositories/local_history_repository.dart';
 import '../data/repositories/supabase_history_repository.dart';
 
@@ -11,6 +12,7 @@ class HistoryController extends ChangeNotifier {
   List<Map<String, dynamic>> records = [];
   bool isLoading = true;
   bool esAdmin = false;
+  bool esSuperAdmin = false;
 
   // Filtros Activos
   String? filtroCentroId;
@@ -42,9 +44,14 @@ class HistoryController extends ChangeNotifier {
     _safeNotify();
 
     try {
-      // 1. Verificamos Rol
-      esAdmin = await _cloudRepo.soyAdmin();
-      debugPrint("👤 Rol Admin detectado: $esAdmin");
+      // El rol y la empresa activa se cargan al iniciar la sesión.
+      final session = UserSession();
+      esAdmin = session.esAdmin;
+      esSuperAdmin = session.esSuperAdmin;
+      debugPrint(
+        '👤 Historial: admin=$esAdmin superAdmin=$esSuperAdmin '
+        'empresa=${session.empresaId}',
+      );
 
       // 2. Si es admin, cargamos catálogos en paralelo
       if (esAdmin) {
@@ -73,6 +80,8 @@ class HistoryController extends ChangeNotifier {
     try {
       final cloudResult = await _cloudRepo.getHistorialGlobal(
         esAdmin: esAdmin,
+        esSuperAdmin: esSuperAdmin,
+        empresaId: UserSession().empresaId,
         filtroCentroId: filtroCentroId,
         filtroUsuarioId: filtroUsuarioId,
         filtroModulo: filtroModulo,

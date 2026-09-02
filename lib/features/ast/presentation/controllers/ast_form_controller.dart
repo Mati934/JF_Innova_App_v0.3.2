@@ -16,6 +16,7 @@ import '../../data/repositories/local_ast_repository.dart';
 import '../../domain/models/ast_models.dart';
 import '../../domain/models/pdf/ast_report_data.dart';
 import '../../services/ast_pdf_generator_service.dart';
+import 'ast_photo_persistence_queue.dart';
 
 /// Controlador del formulario AST: descripción, hallazgos, observaciones,
 /// galería general y generación del PDF.
@@ -23,6 +24,9 @@ class AstFormController extends ChangeNotifier {
   final String informeId;
   final LocalAstRepository _repo;
   final SyncService _sync;
+  late final AstPhotoPersistenceQueue _photoQueue = AstPhotoPersistenceQueue(
+    onChanged: notifyListeners,
+  );
 
   AstFormController({
     required this.informeId,
@@ -33,6 +37,7 @@ class AstFormController extends ChangeNotifier {
 
   bool isLoading = true;
   bool isSaving = false;
+  bool get isProcessingPhotos => _photoQueue.isProcessing;
   String? errorMessage;
 
   late AstInforme _informe;
@@ -158,7 +163,11 @@ class AstFormController extends ChangeNotifier {
     if (h != null) h.detalle = detalle;
   }
 
-  Future<void> setFotoHallazgo(String id, File foto) async {
+  Future<void> setFotoHallazgo(String id, File foto) {
+    return _photoQueue.track(_persistirFotoHallazgo(id, foto));
+  }
+
+  Future<void> _persistirFotoHallazgo(String id, File foto) async {
     final h = _byId(id);
     if (h == null) return;
     final permanente = await _persistirFoto(foto, 'hallazgo_$id');
@@ -187,7 +196,11 @@ class AstFormController extends ChangeNotifier {
     return null;
   }
 
-  Future<void> setFotosGenerales(List<File> nuevas) async {
+  Future<void> setFotosGenerales(List<File> nuevas) {
+    return _photoQueue.track(_persistirFotosGenerales(nuevas));
+  }
+
+  Future<void> _persistirFotosGenerales(List<File> nuevas) async {
     final List<File> persistidas = [];
     for (final f in nuevas) {
       // Evita recopiar las que ya están en el directorio permanente.
@@ -329,6 +342,7 @@ class AstFormController extends ChangeNotifier {
     errorMessage = null;
     notifyListeners();
     try {
+      await _photoQueue.waitUntilIdle();
       _volcarFormularioAlModelo(estadoFinal: 'En Seguimiento');
 
       final pdfBytes = await _generatePdf(_buildReportData());
@@ -355,6 +369,7 @@ class AstFormController extends ChangeNotifier {
   Future<bool> guardarBorradorSilencioso() async {
     if (isLoading) return false;
     try {
+      await _photoQueue.waitUntilIdle();
       _volcarFormularioAlModelo(estadoFinal: 'En Progreso');
       await _repo.guardarInforme(_informe, hallazgos);
       debugPrint('💾 Borrador AST autoguardado ($informeId)');

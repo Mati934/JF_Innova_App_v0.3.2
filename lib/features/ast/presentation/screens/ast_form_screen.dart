@@ -136,7 +136,23 @@ class _AstFormView extends StatelessWidget {
                     GalleryInput(
                       images: ctrl.fotosGenerales,
                       onImagesChanged: ctrl.setFotosGenerales,
+                      readOnly: ctrl.isSaving || ctrl.isProcessingPhotos,
                     ),
+                    if (ctrl.isProcessingPhotos)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 8),
+                            Text('Procesando fotos...'),
+                          ],
+                        ),
+                      ),
                     const SizedBox(height: 24),
                     if (ctrl.errorMessage != null)
                       Padding(
@@ -150,7 +166,7 @@ class _AstFormView extends StatelessWidget {
                       children: [
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: ctrl.isSaving
+                            onPressed: ctrl.isSaving || ctrl.isProcessingPhotos
                                 ? null
                                 : () => ctrl.previsualizarReporte(context),
                             icon: const Icon(Icons.preview),
@@ -164,7 +180,7 @@ class _AstFormView extends StatelessWidget {
                               backgroundColor: kAstColor,
                               foregroundColor: Colors.white,
                             ),
-                            onPressed: ctrl.isSaving
+                            onPressed: ctrl.isSaving || ctrl.isProcessingPhotos
                                 ? null
                                 : () => _finalizar(context),
                             icon: ctrl.isSaving

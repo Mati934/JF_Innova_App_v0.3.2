@@ -6,13 +6,17 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/database/database_helper.dart';
 import '../../../core/utils/rut_utils.dart';
 import '../../../core/services/user_session.dart';
+import '../../../features/inspection/domain/models/foto_evidencia_item_id.dart';
 import '../../../features/inspection/services/deferred_pdf_service.dart';
 import '../../../features/email/services/email_pending_service.dart';
+import '../../../features/ast/services/ast_evidence_sync_plan.dart';
 import '../../../features/tickets/data/repositories/ticket_repository.dart';
 import '../../../features/tickets/data/services/ticket_module_gate.dart';
+import 'sync_execution_gate.dart';
 import 'dart:convert';
 
 class SyncService {
+  static final SyncExecutionGate<int> _syncGate = SyncExecutionGate<int>();
   final _supabase = Supabase.instance.client;
   final _dbHelper = DatabaseHelper.instance;
 
@@ -501,7 +505,9 @@ class SyncService {
 
   // --- 2. SUBIDA DE DATOS (Up-Sync) ---
   // --- 2. SUBIDA DE DATOS (Up-Sync) ---
-  Future<int> sincronizarTodo() async {
+  Future<int> sincronizarTodo() => _syncGate.run(_sincronizarTodo);
+
+  Future<int> _sincronizarTodo() async {
     int totalSubidas = 0;
     try {
       // 0. Verificar y descargar datos maestros faltantes ANTES de sincronizar
@@ -951,6 +957,7 @@ class SyncService {
             );
           }
         }
+        datosParaNube['empresa_id'] = UserSession().empresaId;
 
         // --- 1. VERIFICACIÓN ESTRICTA EN LA NUBE ---
         final checkNube = await _supabase
@@ -1357,6 +1364,7 @@ class SyncService {
             );
           }
         }
+        datosNube['empresa_id'] = UserSession().empresaId;
 
         // 2.A. Hacemos el Upsert directo a Supabase (Data Relacional)
         await _supabase
@@ -2199,7 +2207,7 @@ class SyncService {
         // Sanitizar: campos local-only no van a Supabase.
         datosNube.remove('subido');
         datosNube.remove('eliminado');
-        datosNube.remove('fotos_generales');
+        final fotosGeneralesJson = datosNube.remove('fotos_generales');
         final String? pdfPathLocal = datosNube.remove('pdf_path_local');
         // El correlativo lo asigna el trigger en Supabase, no lo pisamos.
         datosNube.remove('correlativo');
@@ -2241,6 +2249,7 @@ class SyncService {
           where: 'informe_id = ?',
           whereArgs: [id],
         );
+        var hallazgosCompletos = true;
         for (final h in hallazgos) {
           final payload = <String, dynamic>{
             'id': h['id'],
@@ -2261,7 +2270,58 @@ class SyncService {
               whereArgs: [h['id']],
             );
           } catch (e) {
+            hallazgosCompletos = false;
             debugPrint("⚠️ Error subiendo hallazgo AST ${h['id']}: $e");
+          }
+        }
+
+        var evidenciasCompletas = true;
+        final planEvidencias = buildAstEvidenceSyncPlan(
+          informeId: id,
+          fotosGeneralesJson: fotosGeneralesJson,
+          hallazgos: hallazgos,
+        );
+        for (final evidencia in planEvidencias) {
+          final file = File(evidencia.localPath);
+          if (!file.existsSync()) {
+            evidenciasCompletas = false;
+            debugPrint(
+              '❌ [AST-EVID-001] Archivo local no encontrado: '
+              '${evidencia.localPath}',
+            );
+            continue;
+          }
+          try {
+            await _supabase.storage
+                .from('evidencias')
+                .upload(
+                  evidencia.storagePath,
+                  file,
+                  fileOptions: const FileOptions(upsert: true),
+                );
+            final fotoUrl = _supabase.storage
+                .from('evidencias')
+                .getPublicUrl(evidencia.storagePath);
+            await _supabase.from('ast_evidencias').upsert({
+              'storage_path': evidencia.storagePath,
+              'informe_id': id,
+              'hallazgo_id': evidencia.hallazgoId,
+              'tipo': evidencia.tipo,
+              'posicion': evidencia.posicion,
+              'foto_url': fotoUrl,
+              'updated_at': DateTime.now().toIso8601String(),
+            }, onConflict: 'storage_path');
+            if (evidencia.hallazgoId != null) {
+              await _supabase
+                  .from('ast_hallazgos')
+                  .update({'foto_path': fotoUrl})
+                  .eq('id', evidencia.hallazgoId!);
+            }
+          } catch (e) {
+            evidenciasCompletas = false;
+            debugPrint(
+              '❌ [AST-EVID-002] Error subiendo ${evidencia.storagePath}: $e',
+            );
           }
         }
 
@@ -2297,17 +2357,24 @@ class SyncService {
         // Marcar como subido sólo si no hay PDF pendiente
         final pdfPendiente =
             pdfPathLocal != null && (pdfUrlNube == null || pdfUrlNube.isEmpty);
-        if (!pdfPendiente) {
+        final syncCompleta =
+            hallazgosCompletos && evidenciasCompletas && !pdfPendiente;
+        if (syncCompleta) {
           await db.update(
             'ast_informes_pendientes',
             {'subido': 1, if (pdfUrlNube != null) 'pdf_url': pdfUrlNube},
             where: 'id = ?',
             whereArgs: [id],
           );
+          count++;
+          debugPrint("✅ AST informe sincronizado OK: $id");
+        } else {
+          debugPrint(
+            '⚠️ [AST-EVID-003] AST pendiente de reintento: $id '
+            '(hallazgos=$hallazgosCompletos, '
+            'evidencias=$evidenciasCompletas, pdf=${!pdfPendiente})',
+          );
         }
-
-        count++;
-        debugPrint("✅ AST informe sincronizado OK: $id");
       } catch (e) {
         debugPrint("🔥 Error subiendo AST $id: $e");
       }
@@ -2566,9 +2633,9 @@ class SyncService {
         String? respuestaIdNube;
 
         if (itemId != null &&
-            itemId != 'visita_general' &&
-            !itemId.startsWith('verif_') &&
-            !itemId.startsWith('mandatory::')) {
+            itemId != FotoEvidenciaItemId.visitaGeneral &&
+            !FotoEvidenciaItemId.esVerificacion(itemId) &&
+            !FotoEvidenciaItemId.esObligatoria(itemId)) {
           final respuestaData = await _supabase
               .from('inspeccion_respuestas')
               .select('id')

@@ -657,5 +657,90 @@ void main() {
       expect(db.rows('tickets'), isEmpty);
       expect(db.rows('nc_hallazgos'), isEmpty);
     });
+
+    test('BUG: el flujo legacy no debe crear un ticket VACÍO cuando no hay '
+        'nada que subsanar (TCK-2026-0001 en produccion: ABIERTO, 0 items, '
+        'sin hallazgo_id)', () async {
+      // Escenario real: el core falla con un error que "parece schema
+      // incompleto" y cae al flujo legacy. Si en ese momento la inspección no
+      // tiene NC ni fotos con observación (p.ej. las respuestas aún no
+      // sincronizaron), _armarItemsDesdeInspeccion devuelve [] y el legacy
+      // dejaba el ticket recién insertado sin ningún ítem y sin rollback,
+      // quemando además un correlativo TCK-2026-XXXX.
+      final seed = _seedBase();
+      seed['inspeccion_respuestas'] = [];
+      final db = FakePostgrest(seed: seed);
+
+      var fallosPendientes = 1;
+      db.onRequest = (method, table, body) {
+        if (method == 'GET' &&
+            table == 'embarcaciones' &&
+            fallosPendientes > 0) {
+          fallosPendientes--;
+          return db.errorResp(
+            400,
+            '42703',
+            'column tickets.hallazgo_id does not exist',
+          );
+        }
+        return null;
+      };
+      final repo = _repo(db);
+
+      final r = await repo.generarDesdeInspeccionPorHallazgos(
+        inspeccionId: _insp,
+        empresaId: _empresa,
+        generadoPorId: _usuarioSync,
+      );
+
+      expect(
+        db.rows('tickets'),
+        isEmpty,
+        reason:
+            'Un ticket sin ítems no se puede tomar ni subsanar: queda '
+            'ABIERTO para siempre y consume un correlativo.',
+      );
+      expect(db.rows('ticket_items'), isEmpty);
+      expect(
+        r.totalTicketsInvolucrados,
+        0,
+        reason:
+            'Debe terminar OK y sin tickets: si lanzara excepción, el sync '
+            'nunca marca tickets_generados_at y reprocesa en cada corrida.',
+      );
+    });
+
+    test(
+      'el flujo legacy SÍ crea el ticket cuando hay algo que subsanar',
+      () async {
+        final db = FakePostgrest(seed: _seedBase());
+
+        var fallosPendientes = 1;
+        db.onRequest = (method, table, body) {
+          if (method == 'GET' &&
+              table == 'embarcaciones' &&
+              fallosPendientes > 0) {
+            fallosPendientes--;
+            return db.errorResp(
+              400,
+              '42703',
+              'column tickets.hallazgo_id does not exist',
+            );
+          }
+          return null;
+        };
+        final repo = _repo(db);
+
+        final r = await repo.generarDesdeInspeccionPorHallazgos(
+          inspeccionId: _insp,
+          empresaId: _empresa,
+          generadoPorId: _usuarioSync,
+        );
+
+        expect(r.creados, hasLength(1));
+        expect(db.rows('tickets'), hasLength(1));
+        expect(db.rows('ticket_items'), isNotEmpty);
+      },
+    );
   });
 }

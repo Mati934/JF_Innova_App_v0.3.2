@@ -614,7 +614,7 @@ class TicketRepository {
         fechaLimite: fechaLimite,
       );
       return TicketGeneracionResultado(
-        creados: [legacy],
+        creados: legacy == null ? const [] : [legacy],
         reutilizados: const [],
         respuestasNcProcesadas: 0,
       );
@@ -1248,7 +1248,8 @@ class TicketRepository {
     );
   }
 
-  Future<TicketModel> _generarDesdeInspeccionLegacy({
+  /// Devuelve null si la inspección no tiene nada que subsanar.
+  Future<TicketModel?> _generarDesdeInspeccionLegacy({
     required String inspeccionId,
     required String empresaId,
     required String generadoPorId,
@@ -1312,20 +1313,24 @@ class TicketRepository {
       fechaLimite: fechaLimite,
     );
 
+    // Los ítems se arman ANTES de insertar el ticket: si no hay nada que
+    // subsanar, no se crea el ticket ni se quema un correlativo. Se devuelve
+    // null (no una excepción) para que el sync marque la actividad como
+    // procesada y no la reintente en cada sincronización.
+    final items = await _armarItemsDesdeInspeccion(
+      ticketId: ticket.id,
+      inspeccionId: inspeccionId,
+    );
+    if (items.isEmpty) return null;
+
     await _client.from('tickets').insert(ticket.toInsertMap());
 
     try {
-      final items = await _armarItemsDesdeInspeccion(
-        ticketId: ticket.id,
-        inspeccionId: inspeccionId,
-      );
-      if (items.isNotEmpty) {
-        await _client
-            .from('ticket_items')
-            .insert(items.map((e) => e.toInsertMap()).toList());
-      }
+      await _client
+          .from('ticket_items')
+          .insert(items.map((e) => e.toInsertMap()).toList());
     } catch (e) {
-      // Si no se pudieron armar/insertar los ítems, no dejamos un ticket
+      // Si no se pudieron insertar los ítems, no dejamos un ticket
       // "fantasma" sin observaciones: además de confundir al usuario, el
       // índice único de "1 ticket automático por inspección" bloquearía
       // cualquier reintento posterior para la misma inspección. Se revierte

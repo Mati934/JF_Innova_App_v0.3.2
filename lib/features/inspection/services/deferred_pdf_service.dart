@@ -10,6 +10,7 @@ import '../../../core/services/user_session.dart';
 import '../domain/models/mandatory_buceo_photo_slot.dart';
 import '../domain/models/pdf/inspection_report_data.dart';
 import '../domain/models/buceo_verificacion_model.dart';
+import '../domain/models/foto_evidencia_item_id.dart';
 import 'pdf_generator_service.dart';
 
 /// Genera PDFs diferidos para inspecciones que se finalizaron offline.
@@ -292,19 +293,20 @@ class DeferredPdfService {
       final localPath = foto['local_path'] as String?;
       if (localPath == null) continue;
 
-      if (itemId == null) {
-        // Foto general
-        fotosGeneralesPaths.add(localPath);
-      } else if (itemId.startsWith('mandatory::')) {
-        final key = itemId.replaceFirst('mandatory::', '');
-        mandatoryPhotosByKey[key] = localPath;
-      } else if (itemIds.contains(itemId)) {
-        // Foto de pregunta
-        fotosPorItem.putIfAbsent(itemId, () => []).add(localPath);
-      } else {
-        // Foto con observación (item_id no coincide con formulario_items)
-        final desc = foto['descripcion'] as String? ?? '';
-        fotosExtraPaths.add({'path': localPath, 'observacion': desc});
+      switch (FotoEvidenciaItemId.clasificar(itemId, idsPreguntas: itemIds)) {
+        case FotoEvidenciaTipo.general:
+          fotosGeneralesPaths.add(localPath);
+        case FotoEvidenciaTipo.obligatoria:
+          mandatoryPhotosByKey[FotoEvidenciaItemId.claveObligatoria(itemId)!] =
+              localPath;
+        case FotoEvidenciaTipo.verificacion:
+          // Van en la seccion de verificaciones criticas, no en el anexo.
+          break;
+        case FotoEvidenciaTipo.pregunta:
+          fotosPorItem.putIfAbsent(itemId!, () => []).add(localPath);
+        case FotoEvidenciaTipo.observacionExtra:
+          final desc = foto['descripcion'] as String? ?? '';
+          fotosExtraPaths.add({'path': localPath, 'observacion': desc});
       }
     }
 

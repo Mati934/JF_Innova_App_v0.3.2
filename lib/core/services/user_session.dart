@@ -17,7 +17,6 @@ class UserSession {
   // Multi-empresa
   List<EmpresaUsuario> _empresas = [];
   String? _currentEmpresaId;
-  bool _empresaAdministradora = false;
 
   String? get userId => _userId;
   String? get nombreCompleto => _nombreCompleto;
@@ -60,8 +59,10 @@ class UserSession {
     return rol == 'administrador' || rol == 'admin';
   }
 
-  /// true si el usuario es admin Y su empresa activa es administradora (ej: Servimaf).
-  bool get esSuperAdmin => esAdmin && _empresaAdministradora;
+  /// true si el usuario admin pertenece a una empresa administradora (ej: Servimaf).
+  /// Es un permiso de identidad, no cambia al seleccionar otra empresa activa.
+  bool get esSuperAdmin =>
+      esAdmin && _empresas.any((empresa) => empresa.esAdministradora);
 
   /// Carga el perfil del usuario desde SQLite.
   Future<void> loadFromSQLite(String authUserId) async {
@@ -126,7 +127,6 @@ class UserSession {
           !_empresas.any((e) => e.id == _currentEmpresaId)) {
         _currentEmpresaId = _empresas.first.id;
       }
-      _actualizarFlagAdministradora();
     } else {
       // Fallback: usar empresa_id de la tabla usuarios (legacy)
       final userRows = await db.query(
@@ -164,18 +164,8 @@ class UserSession {
             ),
           ];
           _currentEmpresaId = legacyEmpresaId;
-          _actualizarFlagAdministradora();
         }
       }
-    }
-  }
-
-  void _actualizarFlagAdministradora() {
-    try {
-      final empresa = _empresas.firstWhere((e) => e.id == _currentEmpresaId);
-      _empresaAdministradora = empresa.esAdministradora;
-    } catch (_) {
-      _empresaAdministradora = false;
     }
   }
 
@@ -183,7 +173,6 @@ class UserSession {
   bool cambiarEmpresa(String empresaId) {
     if (_empresas.any((e) => e.id == empresaId)) {
       _currentEmpresaId = empresaId;
-      _actualizarFlagAdministradora();
       EmpresaLogoService.instance.clearMemoryCache();
       debugPrint(
         '🏢 Empresa cambiada a: $empresaNombre (superAdmin: $esSuperAdmin)',
@@ -201,7 +190,6 @@ class UserSession {
     _email = null;
     _empresas = [];
     _currentEmpresaId = null;
-    _empresaAdministradora = false;
     EmpresaLogoService.instance.clearMemoryCache();
     debugPrint('🧹 UserSession limpiado');
   }

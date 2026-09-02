@@ -156,7 +156,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         itemCount: _ctrl.records.length,
                         itemBuilder: (ctx, i) => HistoryCard(
                           item: _ctrl.records[i],
-                          showEmpresa: _ctrl.esAdmin,
+                          showEmpresa: _ctrl.esSuperAdmin,
                         ),
                       ),
               ),

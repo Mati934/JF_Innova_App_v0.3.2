@@ -1,3 +1,4 @@
+import '../../inspection/domain/models/mandatory_buceo_photo_slot.dart';
 import 'models/ticket_item_model.dart';
 import 'models/ticket_model.dart';
 
@@ -49,18 +50,45 @@ class TicketReglas {
     return cantidadNoCumple == 0;
   }
 
+  /// Descripción `Item <uuid>` con que la app guarda las fotos asociadas a una
+  /// pregunta del checklist. Si la foto se subió sin poder enlazar su
+  /// `inspeccion_respuesta_id`, queda suelta con ese texto de placeholder.
+  static final RegExp _placeholderFotoDePregunta = RegExp(
+    r'^item\s+[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+  );
+
+  /// Descripciones que escribe la app (no el inspector) al subir fotos que no
+  /// son observaciones: galería general, anexo de visitas y foto anexa sin
+  /// texto.
+  static const Set<String> _placeholdersFotoSinObservacion = {
+    'general', // galería general de la app vieja (bug 2026-07-07)
+    'fotografía anexa',
+    'fotografia anexa',
+    'anexo fotográfico de visita técnica',
+  };
+
   /// true si una foto suelta (sin respuesta de formulario asociada) tiene una
   /// observación real escrita por el inspector.
   ///
-  /// Excluye placeholders escritos por versiones antiguas de la app: la
-  /// galería general se guardaba con la descripción fija 'General' (bug
-  /// corregido 2026-07-07, pero los datos subidos desde la versión publicada
-  /// vieja quedaron así en la nube). Sin este filtro, esas fotos generan un
-  /// ticket FOTOS_OBSERVACION basura con ítems de texto 'General'.
+  /// Descarta todo lo que es evidencia del formulario o placeholder de la app:
+  /// sin este filtro se generan `ticket_items` basura (verificaciones críticas
+  /// del estado de la faena, registros fotográficos complementarios, fotos de
+  /// pregunta huérfanas y fotos anexas sin texto).
+  ///
+  /// `registro_fotografico` no guarda el item_id, así que la única señal
+  /// disponible es la descripción con que las sube el sync.
   static bool esObservacionFotoReal(String? descripcion) {
-    final d = descripcion?.trim() ?? '';
-    if (d.isEmpty) return false;
-    if (d.toLowerCase() == 'general') return false; // placeholder app vieja
+    final lower = (descripcion?.trim() ?? '').toLowerCase();
+    if (lower.isEmpty) return false;
+    if (_placeholdersFotoSinObservacion.contains(lower)) return false;
+    if (lower.startsWith('verificación:') ||
+        lower.startsWith('verificacion:')) {
+      return false;
+    }
+    if (_placeholderFotoDePregunta.hasMatch(lower)) return false;
+    if (mandatoryBuceoPhotoSlots.any((s) => s.title.toLowerCase() == lower)) {
+      return false;
+    }
     return true;
   }
 }

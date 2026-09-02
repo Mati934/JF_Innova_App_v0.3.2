@@ -1,3 +1,5 @@
+import 'foto_evidencia_item_id.dart';
+
 class MandatoryBuceoPhotoSlot {
   final String key;
   final String title;
@@ -37,4 +39,5 @@ const List<MandatoryBuceoPhotoSlot> mandatoryBuceoPhotoSlots = [
   ),
 ];
 
-String mandatoryPhotoItemId(String key) => 'mandatory::$key';
+String mandatoryPhotoItemId(String key) =>
+    '${FotoEvidenciaItemId.prefijoObligatoria}$key';

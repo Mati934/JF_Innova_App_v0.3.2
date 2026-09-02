@@ -14,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:uuid/uuid.dart';
 import '../../domain/models/buceo_verificacion_model.dart';
+import '../../domain/models/foto_evidencia_item_id.dart';
 import '../../domain/models/participante_model.dart';
 import '../../domain/models/formulario_item.dart';
 import '../../domain/repositories/inspection_repository.dart';
@@ -195,6 +196,7 @@ class InspectionFormController extends ChangeNotifier {
       // 4. Cargar Fotos Previas (Solo local) - CLEAN CODE APLICADO
       if (_repo is LocalInspectionRepository) {
         final fotos = await (_repo).getFotosPendientes(activityId);
+        final idsPreguntas = _items.map((p) => p.id).toSet();
 
         for (var f in fotos) {
           final file = File(f['local_path'] as String);
@@ -203,29 +205,27 @@ class InspectionFormController extends ChangeNotifier {
           if (await file.exists()) {
             final itemId = f['item_id'] as String?;
 
-            if (itemId == null) {
-              // Regla 1: Sin ID = Galería General
-              fotosGenerales.add(file);
-            } else if (itemId.startsWith('mandatory::')) {
-              final mandatoryKey = itemId.replaceFirst('mandatory::', '');
-              mandatoryPhotos[mandatoryKey] = file;
-            } else {
-              // LÓGICA RELACIONAL DE UUIDs
-              final esDePregunta = _items.any(
-                (pregunta) => pregunta.id == itemId,
-              );
-
-              if (esDePregunta) {
-                // Regla 2: Es una foto asignada a una pregunta
-                fotosPorPregunta[itemId] = file;
-              } else {
-                // Regla 3: Tiene UUID pero no es pregunta. Es foto extra.
+            switch (FotoEvidenciaItemId.clasificar(
+              itemId,
+              idsPreguntas: idsPreguntas,
+            )) {
+              case FotoEvidenciaTipo.general:
+                fotosGenerales.add(file);
+              case FotoEvidenciaTipo.obligatoria:
+                mandatoryPhotos[FotoEvidenciaItemId.claveObligatoria(itemId)!] =
+                    file;
+              case FotoEvidenciaTipo.verificacion:
+                // Se reasignan a su verificación en
+                // _recuperarFotosVerificacionesDesdePendientes().
+                break;
+              case FotoEvidenciaTipo.pregunta:
+                fotosPorPregunta[itemId!] = file;
+              case FotoEvidenciaTipo.observacionExtra:
                 fotosConObservacion.add({
                   'id': itemId, // Usamos el UUID real
                   'file': file,
                   'observacion': f['descripcion'] ?? '',
                 });
-              }
             }
           }
         }
@@ -296,10 +296,10 @@ class InspectionFormController extends ChangeNotifier {
       activityId,
     );
     for (final foto in fotos) {
-      final itemId = foto['item_id']?.toString() ?? '';
-      if (!itemId.startsWith('verif_')) continue;
+      final itemId = foto['item_id']?.toString();
+      final nombre = FotoEvidenciaItemId.claveVerificacion(itemId);
+      if (nombre == null) continue;
 
-      final nombre = itemId.substring('verif_'.length).split('_').first;
       final path = foto['local_path']?.toString();
       if (path == null || path.isEmpty || !File(path).existsSync()) continue;
 
@@ -1094,9 +1094,9 @@ class InspectionFormController extends ChangeNotifier {
       if (path == null || path.isEmpty || !File(path).existsSync()) continue;
       listaFotosParaRepo.add({
         'actividad_id': activityId,
-        'item_id': 'verif_${entry.key}',
+        'item_id': FotoEvidenciaItemId.paraVerificacion(entry.key),
         'local_path': path,
-        'descripcion': 'Verificación: ${entry.key}',
+        'descripcion': FotoEvidenciaItemId.descripcionVerificacion(entry.key),
         'subido': 0,
       });
     }
@@ -1299,9 +1299,11 @@ class InspectionFormController extends ChangeNotifier {
       if (_repo is LocalInspectionRepository) {
         final rutaSegura = await (_repo).saveFoto(
           activityId: activityId,
-          itemId: "verif_$nombreArchivoBase",
+          itemId: FotoEvidenciaItemId.paraVerificacion(nombreArchivoBase),
           file: XFile(fotoComprimida.path),
-          descripcion: "Verificación: $nombreArchivoBase",
+          descripcion: FotoEvidenciaItemId.descripcionVerificacion(
+            nombreArchivoBase,
+          ),
         );
 
         onFotoGuardada(rutaSegura);
