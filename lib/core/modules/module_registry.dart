@@ -74,6 +74,23 @@ class ModuleRegistry {
       screenBuilder: (_) => const ExtintorFormScreen(),
     ),
     ModuleDefinition(
+      moduleKey: 'VISITA_ACTIVIDADES_VEHICULOS',
+      title: 'Registro de Actividades',
+      subtitle: 'Checklist Vehículos Livianos',
+      icon: Icons.directions_car_filled,
+      color: Colors.indigo,
+      screenBuilder: (_) => const VisitFormScreen(
+        onlyChecklistTypes: ['VISITA_R008'],
+        customTitle: 'Registro de Actividades',
+        customSubtitle: 'Checklist Vehículos Livianos',
+        originLabel: 'Origen de la actividad',
+        documentTitle: 'INFORME DE ACTIVIDAD',
+        brandColor: Colors.indigo,
+        brandColorDark: Color(0xFF283593),
+        brandIcon: Icons.directions_car_filled,
+      ),
+    ),
+    ModuleDefinition(
       moduleKey: 'MANTENCION_PROSESSO',
       title: 'Mantención',
       subtitle: 'Servicio de Extintores',
@@ -214,6 +231,7 @@ class ModuleRegistry {
   static const List<String> defaultModuleKeys = [
     'INSPECCION',
     'VISITA_R003',
+    'VISITA_ACTIVIDADES_VEHICULOS',
     'VISITA_R004',
     'EMAIL_OUTBOX',
     'RENDICIONES',

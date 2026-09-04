@@ -101,9 +101,10 @@ También debe permitir levantar solicitudes libres (no ligadas a una inspección
     fecha). Si se activa, se guarda `fecha_limite` y se puede mostrar una
     alerta visual simple cuando esté vencida (sin lógica de notificaciones
     push).
-17. **1 ticket automático por inspección**: no se permite generar más de un
-    ticket automático desde la misma inspección (evita duplicar la misma
-    información). Las solicitudes manuales no tienen esta restricción.
+17. **Un ticket por unidad de seguimiento**: los hallazgos NC se agrupan por
+   hallazgo único (empresa + tipo + item + embarcación) y las fotos con
+   observación generan un ticket por observación. Las fotos repetidas de una
+   misma observación no crean tickets ni subsanaciones adicionales.
 18. **Badge de notificación en Home**: el numerito de la viñeta de Tickets
     cuenta únicamente los tickets en estado `ABIERTO` (los que nadie ha
     tomado todavía) de la empresa del usuario.
@@ -185,10 +186,12 @@ stateDiagram-v2
 3. La app arma automáticamente el contenido del ticket usando la plantilla:
    - Todas las respuestas `NC` (No Cumple) de esa inspección, con su
      observación y foto original (si existe).
-   - Todas las fotografías generales que tengan observación asociada.
-   - Cada uno de estos ítems queda como una fila independiente
-     (`ticket_items`) dentro del ticket, con su propio interruptor de
-     "Subsanado".
+    - Fotos independientes con observación real, agrupadas por el texto de la
+       observación. Cada observación crea su propio ticket y un `ticket_item`.
+    - Las fotos `General`, anexos, verificaciones y fotos de pregunta no crean
+       tickets.
+    - Una inspección sin `embarcacion_id` se sube, pero no genera tickets ni se
+       marca como procesada hasta que tenga una embarcación explícita.
 4. Queda registrado quién lo generó (`generado_por_id`) y los datos snapshot
    de la inspección (tipo, área, centro, embarcación, número de informe).
 5. El ticket nace en estado `ABIERTO`.
@@ -421,8 +424,8 @@ nuevos detalles al revisarlo en conjunto.
 - 2026-07-04: Primera versión del plan, en base a la conversación inicial
   con el usuario. Pendiente responder preguntas de la sección 10.
 - 2026-07-04: Cerradas 8 preguntas de la primera ronda (visibilidad solo
-  misma empresa salvo excepción admin, quién toma, flujo aprobar/rechazar
-  en revisión, 1 ticket automático por inspección, fecha límite opcional
+   misma empresa salvo excepción admin, quién toma, flujo aprobar/rechazar
+   en revisión, unidad de seguimiento por hallazgo, fecha límite opcional
   desactivada por defecto, datos obligatorios de solicitud, badge = solo
   `ABIERTO`). Actualizado modelo de datos, diagrama de estados y flujo de
   revisión. Quedan 4 preguntas abiertas (criticidad, conflictos offline,

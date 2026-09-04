@@ -28,6 +28,14 @@ void main() {
       expect(module.subtitle, 'Servicio de Extintores');
     });
 
+    test('Registro de Actividades usa solo vehículos livianos', () {
+      final module = ModuleRegistry.all.firstWhere(
+        (m) => m.moduleKey == 'VISITA_ACTIVIDADES_VEHICULOS',
+      );
+      expect(module.title, 'Registro de Actividades');
+      expect(module.subtitle, 'Checklist Vehículos Livianos');
+    });
+
     test('SyncService strip signature_image data', () {
       final mockData = {
         'id': '123',

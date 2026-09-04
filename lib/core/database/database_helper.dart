@@ -8,7 +8,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      58; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      60; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -287,6 +287,9 @@ class DatabaseHelper {
         region TEXT,
         lugar_visita TEXT,             
         jefatura_a_cargo TEXT,
+        profesional TEXT,
+        fono_profesional TEXT,
+        correo_profesional TEXT,
         origen_visita TEXT,
         hora_inicio TEXT,
         hora_termino TEXT,
@@ -769,6 +772,8 @@ class DatabaseHelper {
     await db.execute(
       "CREATE INDEX idx_correo_usuario_asig ON correo_usuario_asignacion(usuario_id, activo)",
     );
+
+    await _createConfigurableChecklistSchema(db);
 
     debugPrint("✅ Base de datos v$_dbVersion inicializada.");
   }
@@ -1946,6 +1951,181 @@ class DatabaseHelper {
       );
       debugPrint("✅ Parche v58 aplicado.");
     }
+
+    if (oldVersion < 59) {
+      debugPrint("🚀 Aplicando parche v59 (identidad manual de visitas)...");
+      await _safeAddColumn(
+        db,
+        'visitas_tecnicas_pendientes',
+        'profesional',
+        'TEXT',
+      );
+      await _safeAddColumn(
+        db,
+        'visitas_tecnicas_pendientes',
+        'fono_profesional',
+        'TEXT',
+      );
+      await _safeAddColumn(
+        db,
+        'visitas_tecnicas_pendientes',
+        'correo_profesional',
+        'TEXT',
+      );
+      debugPrint("✅ Parche v59 aplicado.");
+    }
+
+    if (oldVersion < 60) {
+      debugPrint(
+        "🚀 Aplicando parche v60 (motor de checklists configurables)...",
+      );
+      await _createConfigurableChecklistSchema(db);
+      debugPrint("✅ Parche v60 aplicado.");
+    }
+  }
+
+  Future<void> _createConfigurableChecklistSchema(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS checklist_form_types (
+        form_type_key TEXT PRIMARY KEY,
+        nombre TEXT NOT NULL,
+        descripcion TEXT,
+        pdf_template_key TEXT NOT NULL,
+        permite_respuestas INTEGER NOT NULL DEFAULT 1,
+        permite_fotos INTEGER NOT NULL DEFAULT 1,
+        permite_firma INTEGER NOT NULL DEFAULT 1,
+        requiere_observacion_nc INTEGER NOT NULL DEFAULT 0,
+        requiere_foto_nc INTEGER NOT NULL DEFAULT 0,
+        usa_criticidad INTEGER NOT NULL DEFAULT 0,
+        requiere_criticidad_nc INTEGER NOT NULL DEFAULT 0,
+        activo INTEGER NOT NULL DEFAULT 1,
+        version INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS checklists (
+        checklist_key TEXT PRIMARY KEY,
+        form_type_key TEXT NOT NULL,
+        permission_key TEXT NOT NULL,
+        report_prefix TEXT NOT NULL,
+        nombre TEXT NOT NULL,
+        subtitulo TEXT,
+        icono TEXT,
+        color TEXT,
+        published_version INTEGER NOT NULL DEFAULT 0,
+        activo INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS checklist_versions (
+        id TEXT PRIMARY KEY,
+        checklist_key TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        estado TEXT NOT NULL,
+        snapshot_preguntas TEXT NOT NULL DEFAULT '[]',
+        snapshot_campos_extra TEXT NOT NULL DEFAULT '[]',
+        snapshot_reglas TEXT NOT NULL DEFAULT '{}',
+        published_at TEXT,
+        created_at TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS checklist_navigation_nodes (
+        node_key TEXT PRIMARY KEY,
+        empresa_id TEXT NOT NULL,
+        parent_node_key TEXT,
+        node_type TEXT NOT NULL,
+        checklist_key TEXT,
+        permission_key TEXT NOT NULL,
+        titulo TEXT NOT NULL,
+        icono TEXT,
+        color TEXT,
+        orden INTEGER NOT NULL DEFAULT 0,
+        habilitado INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS checklist_permission_grants (
+        id TEXT PRIMARY KEY,
+        empresa_id TEXT NOT NULL,
+        checklist_key TEXT NOT NULL,
+        usuario_id TEXT,
+        rol_id TEXT,
+        capacidad TEXT NOT NULL,
+        created_at TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS checklist_inspecciones_pendientes (
+        id TEXT PRIMARY KEY,
+        usuario_id TEXT NOT NULL,
+        empresa_id TEXT NOT NULL,
+        checklist_key TEXT NOT NULL,
+        form_type_key TEXT NOT NULL,
+        version_id TEXT,
+        version INTEGER NOT NULL,
+        snapshot TEXT NOT NULL DEFAULT '{}',
+        fecha_realizacion TEXT,
+        correlativo TEXT,
+        quien_inspecciona TEXT,
+        supervisor_correo TEXT,
+        observaciones TEXT,
+        campos_extra TEXT NOT NULL DEFAULT '{}',
+        firma_nombre TEXT,
+        firma_local_path TEXT,
+        estado_final TEXT NOT NULL DEFAULT 'Borrador',
+        pdf_url TEXT,
+        pdf_path_local TEXT,
+        subido INTEGER NOT NULL DEFAULT 0,
+        eliminado INTEGER NOT NULL DEFAULT 0,
+        codigo_error TEXT,
+        created_at TEXT,
+        updated_at TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS checklist_respuestas_pendientes (
+        id TEXT PRIMARY KEY,
+        inspeccion_id TEXT NOT NULL,
+        item_key TEXT NOT NULL,
+        categoria TEXT,
+        pregunta TEXT NOT NULL,
+        orden INTEGER NOT NULL DEFAULT 0,
+        estado TEXT,
+        observacion TEXT,
+        criticidad TEXT,
+        subido INTEGER NOT NULL DEFAULT 0,
+        UNIQUE (inspeccion_id, item_key)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS checklist_evidencias_pendientes (
+        id TEXT PRIMARY KEY,
+        inspeccion_id TEXT NOT NULL,
+        respuesta_id TEXT,
+        tipo TEXT NOT NULL,
+        local_path TEXT NOT NULL,
+        storage_path TEXT,
+        orden INTEGER NOT NULL DEFAULT 0,
+        metadata TEXT NOT NULL DEFAULT '{}',
+        subido INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_checklist_nodes_empresa ON checklist_navigation_nodes(empresa_id, habilitado, orden)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_checklist_insp_estado ON checklist_inspecciones_pendientes(estado_final, eliminado, subido)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_checklist_resp_insp ON checklist_respuestas_pendientes(inspeccion_id, orden)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_checklist_evidencias_insp ON checklist_evidencias_pendientes(inspeccion_id, tipo, orden)',
+    );
   }
 
   Future<void> _migrateToV25(Database db) async {
@@ -1968,6 +2148,8 @@ class DatabaseHelper {
 
   Future<void> _repairCriticalSchema(Database db) async {
     try {
+      // El repair tambien cubre upgrades interrumpidos antes de v60.
+      await _createConfigurableChecklistSchema(db);
       await _safeAddColumn(
         db,
         "visitas_tecnicas_pendientes",
@@ -2500,6 +2682,134 @@ class DatabaseHelper {
       whereArgs: [tipoActividad],
       orderBy: 'orden ASC',
     );
+  }
+
+  /// Guarda el catalogo configurable sin borrar el ultimo catalogo valido
+  /// cuando una descarga llega vacia durante una sesion offline.
+  Future<void> guardarChecklistCatalogoOffline({
+    required List<Map<String, dynamic>> formTypes,
+    required List<Map<String, dynamic>> checklists,
+    required List<Map<String, dynamic>> versions,
+    required List<Map<String, dynamic>> navigationNodes,
+    required List<Map<String, dynamic>> permissionGrants,
+    String? empresaId,
+    String? usuarioId,
+  }) async {
+    final db = await instance.database;
+    await db.transaction((txn) async {
+      if (formTypes.isNotEmpty) {
+        await txn.delete('checklist_form_types');
+        for (final row in formTypes) {
+          await txn.insert('checklist_form_types', {
+            'form_type_key': row['form_type_key'],
+            'nombre': row['nombre'],
+            'descripcion': row['descripcion'],
+            'pdf_template_key': row['pdf_template_key'],
+            'permite_respuestas': _boolInt(row['permite_respuestas']),
+            'permite_fotos': _boolInt(row['permite_fotos']),
+            'permite_firma': _boolInt(row['permite_firma']),
+            'requiere_observacion_nc': _boolInt(row['requiere_observacion_nc']),
+            'requiere_foto_nc': _boolInt(row['requiere_foto_nc']),
+            'usa_criticidad': _boolInt(row['usa_criticidad']),
+            'requiere_criticidad_nc': _boolInt(row['requiere_criticidad_nc']),
+            'activo': _boolInt(row['activo']),
+            'version': row['version'] ?? 1,
+            'updated_at': row['updated_at']?.toString(),
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+      if (checklists.isNotEmpty) {
+        await txn.delete('checklists');
+        for (final row in checklists) {
+          await txn.insert('checklists', {
+            'checklist_key': row['checklist_key'],
+            'form_type_key': row['form_type_key'],
+            'permission_key': row['permission_key'],
+            'report_prefix': row['report_prefix'],
+            'nombre': row['nombre'],
+            'subtitulo': row['subtitulo'],
+            'icono': row['icono'],
+            'color': row['color'],
+            'published_version': row['published_version'] ?? 0,
+            'activo': _boolInt(row['activo']),
+            'updated_at': row['updated_at']?.toString(),
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+      if (versions.isNotEmpty) {
+        await txn.delete('checklist_versions');
+        for (final row in versions) {
+          await txn.insert('checklist_versions', {
+            'id': row['id'],
+            'checklist_key': row['checklist_key'],
+            'version': row['version'],
+            'estado': row['estado'],
+            'snapshot_preguntas': _jsonText(row['snapshot_preguntas']),
+            'snapshot_campos_extra': _jsonText(row['snapshot_campos_extra']),
+            'snapshot_reglas': _jsonText(row['snapshot_reglas']),
+            'published_at': row['published_at']?.toString(),
+            'created_at': row['created_at']?.toString(),
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+      if (empresaId != null && navigationNodes.isNotEmpty) {
+        await txn.delete(
+          'checklist_navigation_nodes',
+          where: 'empresa_id = ?',
+          whereArgs: [empresaId],
+        );
+        for (final row in navigationNodes) {
+          await txn.insert(
+            'checklist_navigation_nodes',
+            {
+              'node_key': row['node_key'],
+              'empresa_id': row['empresa_id'],
+              'parent_node_key': row['parent_node_key'],
+              'node_type': row['node_type'],
+              'checklist_key': row['checklist_key'],
+              'permission_key': row['permission_key'],
+              'titulo': row['titulo'],
+              'icono': row['icono'],
+              'color': row['color'],
+              'orden': row['orden'] ?? 0,
+              'habilitado': _boolInt(row['habilitado']),
+              'updated_at': row['updated_at']?.toString(),
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      }
+      if (empresaId != null && permissionGrants.isNotEmpty) {
+        await txn.delete(
+          'checklist_permission_grants',
+          where:
+              'empresa_id = ? AND (usuario_id = ? OR rol_id IN (SELECT rol_id FROM usuarios WHERE id = ?))',
+          whereArgs: [empresaId, usuarioId, usuarioId],
+        );
+        for (final row in permissionGrants) {
+          await txn.insert(
+            'checklist_permission_grants',
+            {
+              'id': row['id'],
+              'empresa_id': row['empresa_id'],
+              'checklist_key': row['checklist_key'],
+              'usuario_id': row['usuario_id'],
+              'rol_id': row['rol_id'],
+              'capacidad': row['capacidad'],
+              'created_at': row['created_at']?.toString(),
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      }
+    });
+  }
+
+  int _boolInt(Object? value) => value == false ? 0 : 1;
+
+  String _jsonText(Object? value) {
+    if (value is String) return value;
+    return jsonEncode(value ?? {});
   }
 
   // --- HIDROSER ------------------------------------------------------------

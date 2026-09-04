@@ -1,5 +1,6 @@
 // ignore_for_file: unused_local_variable
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jf_innova_app/features/inspection/presentation/utils/inspection_error_presentation_state.dart';
 
 /// Tests que verifican que los mensajes de error al finalizar inspección
 /// concuerdan con el error real que ocurrió.
@@ -331,6 +332,20 @@ void main() {
   // TESTS: UI - Mapeo de estados a mensajes de SnackBar
   // ===================================================================
   group('UI: SnackBar mensajes corregidos', () {
+    test(
+      'Durante la finalización el listener no consume el detalle del error',
+      () {
+        final state = InspectionErrorPresentationState();
+
+        state.beginFinalization();
+
+        expect(state.shouldHandleControllerError, isFalse);
+
+        state.endFinalization();
+        expect(state.shouldHandleControllerError, isTrue);
+      },
+    );
+
     test('Éxito normal → verde', () {
       final ui = _resolverMensajeUI(
         exito: true,

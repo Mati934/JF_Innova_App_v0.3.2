@@ -264,6 +264,7 @@ void main() {
 
       expect(allKeys, contains('INSPECCION'));
       expect(allKeys, contains('VISITA_R003'));
+      expect(allKeys, contains('VISITA_ACTIVIDADES_VEHICULOS'));
       expect(allKeys, contains('VISITA_R004'));
       expect(allKeys, contains('ADMIN'));
       expect(allKeys, contains('HISTORY'));
@@ -274,6 +275,7 @@ void main() {
       final defaults = ModuleRegistry.defaultModuleKeys;
       expect(defaults, contains('INSPECCION'));
       expect(defaults, contains('VISITA_R003'));
+      expect(defaults, contains('VISITA_ACTIVIDADES_VEHICULOS'));
       expect(defaults, contains('VISITA_R004'));
       // ADMIN y HISTORY no están en defaults (son especiales)
     });

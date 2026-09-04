@@ -16,6 +16,10 @@ import 'sync_execution_gate.dart';
 import 'dart:convert';
 
 class SyncService {
+  // El modulo de tickets comenzo a operar el 2026-08-31. Las inspecciones
+  // creadas antes de ese momento no se reprocesan automaticamente.
+  static final _ticketsLanzamiento = DateTime.utc(2026, 8, 31);
+
   static final SyncExecutionGate<int> _syncGate = SyncExecutionGate<int>();
   final _supabase = Supabase.instance.client;
   final _dbHelper = DatabaseHelper.instance;
@@ -173,6 +177,43 @@ class SyncService {
             .eq('activo', true)
             .order('lista_codigo')
             .order('orden'),
+      ),
+      // 15-19: catalogo del motor configurable (publicado y asignado).
+      descargarTabla(
+        'checklist_form_types',
+        _supabase.from('checklist_form_types').select().eq('activo', true),
+      ),
+      descargarTabla(
+        'checklists',
+        _supabase.from('checklists').select().eq('activo', true),
+      ),
+      descargarTabla(
+        'checklist_versions',
+        _supabase
+            .from('checklist_versions')
+            .select()
+            .inFilter('estado', ['PUBLICADA', 'BORRADOR'])
+            .order('version'),
+      ),
+      descargarTabla(
+        'checklist_navigation_nodes',
+        empresaId != null
+            ? _supabase
+                  .from('checklist_navigation_nodes')
+                  .select()
+                  .eq('empresa_id', empresaId)
+                  .eq('habilitado', true)
+                  .order('orden')
+            : Future.value(<Map<String, dynamic>>[]),
+      ),
+      descargarTabla(
+        'checklist_permission_grants',
+        empresaId != null
+            ? _supabase
+                  .from('checklist_permission_grants')
+                  .select()
+                  .eq('empresa_id', empresaId)
+            : Future.value(<Map<String, dynamic>>[]),
       ),
     ]);
 
@@ -490,6 +531,35 @@ class SyncService {
       }
     }
 
+    if (futures.length > 19 &&
+        [15, 16, 17, 18, 19].any((index) => futures[index] != null)) {
+      try {
+        await _dbHelper.guardarChecklistCatalogoOffline(
+          formTypes: List<Map<String, dynamic>>.from(futures[15] ?? const []),
+          checklists: List<Map<String, dynamic>>.from(futures[16] ?? const []),
+          versions: List<Map<String, dynamic>>.from(futures[17] ?? const []),
+          navigationNodes: List<Map<String, dynamic>>.from(
+            futures[18] ?? const [],
+          ),
+          permissionGrants: List<Map<String, dynamic>>.from(
+            futures[19] ?? const [],
+          ),
+          empresaId: empresaId,
+          usuarioId: userId,
+        );
+        tablasDescargadas.add('checklist_catalogo');
+      } catch (e, stack) {
+        debugPrint("⚠️ Error guardando checklist_catalogo en SQLite: $e");
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'guardarMaestros SQLite: checklist_catalogo',
+          fatal: false,
+        );
+        tablasFallidas.add('checklist_catalogo');
+      }
+    }
+
     if (tablasFallidas.isEmpty) {
       debugPrint(
         "✅ Datos maestros actualizados offline (${tablasDescargadas.length} tablas).",
@@ -657,6 +727,7 @@ class SyncService {
           .select('id')
           .eq('estado_final', 'En Seguimiento')
           .eq('usuario_id', usuarioId)
+          .gte('created_at', _ticketsLanzamiento.toIso8601String())
           .inFilter('tipo_actividad', [
             'INSPECCION_BUCEO',
             'INSPECCION_EMBARCACION',
@@ -673,6 +744,7 @@ class SyncService {
             .select('id')
             .eq('estado_final', 'En Seguimiento')
             .eq('usuario_id', usuarioId)
+            .gte('created_at', _ticketsLanzamiento.toIso8601String())
             .inFilter('tipo_actividad', [
               'INSPECCION_BUCEO',
               'INSPECCION_EMBARCACION',
@@ -693,16 +765,19 @@ class SyncService {
             empresaId: empresaId,
             generadoPorId: usuarioId,
           );
-          await _supabase
-              .from('actividades')
-              .update({
-                'tickets_generados_at': DateTime.now().toIso8601String(),
-              })
-              .eq('id', actividadId);
+          if (!resultado.omitidaPorFaltaEmbarcacion) {
+            await _supabase
+                .from('actividades')
+                .update({
+                  'tickets_generados_at': DateTime.now().toIso8601String(),
+                })
+                .eq('id', actividadId);
+          }
           debugPrint(
             '🎫 Tickets automaticos procesados para $actividadId: '
             '${resultado.creados.length} creados, '
-            '${resultado.reutilizados.length} reutilizados.',
+            '${resultado.reutilizados.length} reutilizados'
+            '${resultado.omitidaPorFaltaEmbarcacion ? ' (sin embarcación, queda pendiente)' : ''}.',
           );
         } catch (e) {
           debugPrint(

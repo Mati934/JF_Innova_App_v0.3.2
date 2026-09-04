@@ -12,6 +12,9 @@ import '../../../extintores/data/repositories/local_extintor_repository.dart';
 import '../../../hidroser/data/repositories/local_hidroser_repository.dart';
 import '../../../buceo_equipment/data/repositories/local_buceo_equipment_repository.dart';
 import '../../../prosesso/data/repositories/local_prosesso_repository.dart';
+import '../../../configurable_checklists/data/repositories/local_configurable_checklist_repository.dart';
+import '../../../configurable_checklists/domain/models/configurable_checklist.dart';
+import '../../../configurable_checklists/presentation/screens/generic_checklist_form_screen.dart';
 import '../../domain/draft_card_data.dart';
 import '../../domain/draft_card_mapper.dart';
 import '../../../../core/errors/app_error_utils.dart';
@@ -24,6 +27,7 @@ class HomeController extends ChangeNotifier {
   final _hidroserRepo = LocalHidroserRepository();
   final _buceoRepo = LocalBuceoEquipmentRepository();
   final _prosessoRepo = LocalProsessoRepository();
+  final _configurableChecklistRepo = LocalConfigurableChecklistRepository();
   final _connectivity = ConnectivityService();
 
   final User? user = Supabase.instance.client.auth.currentUser;
@@ -37,13 +41,15 @@ class HomeController extends ChangeNotifier {
 
   // Módulos habilitados para la empresa del usuario
   List<String> _enabledModuleKeys = [];
+  List<ModuleDefinition> _configurableModules = [];
 
   List<ModuleDefinition> get enabledModules {
-    return ModuleRegistry.all.where((m) {
+    final staticModules = ModuleRegistry.all.where((m) {
       // Admin Maestros solo visible para SuperAdmin (admin + empresa administradora)
       if (m.requiresAdmin) return UserSession().esSuperAdmin;
       return _enabledModuleKeys.contains(m.moduleKey);
-    }).toList();
+    });
+    return [...staticModules, ..._configurableModules];
   }
 
   // Variables de Sincronización
@@ -158,6 +164,7 @@ class HomeController extends ChangeNotifier {
         case DraftKind.visitaChecklistElectricidad:
         case DraftKind.visitaChecklistPisos:
         case DraftKind.visitaChecklistOtro:
+        case DraftKind.visitaActividadesVehiculos:
           await _visitRepo.eliminarBorrador(id);
           break;
         default:
@@ -200,11 +207,13 @@ class HomeController extends ChangeNotifier {
 
       // Cargar módulos habilitados para la empresa
       await _cargarModulosHabilitados();
+      await _cargarChecklistsConfigurables();
     } catch (e) {
       debugPrint("⚠️ Error leyendo perfil: $e");
       nombreUsuario = user!.email ?? 'Usuario';
       _isAdminUser = false;
       _enabledModuleKeys = List.from(ModuleRegistry.defaultModuleKeys);
+      _configurableModules = [];
     } finally {
       _safeNotify();
     }
@@ -231,20 +240,70 @@ class HomeController extends ChangeNotifier {
     debugPrint('📦 Módulos habilitados: $_enabledModuleKeys');
   }
 
+  Future<void> _cargarChecklistsConfigurables() async {
+    final empresaId = UserSession().empresaId;
+    if (empresaId == null) {
+      _configurableModules = [];
+      return;
+    }
+    try {
+      final nodes = await _configurableChecklistRepo.getNavigationNodes(
+        empresaId,
+      );
+      final checklists = await _configurableChecklistRepo.getActiveChecklists();
+      final byKey = {for (final item in checklists) item.key: item};
+      _configurableModules = nodes
+          .where(
+            (node) =>
+                node.nodeType == 'CHECKLIST' &&
+                node.parentNodeKey == null &&
+                node.checklistKey != null,
+          )
+          .map((node) => byKey[node.checklistKey])
+          .whereType<ConfigurableChecklist>()
+          .map(
+            (checklist) => ModuleDefinition(
+              moduleKey: 'CHECKLIST:${checklist.key}',
+              title: checklist.nombre,
+              subtitle: checklist.subtitulo ?? 'Checklist configurable',
+              icon: Icons.fact_check_outlined,
+              color: _colorFromHex(checklist.color),
+              screenBuilder: (_) =>
+                  GenericChecklistFormScreen(checklist: checklist),
+            ),
+          )
+          .toList();
+    } catch (e) {
+      debugPrint('⚠️ Error cargando checklists configurables: $e');
+      _configurableModules = [];
+    }
+  }
+
+  Color _colorFromHex(String? value) {
+    if (value == null || value.isEmpty) return const Color(0xFF176B87);
+    final normalized = value.replaceFirst('#', '');
+    final hex = normalized.length == 6 ? 'FF$normalized' : normalized;
+    final parsed = int.tryParse(hex, radix: 16);
+    return parsed == null ? const Color(0xFF176B87) : Color(parsed);
+  }
+
   /// Recarga módulos habilitados desde SQLite (e.g. al volver del admin).
   Future<void> recargarModulos() async {
     await _cargarModulosHabilitados();
+    await _cargarChecklistsConfigurables();
     _safeNotify();
   }
 
   /// Recarga módulos y borradores cuando el usuario cambia de empresa.
   Future<void> recargarParaEmpresa() async {
     await _cargarModulosHabilitados();
+    await _cargarChecklistsConfigurables();
     await cargarBorradores();
     await recargarPendientesSync();
     if (isOnline) {
       await _syncService.descargarDatosMaestros();
       await _cargarModulosHabilitados();
+      await _cargarChecklistsConfigurables();
     }
     _safeNotify();
   }

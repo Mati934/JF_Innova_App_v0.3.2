@@ -162,6 +162,9 @@ class VisitFormController extends ChangeNotifier {
   final regionCtrl = TextEditingController();
   final centroCtrl = TextEditingController();
   final jefaturaCtrl = TextEditingController();
+  final profesionalCtrl = TextEditingController();
+  final fonoProfesionalCtrl = TextEditingController();
+  final correoProfesionalCtrl = TextEditingController();
   final origenCtrl = TextEditingController();
   final email1Ctrl = TextEditingController();
   final email2Ctrl = TextEditingController();
@@ -212,10 +215,14 @@ class VisitFormController extends ChangeNotifier {
   /// Si no es null/vacío, el dropdown de checklist se restringe a estos tipos
   /// (usado por el módulo Hidroser para mostrar sólo sus checklists).
   final List<String>? onlyChecklistTypes;
+  final String originLabel;
+  final String documentTitle;
 
   VisitFormController({
     Map<String, dynamic>? borradorInicial,
     this.onlyChecklistTypes,
+    this.originLabel = 'Origen de la visita',
+    this.documentTitle = 'INFORME DE VISITA (R-003)',
   }) {
     if (borradorInicial != null) {
       _currentVisitId = borradorInicial['id'] ?? borradorInicial['activity_id'];
@@ -233,6 +240,9 @@ class VisitFormController extends ChangeNotifier {
     regionCtrl.text = model.region ?? '';
     centroCtrl.text = model.centro ?? '';
     jefaturaCtrl.text = model.jefaturaCargo ?? '';
+    profesionalCtrl.text = model.profesional ?? '';
+    fonoProfesionalCtrl.text = model.fonoProfesional ?? '';
+    correoProfesionalCtrl.text = model.correoProfesional ?? '';
     origenCtrl.text = model.origenVisita ?? '';
     email1Ctrl.text = model.emailEmpresa1 ?? '';
     email2Ctrl.text = model.emailEmpresa2 ?? '';
@@ -300,6 +310,9 @@ class VisitFormController extends ChangeNotifier {
     regionCtrl.addListener(_onFieldChanged);
     centroCtrl.addListener(_onFieldChanged);
     jefaturaCtrl.addListener(_onFieldChanged);
+    profesionalCtrl.addListener(_onFieldChanged);
+    fonoProfesionalCtrl.addListener(_onFieldChanged);
+    correoProfesionalCtrl.addListener(_onFieldChanged);
     observacionesCtrl.addListener(_onFieldChanged);
 
     isLoading = false;
@@ -318,6 +331,9 @@ class VisitFormController extends ChangeNotifier {
       'region': regionCtrl.text.trim().toUpperCase(),
       'lugar_visita': centroCtrl.text.trim().toUpperCase(),
       'jefatura_a_cargo': jefaturaCtrl.text.trim(),
+      'profesional': _nullableText(profesionalCtrl.text),
+      'fono_profesional': _nullableText(fonoProfesionalCtrl.text),
+      'correo_profesional': _nullableText(correoProfesionalCtrl.text),
       'origen_visita': origenCtrl.text.trim(),
       // 🔥 SANITIZACIÓN: Si es el string de la UI, mandamos null
       'hora_inicio': (horaInicioStr == "--:--") ? null : horaInicioStr,
@@ -346,6 +362,11 @@ class VisitFormController extends ChangeNotifier {
 
   void _onFieldChanged() {
     _debouncer.run(() => guardarBorradorSilencioso());
+  }
+
+  String? _nullableText(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
   }
 
   Future<void> _loadHistorialAutocomplete() async {
@@ -466,9 +487,9 @@ class VisitFormController extends ChangeNotifier {
   Future<VisitReportData> _buildReportData() async {
     final user = Supabase.instance.client.auth.currentUser;
 
-    String profesional = "Sin Profesional";
-    String fonoProfesional = "No registrado";
-    String correoProfesional = user?.email ?? "No registrado";
+    String profesional = profesionalCtrl.text.trim();
+    String fonoProfesional = fonoProfesionalCtrl.text.trim();
+    String correoProfesional = correoProfesionalCtrl.text.trim();
 
     if (user != null) {
       try {
@@ -476,10 +497,15 @@ class VisitFormController extends ChangeNotifier {
         final userLocal = await _repository.getUsuarioLocal(user.id);
 
         if (userLocal != null) {
-          profesional = userLocal['nombre_completo']?.toString() ?? profesional;
-          // 🔥 CORRECCIÓN: Ahora sí extraemos el teléfono de la base local
-          fonoProfesional =
-              userLocal['telefono']?.toString() ?? fonoProfesional;
+          if (profesional.isEmpty) {
+            profesional = userLocal['nombre_completo']?.toString() ?? '';
+          }
+          if (fonoProfesional.isEmpty) {
+            fonoProfesional = userLocal['telefono']?.toString() ?? '';
+          }
+          if (correoProfesional.isEmpty) {
+            correoProfesional = userLocal['email']?.toString() ?? '';
+          }
 
           debugPrint("🚀 [IDENTIDAD] Datos cargados desde SQLite local.");
         } else {
@@ -487,7 +513,7 @@ class VisitFormController extends ChangeNotifier {
           final metaName =
               user.userMetadata?['full_name'] ??
               user.userMetadata?['display_name'];
-          if (metaName != null) {
+          if (metaName != null && profesional.isEmpty) {
             profesional = metaName.toString();
             debugPrint("ℹ️ [IDENTIDAD] Fallback: Metadata Supabase.");
           } else {
@@ -533,14 +559,20 @@ class VisitFormController extends ChangeNotifier {
       empresa: empresaCtrl.text.trim(),
       region: regionCtrl.text.trim().toUpperCase(),
       centro: centroCtrl.text.trim().toUpperCase(),
-      profesional: profesional,
-      fonoProfesional: fonoProfesional, // ¡Ahora sí viajará al PDF!
-      correoProfesional: correoProfesional,
+      profesional: profesional.isEmpty ? 'Sin Profesional' : profesional,
+      fonoProfesional: fonoProfesional.isEmpty
+          ? 'No registrado'
+          : fonoProfesional,
+      correoProfesional: correoProfesional.isEmpty
+          ? 'No registrado'
+          : correoProfesional,
       jefaturaCargo: jefaturaCtrl.text.trim(),
       fecha: fechaVisitaStr,
       horaInicio: horaInicioStr,
       horaTermino: horaTerminoStr,
       origenVisita: origenCtrl.text.trim(),
+      originLabel: originLabel,
+      documentTitle: documentTitle,
       emailEmpresa1: email1Ctrl.text.trim(),
       emailEmpresa2: email2Ctrl.text.trim(),
       incluirActividades: model.incluirActividades,
@@ -783,6 +815,9 @@ class VisitFormController extends ChangeNotifier {
     email2Ctrl.text = model.emailEmpresa2 ?? '';
     otroActividadCtrl.text = model.otroActividadTexto ?? '';
     observacionesCtrl.text = model.apuntesObservaciones ?? '';
+    profesionalCtrl.text = model.profesional ?? '';
+    fonoProfesionalCtrl.text = model.fonoProfesional ?? '';
+    correoProfesionalCtrl.text = model.correoProfesional ?? '';
 
     // 3. Restauramos los TimeOfDay parseando los strings
     if (model.horaInicio != null && model.horaInicio != "--:--") {

@@ -307,6 +307,30 @@ TicketRepository _repo(FakePostgrest db) => TicketRepository(
 
 void main() {
   group('generación automática por hallazgos — robustez', () {
+    test(
+      'sin embarcación sube la inspección pero no crea hallazgo ni ticket',
+      () async {
+        final seed = _seedBase();
+        seed['actividades']!.single['embarcacion_id'] = null;
+        final db = FakePostgrest(seed: seed);
+        final repo = _repo(db);
+
+        final resultado = await repo.generarDesdeInspeccionPorHallazgos(
+          inspeccionId: _insp,
+          empresaId: _empresa,
+          generadoPorId: _usuarioSync,
+        );
+
+        expect(resultado.omitidaPorFaltaEmbarcacion, isTrue);
+        expect(resultado.creados, isEmpty);
+        expect(resultado.reutilizados, isEmpty);
+        expect(db.rows('nc_hallazgos'), isEmpty);
+        expect(db.rows('nc_hallazgo_ocurrencias'), isEmpty);
+        expect(db.rows('tickets'), isEmpty);
+        expect(db.rows('ticket_items'), isEmpty);
+      },
+    );
+
     test('control: 1 NC crea hallazgo + ocurrencia + ticket + item', () async {
       final db = FakePostgrest(seed: _seedBase());
       final repo = _repo(db);
@@ -401,6 +425,57 @@ void main() {
       );
       expect(r.creados, hasLength(1), reason: 'solo el ticket del NC');
     });
+
+    test(
+      'fotos repetidas de una observacion crean un solo ticket e item',
+      () async {
+        final db = FakePostgrest(
+          seed: _seedBase(
+            fotos: [
+              {
+                'id': 'foto-o1',
+                'actividad_id': _insp,
+                'inspeccion_respuesta_id': null,
+                'descripcion': 'Falta señalización de bloqueo',
+                'foto_url': 'https://x/bloqueo.jpg',
+              },
+              {
+                'id': 'foto-o2',
+                'actividad_id': _insp,
+                'inspeccion_respuesta_id': null,
+                'descripcion': 'Falta señalización de bloqueo',
+                'foto_url': 'https://x/bloqueo.jpg',
+              },
+            ],
+          ),
+        );
+        final repo = _repo(db);
+
+        final r = await repo.generarDesdeInspeccionPorHallazgos(
+          inspeccionId: _insp,
+          empresaId: _empresa,
+          generadoPorId: _usuarioSync,
+        );
+
+        final ticketsFotos = db
+            .rows('tickets')
+            .where(
+              (t) =>
+                  (t['campos_extra_json'] as Map?)?['automatico_tipo'] ==
+                  'FOTOS_OBSERVACION',
+            );
+        final itemsFotos = db
+            .rows('ticket_items')
+            .where((i) => i['origen_item'] == 'FOTO_OBSERVACION');
+        expect(ticketsFotos, hasLength(1));
+        expect(itemsFotos, hasLength(1));
+        expect(
+          r.creados,
+          hasLength(2),
+          reason: 'un ticket NC y uno fotográfico',
+        );
+      },
+    );
 
     test('BUG: si falla el INSERT de ticket_items después de crear el ticket, '
         'no debe quedar ticket fantasma (rollback)', () async {

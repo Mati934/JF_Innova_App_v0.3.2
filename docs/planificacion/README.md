@@ -17,6 +17,8 @@ Esta carpeta centraliza planes, contexto y material operativo.
 - `01_realizados/PLAN_CONTINUIDAD_INFORMES_Y_TICKETS_NC.md`
 
 ### En progreso
+- `02_en_progreso/CONVERSACION_REUNIONES_AGOSTO_2026.md`
+- `02_en_progreso/PLAN_MOTOR_CHECKLISTS_CONFIGURABLES.md`
 - `02_en_progreso/ERRORES_PLAYBOOK_Y_HISTORIAL.md`
 - `02_en_progreso/PLAN_TICKETS_MVP.md`
 - `02_en_progreso/PLAN_CORREO_OUTLOOK_MVP.md`

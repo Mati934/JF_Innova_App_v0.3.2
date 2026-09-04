@@ -8,6 +8,9 @@ class VisitModel {
   String? region; // Cambiado a ID para buenas prácticas relacionales
   String? centro; // Cambiado a ID
   String? jefaturaCargo;
+  String? profesional;
+  String? fonoProfesional;
+  String? correoProfesional;
   String? origenVisita;
   String? horaInicio;
   String? horaTermino;
@@ -47,6 +50,9 @@ class VisitModel {
     this.region,
     this.centro,
     this.jefaturaCargo,
+    this.profesional,
+    this.fonoProfesional,
+    this.correoProfesional,
     this.origenVisita,
     this.horaInicio,
     this.horaTermino,
@@ -77,6 +83,9 @@ class VisitModel {
       'region': region, // Guardamos el ID del Area
       'lugar_visita': centro, // Guardamos el ID del Centro
       'jefatura_a_cargo': jefaturaCargo,
+      'profesional': profesional,
+      'fono_profesional': fonoProfesional,
+      'correo_profesional': correoProfesional,
       'origen_visita': origenVisita,
       'hora_inicio': horaInicio,
       'hora_termino': horaTermino,
@@ -107,6 +116,9 @@ class VisitModel {
       region: map['region'],
       centro: map['lugar_visita'],
       jefaturaCargo: map['jefatura_a_cargo'],
+      profesional: map['profesional'],
+      fonoProfesional: map['fono_profesional'],
+      correoProfesional: map['correo_profesional'],
       origenVisita: map['origen_visita'],
       horaInicio: map['hora_inicio'],
       horaTermino: map['hora_termino'],

@@ -211,7 +211,7 @@ void main() {
   // ===================================================================
   group('ModuleRegistry - Registro Global', () {
     test('tiene la cantidad esperada de módulos registrados', () {
-      final expectedCount = kDebugMode ? 16 : 15;
+      final expectedCount = kDebugMode ? 19 : 18;
       expect(ModuleRegistry.all.length, expectedCount);
     });
 
@@ -296,14 +296,15 @@ void main() {
   });
 
   group('ModuleRegistry - Default Modules', () {
-    test('defaults tienen 5 módulos', () {
-      expect(ModuleRegistry.defaultModuleKeys.length, 5);
+    test('defaults tienen 6 módulos', () {
+      expect(ModuleRegistry.defaultModuleKeys.length, 6);
     });
 
     test('defaults incluyen los correctos', () {
       expect(ModuleRegistry.defaultModuleKeys, [
         'INSPECCION',
         'VISITA_R003',
+        'VISITA_ACTIVIDADES_VEHICULOS',
         'VISITA_R004',
         'EMAIL_OUTBOX',
         'RENDICIONES',
@@ -390,16 +391,16 @@ void main() {
       expect(mods.first.moduleKey, 'INSPECCION');
     });
 
-    test('defaults producen 5 módulos para usuario normal', () {
+    test('defaults producen 6 módulos para usuario normal', () {
       final mods = getEnabledModules(ModuleRegistry.defaultModuleKeys, false);
-      expect(mods.length, 5);
+      expect(mods.length, 6);
     });
 
     test(
-      'defaults producen 5 módulos para admin (ADMIN no está en defaults)',
+      'defaults producen 6 módulos para admin (ADMIN no está en defaults)',
       () {
         final mods = getEnabledModules(ModuleRegistry.defaultModuleKeys, true);
-        expect(mods.length, 5, reason: 'ADMIN no está en defaultModuleKeys');
+        expect(mods.length, 6, reason: 'ADMIN no está en defaultModuleKeys');
       },
     );
   });

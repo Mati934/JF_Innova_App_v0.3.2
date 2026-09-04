@@ -24,6 +24,8 @@ class VisitFormScreen extends StatelessWidget {
   /// el título por defecto de Registro de Visita (R-003).
   final String? customTitle;
   final String? customSubtitle;
+  final String originLabel;
+  final String documentTitle;
 
   /// Color primario del módulo (afecta AppBar y banner). Si es null usa
   /// la paleta corporativa por defecto.
@@ -37,6 +39,8 @@ class VisitFormScreen extends StatelessWidget {
     this.onlyChecklistTypes,
     this.customTitle,
     this.customSubtitle,
+    this.originLabel = 'Origen de la visita',
+    this.documentTitle = 'INFORME DE VISITA (R-003)',
     this.brandColor,
     this.brandColorDark,
     this.brandIcon,
@@ -48,6 +52,8 @@ class VisitFormScreen extends StatelessWidget {
       create: (_) {
         final ctrl = VisitFormController(
           onlyChecklistTypes: onlyChecklistTypes,
+          originLabel: originLabel,
+          documentTitle: documentTitle,
         );
         // Si nos pasaron un borrador, lo cargamos INMEDIATAMENTE
         // antes de que la UI se dibuje. Adiós duplicados.
@@ -59,6 +65,8 @@ class VisitFormScreen extends StatelessWidget {
       child: _VisitFormView(
         customTitle: customTitle,
         customSubtitle: customSubtitle,
+        originLabel: originLabel,
+        documentTitle: documentTitle,
         brandColor: brandColor,
         brandColorDark: brandColorDark,
         brandIcon: brandIcon,
@@ -70,6 +78,8 @@ class VisitFormScreen extends StatelessWidget {
 class _VisitFormView extends StatelessWidget {
   final String? customTitle;
   final String? customSubtitle;
+  final String originLabel;
+  final String documentTitle;
   final Color? brandColor;
   final Color? brandColorDark;
   final IconData? brandIcon;
@@ -77,6 +87,8 @@ class _VisitFormView extends StatelessWidget {
   const _VisitFormView({
     this.customTitle,
     this.customSubtitle,
+    this.originLabel = 'Origen de la visita',
+    this.documentTitle = 'INFORME DE VISITA (R-003)',
     this.brandColor,
     this.brandColorDark,
     this.brandIcon,
@@ -252,10 +264,23 @@ class _VisitFormView extends StatelessWidget {
                             Icons.person,
                           ),
                           _buildInput(
-                            ctrl.origenCtrl,
-                            "Origen de la visita",
-                            Icons.flag,
+                            ctrl.profesionalCtrl,
+                            "Nombre del profesional",
+                            Icons.badge_outlined,
                           ),
+                          _buildInput(
+                            ctrl.fonoProfesionalCtrl,
+                            "Fono del profesional",
+                            Icons.phone_outlined,
+                            type: TextInputType.phone,
+                          ),
+                          _buildInput(
+                            ctrl.correoProfesionalCtrl,
+                            "Correo del profesional",
+                            Icons.alternate_email,
+                            type: TextInputType.emailAddress,
+                          ),
+                          _buildInput(ctrl.origenCtrl, originLabel, Icons.flag),
                         ],
                       ),
                     ),

@@ -11,6 +11,7 @@ import '../../../../shared/widgets/estado_faena_warning_dialog.dart';
 import '../../../../shared/widgets/form_inputs/gallery_input.dart';
 import '../../../../core/errors/app_error_utils.dart';
 import '../controllers/inspection_form_controller.dart';
+import '../utils/inspection_error_presentation_state.dart';
 import '../widgets/question_card.dart';
 import '../widgets/category_header.dart';
 import '../widgets/fotos_observacion_widget.dart';
@@ -39,11 +40,14 @@ class InspectionFormScreen extends StatefulWidget {
 
 class _InspectionFormScreenState extends State<InspectionFormScreen> {
   late final InspectionFormController _controller;
+  final _errorPresentationState = InspectionErrorPresentationState();
   bool _canPop = false;
   Timer? _timerVerificacion;
 
   void _onControllerUpdate() {
-    if (_controller.errorMessage != null && mounted) {
+    if (_errorPresentationState.shouldHandleControllerError &&
+        _controller.errorMessage != null &&
+        mounted) {
       final code = AppErrorUtils.newCode(scope: 'INP');
       unawaited(
         AppErrorUtils.capture(
@@ -122,7 +126,13 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
           'Una vez finalizada se generará el informe PDF y no podrás volver a editarla.',
     );
     if (!confirmar || !mounted) return;
-    final exito = await _controller.finalizarInspeccion();
+    _errorPresentationState.beginFinalization();
+    final bool exito;
+    try {
+      exito = await _controller.finalizarInspeccion();
+    } finally {
+      _errorPresentationState.endFinalization();
+    }
     if (mounted) {
       ScaffoldMessenger.of(context).clearSnackBars();
       if (exito) {
@@ -157,17 +167,13 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
           ),
         );
       } else {
-        // Si el listener no mostró un error detallado, mostramos un fallback
-        // con código para soporte.
-        if (_controller.errorMessage == null) {
-          final code = AppErrorUtils.newCode(scope: 'INP');
-          ScaffoldMessenger.of(context).showSnackBar(
-            AppErrorUtils.buildErrorSnackBar(
-              message: 'No se pudo finalizar. Error interno al guardar datos.',
-              code: code,
-            ),
-          );
-        }
+        final code = AppErrorUtils.newCode(scope: 'INP');
+        final message =
+            _controller.errorMessage ??
+            'No se pudo finalizar. Error interno al guardar datos.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          AppErrorUtils.buildErrorSnackBar(message: message, code: code),
+        );
         _controller.clearError();
       }
     }

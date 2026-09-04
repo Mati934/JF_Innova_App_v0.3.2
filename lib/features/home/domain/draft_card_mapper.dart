@@ -130,6 +130,9 @@ class DraftCardMapper {
     if (t.contains('R006') || t.contains('PISOS')) {
       return DraftKind.visitaChecklistPisos;
     }
+    if (t == 'VISITA_R008' || t == 'VEHICULOS_R008') {
+      return DraftKind.visitaActividadesVehiculos;
+    }
     if (t == 'VISITA_R003' || t == 'VISITA TÉCNICA' || t == 'VISITA TECNICA') {
       return DraftKind.visitaTecnica;
     }
@@ -153,6 +156,8 @@ class DraftCardMapper {
         return 'Insp. Pisos y Superficies';
       case DraftKind.visitaChecklistOtro:
         return 'Checklist de Visita';
+      case DraftKind.visitaActividadesVehiculos:
+        return 'Registro de Actividades';
       case DraftKind.inspeccionExtintores:
         return 'Inspección Extintores';
       case DraftKind.mantencionProsesso:

@@ -13,6 +13,8 @@ class VisitReportData {
   final String horaInicio;
   final String horaTermino;
   final String origenVisita;
+  final String originLabel;
+  final String documentTitle;
   final String emailEmpresa1;
   final String emailEmpresa2;
 
@@ -59,6 +61,8 @@ class VisitReportData {
     required this.horaInicio,
     required this.horaTermino,
     required this.origenVisita,
+    this.originLabel = 'Origen de la visita',
+    this.documentTitle = 'INFORME DE VISITA (R-003)',
     required this.emailEmpresa1,
     required this.emailEmpresa2,
     this.incluirActividades = false,

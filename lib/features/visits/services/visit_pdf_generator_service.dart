@@ -185,7 +185,7 @@ class VisitPdfGeneratorService {
                 ),
               ),
               pw.Text(
-                "INFORME DE VISITA (R-003)",
+                data.documentTitle,
                 style: pw.TextStyle(
                   fontSize: 12,
                   fontWeight: pw.FontWeight.bold,
@@ -298,7 +298,7 @@ class VisitPdfGeneratorService {
           children: [
             _cellHeader("Hora inicio"),
             _cellHeader("Hora término"),
-            _cellHeader("Origen de la visita"),
+            _cellHeader(data.originLabel),
           ],
         ),
         pw.TableRow(

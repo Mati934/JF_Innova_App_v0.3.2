@@ -103,6 +103,19 @@ class DraftListWidget extends StatelessWidget {
       case DraftKind.visitaChecklistOtro:
         destino = VisitFormScreen(borrador: raw);
         break;
+      case DraftKind.visitaActividadesVehiculos:
+        destino = VisitFormScreen(
+          borrador: raw,
+          onlyChecklistTypes: ['VISITA_R008'],
+          customTitle: 'Registro de Actividades',
+          customSubtitle: 'Checklist Vehículos Livianos',
+          originLabel: 'Origen de la actividad',
+          documentTitle: 'INFORME DE ACTIVIDAD',
+          brandColor: Colors.indigo,
+          brandColorDark: Color(0xFF283593),
+          brandIcon: Icons.directions_car_filled,
+        );
+        break;
       case DraftKind.inspeccionBuceo:
       case DraftKind.inspeccionEmbarcacion:
       case DraftKind.bitacora:
