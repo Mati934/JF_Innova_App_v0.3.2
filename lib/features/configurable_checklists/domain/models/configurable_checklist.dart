@@ -65,6 +65,11 @@ class ConfigurableChecklist {
   final String? color;
   final int publishedVersion;
 
+  String get nombreVisible => nombre.replaceFirst(
+    RegExp(r'^Chequeo(?: de)?\s+', caseSensitive: false),
+    '',
+  );
+
   const ConfigurableChecklist({
     required this.key,
     required this.formTypeKey,
@@ -132,6 +137,59 @@ class ChecklistVersion {
       reglas: rawRules is Map ? Map<String, dynamic>.from(rawRules) : const {},
     );
   }
+
+  /// Vista tipada de [camposExtra] (catálogo de campos dinámicos congelado en
+  /// el snapshot al publicar la versión). Ver `checklist_campo_definiciones`
+  /// / `checklist_campo_asignaciones` en Supabase para el origen editable.
+  List<ChecklistCampoDefinicion> get camposDefiniciones =>
+      camposExtra.map(ChecklistCampoDefinicion.fromMap).toList()
+        ..sort((a, b) => a.orden.compareTo(b.orden));
+}
+
+/// Definición de un campo dinámico ("dato general") de un checklist,
+/// congelada en `checklist_versions.snapshot_campos_extra` al publicar.
+/// El catálogo editable vive en `checklist_campo_definiciones` +
+/// `checklist_campo_asignaciones` (Supabase); esta clase solo representa la
+/// foto ya publicada que la app usa para renderizar y guardar valores.
+class ChecklistCampoDefinicion {
+  final String id;
+  final String clave;
+  final String etiqueta;
+  final String tipo;
+  final List<String> opciones;
+  final String? unidad;
+  final String seccion;
+  final int orden;
+  final bool requerido;
+
+  const ChecklistCampoDefinicion({
+    required this.id,
+    required this.clave,
+    required this.etiqueta,
+    required this.tipo,
+    this.opciones = const [],
+    this.unidad,
+    this.seccion = 'Datos generales',
+    this.orden = 0,
+    this.requerido = false,
+  });
+
+  factory ChecklistCampoDefinicion.fromMap(Map<String, dynamic> map) {
+    final rawOpciones = map['opciones'];
+    return ChecklistCampoDefinicion(
+      id: (map['id'] ?? '').toString(),
+      clave: (map['clave'] ?? '').toString(),
+      etiqueta: (map['etiqueta'] ?? '').toString(),
+      tipo: (map['tipo'] ?? 'texto').toString(),
+      opciones: rawOpciones is List
+          ? rawOpciones.map((e) => e.toString()).toList()
+          : const [],
+      unidad: map['unidad']?.toString(),
+      seccion: (map['seccion'] ?? 'Datos generales').toString(),
+      orden: (map['orden'] as num?)?.toInt() ?? 0,
+      requerido: checklistBool(map['requerido']),
+    );
+  }
 }
 
 class ChecklistNavigationNode {
@@ -145,6 +203,7 @@ class ChecklistNavigationNode {
   final String? icono;
   final String? color;
   final int orden;
+  final bool habilitado;
 
   const ChecklistNavigationNode({
     required this.key,
@@ -157,6 +216,7 @@ class ChecklistNavigationNode {
     this.icono,
     this.color,
     required this.orden,
+    this.habilitado = true,
   });
 
   bool get isGroup => nodeType == 'GROUP';
@@ -173,6 +233,7 @@ class ChecklistNavigationNode {
       icono: map['icono']?.toString(),
       color: map['color']?.toString(),
       orden: (map['orden'] as num?)?.toInt() ?? 0,
+      habilitado: checklistBool(map['habilitado']),
     );
   }
 }

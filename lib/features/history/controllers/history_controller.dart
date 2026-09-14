@@ -17,6 +17,10 @@ class HistoryController extends ChangeNotifier {
   // Filtros Activos
   String? filtroCentroId;
   String? filtroUsuarioId;
+  String? filtroEmbarcacionId;
+  String? filtroAreaId;
+  String? filtroContratistaId;
+  String? filtroTipoInspeccion;
   String?
   filtroModulo; // Puede ser 'Inspección', 'Visita Técnica' o null para todos
 
@@ -24,6 +28,9 @@ class HistoryController extends ChangeNotifier {
 
   List<Map<String, dynamic>> listaCentros = [];
   List<Map<String, dynamic>> listaUsuarios = [];
+  List<Map<String, dynamic>> listaEmbarcaciones = [];
+  List<Map<String, dynamic>> listaAreas = [];
+  List<Map<String, dynamic>> listaContratistas = [];
 
   HistoryController() {
     _init();
@@ -58,9 +65,15 @@ class HistoryController extends ChangeNotifier {
         final results = await Future.wait([
           _cloudRepo.getCentros(),
           _cloudRepo.getUsuarios(),
+          _cloudRepo.getEmbarcaciones(),
+          _cloudRepo.getAreas(),
+          _cloudRepo.getContratistas(),
         ]);
         listaCentros = results[0];
         listaUsuarios = results[1];
+        listaEmbarcaciones = results[2];
+        listaAreas = results[3];
+        listaContratistas = results[4];
       }
 
       // 3. Ejecutar primera carga de datos
@@ -85,6 +98,10 @@ class HistoryController extends ChangeNotifier {
         filtroCentroId: filtroCentroId,
         filtroUsuarioId: filtroUsuarioId,
         filtroModulo: filtroModulo,
+        filtroEmbarcacionId: filtroEmbarcacionId,
+        filtroAreaId: filtroAreaId,
+        filtroContratistaId: filtroContratistaId,
+        filtroTipoInspeccion: filtroTipoInspeccion,
       );
 
       // Siempre fusionamos con historial local para no perder visibilidad de
@@ -198,10 +215,62 @@ class HistoryController extends ChangeNotifier {
     cargarHistorial();
   }
 
+  void setFiltroEmbarcacion(String? id) {
+    if (filtroEmbarcacionId == id) return;
+    filtroEmbarcacionId = id;
+    cargarHistorial();
+  }
+
+  void setFiltroArea(String? id) {
+    if (filtroAreaId == id) return;
+    filtroAreaId = id;
+    cargarHistorial();
+  }
+
+  void setFiltroContratista(String? id) {
+    if (filtroContratistaId == id) return;
+    filtroContratistaId = id;
+    cargarHistorial();
+  }
+
+  void setFiltroTipoInspeccion(String? tipo) {
+    if (filtroTipoInspeccion == tipo) return;
+    filtroTipoInspeccion = tipo;
+    cargarHistorial();
+  }
+
   void setFiltroModulo(String? modulo) {
     if (filtroModulo == modulo) return;
     filtroModulo = modulo;
     cargarHistorial();
+  }
+
+  static bool matchesHistoryFilters(
+    Map<String, dynamic> row,
+    Map<String, String> filters,
+  ) {
+    final tipoInspeccion = filters['tipo_inspeccion'];
+    if (tipoInspeccion != null &&
+        tipoInspeccion.isNotEmpty &&
+        row['tipo_registro']?.toString() != tipoInspeccion) {
+      return false;
+    }
+
+    final areaId = filters['area_id'];
+    if (areaId != null && areaId.isNotEmpty) {
+      final rowArea = row['area_id']?.toString();
+      if (rowArea == null || rowArea != areaId) return false;
+    }
+
+    final contratistaId = filters['contratista_id'];
+    if (contratistaId != null && contratistaId.isNotEmpty) {
+      final rowContratista = row['contratista_id']?.toString();
+      if (rowContratista == null || rowContratista != contratistaId) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /// Aplica filtros desde un Map (e.g. desde CustomFilterSheet).
@@ -209,6 +278,10 @@ class HistoryController extends ChangeNotifier {
     filtroModulo = filters['modulo'];
     filtroCentroId = filters['centro_id'];
     filtroUsuarioId = filters['usuario_id'];
+    filtroEmbarcacionId = filters['embarcacion_id'];
+    filtroAreaId = filters['area_id'];
+    filtroContratistaId = filters['contratista_id'];
+    filtroTipoInspeccion = filters['tipo_inspeccion'];
     cargarHistorial();
   }
 
@@ -218,6 +291,12 @@ class HistoryController extends ChangeNotifier {
     if (filtroModulo != null) m['modulo'] = filtroModulo!;
     if (filtroCentroId != null) m['centro_id'] = filtroCentroId!;
     if (filtroUsuarioId != null) m['usuario_id'] = filtroUsuarioId!;
+    if (filtroEmbarcacionId != null) m['embarcacion_id'] = filtroEmbarcacionId!;
+    if (filtroAreaId != null) m['area_id'] = filtroAreaId!;
+    if (filtroContratistaId != null) m['contratista_id'] = filtroContratistaId!;
+    if (filtroTipoInspeccion != null) {
+      m['tipo_inspeccion'] = filtroTipoInspeccion!;
+    }
     return m;
   }
 

@@ -166,11 +166,6 @@ class TicketCard extends StatelessWidget {
         (ticket.estado == TicketEstado.abierto ||
             ticket.estado == TicketEstado.parcial);
     final tipoInspeccion = _tipoInspeccionLabel;
-    final (IconData, String)? ubicacion = centroNombre != null
-        ? (Icons.location_on_outlined, 'Centro $centroNombre')
-        : embarcacionNombre != null
-        ? (Icons.directions_boat_outlined, 'Embarcación $embarcacionNombre')
-        : null;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -267,23 +262,58 @@ class TicketCard extends StatelessWidget {
                           ],
                         ),
                       ],
-                      if (ubicacion != null) ...[
+                      if (embarcacionNombre != null ||
+                          centroNombre != null) ...[
                         const SizedBox(height: 6),
-                        Row(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              ubicacion.$1,
-                              size: 13,
-                              color: Colors.grey.shade600,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              ubicacion.$2,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade700,
+                            if (embarcacionNombre != null)
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.directions_boat_outlined,
+                                    size: 16,
+                                    color: AppTheme.primaryBlue,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: Text(
+                                      embarcacionNombre!,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppTheme.primaryBlue,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
+                            if (centroNombre != null) ...[
+                              if (embarcacionNombre != null)
+                                const SizedBox(height: 3),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.location_on_outlined,
+                                    size: 13,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      'Centro $centroNombre',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade700,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ],

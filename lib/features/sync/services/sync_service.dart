@@ -202,7 +202,6 @@ class SyncService {
                   .from('checklist_navigation_nodes')
                   .select()
                   .eq('empresa_id', empresaId)
-                  .eq('habilitado', true)
                   .order('orden')
             : Future.value(<Map<String, dynamic>>[]),
       ),
@@ -538,9 +537,9 @@ class SyncService {
           formTypes: List<Map<String, dynamic>>.from(futures[15] ?? const []),
           checklists: List<Map<String, dynamic>>.from(futures[16] ?? const []),
           versions: List<Map<String, dynamic>>.from(futures[17] ?? const []),
-          navigationNodes: List<Map<String, dynamic>>.from(
-            futures[18] ?? const [],
-          ),
+          navigationNodes: futures[18] == null
+              ? null
+              : List<Map<String, dynamic>>.from(futures[18]!),
           permissionGrants: List<Map<String, dynamic>>.from(
             futures[19] ?? const [],
           ),
@@ -604,6 +603,10 @@ class SyncService {
       // 3.d Subir registros del módulo Merieux (Visitas + Extintores, independientes)
       int merieuxSubidos = await _sincronizarMerieux();
 
+      // 3.e Subir inspecciones creadas por el motor configurable.
+      int checklistsConfigurablesSubidos =
+          await _sincronizarChecklistsConfigurables();
+
       // 4. Subir Hijos (Respuestas y Fotos)
       await _sincronizarRespuestas();
       final actividadesConFotosSincronizadas = await _sincronizarFotos();
@@ -622,7 +625,8 @@ class SyncService {
           hidroserSubidas +
           buceoSubidas +
           astSubidos +
-          merieuxSubidos;
+          merieuxSubidos +
+          checklistsConfigurablesSubidos;
     } catch (e) {
       debugPrint("❌ Error en sincronización global: $e");
       FirebaseCrashlytics.instance.recordError(
@@ -1867,6 +1871,201 @@ class SyncService {
 
   /// Sube inspecciones Hidroser (cabecera + respuestas + PDF) y devuelve cuántas
   /// se sincronizaron correctamente.
+  Future<int> _sincronizarChecklistsConfigurables() async {
+    final db = await _dbHelper.database;
+    final pending = await db.query(
+      'checklist_inspecciones_pendientes',
+      where: 'subido = 0',
+    );
+    var count = 0;
+
+    for (final row in pending) {
+      final id = row['id']?.toString();
+      if (id == null || id.isEmpty) continue;
+      try {
+        if (row['eliminado'] == 1) {
+          await _supabase
+              .from('checklist_inspecciones')
+              .update({'estado_final': 'Eliminada', 'eliminado': true})
+              .eq('id', id);
+          await db.delete(
+            'checklist_respuestas_pendientes',
+            where: 'inspeccion_id = ?',
+            whereArgs: [id],
+          );
+          await db.delete(
+            'checklist_inspecciones_pendientes',
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+          continue;
+        }
+
+        final payload = Map<String, dynamic>.from(row)
+          ..remove('subido')
+          ..remove('eliminado')
+          ..remove('codigo_error')
+          ..remove('firma_local_path')
+          ..remove('pdf_path_local')
+          ..remove('correlativo');
+        for (final key in ['snapshot', 'campos_extra']) {
+          final value = payload[key];
+          if (value is String) payload[key] = jsonDecode(value);
+        }
+
+        final saved = await _supabase
+            .from('checklist_inspecciones')
+            .upsert(payload, onConflict: 'id')
+            .select('correlativo')
+            .single();
+        final correlativo = saved['correlativo']?.toString();
+
+        final responses = await db.query(
+          'checklist_respuestas_pendientes',
+          where: 'inspeccion_id = ?',
+          whereArgs: [id],
+        );
+        for (final response in responses) {
+          await _supabase
+              .from('checklist_respuestas')
+              .upsert(
+                Map<String, dynamic>.from(response)..remove('subido'),
+                onConflict: 'id',
+              );
+          await db.update(
+            'checklist_respuestas_pendientes',
+            {'subido': 1},
+            where: 'id = ?',
+            whereArgs: [response['id']],
+          );
+        }
+
+        // Campos dinámicos (catálogo checklist_campo_definiciones): valores
+        // tipados, listos para agregarse en un dashboard sin parsear JSON.
+        final camposValores = await db.query(
+          'checklist_campo_valores_pendientes',
+          where: 'inspeccion_id = ?',
+          whereArgs: [id],
+        );
+        for (final valor in camposValores) {
+          final payload = {
+            'id': valor['id'],
+            'inspeccion_id': valor['inspeccion_id'],
+            'campo_id': valor['campo_id'],
+            'valor_texto': valor['valor_texto'],
+            'valor_numero': valor['valor_numero'],
+            'valor_fecha': valor['valor_fecha'],
+            'valor_booleano': valor['valor_booleano'] == null
+                ? null
+                : valor['valor_booleano'] == 1,
+          };
+          try {
+            await _supabase
+                .from('checklist_campo_valores')
+                .upsert(payload, onConflict: 'id');
+            await db.update(
+              'checklist_campo_valores_pendientes',
+              {'subido': 1},
+              where: 'id = ?',
+              whereArgs: [valor['id']],
+            );
+          } catch (e) {
+            debugPrint(
+              '⚠️ Error subiendo valor de campo dinámico ${valor['id']}: $e',
+            );
+          }
+        }
+
+        // Firma: se sube como PNG a Storage y se referencia por URL. No se
+        // pierde aunque el sync se ejecute varias veces (upsert de archivo).
+        final firmaLocalPath = row['firma_local_path'] as String?;
+        String? firmaStoragePath;
+        if (firmaLocalPath != null && firmaLocalPath.isNotEmpty) {
+          final firmaFile = File(firmaLocalPath);
+          if (firmaFile.existsSync()) {
+            try {
+              final pathStorage = '$id/firma_$id.png';
+              await _supabase.storage
+                  .from('pdfs_visitas')
+                  .upload(
+                    pathStorage,
+                    firmaFile,
+                    fileOptions: const FileOptions(upsert: true),
+                  );
+              firmaStoragePath = _supabase.storage
+                  .from('pdfs_visitas')
+                  .getPublicUrl(pathStorage);
+            } catch (e) {
+              debugPrint('⚠️ Error subiendo firma de checklist $id: $e');
+            }
+          }
+        }
+
+        // PDF final (generado al finalizar). Se sube una sola vez.
+        final pdfPathLocal = row['pdf_path_local'] as String?;
+        String? pdfUrlNube = row['pdf_url'] as String?;
+        if (pdfPathLocal != null &&
+            pdfPathLocal.isNotEmpty &&
+            (pdfUrlNube == null || pdfUrlNube.isEmpty)) {
+          final pdfFile = File(pdfPathLocal);
+          if (pdfFile.existsSync()) {
+            try {
+              final pathStorage = '$id/Checklist_$id.pdf';
+              await _supabase.storage
+                  .from('pdfs_visitas')
+                  .upload(
+                    pathStorage,
+                    pdfFile,
+                    fileOptions: const FileOptions(upsert: true),
+                  );
+              pdfUrlNube = _supabase.storage
+                  .from('pdfs_visitas')
+                  .getPublicUrl(pathStorage);
+            } catch (e) {
+              debugPrint('⚠️ Error subiendo PDF de checklist $id: $e');
+            }
+          }
+        }
+
+        if (firmaStoragePath != null || pdfUrlNube != null) {
+          await _supabase
+              .from('checklist_inspecciones')
+              .update({
+                if (firmaStoragePath != null)
+                  'firma_storage_path': firmaStoragePath,
+                if (pdfUrlNube != null) 'pdf_url': pdfUrlNube,
+              })
+              .eq('id', id);
+        }
+
+        final pdfPendiente =
+            pdfPathLocal != null &&
+            pdfPathLocal.isNotEmpty &&
+            (pdfUrlNube == null || pdfUrlNube.isEmpty);
+        await db.update(
+          'checklist_inspecciones_pendientes',
+          {
+            if (!pdfPendiente) 'subido': 1,
+            if (correlativo != null) 'correlativo': correlativo,
+            if (pdfUrlNube != null) 'pdf_url': pdfUrlNube,
+          },
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+        count++;
+      } catch (e) {
+        await db.update(
+          'checklist_inspecciones_pendientes',
+          {'codigo_error': 'CHECKLIST_SYNC_ERROR'},
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+        debugPrint('Error CHECKLIST_SYNC_ERROR para $id: $e');
+      }
+    }
+    return count;
+  }
+
   Future<int> _sincronizarHidroser() async {
     final db = await _dbHelper.database;
     final pendientes = await db.query(

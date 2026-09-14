@@ -332,6 +332,38 @@ escribir PDF arbitrario, programar sync/RLS/correlativos ni alterar snapshots
 publicados. Una necesidad fuera de esos limites es una mejora tecnica del
 motor, no una excepcion configurable.
 
+### Via alternativa: crear checklists por SQL de siembra
+
+El panel Super Admin es la etapa 5. Antes de tenerlo, un checklist nuevo se
+crea igual sin escribir codigo Dart: se genera un `.sql` de siembra que inserta
+la configuracion en las tablas del motor. Es el mismo contrato que usara el
+panel, solo cambia quien escribe las filas.
+
+Un archivo de siembra debe insertar, en este orden:
+
+1. `checklists`: identidad, `form_type_key`, `permission_key`, `report_prefix`.
+2. `checklist_versions`: snapshot de preguntas, campos y reglas; estado
+   `PUBLICADA`.
+3. `checklists.published_version` y `activo = true`.
+4. `checklist_navigation_nodes`: nodo `CHECKLIST` para cada empresa.
+5. `checklist_permission_grants`: capacidades por usuario o rol.
+
+Reglas de esta via:
+
+1. Se entrega un solo `.sql` idempotente por checklist, con `ON CONFLICT`, y se
+   ejecuta manualmente en el SQL Editor de Supabase.
+2. El archivo parte con un `SELECT` de solo lectura que muestra si el
+   `checklist_key` y el `report_prefix` ya existen.
+3. Publicar una correccion no edita el snapshot vigente: inserta una version
+   nueva y mueve `published_version`.
+4. Tras ejecutarlo, la app solo necesita un sync de maestros: la tarjeta y el
+   formulario aparecen sin recompilar ni publicar una version nueva.
+5. Cuando exista el panel, estos checklists no se migran: ya viven en las
+   mismas tablas y quedan editables desde la interfaz.
+
+Esta via es la recomendada para el primer checklist real, porque prueba el
+contrato completo del motor antes de invertir en la interfaz de administracion.
+
 ### Validaciones antes de publicar
 
 1. Identificadores, permisos y plantilla PDF existen y son compatibles.
@@ -548,11 +580,13 @@ siguiente etapa es disenar la migracion y el contrato tecnico del motor.
    error visible y sync de una plantilla estandar aprobada.
 4. **Navegacion:** abrir el formulario generico desde tarjetas/nodos de datos,
    incluir borradores, historial/RPC, panel de control y tickets si corresponde.
-5. **Creador restringido:** panel Super Admin para configurar checklist,
+5. **Primer checklist por siembra:** publicar un checklist real con un `.sql` de
+   siembra y validarlo de punta a punta antes de construir la interfaz.
+6. **Creador restringido:** panel Super Admin para configurar checklist,
    encabezado, preguntas, permisos, empresa y navegacion.
-6. **Endurecimiento:** pruebas offline, RLS, conflicto de sync, PDF, baja
+7. **Endurecimiento:** pruebas offline, RLS, conflicto de sync, PDF, baja
    logica y upgrade desde bases SQLite antiguas.
-7. **Generalizacion:** solo despues de una publicacion real exitosa desde el
+8. **Generalizacion:** solo despues de una publicacion real exitosa desde el
    creador, decidir que familias existentes vale la pena migrar.
 
 ## Riesgos que se aceptan y mitigaciones

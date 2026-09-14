@@ -82,7 +82,7 @@ ExtintorReportData _extintorData({
 }
 
 /// Genera datos dummy de VisitReportData.
-VisitReportData _visitData({bool conChecklist = true}) {
+VisitReportData _visitData({bool conChecklist = true, int checklistCount = 2}) {
   return VisitReportData(
     profesional: 'Pedro Inspector',
     fonoProfesional: '+56987654321',
@@ -109,22 +109,16 @@ VisitReportData _visitData({bool conChecklist = true}) {
     otroActividadTexto: '',
     tipoChecklist: conChecklist ? 'VISITA_005' : null,
     checklistItems: conChecklist
-        ? [
-            VisitChecklistItemDto(
+        ? List.generate(
+            checklistCount,
+            (index) => VisitChecklistItemDto(
               categoria: 'ELECTRICO',
-              pregunta: 'Tableros electricos cerrados',
-              respuesta: 'C',
-              criticidad: null,
-              observacion: '',
+              pregunta: 'Pregunta de prueba numero ${index + 1}',
+              respuesta: index.isEven ? 'C' : 'NC',
+              criticidad: index.isEven ? null : 'Moderado',
+              observacion: index.isEven ? '' : 'Observacion de prueba',
             ),
-            VisitChecklistItemDto(
-              categoria: 'ELECTRICO',
-              pregunta: 'Cables en buen estado',
-              respuesta: 'NC',
-              criticidad: 'Moderado',
-              observacion: 'Cable pelado sector norte',
-            ),
-          ]
+          )
         : [],
     apuntesObservaciones: 'Sin observaciones adicionales.',
     signatureImage: null,
@@ -430,6 +424,23 @@ void main() {
 
       expect(bytes, isNotEmpty);
       expect(String.fromCharCodes(bytes.sublist(0, 5)), startsWith('%PDF'));
+    });
+
+    test('checklist extenso genera mas de una pagina', () async {
+      final params = VisitPdfIsolateParams(
+        data: _visitData(checklistCount: 60),
+        fontRegular: fontReg,
+        fontBold: fontBold,
+      );
+
+      final bytes = await generateVisitPdfEntryPoint(params);
+      final pdfText = String.fromCharCodes(bytes);
+      final pageCounts = RegExp(
+        r'/Count\s+(\d+)',
+      ).allMatches(pdfText).map((match) => int.parse(match.group(1)!)).toList();
+
+      expect(pageCounts, isNotEmpty);
+      expect(pageCounts.reduce((a, b) => a > b ? a : b), greaterThan(1));
     });
   });
 

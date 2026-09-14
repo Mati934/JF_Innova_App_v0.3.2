@@ -71,6 +71,7 @@ class _CronogramaTemplatesAdminScreenState
             ],
             bottom: TabBar(
               controller: _tabController,
+              isScrollable: true,
               indicatorColor: Colors.white,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,

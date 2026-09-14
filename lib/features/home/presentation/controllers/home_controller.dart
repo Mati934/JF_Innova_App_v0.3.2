@@ -13,7 +13,9 @@ import '../../../hidroser/data/repositories/local_hidroser_repository.dart';
 import '../../../buceo_equipment/data/repositories/local_buceo_equipment_repository.dart';
 import '../../../prosesso/data/repositories/local_prosesso_repository.dart';
 import '../../../configurable_checklists/data/repositories/local_configurable_checklist_repository.dart';
-import '../../../configurable_checklists/domain/models/configurable_checklist.dart';
+import '../../../configurable_checklists/domain/checklist_navigation_tree.dart';
+import '../../../configurable_checklists/presentation/checklist_icons.dart';
+import '../../../configurable_checklists/presentation/screens/checklist_group_screen.dart';
 import '../../../configurable_checklists/presentation/screens/generic_checklist_form_screen.dart';
 import '../../domain/draft_card_data.dart';
 import '../../domain/draft_card_mapper.dart';
@@ -102,6 +104,7 @@ class HomeController extends ChangeNotifier {
     _safeNotify();
 
     try {
+      final empresaId = UserSession().empresaId;
       final resultados = await Future.wait([
         _localRepo.getBorradores(),
         _visitRepo.getBorradores(),
@@ -109,6 +112,9 @@ class HomeController extends ChangeNotifier {
         _prosessoRepo.getBorradores(),
         _hidroserRepo.getBorradores(),
         _buceoRepo.getBorradores(),
+        empresaId == null
+            ? Future.value(<Map<String, dynamic>>[])
+            : _configurableChecklistRepo.getDrafts(empresaId),
       ]);
 
       final inspecciones = resultados[0].map(DraftCardMapper.fromInspeccion);
@@ -117,6 +123,9 @@ class HomeController extends ChangeNotifier {
       final prosesso = resultados[3].map(DraftCardMapper.fromProsesso);
       final hidroser = resultados[4].map(DraftCardMapper.fromHidroser);
       final buceo = resultados[5].map(DraftCardMapper.fromBuceoEquipamiento);
+      final checklistsConfigurables = resultados[6].map(
+        DraftCardMapper.fromConfigurableChecklist,
+      );
 
       // Fusionamos y ordenamos por fecha (del más reciente al más antiguo)
       borradores = [
@@ -126,6 +135,7 @@ class HomeController extends ChangeNotifier {
         ...prosesso,
         ...hidroser,
         ...buceo,
+        ...checklistsConfigurables,
       ]..sort((a, b) => b.fecha.compareTo(a.fecha));
     } catch (e) {
       debugPrint("❌ Error cargando borradores combinados: $e");
@@ -159,6 +169,9 @@ class HomeController extends ChangeNotifier {
           break;
         case DraftKind.buceoEquipamiento:
           await _buceoRepo.eliminarBorrador(id);
+          break;
+        case DraftKind.checklistConfigurable:
+          await _configurableChecklistRepo.deleteDraft(id);
           break;
         case DraftKind.visitaTecnica:
         case DraftKind.visitaChecklistElectricidad:
@@ -252,24 +265,25 @@ class HomeController extends ChangeNotifier {
       );
       final checklists = await _configurableChecklistRepo.getActiveChecklists();
       final byKey = {for (final item in checklists) item.key: item};
-      _configurableModules = nodes
-          .where(
-            (node) =>
-                node.nodeType == 'CHECKLIST' &&
-                node.parentNodeKey == null &&
-                node.checklistKey != null,
-          )
-          .map((node) => byKey[node.checklistKey])
-          .whereType<ConfigurableChecklist>()
+      final menu = buildChecklistMenu(nodes, byKey);
+      _configurableModules = menu
           .map(
-            (checklist) => ModuleDefinition(
-              moduleKey: 'CHECKLIST:${checklist.key}',
-              title: checklist.nombre,
-              subtitle: checklist.subtitulo ?? 'Checklist configurable',
-              icon: Icons.fact_check_outlined,
-              color: _colorFromHex(checklist.color),
-              screenBuilder: (_) =>
-                  GenericChecklistFormScreen(checklist: checklist),
+            (entry) => ModuleDefinition(
+              moduleKey: 'CHECKLIST:${entry.nodeKey}',
+              title: entry.isGroup
+                  ? entry.titulo
+                  : entry.checklist?.nombreVisible ?? entry.titulo,
+              subtitle: entry.isGroup
+                  ? '${entry.children.length} checklists'
+                  : '',
+              icon: checklistIconFromName(entry.icono),
+              color: _colorFromHex(entry.color),
+              screenBuilder: (_) => entry.isGroup
+                  ? ChecklistGroupScreen(
+                      titulo: entry.titulo,
+                      checklists: entry.children,
+                    )
+                  : GenericChecklistFormScreen(checklist: entry.checklist!),
             ),
           )
           .toList();

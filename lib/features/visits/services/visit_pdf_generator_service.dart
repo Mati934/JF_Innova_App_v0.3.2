@@ -4,6 +4,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:image/image.dart' as img;
 import '../domain/models/pdf/visit_report_data.dart'; // Asegúrate de que esta ruta sea correcta
+import '../domain/visit_checklist_labels.dart';
 
 // 📦 1. PARÁMETROS ESTANDARIZADOS (Mirror de Inspecciones)
 class VisitPdfIsolateParams {
@@ -85,23 +86,6 @@ class VisitPdfGeneratorService {
     );
 
     return pdf.save();
-  }
-
-  /// Convierte el código interno del checklist a un nombre legible.
-  String _checklistLabel(String? tipo) {
-    const labels = {
-      'VISITA_R005': 'Insp. Condiciones Eléctricas',
-      'ELECTRICIDAD_R005': 'Insp. Condiciones Eléctricas',
-      'VISITA_R006': 'Insp. Pisos y Superficies',
-      'PISOS_R006': 'Insp. Pisos y Superficies',
-      'VISITA_R008': 'Chequeo Vehículos Livianos',
-      'VEHICULOS_R008': 'Chequeo Vehículos Livianos',
-      'VISITA_R011': 'Chequeo Máquina Soldadora',
-      'SOLDADORA_R011': 'Chequeo Máquina Soldadora',
-      'VISITA_R012': 'Verificación Grúas Horquillas',
-    };
-    if (tipo == null || tipo.isEmpty) return '';
-    return labels[tipo] ?? tipo.replaceAll('_', ' ');
   }
 
   // ALGORITMO DE CHUNKING: Evita desbordamientos de página y crasheos por RAM
@@ -608,129 +592,226 @@ class VisitPdfGeneratorService {
 
   // === CHECKLIST DINÁMICO EN PDF ===
   List<pw.Widget> _buildChecklistSection(VisitReportData data) {
-    // Agrupar items por categoría
     final Map<String, List<VisitChecklistItemDto>> grouped = {};
     for (var item in data.checklistItems) {
       grouped.putIfAbsent(item.categoria, () => []);
       grouped[item.categoria]!.add(item);
     }
 
-    final List<pw.Widget> widgets = [
+    final widgets = <pw.Widget>[
       pw.Container(
         width: double.infinity,
         padding: const pw.EdgeInsets.all(6),
         decoration: const pw.BoxDecoration(color: PdfColors.grey200),
         child: pw.Text(
-          'CHECKLIST: ${_checklistLabel(data.tipoChecklist)}',
+          'CHECKLIST: ${visitChecklistLabel(data.tipoChecklist)}',
           style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
         ),
       ),
     ];
-
     int counter = 1;
     for (var category in grouped.keys) {
-      // Header de categoría
-      widgets.add(
-        pw.Container(
-          width: double.infinity,
-          padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-          margin: const pw.EdgeInsets.only(top: 6),
-          decoration: const pw.BoxDecoration(color: PdfColors.blue50),
-          child: pw.Text(
-            category.toUpperCase(),
-            style: pw.TextStyle(
-              fontWeight: pw.FontWeight.bold,
-              fontSize: 9,
-              color: PdfColors.blue900,
-            ),
-          ),
+      final categoryItems = grouped[category]!;
+      final startNumber = counter;
+      final endNumber = counter + categoryItems.length - 1;
+      final categoryHeader = pw.Container(
+        width: double.infinity,
+        padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        margin: const pw.EdgeInsets.only(top: 14),
+        decoration: pw.BoxDecoration(
+          color: PdfColors.grey200,
+          border: pw.Border.all(color: PdfColors.cyan100, width: 1),
+          borderRadius: pw.BorderRadius.circular(2),
         ),
-      );
-
-      // Tabla de items
-      widgets.add(
-        pw.Table(
-          border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey400),
-          columnWidths: {
-            0: const pw.FixedColumnWidth(25),
-            1: const pw.FlexColumnWidth(4),
-            2: const pw.FixedColumnWidth(35),
-            3: const pw.FlexColumnWidth(2),
-          },
+        child: pw.Row(
           children: [
-            pw.TableRow(
-              decoration: const pw.BoxDecoration(color: PdfColors.grey100),
-              children: [
-                _cellPdf('N', bold: true),
-                _cellPdf('Item', bold: true),
-                _cellPdf('Est.', bold: true),
-                _cellPdf('Observación', bold: true),
-              ],
+            pw.Text(
+              category.toUpperCase(),
+              style: pw.TextStyle(
+                fontWeight: pw.FontWeight.bold,
+                fontSize: 9,
+                color: PdfColors.grey900,
+              ),
             ),
-            ...grouped[category]!.map((item) {
-              final isNC = item.respuesta == 'NC';
-              pw.Widget? fotoWidget;
-              if (item.fotoPath != null && item.fotoPath!.isNotEmpty) {
-                final f = File(item.fotoPath!);
-                if (f.existsSync()) {
-                  try {
-                    final optimized = _optimizarImagen(f.readAsBytesSync());
-                    fotoWidget = pw.Container(
-                      width: 70,
-                      height: 70,
-                      margin: const pw.EdgeInsets.only(top: 3),
-                      decoration: pw.BoxDecoration(
-                        border: pw.Border.all(
-                          color: PdfColors.grey400,
-                          width: 0.5,
-                        ),
-                      ),
-                      child: pw.Image(
-                        pw.MemoryImage(optimized),
-                        fit: pw.BoxFit.cover,
-                      ),
-                    );
-                  } catch (_) {}
-                }
-              }
-              final row = pw.TableRow(
-                decoration: isNC
-                    ? const pw.BoxDecoration(color: PdfColors.red50)
-                    : null,
-                children: [
-                  _cellPdf('$counter'),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.all(3),
-                    child: pw.Text(
-                      item.pregunta,
-                      style: const pw.TextStyle(fontSize: 7),
-                    ),
-                  ),
-                  _cellPdf(item.respuesta, color: isNC ? PdfColors.red : null),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.all(3),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        if ((item.observacion ?? '').isNotEmpty)
-                          pw.Text(
-                            item.observacion!,
-                            style: const pw.TextStyle(fontSize: 7),
-                          ),
-                        if (fotoWidget != null) fotoWidget,
-                      ],
-                    ),
-                  ),
-                ],
-              );
-              counter++;
-              return row;
-            }),
+            pw.Spacer(),
+            pw.Text(
+              'items ${startNumber.toString().padLeft(2, '0')}-'
+              '${endNumber.toString().padLeft(2, '0')}',
+              style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+            ),
           ],
         ),
       );
+      final tableBorder = pw.TableBorder(
+        left: const pw.BorderSide(color: PdfColors.cyan100, width: 1),
+        right: const pw.BorderSide(color: PdfColors.cyan100, width: 1),
+        bottom: const pw.BorderSide(color: PdfColors.cyan100, width: 1),
+        horizontalInside: const pw.BorderSide(
+          color: PdfColors.cyan100,
+          width: 0.75,
+        ),
+        verticalInside: const pw.BorderSide(
+          color: PdfColors.cyan100,
+          width: 0.75,
+        ),
+      );
+      final columnWidths = <int, pw.TableColumnWidth>{
+        0: const pw.FixedColumnWidth(34),
+        1: const pw.FlexColumnWidth(),
+        2: const pw.FixedColumnWidth(82),
+        3: const pw.FixedColumnWidth(46),
+      };
+      final headerRow = pw.TableRow(
+        decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+        children: [
+          _cellPdf('N°', bold: true),
+          _cellPdf('Pregunta', bold: true),
+          _cellPdf('Foto / Obs.', bold: true),
+          _cellPdf('Estado', bold: true),
+        ],
+      );
+      final rows = categoryItems.map((item) {
+        final row = _buildVisitChecklistRow(item, counter);
+        counter++;
+        return row;
+      }).toList();
+
+      // La caja y la primera fila viajan juntas para no dejar la categoría
+      // huérfana; las filas restantes quedan en otra tabla para poder
+      // continuar naturalmente en la página siguiente.
+      widgets.add(
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            categoryHeader,
+            pw.Table(
+              border: tableBorder,
+              columnWidths: columnWidths,
+              children: [headerRow, rows.first],
+            ),
+          ],
+        ),
+      );
+      if (rows.length > 1) {
+        widgets.add(
+          pw.Table(
+            border: tableBorder,
+            columnWidths: columnWidths,
+            children: rows.skip(1).toList(),
+          ),
+        );
+      }
     }
     return widgets;
+  }
+
+  pw.TableRow _buildVisitChecklistRow(VisitChecklistItemDto item, int index) {
+    final isNC = item.respuesta == 'NC';
+    final isNA = item.respuesta == 'N/A';
+    final statusColor = isNC
+        ? PdfColors.red
+        : (isNA ? PdfColors.blueGrey700 : PdfColors.green700);
+    final statusBackground = isNC
+        ? PdfColors.red50
+        : (isNA ? PdfColors.blueGrey50 : PdfColors.green50);
+    pw.Widget? fotoWidget;
+    if (item.fotoPath != null && item.fotoPath!.isNotEmpty) {
+      final file = File(item.fotoPath!);
+      if (file.existsSync()) {
+        try {
+          fotoWidget = pw.Container(
+            width: 52,
+            height: 42,
+            margin: const pw.EdgeInsets.only(top: 3),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.cyan100, width: 1),
+              borderRadius: pw.BorderRadius.circular(4),
+            ),
+            child: pw.ClipRRect(
+              horizontalRadius: 4,
+              verticalRadius: 4,
+              child: pw.Image(
+                pw.MemoryImage(_optimizarImagen(file.readAsBytesSync())),
+                fit: pw.BoxFit.cover,
+              ),
+            ),
+          );
+        } catch (_) {}
+      }
+    }
+
+    return pw.TableRow(
+      decoration: pw.BoxDecoration(
+        color: isNC
+            ? PdfColors.red50
+            : (isNA ? PdfColors.cyan50 : PdfColors.white),
+        border: const pw.Border(
+          bottom: pw.BorderSide(color: PdfColors.cyan100, width: 0.75),
+        ),
+      ),
+      children: [
+        pw.Container(
+          alignment: pw.Alignment.center,
+          padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: pw.Text(
+            index.toString().padLeft(2, '0'),
+            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey500),
+          ),
+        ),
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                item.pregunta,
+                style: pw.TextStyle(
+                  fontSize: 8.5,
+                  color: isNC ? PdfColors.red : PdfColors.blueGrey700,
+                  fontWeight: isNC ? pw.FontWeight.bold : pw.FontWeight.normal,
+                ),
+              ),
+              if ((item.observacion ?? '').trim().isNotEmpty) ...[
+                pw.SizedBox(height: 3),
+                pw.Text(
+                  item.observacion!.trim(),
+                  style: pw.TextStyle(
+                    fontSize: 7.5,
+                    fontStyle: pw.FontStyle.italic,
+                    color: isNC ? PdfColors.red : PdfColors.grey500,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        pw.Container(
+          alignment: pw.Alignment.center,
+          padding: const pw.EdgeInsets.all(4),
+          child:
+              fotoWidget ??
+              pw.Text('-', style: const pw.TextStyle(fontSize: 8)),
+        ),
+        pw.Container(
+          alignment: pw.Alignment.center,
+          child: pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: pw.BoxDecoration(
+              color: statusBackground,
+              borderRadius: pw.BorderRadius.circular(10),
+            ),
+            child: pw.Text(
+              item.respuesta,
+              style: pw.TextStyle(
+                fontSize: 7.5,
+                fontWeight: pw.FontWeight.bold,
+                color: statusColor,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   pw.Widget _cellPdf(String text, {bool bold = false, PdfColor? color}) {

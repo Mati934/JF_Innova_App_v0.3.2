@@ -9,6 +9,7 @@ import '../../../../shared/services/image_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../controllers/visit_form_controller.dart';
 import '../../domain/models/campo_extra_def.dart';
+import '../../domain/visit_checklist_labels.dart';
 import '../../../inspection/presentation/widgets/question_card.dart';
 import '../../../inspection/presentation/widgets/category_header.dart';
 
@@ -884,7 +885,7 @@ class _VisitFormView extends StatelessWidget {
                       color: AppTheme.primaryBlue,
                     ),
                     const SizedBox(width: 10),
-                    Expanded(child: Text(_formatTipoLabel(tipo))),
+                    Expanded(child: Text(visitChecklistLabel(tipo))),
                   ],
                 ),
               );
@@ -1042,28 +1043,6 @@ class _VisitFormView extends StatelessWidget {
         );
       }).toList(),
     );
-  }
-
-  String _formatTipoLabel(String tipo) {
-    const labels = {
-      // R005 - Condiciones Eléctricas
-      'VISITA_005': 'Insp. Condiciones Eléctricas',
-      'VISITA_R005': 'Insp. Condiciones Eléctricas',
-      'ELECTRICIDAD_R005': 'Insp. Condiciones Eléctricas',
-      // R006 - Pisos y Superficies
-      'VISITA_006': 'Insp. Pisos y Superficies',
-      'VISITA_R006': 'Insp. Pisos y Superficies',
-      'PISOS_R006': 'Insp. Pisos y Superficies',
-      // R008 - Chequeo Vehículos Livianos
-      'VISITA_R008': 'Chequeo Vehículos Livianos',
-      'VEHICULOS_R008': 'Chequeo Vehículos Livianos',
-      // R011 - Chequeo Máquina Soldadora
-      'VISITA_R011': 'Chequeo Máquina Soldadora',
-      'SOLDADORA_R011': 'Chequeo Máquina Soldadora',
-      // R012 - Verificación Grúas Horquillas (Hidroser)
-      'VISITA_R012': 'Verificación Grúas Horquillas',
-    };
-    return labels[tipo] ?? tipo.replaceAll('_', ' ');
   }
 }
 

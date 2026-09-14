@@ -357,6 +357,21 @@ class HistoryCardConfig {
       );
     }
 
+    // Checklists configurables (motor genérico: Herramientas y Equipos, y
+    // cualquier otro sembrado a futuro con checklist_key = 'chq_*'). `modulo`
+    // ya trae el nombre completo del checklist (ver historial_unificado),
+    // así que se usa directo en vez de caer al fallback genérico "Visita
+    // Técnica".
+    if (tipoRegistro.startsWith('chq_')) {
+      return HistoryCardConfig(
+        titulo: modulo.isNotEmpty ? modulo : 'Checklist',
+        icon: Icons.checklist_rtl,
+        accent: const Color(0xFF0F766E),
+        tipoChipLabel: 'Herramientas y Equipos',
+        folioLabel: folioPill,
+      );
+    }
+
     // Default: visita técnica genérica.
     return HistoryCardConfig(
       titulo: 'Visita Técnica',

@@ -190,10 +190,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
         icon: Icons.category_rounded,
         items: const ['Inspección', 'Visita Técnica'],
       ),
+      const FilterDef(
+        key: 'tipo_inspeccion',
+        label: 'Tipo de inspección',
+        icon: Icons.assignment_outlined,
+        items: ['Buceo', 'Embarcación'],
+        resolveId: _tipoInspeccionLabelToValue,
+        resolveDisplayName: _tipoInspeccionValueToLabel,
+      ),
     ];
 
     if (_ctrl.esAdmin) {
-      // Centro filter
       final centroMap = {
         for (final c in _ctrl.listaCentros)
           c['id'].toString(): (c['nombre'] as String?) ?? '',
@@ -215,7 +222,27 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
       );
 
-      // Usuario filter
+      final areaMap = {
+        for (final a in _ctrl.listaAreas)
+          a['id'].toString(): (a['nombre'] as String?) ?? '',
+      };
+      defs.add(
+        FilterDef(
+          key: 'area_id',
+          label: 'Área',
+          icon: Icons.apartment_rounded,
+          items: areaMap.values.toList(),
+          enableSearch: areaMap.length > 5,
+          resolveId: (name) => areaMap.entries
+              .firstWhere(
+                (e) => e.value == name,
+                orElse: () => MapEntry(name, name),
+              )
+              .key,
+          resolveDisplayName: (id) => areaMap[id] ?? id,
+        ),
+      );
+
       final usuarioMap = {
         for (final u in _ctrl.listaUsuarios)
           u['id'].toString(): (u['nombre_completo'] as String?) ?? '',
@@ -236,8 +263,62 @@ class _HistoryScreenState extends State<HistoryScreen> {
           resolveDisplayName: (id) => usuarioMap[id] ?? id,
         ),
       );
+
+      final embarcacionMap = {
+        for (final e in _ctrl.listaEmbarcaciones)
+          e['id'].toString(): (e['nombre'] as String?) ?? '',
+      };
+      defs.add(
+        FilterDef(
+          key: 'embarcacion_id',
+          label: 'Embarcación',
+          icon: Icons.directions_boat_rounded,
+          items: embarcacionMap.values.toList(),
+          enableSearch: embarcacionMap.length > 5,
+          resolveId: (name) => embarcacionMap.entries
+              .firstWhere(
+                (e) => e.value == name,
+                orElse: () => MapEntry(name, name),
+              )
+              .key,
+          resolveDisplayName: (id) => embarcacionMap[id] ?? id,
+        ),
+      );
+
+      final contratistaMap = {
+        for (final c in _ctrl.listaContratistas)
+          c['id'].toString(): (c['nombre'] as String?) ?? '',
+      };
+      defs.add(
+        FilterDef(
+          key: 'contratista_id',
+          label: 'Contratista',
+          icon: Icons.business_center_rounded,
+          items: contratistaMap.values.toList(),
+          enableSearch: contratistaMap.length > 5,
+          resolveId: (name) => contratistaMap.entries
+              .firstWhere(
+                (e) => e.value == name,
+                orElse: () => MapEntry(name, name),
+              )
+              .key,
+          resolveDisplayName: (id) => contratistaMap[id] ?? id,
+        ),
+      );
     }
 
     return defs;
   }
 }
+
+String _tipoInspeccionLabelToValue(String label) => switch (label) {
+  'Buceo' => 'INSPECCION_BUCEO',
+  'Embarcación' => 'INSPECCION_EMBARCACION',
+  _ => label,
+};
+
+String _tipoInspeccionValueToLabel(String value) => switch (value) {
+  'INSPECCION_BUCEO' => 'Buceo',
+  'INSPECCION_EMBARCACION' => 'Embarcación',
+  _ => value,
+};

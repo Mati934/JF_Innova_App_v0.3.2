@@ -194,24 +194,7 @@ class _QuestionCardState extends State<QuestionCard>
 
                   if (widget.fotoInicial != null) _buildPhotoPreview(),
 
-                  // Selector de Respuesta
-                  Row(
-                    children: [
-                      _buildModernOption('C', 'CUMPLE', Colors.green.shade600),
-                      const SizedBox(width: 8),
-                      _buildModernOption(
-                        'NC',
-                        'NO CUMPLE',
-                        Colors.red.shade600,
-                      ),
-                      const SizedBox(width: 8),
-                      _buildModernOption(
-                        'N/A',
-                        'N/A',
-                        Colors.blueGrey.shade400,
-                      ),
-                    ],
-                  ),
+                  _buildResponseOptions(),
 
                   // --- FOOTER: Comentar y Criticidad ---
                   const SizedBox(height: 12),
@@ -304,6 +287,38 @@ class _QuestionCardState extends State<QuestionCard>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildResponseOptions() {
+    final options = [
+      _buildModernOption('C', 'CUMPLE', Colors.green.shade600),
+      _buildModernOption('NC', 'NO CUMPLE', Colors.red.shade600),
+      _buildModernOption('N/A', 'N/A', Colors.blueGrey.shade400),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 285) {
+          return Column(
+            children: [
+              options[0],
+              const SizedBox(height: 8),
+              options[1],
+              const SizedBox(height: 8),
+              options[2],
+            ],
+          );
+        }
+        return Row(
+          children: [
+            options[0],
+            const SizedBox(width: 8),
+            options[1],
+            const SizedBox(width: 8),
+            options[2],
+          ],
+        );
+      },
     );
   }
 

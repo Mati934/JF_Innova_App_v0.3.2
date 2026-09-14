@@ -6,6 +6,7 @@ import '../../../../core/utils/rut_utils.dart';
 import '../../../../shared/widgets/custom_dropdown.dart';
 import '../controllers/admin_crud_controller.dart';
 import 'empresa_modulos_screen.dart';
+import 'checklist_nodes_admin_screen.dart';
 
 class MasterDataAdminScreen extends StatefulWidget {
   const MasterDataAdminScreen({super.key});
@@ -32,9 +33,9 @@ class _MasterDataAdminScreenState extends State<MasterDataAdminScreen> {
   @override
   Widget build(BuildContext context) {
     final isSuperAdmin = UserSession().esSuperAdmin;
-    // Admin Maestro: Datos Maestros, Modulos, Usuarios (solo super admin)
+    // Admin Maestro: Datos Maestros, Modulos, Checklists, Usuarios (solo super admin)
     return DefaultTabController(
-      length: isSuperAdmin ? 3 : 2,
+      length: isSuperAdmin ? 4 : 3,
       child: Scaffold(
         resizeToAvoidBottomInset: true,
         appBar: AppBar(
@@ -45,10 +46,14 @@ class _MasterDataAdminScreenState extends State<MasterDataAdminScreen> {
             indicatorColor: Colors.white,
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
-            isScrollable: isSuperAdmin,
+            isScrollable: true,
             tabs: [
               const Tab(icon: Icon(Icons.dataset), text: 'Datos Maestros'),
               const Tab(icon: Icon(Icons.toggle_on), text: 'Modulos'),
+              const Tab(
+                icon: Icon(Icons.fact_check_outlined),
+                text: 'Checklists',
+              ),
               if (isSuperAdmin)
                 const Tab(icon: Icon(Icons.people), text: 'Usuarios'),
             ],
@@ -58,6 +63,7 @@ class _MasterDataAdminScreenState extends State<MasterDataAdminScreen> {
           children: [
             SafeArea(child: _DatosMaestrosTab(controller: _controller)),
             SafeArea(child: const EmpresaModulosScreen(embedded: true)),
+            SafeArea(child: const ChecklistNodesAdminScreen(embedded: true)),
             if (isSuperAdmin)
               SafeArea(child: _UsuariosTab(controller: _controller)),
           ],

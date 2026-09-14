@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../configurable_checklists/presentation/checklist_icons.dart';
+
 /// Tipos de borradores que pueden aparecer en el Home.
 enum DraftKind {
   inspeccionBuceo,
@@ -14,6 +16,7 @@ enum DraftKind {
   mantencionProsesso,
   hidroserGruaHorquilla,
   buceoEquipamiento,
+  checklistConfigurable,
   desconocido,
 }
 
@@ -34,6 +37,13 @@ class DraftCardData {
   final String? horaRango;
   final Map<String, dynamic> raw;
 
+  /// Icono/color específicos (checklists configurables): vienen de
+  /// `checklists.icono` / `checklists.color` para que el borrador use el
+  /// mismo ícono que la tarjeta del checklist en Inicio, en vez de un ícono
+  /// genérico igual para los 5 checklists de Herramientas y Equipos.
+  final String? iconoOverride;
+  final String? colorHexOverride;
+
   const DraftCardData({
     required this.id,
     required this.kind,
@@ -45,9 +55,14 @@ class DraftCardData {
     this.region,
     this.empresa,
     this.horaRango,
+    this.iconoOverride,
+    this.colorHexOverride,
   });
 
   IconData get icon {
+    if (kind == DraftKind.checklistConfigurable && iconoOverride != null) {
+      return checklistIconFromName(iconoOverride);
+    }
     switch (kind) {
       case DraftKind.inspeccionExtintores:
         return Icons.fire_extinguisher;
@@ -57,6 +72,8 @@ class DraftCardData {
         return Icons.engineering;
       case DraftKind.buceoEquipamiento:
         return Icons.scuba_diving;
+      case DraftKind.checklistConfigurable:
+        return Icons.fact_check_outlined;
       case DraftKind.visitaTecnica:
       case DraftKind.visitaChecklistOtro:
         return Icons.assignment_outlined;
@@ -78,6 +95,12 @@ class DraftCardData {
   }
 
   Color get color {
+    if (kind == DraftKind.checklistConfigurable && colorHexOverride != null) {
+      return checklistColorFromHex(
+        colorHexOverride,
+        fallback: Colors.teal.shade700,
+      );
+    }
     switch (kind) {
       case DraftKind.inspeccionExtintores:
         return Colors.red.shade700;
@@ -87,6 +110,8 @@ class DraftCardData {
         return const Color(0xFF0277BD);
       case DraftKind.buceoEquipamiento:
         return const Color(0xFF005B8A);
+      case DraftKind.checklistConfigurable:
+        return Colors.teal.shade700;
       case DraftKind.visitaTecnica:
         return Colors.blue.shade700;
       case DraftKind.visitaChecklistElectricidad:

@@ -380,15 +380,21 @@ CREATE POLICY checklists_read ON public.checklists
     SELECT 1 FROM public.checklist_permission_grants g
     WHERE g.checklist_key = checklists.checklist_key
       AND g.capacidad IN ('ver', 'crear', 'editar_borrador', 'finalizar')
+      AND public.user_has_empresa(g.empresa_id)
       AND (g.usuario_id = auth.uid() OR g.rol_id = (SELECT rol_id FROM public.usuarios WHERE id = auth.uid()))
   ));
 DROP POLICY IF EXISTS checklist_versions_read ON public.checklist_versions;
 CREATE POLICY checklist_versions_read ON public.checklist_versions
-  FOR SELECT TO authenticated
-  USING (public.is_admin_user() OR EXISTS (
-    SELECT 1 FROM public.checklists c
-    WHERE c.checklist_key = checklist_versions.checklist_key
-      AND (c.activo OR public.is_admin_user())
+  FOR SELECT TO authenticated USING (
+    public.is_admin_user() OR EXISTS (
+      SELECT 1
+      FROM public.checklist_permission_grants g
+      LEFT JOIN public.usuarios u ON u.id = auth.uid()
+      WHERE g.checklist_key = checklist_versions.checklist_key
+        AND g.capacidad IN ('ver', 'crear', 'editar_borrador', 'finalizar')
+        AND public.user_has_empresa(g.empresa_id)
+        AND (g.usuario_id = auth.uid() OR g.rol_id = u.rol_id)
+    )
   ));
 DROP POLICY IF EXISTS checklist_nodes_read ON public.checklist_navigation_nodes;
 CREATE POLICY checklist_nodes_read ON public.checklist_navigation_nodes
@@ -442,8 +448,8 @@ REVOKE ALL ON FUNCTION public.next_checklist_correlativo(TEXT) FROM anon, authen
 -- Los modulos existentes se mantienen; solo se agrega la rama generica.
 DROP VIEW IF EXISTS public.historial_unificado;
 CREATE VIEW public.historial_unificado AS
-SELECT a.id::text, 'Inspeccion'::text AS modulo, a.tipo_actividad::text AS tipo_registro,
-  a.estado_final::text AS estado, COALESCE(c.nombre, 'Sin ubicacion') AS ubicacion,
+SELECT a.id::text, 'Inspección'::text AS modulo, a.tipo_actividad::text AS tipo_registro,
+  a.estado_final::text AS estado, COALESCE(c.nombre, 'Sin ubicación') AS ubicacion,
   a.fecha_realizacion::timestamptz AS fecha_realizacion,
   a.numero_informe::text AS numero_reporte, a.pdf_url AS pdf_url,
   NULL::text AS pdf_certificado_url, u.nombre_completo AS inspector_nombre,
@@ -454,11 +460,11 @@ LEFT JOIN public.usuarios u ON u.id = a.usuario_id
 WHERE a.estado_final NOT IN ('Eliminada', 'En Progreso')
 UNION ALL
 SELECT v.id::text,
-       CASE WHEN v.tipo_actividad = 'VISITA_R004' THEN 'Inspeccion Extintores'
-            WHEN v.tipo_actividad = 'MANTENCION_PROSESSO' THEN 'Mantencion de Extintores'
-            ELSE 'Visita Tecnica' END::text,
+       CASE WHEN v.tipo_actividad = 'VISITA_R004' THEN 'Inspección Extintores'
+            WHEN v.tipo_actividad = 'MANTENCION_PROSESSO' THEN 'Mantención de Extintores'
+            ELSE 'Visita Técnica' END::text,
        v.tipo_actividad::text, v.estado_final::text,
-       COALESCE(NULLIF(v.cliente_nombre, ''), NULLIF(v.lugar_visita, ''), 'Sin ubicacion'),
+       COALESCE(NULLIF(v.cliente_nombre, ''), NULLIF(v.lugar_visita, ''), 'Sin ubicación'),
        v.fecha_realizacion::timestamptz, v.cert_numero::text, v.pdf_url,
        v.pdf_certificado_url, u.nombre_completo, 0::integer, v.usuario_id,
        NULL::uuid, NULL::uuid, v.empresa_id
@@ -466,7 +472,7 @@ FROM public.visitas_tecnicas v LEFT JOIN public.usuarios u ON u.id = v.usuario_i
 WHERE v.estado_final NOT IN ('Eliminada', 'En Progreso')
 UNION ALL
 SELECT h.id::text, 'Hidroser'::text, h.lista_codigo::text, h.estado_final::text,
-       COALESCE(NULLIF(hl.nombre, ''), 'Sin ubicacion'), h.fecha_realizacion::timestamptz,
+       COALESCE(NULLIF(hl.nombre, ''), 'Sin ubicación'), h.fecha_realizacion::timestamptz,
        h.correlativo::text, h.pdf_url, NULL::text,
        COALESCE(NULLIF(h.quien_inspecciona, ''), u.nombre_completo), 0::integer,
        h.usuario_id, NULL::uuid, NULL::uuid, h.empresa_id
@@ -477,7 +483,7 @@ WHERE h.estado_final NOT IN ('Eliminada', 'En Progreso')
   AND h.lista_codigo NOT IN ('BUCEO_SAL_20M', 'BUCEO_SAM_36M')
 UNION ALL
 SELECT a.id::text, 'AST'::text, 'AST'::text, a.estado_final::text,
-       COALESCE(NULLIF(a.centro_nombre, ''), NULLIF(a.contratista_nombre, ''), 'Sin ubicacion'),
+       COALESCE(NULLIF(a.centro_nombre, ''), NULLIF(a.contratista_nombre, ''), 'Sin ubicación'),
        a.fecha_realizacion::timestamptz, a.correlativo::text, a.pdf_url, NULL::text,
        COALESCE(NULLIF(a.profesional, ''), u.nombre_completo), 0::integer,
        a.usuario_id, a.centro_id, a.embarcacion_id, a.empresa_id
@@ -485,7 +491,7 @@ FROM public.ast_informes a LEFT JOIN public.usuarios u ON u.id = a.usuario_id
 WHERE a.estado_final NOT IN ('Eliminada', 'En Progreso')
 UNION ALL
 SELECT b.id::text, 'Equipamiento de Buceo'::text, b.lista_codigo::text,
-       b.estado_final::text, COALESCE(NULLIF(bl.nombre, ''), 'Sin ubicacion'),
+       b.estado_final::text, COALESCE(NULLIF(bl.nombre, ''), 'Sin ubicación'),
        b.fecha_realizacion::timestamptz, b.correlativo::text, b.pdf_url, NULL::text,
        COALESCE(NULLIF(b.quien_inspecciona, ''), u.nombre_completo), 0::integer,
        b.usuario_id, NULL::uuid, NULL::uuid, b.empresa_id
@@ -495,10 +501,10 @@ LEFT JOIN public.usuarios u ON u.id = b.usuario_id
 WHERE b.estado_final NOT IN ('Eliminada', 'En Progreso')
 UNION ALL
 SELECT m.id::text,
-       CASE WHEN m.tipo_actividad = 'MERIEUX_EXTINTORES' THEN 'Merieux - Mantencion de Extintores'
+       CASE WHEN m.tipo_actividad = 'MERIEUX_EXTINTORES' THEN 'Merieux - Mantención de Extintores'
             ELSE 'Merieux - Registro de Visita' END::text,
        COALESCE(m.checklist_tipo, m.tipo_actividad)::text, m.estado_final::text,
-       COALESCE(NULLIF(m.area, ''), NULLIF(m.region, ''), 'Sin ubicacion'),
+       COALESCE(NULLIF(m.area, ''), NULLIF(m.region, ''), 'Sin ubicación'),
        m.fecha_realizacion::timestamptz, m.correlativo::text, m.pdf_url, NULL::text,
        COALESCE(NULLIF(m.profesional, ''), u.nombre_completo), 0::integer,
        m.usuario_id, NULL::uuid, NULL::uuid, m.empresa_id
@@ -506,7 +512,7 @@ FROM public.merieux_visitas m LEFT JOIN public.usuarios u ON u.id = m.usuario_id
 WHERE m.estado_final NOT IN ('Eliminada', 'En Progreso') AND m.eliminado = false
 UNION ALL
 SELECT i.id::text, c.nombre::text, c.checklist_key::text, i.estado_final::text,
-       COALESCE(NULLIF(i.campos_extra->>'obra_faena', ''), 'Sin ubicacion'),
+       COALESCE(NULLIF(i.campos_extra->>'obra_faena', ''), 'Sin ubicación'),
        i.fecha_realizacion, i.correlativo, i.pdf_url, NULL::text,
        COALESCE(NULLIF(i.quien_inspecciona, ''), u.nombre_completo), 0::integer,
        i.usuario_id, NULL::uuid, NULL::uuid, i.empresa_id
@@ -530,6 +536,7 @@ CREATE OR REPLACE FUNCTION public.historial_autorizado(
   FROM public.historial_unificado h
   LEFT JOIN public.empresas e ON e.id = h.empresa_id
   WHERE h.estado NOT IN ('Eliminada', 'En Progreso', 'Borrador')
+    AND (p_empresa_id IS NULL OR h.empresa_id = p_empresa_id)
     AND (p_centro_id IS NULL OR h.centro_id = p_centro_id)
     AND (p_modulo IS NULL OR h.modulo = p_modulo)
     AND (p_usuario_id IS NULL OR h.usuario_id = p_usuario_id)

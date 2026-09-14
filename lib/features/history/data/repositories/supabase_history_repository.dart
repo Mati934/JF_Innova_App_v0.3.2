@@ -10,6 +10,10 @@ class SupabaseHistoryRepository {
     String? filtroCentroId,
     String? filtroUsuarioId,
     String? filtroModulo,
+    String? filtroEmbarcacionId,
+    String? filtroAreaId,
+    String? filtroContratistaId,
+    String? filtroTipoInspeccion,
   }) async {
     if (_client.auth.currentUser == null) throw Exception('Sesión nula.');
 
@@ -26,7 +30,7 @@ class SupabaseHistoryRepository {
     );
     final rows = List<Map<String, dynamic>>.from(response);
 
-    return rows.map((item) {
+    final mapeadas = rows.map((item) {
       return {
         'id': item['id'],
         'modulo': item['modulo'],
@@ -42,10 +46,38 @@ class SupabaseHistoryRepository {
         // IDs de contexto usados para pre-rellenar el formulario de tickets
         'centro_id': item['centro_id'],
         'embarcacion_id': item['embarcacion_id'],
+        'area_id': item['area_id'],
+        'contratista_id': item['contratista_id'],
         'subido': 1,
         if (esSuperAdmin) 'empresa_nombre': item['empresa_nombre'],
       };
     }).toList();
+
+    final filtered = mapeadas.where((r) {
+      if (filtroEmbarcacionId != null &&
+          filtroEmbarcacionId.isNotEmpty &&
+          r['embarcacion_id']?.toString() != filtroEmbarcacionId) {
+        return false;
+      }
+      if (filtroAreaId != null &&
+          filtroAreaId.isNotEmpty &&
+          r['area_id']?.toString() != filtroAreaId) {
+        return false;
+      }
+      if (filtroContratistaId != null &&
+          filtroContratistaId.isNotEmpty &&
+          r['contratista_id']?.toString() != filtroContratistaId) {
+        return false;
+      }
+      if (filtroTipoInspeccion != null &&
+          filtroTipoInspeccion.isNotEmpty &&
+          r['tipo_registro']?.toString() != filtroTipoInspeccion) {
+        return false;
+      }
+      return true;
+    }).toList();
+
+    return filtered;
   }
 
   // --- Catálogos ---
@@ -62,6 +94,30 @@ class SupabaseHistoryRepository {
         .from('usuarios')
         .select('id, nombre_completo')
         .order('nombre_completo');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  Future<List<Map<String, dynamic>>> getEmbarcaciones() async {
+    final res = await _client
+        .from('embarcaciones')
+        .select('id, nombre')
+        .order('nombre');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  Future<List<Map<String, dynamic>>> getAreas() async {
+    final res = await _client
+        .from('areas')
+        .select('id, nombre')
+        .order('nombre');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  Future<List<Map<String, dynamic>>> getContratistas() async {
+    final res = await _client
+        .from('contratistas')
+        .select('id, nombre')
+        .order('nombre');
     return List<Map<String, dynamic>>.from(res);
   }
 }

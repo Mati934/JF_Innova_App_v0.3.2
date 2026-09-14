@@ -2114,6 +2114,24 @@ class DatabaseHelper {
         subido INTEGER NOT NULL DEFAULT 0
       )
     ''');
+    // Valores de campos dinámicos (catálogo `checklist_campo_definiciones` +
+    // asignación por checklist en Supabase; espejo local solo de VALORES,
+    // ya que el catálogo viaja embebido en `checklist_versions.snapshot_campos_extra`).
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS checklist_campo_valores_pendientes (
+        id TEXT PRIMARY KEY,
+        inspeccion_id TEXT NOT NULL,
+        campo_id TEXT NOT NULL,
+        clave TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        valor_texto TEXT,
+        valor_numero REAL,
+        valor_fecha TEXT,
+        valor_booleano INTEGER,
+        subido INTEGER NOT NULL DEFAULT 0,
+        UNIQUE (inspeccion_id, campo_id)
+      )
+    ''');
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_checklist_nodes_empresa ON checklist_navigation_nodes(empresa_id, habilitado, orden)',
     );
@@ -2125,6 +2143,9 @@ class DatabaseHelper {
     );
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_checklist_evidencias_insp ON checklist_evidencias_pendientes(inspeccion_id, tipo, orden)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_checklist_campo_valores_insp ON checklist_campo_valores_pendientes(inspeccion_id)',
     );
   }
 
@@ -2684,13 +2705,55 @@ class DatabaseHelper {
     );
   }
 
+  Map<String, dynamic> _navigationNodeRow(Map<String, dynamic> row) => {
+    'node_key': row['node_key'],
+    'empresa_id': row['empresa_id'],
+    'parent_node_key': row['parent_node_key'],
+    'node_type': row['node_type'],
+    'checklist_key': row['checklist_key'],
+    'permission_key': row['permission_key'],
+    'titulo': row['titulo'],
+    'icono': row['icono'],
+    'color': row['color'],
+    'orden': row['orden'] ?? 0,
+    'habilitado': _boolInt(row['habilitado']),
+    'updated_at': row['updated_at']?.toString(),
+  };
+
+  /// Reemplaza el espejo local de nodos de navegacion de una empresa.
+  /// Lo usa el panel de administracion para que Inicio refleje el cambio en
+  /// el acto, sin esperar a la proxima descarga de datos maestros.
+  Future<void> reemplazarNavigationNodesEmpresa(
+    String empresaId,
+    List<Map<String, dynamic>> nodes,
+  ) async {
+    final db = await instance.database;
+    await db.transaction((txn) async {
+      await txn.delete(
+        'checklist_navigation_nodes',
+        where: 'empresa_id = ?',
+        whereArgs: [empresaId],
+      );
+      for (final row in nodes) {
+        await txn.insert(
+          'checklist_navigation_nodes',
+          _navigationNodeRow(row),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
   /// Guarda el catalogo configurable sin borrar el ultimo catalogo valido
   /// cuando una descarga llega vacia durante una sesion offline.
+  ///
+  /// [navigationNodes] en `null` significa "no se pudo descargar" (se conserva
+  /// lo local); una lista vacia SI borra los nodos locales de la empresa.
   Future<void> guardarChecklistCatalogoOffline({
     required List<Map<String, dynamic>> formTypes,
     required List<Map<String, dynamic>> checklists,
     required List<Map<String, dynamic>> versions,
-    required List<Map<String, dynamic>> navigationNodes,
+    required List<Map<String, dynamic>>? navigationNodes,
     required List<Map<String, dynamic>> permissionGrants,
     String? empresaId,
     String? usuarioId,
@@ -2752,7 +2815,7 @@ class DatabaseHelper {
           }, conflictAlgorithm: ConflictAlgorithm.replace);
         }
       }
-      if (empresaId != null && navigationNodes.isNotEmpty) {
+      if (empresaId != null && navigationNodes != null) {
         await txn.delete(
           'checklist_navigation_nodes',
           where: 'empresa_id = ?',
@@ -2761,20 +2824,7 @@ class DatabaseHelper {
         for (final row in navigationNodes) {
           await txn.insert(
             'checklist_navigation_nodes',
-            {
-              'node_key': row['node_key'],
-              'empresa_id': row['empresa_id'],
-              'parent_node_key': row['parent_node_key'],
-              'node_type': row['node_type'],
-              'checklist_key': row['checklist_key'],
-              'permission_key': row['permission_key'],
-              'titulo': row['titulo'],
-              'icono': row['icono'],
-              'color': row['color'],
-              'orden': row['orden'] ?? 0,
-              'habilitado': _boolInt(row['habilitado']),
-              'updated_at': row['updated_at']?.toString(),
-            },
+            _navigationNodeRow(row),
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }

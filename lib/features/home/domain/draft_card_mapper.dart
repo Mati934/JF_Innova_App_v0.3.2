@@ -109,6 +109,23 @@ class DraftCardMapper {
     );
   }
 
+  static DraftCardData fromConfigurableChecklist(Map<String, dynamic> raw) {
+    final checklistKey = (raw['checklist_key'] ?? '').toString();
+    return DraftCardData(
+      id: raw['id'].toString(),
+      kind: DraftKind.checklistConfigurable,
+      title:
+          _firstNonEmpty([raw['checklist_nombre'], checklistKey]) ??
+          'Checklist configurable',
+      centro: _firstNonEmpty([raw['quien_inspecciona']]),
+      fecha: _parseFecha(raw['fecha_realizacion'] ?? raw['created_at']),
+      numeroReporte: _firstNonEmpty([raw['correlativo']]),
+      iconoOverride: raw['checklist_icono']?.toString(),
+      colorHexOverride: raw['checklist_color']?.toString(),
+      raw: raw,
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Helpers privados
   // ---------------------------------------------------------------------------
@@ -166,6 +183,10 @@ class DraftCardMapper {
         return 'Inspección Grúa Horquilla';
       case DraftKind.buceoEquipamiento:
         return 'Inspección Eq. de Buceo';
+      case DraftKind.checklistConfigurable:
+        return fallback?.isNotEmpty == true
+            ? fallback!
+            : 'Checklist configurable';
       case DraftKind.desconocido:
         return fallback?.isNotEmpty == true ? fallback! : 'Borrador';
     }

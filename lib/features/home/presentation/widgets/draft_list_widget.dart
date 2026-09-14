@@ -12,6 +12,8 @@ import '../../../prosesso/presentation/screens/prosesso_form_screen.dart';
 import '../../../buceo_equipment/data/repositories/local_buceo_equipment_repository.dart';
 import '../../../buceo_equipment/domain/models/buceo_equipment_variant.dart';
 import '../../../buceo_equipment/presentation/screens/buceo_equipment_form_screen.dart';
+import '../../../configurable_checklists/data/repositories/local_configurable_checklist_repository.dart';
+import '../../../configurable_checklists/presentation/screens/generic_checklist_form_screen.dart';
 
 class DraftListWidget extends StatelessWidget {
   final HomeController controller;
@@ -115,6 +117,27 @@ class DraftListWidget extends StatelessWidget {
           brandColorDark: Color(0xFF283593),
           brandIcon: Icons.directions_car_filled,
         );
+        break;
+      case DraftKind.checklistConfigurable:
+        {
+          final checklistKey = raw['checklist_key']?.toString() ?? '';
+          final checklist = await LocalConfigurableChecklistRepository()
+              .getChecklist(checklistKey);
+          if (checklist == null) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Error CHECKLIST_CONFIGURACION_NO_DISPONIBLE'),
+                ),
+              );
+            }
+            return;
+          }
+          destino = GenericChecklistFormScreen(
+            checklist: checklist,
+            draftId: card.id,
+          );
+        }
         break;
       case DraftKind.inspeccionBuceo:
       case DraftKind.inspeccionEmbarcacion:

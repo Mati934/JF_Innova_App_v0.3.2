@@ -7,6 +7,7 @@ import '../../domain/models/ticket_model.dart';
 import '../../domain/models/ticket_item_model.dart';
 import '../../domain/models/ticket_historial_entry.dart';
 import '../../domain/models/ticket_notificacion_model.dart';
+import '../../domain/ticket_catalog_filter.dart';
 import '../../domain/ticket_reglas.dart';
 
 /// Se lanza cuando una acción de ciclo de vida no pudo aplicarse porque el
@@ -215,38 +216,43 @@ class TicketRepository {
   Future<Map<String, String>> getNombresEmbarcaciones(List<String> ids) =>
       _resolverNombres('embarcaciones', ids);
 
-  /// Catálogo completo de áreas (para el selector de filtros).
-  Future<List<Map<String, dynamic>>> getCatalogoAreas() async {
-    final rows = await _client
-        .from('areas')
-        .select('id, nombre')
-        .order('nombre');
-    return (rows as List).cast<Map<String, dynamic>>();
-  }
+  /// Catálogo de áreas que tienen al menos un ticket vigente (no eliminado).
+  Future<List<Map<String, dynamic>>> getCatalogoAreas() =>
+      _catalogoConTickets('areas', 'area_id');
 
-  /// Catálogo completo de centros (para el selector de filtros).
-  Future<List<Map<String, dynamic>>> getCatalogoCentros() async {
-    final rows = await _client
-        .from('centros')
-        .select('id, nombre')
-        .order('nombre');
-    return (rows as List).cast<Map<String, dynamic>>();
-  }
+  /// Catálogo de centros que tienen al menos un ticket vigente.
+  Future<List<Map<String, dynamic>>> getCatalogoCentros() =>
+      _catalogoConTickets('centros', 'centro_id');
 
-  /// Catálogo completo de embarcaciones (para el selector de filtros).
-  Future<List<Map<String, dynamic>>> getCatalogoEmbarcaciones() async {
-    final rows = await _client
-        .from('embarcaciones')
-        .select('id, nombre')
-        .order('nombre');
-    return (rows as List).cast<Map<String, dynamic>>();
-  }
+  /// Catálogo de embarcaciones que tienen al menos un ticket vigente.
+  Future<List<Map<String, dynamic>>> getCatalogoEmbarcaciones() =>
+      _catalogoConTickets('embarcaciones', 'embarcacion_id');
 
-  /// Catálogo completo de contratistas (para el selector de filtros).
-  Future<List<Map<String, dynamic>>> getCatalogoContratistas() async {
+  /// Catálogo de contratistas que tienen al menos un ticket vigente.
+  Future<List<Map<String, dynamic>>> getCatalogoContratistas() =>
+      _catalogoConTickets('contratistas', 'contratista_id');
+
+  /// Trae el catalogo completo de [tabla] y lo reduce a las filas cuyo id
+  /// aparece en al menos un ticket no eliminado (columna [columnaTicket]).
+  Future<List<Map<String, dynamic>>> _catalogoConTickets(
+    String tabla,
+    String columnaTicket,
+  ) async {
+    final ticketRows = await _client
+        .from('tickets')
+        .select(columnaTicket)
+        .eq('eliminado', false)
+        .not(columnaTicket, 'is', null);
+    final usedIds = extractDistinctIds(
+      (ticketRows as List).cast<Map<String, dynamic>>(),
+      columnaTicket,
+    );
+    if (usedIds.isEmpty) return [];
+
     final rows = await _client
-        .from('contratistas')
+        .from(tabla)
         .select('id, nombre')
+        .inFilter('id', usedIds.toList())
         .order('nombre');
     return (rows as List).cast<Map<String, dynamic>>();
   }

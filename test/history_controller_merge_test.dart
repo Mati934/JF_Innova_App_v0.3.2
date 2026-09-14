@@ -2,6 +2,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jf_innova_app/features/history/controllers/history_controller.dart';
 
 void main() {
+  group('HistoryController.filter matching', () {
+    test('aplica filtros de area, contratista y tipo de inspeccion', () {
+      final row = {
+        'tipo_registro': 'INSPECCION_BUCEO',
+        'area_id': 'area-1',
+        'contratista_id': 'ct-2',
+      };
+
+      final filters = {
+        'area_id': 'area-1',
+        'contratista_id': 'ct-2',
+        'tipo_inspeccion': 'INSPECCION_BUCEO',
+      };
+
+      expect(HistoryController.matchesHistoryFilters(row, filters), isTrue);
+      expect(
+        HistoryController.matchesHistoryFilters({
+          ...row,
+          'area_id': 'area-9',
+        }, filters),
+        isFalse,
+      );
+    });
+  });
+
   group('HistoryController.mergeCloudAndLocalRecords', () {
     test('prioriza registro de nube cuando ID se repite', () {
       final cloud = [

@@ -21,7 +21,7 @@ class ModuleSelectorGrid extends StatelessWidget {
       crossAxisCount: 2,
       mainAxisSpacing: 14,
       crossAxisSpacing: 14,
-      childAspectRatio: 1.05,
+      childAspectRatio: 0.96,
       children: modules
           .map(
             (mod) => _ModuleCard(
@@ -119,7 +119,7 @@ class _ModuleCard extends StatelessWidget {
                 Text(
                   title,
                   textAlign: TextAlign.center,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
@@ -127,18 +127,20 @@ class _ModuleCard extends StatelessWidget {
                     color: isDisabled ? Colors.grey : Colors.black87,
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    height: 1.2,
-                    color: isDisabled ? Colors.grey : Colors.grey.shade600,
+                if (subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.2,
+                      color: isDisabled ? Colors.grey : Colors.grey.shade600,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
