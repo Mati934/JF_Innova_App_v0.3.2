@@ -83,6 +83,26 @@ class _ChecklistNodesAdminScreenState extends State<ChecklistNodesAdminScreen> {
           .eq('empresa_id', empresaId)
           .order('orden');
       final rows = List<Map<String, dynamic>>.from(data);
+      final tieneHerramientas = rows.any(
+        (row) => herramientasChecklistCatalog.any(
+          (def) => def.checklistKey == row['checklist_key'],
+        ),
+      );
+      if (tieneHerramientas) {
+        try {
+          await _asegurarPermisosHerramientas(empresaId);
+        } catch (e) {
+          debugPrint('Error CHECKLIST_GRANTS_SYNC: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error CHECKLIST_GRANTS_SYNC: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      }
       _nodes = rows.map(ChecklistNavigationNode.fromMap).toList();
       _families = buildChecklistAdminFamilies(_nodes);
       _familyStates
@@ -116,6 +136,61 @@ class _ChecklistNodesAdminScreenState extends State<ChecklistNodesAdminScreen> {
     });
   }
 
+  Future<List<String>> _cargarUsuarioIdsEmpresa(String empresaId) async {
+    final responses = await Future.wait([
+      Supabase.instance.client
+          .from('usuarios')
+          .select('id, empresa_id')
+          .eq('empresa_id', empresaId),
+      Supabase.instance.client
+          .from('usuario_empresas')
+          .select('usuario_id, empresa_id')
+          .eq('empresa_id', empresaId),
+    ]);
+    return resolveEmpresaUserIds(
+      empresaId: empresaId,
+      legacyUsers: List<Map<String, dynamic>>.from(responses[0]),
+      empresaLinks: List<Map<String, dynamic>>.from(responses[1]),
+    );
+  }
+
+  Future<int> _asegurarPermisosHerramientas(String empresaId) async {
+    final usuarioIds = await _cargarUsuarioIdsEmpresa(empresaId);
+    if (usuarioIds.isEmpty) return 0;
+
+    final candidatos = buildHerramientasPermissionGrantRows(
+      empresaId: empresaId,
+      usuarioIds: usuarioIds,
+    );
+    final existentes = await Supabase.instance.client
+        .from('checklist_permission_grants')
+        .select('checklist_key, usuario_id, capacidad')
+        .eq('empresa_id', empresaId)
+        .inFilter(
+          'checklist_key',
+          herramientasChecklistCatalog.map((d) => d.checklistKey).toList(),
+        );
+    final yaExiste = List<Map<String, dynamic>>.from(existentes)
+        .map(
+          (row) =>
+              '${row['checklist_key']}|${row['usuario_id']}|${row['capacidad']}',
+        )
+        .toSet();
+    final nuevos = candidatos
+        .where(
+          (row) => !yaExiste.contains(
+            '${row['checklist_key']}|${row['usuario_id']}|${row['capacidad']}',
+          ),
+        )
+        .toList();
+    if (nuevos.isNotEmpty) {
+      await Supabase.instance.client
+          .from('checklist_permission_grants')
+          .insert(nuevos);
+    }
+    return nuevos.length;
+  }
+
   /// Crea, para la empresa seleccionada, el catalogo de Herramientas y
   /// Equipos (1 grupo + 5 hijos agrupados + 5 sueltos, mas los permisos de
   /// sus usuarios actuales). Es seguro reintentar: usa upsert con
@@ -130,52 +205,8 @@ class _ChecklistNodesAdminScreenState extends State<ChecklistNodesAdminScreen> {
           .from('checklist_navigation_nodes')
           .upsert(nodos, onConflict: 'node_key', ignoreDuplicates: true);
 
-      final usuarios = await Supabase.instance.client
-          .from('usuarios')
-          .select('id')
-          .eq('empresa_id', empresaId);
-      final usuarioIds = List<Map<String, dynamic>>.from(
-        usuarios,
-      ).map((u) => u['id'].toString()).toList();
-
-      if (usuarioIds.isNotEmpty) {
-        final candidatos = buildHerramientasPermissionGrantRows(
-          empresaId: empresaId,
-          usuarioIds: usuarioIds,
-        );
-
-        // checklist_permission_grants solo tiene indices UNICOS PARCIALES
-        // (WHERE usuario_id IS NOT NULL), asi que un upsert con onConflict
-        // fallaria (Postgres no puede inferir un indice parcial desde
-        // Postgrest). En su lugar: leemos lo existente y solo insertamos lo
-        // que falta.
-        final existentes = await Supabase.instance.client
-            .from('checklist_permission_grants')
-            .select('checklist_key, usuario_id, capacidad')
-            .eq('empresa_id', empresaId)
-            .inFilter(
-              'checklist_key',
-              herramientasChecklistCatalog.map((d) => d.checklistKey).toList(),
-            );
-        final yaExiste = List<Map<String, dynamic>>.from(existentes)
-            .map(
-              (r) =>
-                  '${r['checklist_key']}|${r['usuario_id']}|${r['capacidad']}',
-            )
-            .toSet();
-        final nuevos = candidatos
-            .where(
-              (r) => !yaExiste.contains(
-                '${r['checklist_key']}|${r['usuario_id']}|${r['capacidad']}',
-              ),
-            )
-            .toList();
-        if (nuevos.isNotEmpty) {
-          await Supabase.instance.client
-              .from('checklist_permission_grants')
-              .insert(nuevos);
-        }
-      }
+      final usuarioIds = await _cargarUsuarioIdsEmpresa(empresaId);
+      await _asegurarPermisosHerramientas(empresaId);
 
       await _cargarNodosDeEmpresa(empresaId);
       if (!mounted) return;

@@ -2,6 +2,39 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jf_innova_app/features/configurable_checklists/domain/checklist_catalog_seed.dart';
 
 void main() {
+  group('resolveEmpresaUserIds', () {
+    test('includes bridge users when no legacy user has empresa_id', () {
+      final ids = resolveEmpresaUserIds(
+        empresaId: 'empresa-mys',
+        legacyUsers: const [],
+        empresaLinks: const [
+          {'usuario_id': 'supervisor-mys', 'empresa_id': 'empresa-mys'},
+          {'usuario_id': 'dueno-mys', 'empresa_id': 'empresa-mys'},
+        ],
+      );
+
+      expect(ids, ['dueno-mys', 'supervisor-mys']);
+    });
+
+    test('merges legacy and bridge users without duplicates', () {
+      final ids = resolveEmpresaUserIds(
+        empresaId: 'empresa-1',
+        legacyUsers: const [
+          {'id': 'legacy-user', 'empresa_id': 'empresa-1'},
+          {'id': 'shared-user', 'empresa_id': 'empresa-1'},
+          {'id': 'other-user', 'empresa_id': 'empresa-2'},
+        ],
+        empresaLinks: const [
+          {'usuario_id': 'shared-user', 'empresa_id': 'empresa-1'},
+          {'usuario_id': 'bridge-user', 'empresa_id': 'empresa-1'},
+          {'usuario_id': 'other-link', 'empresa_id': 'empresa-2'},
+        ],
+      );
+
+      expect(ids, ['bridge-user', 'legacy-user', 'shared-user']);
+    });
+  });
+
   group('buildHerramientasNavigationRows', () {
     test('creates 1 group + 5 grouped children + 5 flat nodes', () {
       final rows = buildHerramientasNavigationRows(

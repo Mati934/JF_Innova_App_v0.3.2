@@ -140,6 +140,25 @@ const herramientasChecklistCapacidades = <String>[
   'finalizar',
 ];
 
+List<String> resolveEmpresaUserIds({
+  required String empresaId,
+  required List<Map<String, dynamic>> legacyUsers,
+  required List<Map<String, dynamic>> empresaLinks,
+}) {
+  final ids = <String>{};
+  for (final user in legacyUsers) {
+    if (user['empresa_id'] == empresaId && user['id'] != null) {
+      ids.add(user['id'].toString());
+    }
+  }
+  for (final link in empresaLinks) {
+    if (link['empresa_id'] == empresaId && link['usuario_id'] != null) {
+      ids.add(link['usuario_id'].toString());
+    }
+  }
+  return ids.toList()..sort();
+}
+
 /// Filas listas para upsert en checklist_permission_grants: le da a cada
 /// usuario de la empresa las 4 capacidades sobre los 5 checklists.
 List<Map<String, dynamic>> buildHerramientasPermissionGrantRows({

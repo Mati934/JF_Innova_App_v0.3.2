@@ -34,38 +34,59 @@ class _TicketListScreenState extends State<TicketListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: _ctrl,
-      builder: (context, _) {
-        return Scaffold(
-          backgroundColor: const Color(0xFFF4F6F8),
-          appBar: GradientAppBar(
-            title: const Text('Tickets'),
-            actions: [
-              if (!_ctrl.isBlocked)
-                IconButton(
-                  icon: const Icon(Icons.filter_list_rounded),
-                  tooltip: 'Filtros',
-                  onPressed: _openFilterSheet,
-                ),
-            ],
-          ),
-          floatingActionButton: _ctrl.isBlocked
-              ? null
-              : FloatingActionButton.extended(
-                  onPressed: _onNuevoTicket,
-                  backgroundColor: AppTheme.primaryBlue,
-                  foregroundColor: Colors.white,
-                  icon: const Icon(Icons.add, color: Colors.white),
-                  label: const Text(
-                    'Nuevo ticket',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-          body: _buildBody(),
-        );
+    return PopScope<void>(
+      canPop: _selectedAreaKey == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _volverAlResumen();
       },
+      child: ListenableBuilder(
+        listenable: _ctrl,
+        builder: (context, _) {
+          return Scaffold(
+            backgroundColor: const Color(0xFFF4F6F8),
+            appBar: GradientAppBar(
+              leading: _selectedAreaKey != null
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      tooltip: 'Volver al resumen general',
+                      onPressed: _volverAlResumen,
+                    )
+                  : null,
+              title: const Text('Tickets'),
+              actions: [
+                if (!_ctrl.isBlocked)
+                  IconButton(
+                    icon: const Icon(Icons.filter_list_rounded),
+                    tooltip: 'Filtros',
+                    onPressed: _openFilterSheet,
+                  ),
+              ],
+            ),
+            floatingActionButton: _ctrl.isBlocked
+                ? null
+                : FloatingActionButton.extended(
+                    onPressed: _onNuevoTicket,
+                    backgroundColor: AppTheme.primaryBlue,
+                    foregroundColor: Colors.white,
+                    icon: const Icon(Icons.add, color: Colors.white),
+                    label: const Text(
+                      'Nuevo ticket',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+            body: SafeArea(top: false, child: _buildBody()),
+          );
+        },
+      ),
     );
+  }
+
+  void _volverAlResumen() {
+    if (_selectedAreaKey == null || !mounted) return;
+    setState(() {
+      _selectedAreaKey = null;
+      _selectedAreaName = null;
+    });
   }
 
   Widget _buildBody() {
@@ -146,10 +167,7 @@ class _TicketListScreenState extends State<TicketListScreen> {
               children: [
                 OutlinedButton.icon(
                   onPressed: () {
-                    setState(() {
-                      _selectedAreaKey = null;
-                      _selectedAreaName = null;
-                    });
+                    _volverAlResumen();
                   },
                   icon: const Icon(Icons.arrow_back, size: 16),
                   label: const Text('Volver a áreas'),
@@ -542,7 +560,7 @@ class _GlobalSummaryCard extends StatelessWidget {
                           ),
                         ),
                         const Text(
-                          'Cumplido',
+                          'Logrado',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
