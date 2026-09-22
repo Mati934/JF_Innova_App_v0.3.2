@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/buceo_verificacion_model.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/participante_model.dart';
+import 'package:jf_innova_app/core/utils/rut_utils.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/models/formulario_item.dart';
@@ -29,101 +30,72 @@ class LocalInspectionRepository implements InspectionRepository {
   }
 
   Future<void> eliminarBorrador(String activityId) async {
-    final db = await dbHelper.database;
-    final supabase = Supabase.instance.client;
+    final db = await DatabaseHelper.instance.database;
 
-    try {
-      // 1. Borrar de Supabase (Si alcanzó a subirse)
-      // Gracias a 'ON DELETE CASCADE' en tu SQL, borrar la actividad borrará sus hijos
-      await supabase.from('actividades').delete().eq('id', activityId);
+    // MALA PRÁCTICA (Lo que estabas haciendo):
+    // await db.delete('actividades_pendientes', where: 'id = ?', whereArgs: [activityId]);
 
-      // 2. Borrar de SQLite
-      await db.delete(
-        'fotos_pendientes',
-        where: 'actividad_id = ?',
-        whereArgs: [activityId],
-      );
-      await db.delete(
-        'inspeccion_respuestas_pendientes',
-        where: 'actividad_id = ?',
-        whereArgs: [activityId],
-      );
-      await db.delete(
-        'verificaciones_buceo',
-        where: 'actividad_id = ?',
-        whereArgs: [activityId],
-      );
-      await db.delete(
-        'actividad_participantes',
-        where: 'actividad_id = ?',
-        whereArgs: [activityId],
-      );
-      await db.delete(
-        'actividades_pendientes',
-        where: 'id = ?',
-        whereArgs: [activityId],
-      );
-
-      debugPrint("🗑️ Inspección eliminada de local y nube: $activityId");
-    } catch (e) {
-      debugPrint("❌ Error eliminando: $e");
-    }
+    // BUENA PRÁCTICA (Soft Delete local):
+    // Lo marcamos como eliminado y le decimos 'subido = 0' para que el SyncService lo procese.
+    await db.update(
+      'actividades_pendientes',
+      {'eliminado': 1, 'subido': 0},
+      where: 'id = ?',
+      whereArgs: [activityId],
+    );
   }
 
+  // --- MÉTODO CORREGIDO: Soporte PDF y Limpieza de Estado ---
   Future<void> saveActividad({
     required String id,
     required String tipoActividad,
     required String? centroId,
     required DateTime fecha,
+    required bool esBorrador, // 👈 EL JEFE DEL ESTADO
     String? usuarioId,
     String? contratistaId,
     String? embarcacionId,
-    String? estado,
     String? numeroReporte,
+    int? numeroSeguimiento,
+    String? pdfUrl, // 👈 NUEVO: Recibimos la URL del PDF
   }) async {
     final db = await dbHelper.database;
+
+    // LÓGICA DE ESTADO (Source of Truth)
+    final estadoFinal = esBorrador ? 'En Progreso' : 'En Seguimiento';
+
     try {
-      // 1. Intentamos ACTUALIZAR primero (Operación Segura)
-      // Esto mantiene el mismo ID y NO dispara el borrado en cascada.
-      int count = await db.update(
+      final datos = {
+        'id': id,
+        'tipo_actividad': tipoActividad,
+        'centro_id': centroId,
+        'usuario_id': usuarioId,
+        'contratista_id': contratistaId,
+        'embarcacion_id': embarcacionId,
+        'fecha_realizacion': fecha.toIso8601String(),
+        'subido': 0, // Siempre reset a 0 al guardar cambios
+        'estado_final': estadoFinal,
+        'puerto_abierto': 1,
+        'numero_reporte': numeroReporte,
+        'numero_seguimiento': numeroSeguimiento ?? 0,
+        // Si pdfUrl viene nulo (ej: guardando borrador), no lo sobrescribimos con null
+        // a menos que quieras borrarlo. Aquí asumimos que si viene, se guarda.
+      };
+
+      if (pdfUrl != null) {
+        datos['pdf_url'] = pdfUrl;
+      }
+
+      await db.insert(
         'actividades_pendientes',
-        {
-          'tipo_actividad': tipoActividad,
-          'centro_id': centroId,
-          'usuario_id': usuarioId,
-          'contratista_id': contratistaId,
-          'embarcacion_id': embarcacionId,
-          'fecha_realizacion': fecha.toIso8601String(),
-          'subido': 0,
-          'estado_final': estado ?? 'En Progreso',
-          'puerto_abierto': 1,
-          'numero_reporte': numeroReporte,
-        },
-        where: 'id = ?',
-        whereArgs: [id],
+        datos,
+        conflictAlgorithm: ConflictAlgorithm.replace,
       );
 
-      // 2. Si count es 0, significa que no existe. INSERTAMOS.
-      if (count == 0) {
-        await db.insert('actividades_pendientes', {
-          'id': id,
-          'tipo_actividad': tipoActividad,
-          'centro_id': centroId,
-          'usuario_id': usuarioId,
-          'contratista_id': contratistaId,
-          'embarcacion_id': embarcacionId,
-          'fecha_realizacion': fecha.toIso8601String(),
-          'subido': 0,
-          'estado_final': estado ?? 'En Progreso',
-          'puerto_abierto': 1,
-        });
-        debugPrint("💾 ACTIVIDAD CREADA: $id");
-      } else {
-        debugPrint("💾 ACTIVIDAD ACTUALIZADA: $id");
-      }
+      debugPrint("💾 ACTIVIDAD GUARDADA: $id | Estado: $estadoFinal");
     } catch (e) {
       debugPrint("❌ ERROR AL GUARDAR ACTIVIDAD: $e");
-      throw e;
+      rethrow;
     }
   }
 
@@ -158,7 +130,7 @@ class LocalInspectionRepository implements InspectionRepository {
           'estado': resp['estado'],
           'observacion': resp['observacion'],
           'criticidad_registrada': resp['criticidad_registrada'],
-          'subido': 0, // Marcamos como pendiente de subida
+          'subido': 0,
         });
       }
       await batch.commit(noResult: true);
@@ -176,8 +148,6 @@ class LocalInspectionRepository implements InspectionRepository {
     required String descripcion,
   }) async {
     final db = await dbHelper.database;
-
-    // 1. Preparar rutas
     final directory = await getApplicationDocumentsDirectory();
     final folderPath = '${directory.path}/inspecciones_img';
     final folder = Directory(folderPath);
@@ -187,32 +157,20 @@ class LocalInspectionRepository implements InspectionRepository {
     }
 
     String permanentPath;
-
-    // 2. COPIA BLINDADA
-    // Si la foto ya está en nuestra carpeta segura, no hacemos nada extra
     if (file.path.contains(folderPath)) {
       permanentPath = file.path;
     } else {
-      // Si viene de la cámara (caché), creamos un nombre único y copiamos
       final fileName =
           '${DateTime.now().millisecondsSinceEpoch}_${itemId ?? "general"}.jpg';
       permanentPath = '$folderPath/$fileName';
-
       final sourceFile = File(file.path);
       if (await sourceFile.exists()) {
-        // AWAIT IMPORTANTE: Esperamos a que la copia termine sí o sí
         await sourceFile.copy(permanentPath);
-        debugPrint("📸 Foto asegurada en disco: $permanentPath");
       } else {
-        // Si Android borró la caché milisegundos antes, lanzamos error para saberlo
-        throw Exception(
-          "El archivo original desapareció antes de poder copiarlo.",
-        );
+        throw Exception("El archivo original desapareció.");
       }
     }
 
-    // 3. GUARDAMOS EN BASE DE DATOS
-    // Si es una foto de pregunta (itemId != null), borramos la anterior para no acumular basura
     if (itemId != null) {
       await db.delete(
         'fotos_pendientes',
@@ -221,7 +179,6 @@ class LocalInspectionRepository implements InspectionRepository {
       );
     }
 
-    // Insertamos el registro de la foto
     await db.insert('fotos_pendientes', {
       'actividad_id': activityId,
       'item_id': itemId,
@@ -230,25 +187,25 @@ class LocalInspectionRepository implements InspectionRepository {
       'subido': 0,
     });
 
-    // 4. RETORNAMOS LA RUTA SEGURA
     return permanentPath;
   }
 
   @override
   Future<List<Map<String, dynamic>>> getBorradores() async {
     final db = await dbHelper.database;
+    final userId = Supabase.instance.client.auth.currentUser?.id;
     try {
-      // --- FIX: Quitamos el filtro 'subido = 0' ---
-      // Queremos ver TODOS los borradores locales, aunque ya se hayan respaldado en la nube.
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT a.*, c.nombre as nombre_centro 
         FROM actividades_pendientes a
         LEFT JOIN centros c ON a.centro_id = c.id
-        WHERE a.estado_final = 'En Progreso'
+        WHERE a.estado_final = 'En Progreso' AND a.eliminado = 0
+          AND a.usuario_id = ?
         ORDER BY a.fecha_realizacion DESC
-      ''');
-
-      debugPrint("📋 Borradores recuperados para la UI: ${result.length}");
+      ''',
+        [userId ?? ''],
+      );
       return result;
     } catch (e) {
       debugPrint("❌ ERROR LEYENDO BORRADORES: $e");
@@ -288,11 +245,12 @@ class LocalInspectionRepository implements InspectionRepository {
       whereArgs: [activityId],
     );
   }
-  // --- MÉTODOS PARA BUCEO (AGREGAR ESTO A TU REPOSITORIO EXISTENTE) ---
+
+  // --- MÉTODOS ESPECÍFICOS DE BUCEO ---
 
   @override
   Future<void> guardarVerificacionesBuceo(BuceoVerificacionModel data) async {
-    final db = await DatabaseHelper.instance.database; // O como accedas a tu DB
+    final db = await dbHelper.database;
     await db.insert(
       'verificaciones_buceo',
       data.toMap(),
@@ -304,17 +262,13 @@ class LocalInspectionRepository implements InspectionRepository {
   Future<BuceoVerificacionModel?> getVerificacionesBuceo(
     String activityId,
   ) async {
-    final db = await DatabaseHelper.instance.database;
+    final db = await dbHelper.database;
     final res = await db.query(
       'verificaciones_buceo',
       where: 'actividad_id = ?',
       whereArgs: [activityId],
     );
-
-    if (res.isNotEmpty) {
-      return BuceoVerificacionModel.fromMap(res.first);
-    }
-    return null;
+    return res.isNotEmpty ? BuceoVerificacionModel.fromMap(res.first) : null;
   }
 
   @override
@@ -322,28 +276,25 @@ class LocalInspectionRepository implements InspectionRepository {
     String activityId,
     List<ParticipanteModel> participantes,
   ) async {
-    final db = await DatabaseHelper.instance.database;
+    final db = await dbHelper.database;
     await db.transaction((txn) async {
-      // 1. Limpiar lista anterior
       await txn.delete(
         'actividad_participantes',
         where: 'actividad_id = ?',
         whereArgs: [activityId],
       );
 
-      // 2. Insertar nueva lista
       for (var p in participantes) {
-        // Asegurar que el personal exista (si es temporal/nuevo)
+        // CAMBIO: Usamos replace para actualizar matrícula si el buzo ya existe
         await txn.insert('personal_externo', {
           'id': p.personalId,
           'nombre_completo': p.nombreCompleto,
-          'rut': p.rut,
-          'cargo': p.cargo, // Guardamos el cargo por defecto
+          'rut': RutUtils.normalize(p.rut),
+          'cargo': p.cargo,
           'activo': 1,
           'matricula': p.matricula,
-        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
 
-        // Crear la relación
         await txn.insert('actividad_participantes', {
           'actividad_id': activityId,
           'personal_id': p.personalId,
@@ -356,192 +307,259 @@ class LocalInspectionRepository implements InspectionRepository {
 
   @override
   Future<List<ParticipanteModel>> getParticipantes(String activityId) async {
-    final db = await DatabaseHelper.instance.database;
-
-    // Hacemos un JOIN manual o consulta anidada
+    final db = await dbHelper.database;
     final res = await db.rawQuery(
       '''
-      SELECT 
-        ap.personal_id, 
-        p.nombre_completo, 
-        p.rut,
-        p.matricula,
-        ap.rol_en_faena, 
-        ap.condiciones_optimas
+      SELECT ap.personal_id, p.nombre_completo, p.rut, p.matricula, p.contratista_id, ap.rol_en_faena, ap.condiciones_optimas
       FROM actividad_participantes ap
       INNER JOIN personal_externo p ON ap.personal_id = p.id
       WHERE ap.actividad_id = ?
     ''',
       [activityId],
     );
-
     return res.map((row) => ParticipanteModel.fromMap(row)).toList();
   }
 
+  // --- TRANSACCIÓN MAESTRA (Con soporte para PDF_URL) ---
   Future<void> saveInspeccionCompleta({
     required Map<String, dynamic> actividad,
     required List<Map<String, dynamic>> respuestas,
-    List<Map<String, dynamic>>? participantes, // Opcional
-    Map<String, dynamic>? verificacionesBuceo, // Opcional
-    List<Map<String, dynamic>>? fotos, // <--- NUEVO PARÁMETRO
+    required bool esBorrador, // 👈 PARAMETRO CLAVE
+    List<Map<String, dynamic>>? participantes,
+    Map<String, dynamic>? verificacionesBuceo,
+    Map<String, dynamic>? verificacionesEmbarcacion,
+    List<Map<String, dynamic>>? fotos,
   }) async {
-    // 1. Instancia DB
-    final db = await DatabaseHelper.instance.database;
+    final db = await dbHelper.database;
 
-    // 2. TRANSACCIÓN ATÓMICA
+    // DETERMINAMOS ESTADO
+    final estadoFinal = esBorrador ? 'En Progreso' : 'En Seguimiento';
+
     await db.transaction((txn) async {
-      debugPrint('💾 TXN: Iniciando guardado atómico...');
+      debugPrint('💾 TXN: Iniciando guardado ($estadoFinal)...');
 
-      // --- A. GUARDAR PADRE (ACTIVIDAD) ---
+      // 1. GUARDAR ACTIVIDAD
       final actividadMap = Map<String, dynamic>.from(actividad);
-      actividadMap['subido'] = 0; // Reset para sync
+      actividadMap['subido'] = 0;
+      actividadMap['estado_final'] = estadoFinal;
+      // Nota: Como 'actividad' viene del Controller, ya debería traer 'pdf_url' si existe.
+      // El insert lo guardará automáticamente si la columna existe en SQLite.
 
-      int count = await txn.update(
+      await txn.insert(
         'actividades_pendientes',
         actividadMap,
-        where: 'id = ?',
-        whereArgs: [actividadMap['id']],
+        conflictAlgorithm: ConflictAlgorithm.replace,
       );
 
-      if (count == 0) {
-        await txn.insert('actividades_pendientes', actividadMap);
-      }
-
-      // --- B. GUARDAR HIJOS (RESPUESTAS) ---
+      // 2. GUARDAR RESPUESTAS
       final batch = txn.batch();
-
       for (var resp in respuestas) {
         batch.delete(
           'inspeccion_respuestas_pendientes',
           where: 'actividad_id = ? AND item_id = ?',
           whereArgs: [resp['actividad_id'], resp['item_id']],
         );
-
         final respuestaConFlag = Map<String, dynamic>.from(resp);
         respuestaConFlag['subido'] = 0;
         batch.insert('inspeccion_respuestas_pendientes', respuestaConFlag);
       }
 
-      // --- C. GUARDAR VERIFICACIONES DE BUCEO ---
+      // 3. VERIFICACIONES (Buceo o Embarcación)
       if (verificacionesBuceo != null) {
         if (!verificacionesBuceo.containsKey('actividad_id')) {
           verificacionesBuceo['actividad_id'] = actividad['id'];
         }
-        int vCount = await txn.update(
+        batch.insert(
           'verificaciones_buceo',
           verificacionesBuceo,
-          where: 'actividad_id = ?',
-          whereArgs: [verificacionesBuceo['actividad_id']],
+          conflictAlgorithm: ConflictAlgorithm.replace,
         );
-        if (vCount == 0) {
-          batch.insert('verificaciones_buceo', verificacionesBuceo);
-        }
       }
 
-      // --- D. GUARDAR PARTICIPANTES ---
+      if (verificacionesEmbarcacion != null) {
+        if (!verificacionesEmbarcacion.containsKey('actividad_id')) {
+          verificacionesEmbarcacion['actividad_id'] = actividad['id'];
+        }
+        batch.insert(
+          'verificaciones_embarcacion',
+          verificacionesEmbarcacion,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      // 4. PARTICIPANTES
       if (participantes != null) {
-        // Quitamos el isNotEmpty para permitir vaciar lista
         batch.delete(
           'actividad_participantes',
           where: 'actividad_id = ?',
           whereArgs: [actividad['id']],
         );
-
         for (var p in participantes) {
-          // Upsert Persona
-          final datosPersona = {
+          // CAMBIO: Usamos replace para actualizar matrícula si el buzo ya existe
+          batch.insert('personal_externo', {
             'id': p['personal_id'],
             'nombre_completo': p['nombre_completo'],
-            'rut': p['rut'],
+            'rut': RutUtils.normalize(p['rut'] ?? ''),
             'cargo': p['cargo'],
             'activo': 1,
-          };
-          batch.insert(
-            'personal_externo',
-            datosPersona,
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
+            'matricula': p['matricula'],
+            'contratista_id': p['contratista_id'],
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
 
-          // Relación
-          final datosRelacion = {
-            'actividad_id':
-                p['actividad_id'], // Asegúrate que el controller mande esto
+          batch.insert('actividad_participantes', {
+            'actividad_id': actividad['id'],
             'personal_id': p['personal_id'],
             'rol_en_faena': p['rol_en_faena'],
-            'condiciones_optimas': p['condiciones_optimas'],
-          };
-          batch.insert('actividad_participantes', datosRelacion);
+            'condiciones_optimas':
+                (p['condiciones_optimas'] == true ||
+                    p['condiciones_optimas'] == 1)
+                ? 1
+                : 0,
+          });
         }
       }
 
-      // --- E. GUARDAR FOTOS (NUEVA LÓGICA) ---
-      // IMPORTANTE: Si fotos es null, NO tocamos nada (asumimos guardado parcial).
-      // Si fotos es una lista (aunque sea vacía), aplicamos "Source of Truth".
+      // 5. FOTOS
       if (fotos != null) {
-        // 1. Limpieza de registros en DB (NO borra archivos físicos)
+        // AÑADE ESTA LÍNEA PARA MATAR DUPLICADOS
         batch.delete(
           'fotos_pendientes',
           where: 'actividad_id = ?',
           whereArgs: [actividad['id']],
         );
 
-        // 2. Inserción masiva del estado actual del Controller
         for (var f in fotos) {
           final fotoMap = Map<String, dynamic>.from(f);
-          fotoMap['subido'] = 0; // Reset para sync
-          // Aseguramos IDs por si el Controller viene flojo
+          fotoMap['subido'] = 0;
           fotoMap['actividad_id'] = actividad['id'];
+          // ... quítale la clave 'id' a fotoMap si la trae, para que SQLite genere una nueva
+          fotoMap.remove('id');
 
-          batch.insert('fotos_pendientes', fotoMap);
+          batch.insert(
+            'fotos_pendientes',
+            fotoMap,
+          ); // Ya no necesitas conflictAlgorithm
         }
       }
 
-      // --- F. EJECUTAR LOTE ---
-      await batch.commit(noResult: false);
-      debugPrint('✅ TXN: Guardado completo y exitoso.');
+      await batch.commit(noResult: true);
+      debugPrint('✅ TXN: Guardado exitoso. Estado final: $estadoFinal');
     });
   }
-  // En local_inspection_repository.dart
 
-  Future<String?> sugerirSiguienteNumeroReporte(String usuarioId) async {
-    final db = await dbHelper.database;
+  /// Estima el siguiente numero_informe consultando Supabase (online) o SQLite (offline).
+  /// Retorna el número estimado como String, o null si no hay datos.
+  Future<String?> estimarSiguienteNumeroInforme(String tipoActividad) async {
+    // 1. Intentar online: consultar MAX(numero_informe) de Supabase
     try {
-      // 1. La Query ahora tiene un WHERE usuario_id = ?
-      final result = await db.rawQuery(
-        '''
-        SELECT numero_reporte 
-        FROM actividades_pendientes 
-        WHERE usuario_id = ? 
-          AND numero_reporte IS NOT NULL 
-          AND numero_reporte != ""
-        ''',
-        [usuarioId], // Pasamos el ID del usuario actual para filtrar
-      );
+      final supabase = Supabase.instance.client;
+      final result = await supabase
+          .from('actividades')
+          .select('numero_informe')
+          .eq('tipo_actividad', tipoActividad)
+          .not('numero_informe', 'is', null)
+          .order('numero_informe', ascending: false)
+          .limit(1)
+          .maybeSingle();
 
-      int maxNum = 0;
-
-      // 2. Filtramos en Dart (Más seguro que hacer Regex en SQLite antiguo)
-      for (var row in result) {
-        final val = row['numero_reporte'] as String;
-        // Si es puramente numérico (ej: "105"), lo tomamos en cuenta
-        if (RegExp(r'^[0-9]+$').hasMatch(val)) {
-          final num = int.tryParse(val);
-          if (num != null && num > maxNum) {
-            maxNum = num;
-          }
+      if (result != null && result['numero_informe'] != null) {
+        final maxNum = result['numero_informe'];
+        if (maxNum is int) {
+          return (maxNum + 1).toString();
+        }
+        final parsed = int.tryParse(maxNum.toString());
+        if (parsed != null) {
+          return (parsed + 1).toString();
         }
       }
-
-      // 3. Si encontramos algo, devolvemos el siguiente (max + 1)
-      if (maxNum > 0) {
-        return (maxNum + 1).toString();
-      }
-
-      // Si no hay nada local, devolvemos null (para que el Controller decida o lo deje vacío)
+      // Si no hay registros en Supabase, retornar "1"
       return "1";
     } catch (e) {
-      debugPrint("⚠️ Error calculando siguiente informe: $e");
+      debugPrint("⚠️ Estimación online falló, usando SQLite: $e");
+    }
+
+    // 2. Fallback offline: usar SQLite local
+    return sugerirSiguienteNumeroReporte(tipoActividad);
+  }
+
+  Future<String?> sugerirSiguienteNumeroReporte(String tipoActividad) async {
+    final db = await dbHelper.database;
+    try {
+      final result = await db.rawQuery(
+        '''
+        SELECT numero_reporte FROM actividades_pendientes 
+        WHERE tipo_actividad = ? AND numero_reporte IS NOT NULL AND numero_reporte != ""
+        ''',
+        [tipoActividad], // Ya no filtramos por centro_id
+      );
+      int maxNum = 0;
+      for (var row in result) {
+        final val = row['numero_reporte'] as String?;
+        if (val != null && RegExp(r'^[0-9]+$').hasMatch(val)) {
+          final num = int.tryParse(val);
+          if (num != null && num > maxNum) maxNum = num;
+        }
+      }
+      return maxNum > 0 ? (maxNum + 1).toString() : null;
+    } catch (e) {
+      debugPrint("❌ Error calculando siguiente informe: $e");
       return null;
     }
+  }
+
+  // Añadir dentro de LocalInspectionRepository
+  Future<ParticipanteModel?> getPersonalByRut(String rut) async {
+    final db = await dbHelper.database;
+    final normalized = RutUtils.normalize(rut);
+    if (normalized.isEmpty) return null;
+
+    // Buscar por RUT normalizado (compatible con datos legacy sin normalizar)
+    final res = await db.rawQuery(
+      '''SELECT * FROM personal_externo
+         WHERE REPLACE(REPLACE(REPLACE(LOWER(rut), '.', ''), '-', ''), ' ', '') = ?
+         LIMIT 1''',
+      [normalized],
+    );
+
+    if (res.isNotEmpty) {
+      final map = res.first;
+      return ParticipanteModel(
+        personalId: map['id'] as String,
+        nombreCompleto: map['nombre_completo'] as String,
+        rut: map['rut'] as String,
+        cargo: map['cargo'] as String? ?? 'Buzo',
+        matricula: map['matricula'] as String? ?? '',
+        contratistaId:
+            map['contratista_id'] as String?, // <--- AGREGAR CONTRATISTA_ID
+        condicionesOptimas: true, // Default por negocio
+      );
+    }
+    return null;
+  }
+
+  // --- MÉTODOS ESPECÍFICOS DE EMBARCACIONES ---
+  Future<void> guardarVerificacionesEmbarcacion(
+    String activityId,
+    Map<String, dynamic> data,
+  ) async {
+    final db = await dbHelper.database;
+    data['actividad_id'] = activityId; // Seguro de integridad
+    await db.insert(
+      'verificaciones_embarcacion',
+      data,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<Map<String, dynamic>?> getVerificacionesEmbarcacion(
+    String activityId,
+  ) async {
+    final db = await dbHelper.database;
+    final res = await db.query(
+      'verificaciones_embarcacion',
+      where: 'actividad_id = ?',
+      whereArgs: [activityId],
+    );
+    return res.isNotEmpty ? res.first : null;
   }
 }

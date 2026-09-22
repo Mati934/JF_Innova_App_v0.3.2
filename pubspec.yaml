@@ -16,8 +16,8 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
-
+version: 0.7.5+57
+# 0.7.3+43 28-05-2026, ultima vez que se subió a producción, no es necesario subir una version por ahora
 environment:
   sdk: ^3.10.4
 
@@ -30,6 +30,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  intl: ^0.20.2
   flutter_localizations: 
     sdk: flutter
   cupertino_icons: ^1.0.8
@@ -45,6 +46,18 @@ dependencies:
   printing: ^5.11.0
   flutter_image_compress: ^2.3.0
   path: ^1.9.0
+  image: ^4.5.4
+  url_launcher: ^6.2.0
+  dropdown_search: ^6.0.0
+  animated_custom_dropdown: ^3.1.1
+  package_info_plus: ^8.0.0
+  firebase_core: ^4.4.0
+  firebase_crashlytics: ^5.0.7
+  signature: ^5.5.0
+  connectivity_plus: ^6.1.4
+  provider: any
+  http: ^1.2.0
+  flutter_email_sender: ^8.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -55,6 +68,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  sqflite_common_ffi: ^2.4.0+3
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

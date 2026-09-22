@@ -1,5 +1,6 @@
 import 'package:jf_innova_app/features/inspection/domain/models/buceo_verificacion_model.dart';
 import 'package:jf_innova_app/features/inspection/domain/models/participante_model.dart';
+import 'package:jf_innova_app/core/utils/rut_utils.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -99,8 +100,9 @@ class SupabaseInspectionRepository implements InspectionRepository {
             'id': p
                 .personalId, // OJO: Si usas IDs temporales locales, esto podría dar conflicto en la nube si no son UUIDs válidos.
             'nombre_completo': p.nombreCompleto,
-            'rut': p.rut,
+            'rut': RutUtils.normalize(p.rut),
             'cargo': p.cargo,
+            'matricula': p.matricula,
             'activo': true,
           },
         )
@@ -144,6 +146,9 @@ class SupabaseInspectionRepository implements InspectionRepository {
         nombreCompleto: personal['nombre_completo'] ?? '',
         rut: personal['rut'] ?? '',
         cargo: item['rol_en_faena'], // El rol específico de esta faena
+        matricula: personal['matricula'] ?? '', // <--- AGREGAR MATRICULA
+        contratistaId:
+            personal['contratista_id'], // <--- AGREGAR CONTRATISTA_ID
         condicionesOptimas: item['condiciones_optimas'] == true,
       );
     }).toList();
