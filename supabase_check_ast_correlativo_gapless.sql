@@ -91,3 +91,39 @@ SELECT to_regclass('public.ast_correlativo_counters') AS counter_table;
 
 -- 7) Estado de secuencia historica (si existe)
 SELECT to_regclass('public.ast_correlativo_seq') AS legacy_sequence;
+
+-- 8) Contador guardado vs. correlativos realmente usados (detecta "quemados")
+-- Si ultimo_numero > usados, hay incrementos del contador que no quedaron
+-- en ninguna fila final (numeros quemados por reintentos/insert fallido fuera
+-- de la transaccion del trigger, o por llamadas directas a la funcion).
+WITH parsed AS (
+  SELECT
+    ((regexp_match(correlativo, '^AST-([0-9]{4})-([0-9]+)$'))[1])::int AS anio,
+    ((regexp_match(correlativo, '^AST-([0-9]{4})-([0-9]+)$'))[2])::bigint AS numero
+  FROM public.ast_informes
+  WHERE correlativo ~ '^AST-[0-9]{4}-[0-9]+$'
+),
+usados AS (
+  SELECT anio, COUNT(*) AS usados, MAX(numero) AS max_usado
+  FROM parsed
+  GROUP BY anio
+)
+SELECT
+  c.anio,
+  c.ultimo_numero AS contador_guardado,
+  u.usados,
+  u.max_usado,
+  (c.ultimo_numero - u.max_usado) AS numeros_quemados_no_reflejados_en_max,
+  (c.ultimo_numero - u.usados) AS numeros_quemados_total
+FROM public.ast_correlativo_counters c
+LEFT JOIN usados u ON u.anio = c.anio
+ORDER BY c.anio DESC;
+
+-- 9) Codigo fuente real de las funciones (por si alguien las edito despues
+-- de aplicar la migracion original)
+SELECT p.proname AS function_name, pg_get_functiondef(p.oid) AS definicion
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+  AND p.proname IN ('next_ast_correlativo', 'next_ast_correlativo_gapless', 'assign_ast_correlativo')
+ORDER BY p.proname;
