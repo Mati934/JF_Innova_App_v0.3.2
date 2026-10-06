@@ -93,6 +93,21 @@ void main() {
   });
 
   group('buildHerramientasPermissionGrantRows', () {
+    test('grants only the three critical equipment checklists when selected', () {
+      final rows = buildHerramientasPermissionGrantRows(
+        empresaId: 'mb-embajadores',
+        usuarioIds: ['user-a', 'user-b'],
+        checklistKeys: equiposCriticosChecklistKeys,
+      );
+
+      expect(rows, hasLength(24));
+      expect(
+        rows.map((row) => row['checklist_key']).toSet(),
+        equiposCriticosChecklistKeys.toSet(),
+      );
+      expect(rows.every((row) => row['empresa_id'] == 'mb-embajadores'), true);
+    });
+
     test('grants the 4 capacidades for each usuario and each checklist', () {
       final rows = buildHerramientasPermissionGrantRows(
         empresaId: 'empresa-1',

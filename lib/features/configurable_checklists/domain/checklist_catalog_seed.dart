@@ -140,6 +140,12 @@ const herramientasChecklistCapacidades = <String>[
   'finalizar',
 ];
 
+const equiposCriticosChecklistKeys = <String>[
+  'chq_equipo_critico',
+  'chq_paradas_emergencia_cintas',
+  'chq_transpaleta_manual',
+];
+
 List<String> resolveEmpresaUserIds({
   required String empresaId,
   required List<Map<String, dynamic>> legacyUsers,
@@ -164,14 +170,17 @@ List<String> resolveEmpresaUserIds({
 List<Map<String, dynamic>> buildHerramientasPermissionGrantRows({
   required String empresaId,
   required List<String> usuarioIds,
+  List<String>? checklistKeys,
 }) {
   final rows = <Map<String, dynamic>>[];
   for (final usuarioId in usuarioIds) {
-    for (final def in herramientasChecklistCatalog) {
+    for (final checklistKey
+        in checklistKeys ??
+            herramientasChecklistCatalog.map((def) => def.checklistKey)) {
       for (final capacidad in herramientasChecklistCapacidades) {
         rows.add({
           'empresa_id': empresaId,
-          'checklist_key': def.checklistKey,
+          'checklist_key': checklistKey,
           'usuario_id': usuarioId,
           'capacidad': capacidad,
         });

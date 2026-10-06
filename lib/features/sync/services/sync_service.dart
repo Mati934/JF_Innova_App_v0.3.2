@@ -13,6 +13,7 @@ import '../../../features/ast/services/ast_evidence_sync_plan.dart';
 import '../../../features/tickets/data/repositories/ticket_repository.dart';
 import '../../../features/tickets/data/services/ticket_module_gate.dart';
 import 'sync_execution_gate.dart';
+import '../../configurable_checklists/domain/checklist_evidence_sync.dart';
 import 'dart:convert';
 
 class SyncService {
@@ -1959,21 +1960,53 @@ class SyncService {
                 ? null
                 : valor['valor_booleano'] == 1,
           };
-          try {
-            await _supabase
-                .from('checklist_campo_valores')
-                .upsert(payload, onConflict: 'id');
-            await db.update(
-              'checklist_campo_valores_pendientes',
-              {'subido': 1},
-              where: 'id = ?',
-              whereArgs: [valor['id']],
-            );
-          } catch (e) {
-            debugPrint(
-              '⚠️ Error subiendo valor de campo dinámico ${valor['id']}: $e',
-            );
+          await _supabase
+              .from('checklist_campo_valores')
+              .upsert(payload, onConflict: 'id');
+          await db.update(
+            'checklist_campo_valores_pendientes',
+            {'subido': 1},
+            where: 'id = ?',
+            whereArgs: [valor['id']],
+          );
+        }
+
+        final evidences = await db.query(
+          'checklist_evidencias_pendientes',
+          where: 'inspeccion_id = ? AND subido = 0',
+          whereArgs: [id],
+        );
+        final responseIds = {
+          for (final response in responses)
+            response['item_key'].toString(): response['id'].toString(),
+        };
+        for (final evidence in evidences) {
+          final localPath = evidence['local_path']?.toString();
+          if (localPath == null || !await File(localPath).exists()) {
+            throw StateError('CHECKLIST_EVIDENCIA_ARCHIVO_REQUERIDO');
           }
+          final storagePath = 'checklists/$id/${evidence['id']}.jpg';
+          final evidencePayload = buildChecklistEvidencePayload(
+            evidence: evidence,
+            responseIdsByItemKey: responseIds,
+            storagePath: storagePath,
+          );
+          await _supabase.storage
+              .from('evidencias')
+              .upload(
+                storagePath,
+                File(localPath),
+                fileOptions: const FileOptions(upsert: true),
+              );
+          await _supabase
+              .from('checklist_evidencias')
+              .upsert(evidencePayload, onConflict: 'id');
+          await db.update(
+            'checklist_evidencias_pendientes',
+            {'subido': 1, 'storage_path': storagePath},
+            where: 'id = ?',
+            whereArgs: [evidence['id']],
+          );
         }
 
         // Firma: se sube como PNG a Storage y se referencia por URL. No se

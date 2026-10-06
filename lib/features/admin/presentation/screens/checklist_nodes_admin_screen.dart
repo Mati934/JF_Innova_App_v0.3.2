@@ -83,14 +83,24 @@ class _ChecklistNodesAdminScreenState extends State<ChecklistNodesAdminScreen> {
           .eq('empresa_id', empresaId)
           .order('orden');
       final rows = List<Map<String, dynamic>>.from(data);
-      final tieneHerramientas = rows.any(
-        (row) => herramientasChecklistCatalog.any(
-          (def) => def.checklistKey == row['checklist_key'],
-        ),
-      );
-      if (tieneHerramientas) {
+      final checklistKeys = rows
+          .map((row) => row['checklist_key'])
+          .whereType<String>()
+          .where(
+            (key) =>
+                herramientasChecklistCatalog.any(
+                  (def) => def.checklistKey == key,
+                ) ||
+                equiposCriticosChecklistKeys.contains(key),
+          )
+          .toSet()
+          .toList();
+      if (checklistKeys.isNotEmpty) {
         try {
-          await _asegurarPermisosHerramientas(empresaId);
+          await _asegurarPermisosHerramientas(
+            empresaId,
+            checklistKeys: checklistKeys,
+          );
         } catch (e) {
           debugPrint('Error CHECKLIST_GRANTS_SYNC: $e');
           if (mounted) {
@@ -154,13 +164,17 @@ class _ChecklistNodesAdminScreenState extends State<ChecklistNodesAdminScreen> {
     );
   }
 
-  Future<int> _asegurarPermisosHerramientas(String empresaId) async {
+  Future<int> _asegurarPermisosHerramientas(
+    String empresaId, {
+    List<String>? checklistKeys,
+  }) async {
     final usuarioIds = await _cargarUsuarioIdsEmpresa(empresaId);
     if (usuarioIds.isEmpty) return 0;
 
     final candidatos = buildHerramientasPermissionGrantRows(
       empresaId: empresaId,
       usuarioIds: usuarioIds,
+      checklistKeys: checklistKeys,
     );
     final existentes = await Supabase.instance.client
         .from('checklist_permission_grants')
@@ -168,7 +182,8 @@ class _ChecklistNodesAdminScreenState extends State<ChecklistNodesAdminScreen> {
         .eq('empresa_id', empresaId)
         .inFilter(
           'checklist_key',
-          herramientasChecklistCatalog.map((d) => d.checklistKey).toList(),
+          checklistKeys ??
+              herramientasChecklistCatalog.map((d) => d.checklistKey).toList(),
         );
     final yaExiste = List<Map<String, dynamic>>.from(existentes)
         .map(

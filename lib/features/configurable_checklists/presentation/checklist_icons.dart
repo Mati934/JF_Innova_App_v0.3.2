@@ -29,6 +29,12 @@ IconData checklistIconFromName(String? name) {
       return Icons.electric_bolt;
     case 'precision_manufacturing':
       return Icons.precision_manufacturing;
+    case 'factory':
+      return Icons.factory;
+    case 'emergency':
+      return Icons.emergency;
+    case 'pallet':
+      return Icons.pallet;
     case 'directions_car':
       return Icons.directions_car;
     case 'fire_extinguisher':

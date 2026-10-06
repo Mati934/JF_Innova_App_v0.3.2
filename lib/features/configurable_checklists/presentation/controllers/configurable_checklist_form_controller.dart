@@ -475,6 +475,14 @@ class ConfigurableChecklistFormController extends ChangeNotifier {
     if (missingResponses.isNotEmpty) {
       throw StateError('CHECKLIST_RESPUESTAS_INCOMPLETAS');
     }
+    final missingFields = missingRequiredChecklistFields(camposDefiniciones, {
+      for (final def in camposDefiniciones) def.clave: valorLegibleDe(def),
+    });
+    if (missingFields.isNotEmpty) {
+      throw StateError(
+        'Completa los campos obligatorios: ${missingFields.join(', ')}',
+      );
+    }
     isSaving = true;
     _isFinalized = true;
     notifyListeners();
@@ -633,6 +641,9 @@ class ConfigurableChecklistFormController extends ChangeNotifier {
         'fecha_realizacion': fechaRealizacion.toIso8601String(),
         'quien_inspecciona': supervisorCtrl.text.trim(),
         'supervisor_correo': supervisorCorreoCtrl.text.trim(),
+        'campos_extra': jsonEncode({
+          for (final def in camposDefiniciones) def.clave: valorLegibleDe(def),
+        }),
         'observaciones': apuntesObservacionesCtrl.text.trim(),
         'firma_nombre': firmaNombreCtrl.text.trim(),
         if (firmaLocalPath != null) 'firma_local_path': firmaLocalPath,
