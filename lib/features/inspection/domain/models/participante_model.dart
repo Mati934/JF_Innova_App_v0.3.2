@@ -4,6 +4,7 @@ class ParticipanteModel {
   final String rut;
   final String cargo; // S.B.M, B.M.B, etc.
   final String matricula; // <--- NUEVO CAMPO
+  final String? contratistaId; // <--- ID de la empresa contratista del buzo
   bool condicionesOptimas;
 
   ParticipanteModel({
@@ -12,6 +13,7 @@ class ParticipanteModel {
     required this.rut,
     required this.cargo,
     this.matricula = '', // <--- Por defecto vacío para no romper nada
+    this.contratistaId, // <--- Opcional, puede ser null
     this.condicionesOptimas = true,
   });
 
@@ -24,6 +26,7 @@ class ParticipanteModel {
       rut: map['rut'] ?? '',
       cargo: map['rol_en_faena'] ?? 'Buzo',
       matricula: map['matricula'] ?? '',
+      contratistaId: map['contratista_id'], // <--- LEER DE DB
       condicionesOptimas: map['condiciones_optimas'] == 1,
     );
   }

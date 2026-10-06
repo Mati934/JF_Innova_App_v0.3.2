@@ -1,6 +1,5 @@
-import 'dart:typed_data';
-
 class InspectionReportData {
+  final String empresaProveedor;
   final String empresaContratista;
   final String cliente;
   final String logoUrl;
@@ -11,45 +10,60 @@ class InspectionReportData {
   final String area;
   final String embarcacion;
   final String matricula;
+  final String? numeroZarpe;
+
+  final bool esConsecutiva;
+  final String appVersion;
+
+  final String? encargadoCentro;
+  final String? supervisorCentro;
+  final String? profesional;
 
   final String tipoFaena;
   final String supervisor;
   final String estadoGlobal;
 
+  // CLEAN CODE: Ahora son mapas de Strings (rutas absolutas)
+  final Map<String, String?> safetyPhotosPaths;
+  final Map<String, String?> safetyObservations;
+
   final String observacionPrevencionista;
-
-  // CAMBIO 1: Cambiamos 'bool' por 'dynamic' para que acepte TODO (texto y switches)
   final Map<String, dynamic> verificacionesBuceo;
-
   final bool esAprobado;
 
-  // --- DATOS TÉCNICOS NUEVOS (PARA EL PDF) ---
   final String? horaInicio;
   final String? horaTermino;
 
-  // Compresor 1
   final String? compresor1Matricula;
-  final String? compresor1Vigencia; // Ya formateada a String
-  final String? compresor1PH; // Ya formateada a String
+  final String? compresor1Vigencia;
+  final String? compresor1PH;
   final String? compresor1Buzos;
 
-  // Compresor 2
   final String? compresor2Matricula;
-  final String? compresor2Vigencia; // Ya formateada a String
-  final String? compresor2PH; // Ya formateada a String
+  final String? compresor2Vigencia;
+  final String? compresor2PH;
   final String? compresor2Buzos;
-  // -------------------------------------------
 
   final List<PersonalDto> equipo;
   final List<InspectionItemDto> items;
-  final List<Uint8List> fotosGenerales;
+  final List<ChecklistPhotoDto> checklistPhotos;
+  final List<MandatoryPhotoDto> mandatoryPhotos;
+
+  // CLEAN CODE: Lista de rutas
+  final List<String> fotosGeneralesPaths;
+  final List<Map<String, String>> fotosExtraObservaciones;
 
   final int totalCumple;
   final int totalNoCumple;
   final int totalNoAplica;
   final int totalIntolerables;
+  final double sumPesoCumple;
+  final double sumPesoNoCumple;
+
+  final String? correoEmpresaServicios;
 
   InspectionReportData({
+    this.empresaProveedor = 'JF INNOVA',
     required this.empresaContratista,
     required this.cliente,
     required this.logoUrl,
@@ -59,47 +73,61 @@ class InspectionReportData {
     required this.area,
     required this.embarcacion,
     required this.matricula,
+    this.numeroZarpe,
+
+    // Inicializamos con mapas/listas vacías para evitar nulls
+    this.safetyPhotosPaths = const {},
+    this.safetyObservations = const {},
+    this.esConsecutiva = false,
+    required this.appVersion,
+    this.encargadoCentro,
+    this.supervisorCentro,
+    this.profesional,
     required this.tipoFaena,
     required this.supervisor,
     required this.estadoGlobal,
     required this.esAprobado,
     required this.equipo,
     required this.items,
-    required this.fotosGenerales,
+    this.checklistPhotos = const [],
+    this.mandatoryPhotos = const [],
+    required this.fotosGeneralesPaths, // Actualizado
+    required this.fotosExtraObservaciones,
     required this.totalCumple,
     required this.totalNoCumple,
     required this.totalNoAplica,
     required this.totalIntolerables,
+    required this.sumPesoCumple,
+    required this.sumPesoNoCumple,
     required this.observacionPrevencionista,
     required this.verificacionesBuceo,
-
-    // Agregamos los nuevos al constructor
     this.horaInicio,
     this.horaTermino,
-
     this.compresor1Matricula,
     this.compresor1Vigencia,
     this.compresor1PH,
     this.compresor1Buzos,
-
     this.compresor2Matricula,
     this.compresor2Vigencia,
     this.compresor2PH,
     this.compresor2Buzos,
+
+    this.correoEmpresaServicios,
   });
 }
 
-// ... (PersonalDto e InspectionItemDto se quedan igual) ...
 class PersonalDto {
   final String nombre;
   final String rut;
   final String cargo;
+  final String matricula;
   final String rolEnFaena;
 
   PersonalDto({
     required this.nombre,
     required this.rut,
     this.cargo = '',
+    this.matricula = '',
     required this.rolEnFaena,
   });
 }
@@ -110,7 +138,10 @@ class InspectionItemDto {
   final String respuesta;
   final String criticidad;
   final String? comentario;
-  final List<Uint8List> fotos;
+  final int orden;
+
+  // CLEAN CODE: Lista de rutas de disco, no binarios
+  final List<String> fotosPaths;
 
   InspectionItemDto({
     required this.categoria,
@@ -118,6 +149,37 @@ class InspectionItemDto {
     required this.respuesta,
     required this.criticidad,
     this.comentario,
-    this.fotos = const [],
+    this.orden = 0,
+    this.fotosPaths = const [],
+  });
+}
+
+class ChecklistPhotoDto {
+  final int numero;
+  final String categoria;
+  final String pregunta;
+  final String respuesta;
+  final String? comentario;
+  final List<String> fotosPaths;
+
+  ChecklistPhotoDto({
+    required this.numero,
+    required this.categoria,
+    required this.pregunta,
+    required this.respuesta,
+    this.comentario,
+    this.fotosPaths = const [],
+  });
+}
+
+class MandatoryPhotoDto {
+  final String key;
+  final String title;
+  final String path;
+
+  MandatoryPhotoDto({
+    required this.key,
+    required this.title,
+    required this.path,
   });
 }

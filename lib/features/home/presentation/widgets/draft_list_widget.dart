@@ -1,7 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:jf_innova_app/features/visits/presentation/screens/visit_form_screen.dart';
 import '../controllers/home_controller.dart';
+import '../../domain/draft_card_data.dart';
+import '../../domain/draft_card_mapper.dart';
 import '../../../inspection/presentation/screens/inspection_form_screen.dart';
+import '../../../extintores/presentation/screens/extintor_form_screen.dart';
+import '../../../hidroser/data/repositories/local_hidroser_repository.dart';
+import '../../../hidroser/presentation/screens/hidroser_form_screen.dart';
+import '../../../prosesso/presentation/screens/prosesso_form_screen.dart';
+import '../../../buceo_equipment/data/repositories/local_buceo_equipment_repository.dart';
+import '../../../buceo_equipment/domain/models/buceo_equipment_variant.dart';
+import '../../../buceo_equipment/presentation/screens/buceo_equipment_form_screen.dart';
+import '../../../configurable_checklists/data/repositories/local_configurable_checklist_repository.dart';
+import '../../../configurable_checklists/presentation/screens/generic_checklist_form_screen.dart';
 
 class DraftListWidget extends StatelessWidget {
   final HomeController controller;
@@ -33,6 +45,118 @@ class DraftListWidget extends StatelessWidget {
     }
   }
 
+  Future<void> _abrirBorrador(BuildContext context, DraftCardData card) async {
+    final raw = card.raw;
+    Widget? destino;
+
+    switch (card.kind) {
+      case DraftKind.inspeccionExtintores:
+        destino = ExtintorFormScreen(borrador: raw);
+        break;
+      case DraftKind.mantencionProsesso:
+        destino = ProsessoFormScreen(borradorInicial: raw);
+        break;
+      case DraftKind.buceoEquipamiento:
+        {
+          final repo = LocalBuceoEquipmentRepository();
+          final listaCodigo = raw['lista_codigo']?.toString() ?? '';
+          final borradorCompleto = await repo.getInspeccionConRespuestasById(
+            card.id,
+          );
+          final isSam = listaCodigo.toUpperCase() == 'BUCEO_SAM_36M';
+          destino = BuceoEquipmentFormScreen(
+            variant: isSam ? buceoEquipoSamVariant : buceoEquipoSalVariant,
+            borrador: borradorCompleto ?? raw,
+          );
+        }
+        break;
+      case DraftKind.hidroserGruaHorquilla:
+        {
+          // Necesitamos resolver la lista (catalogo) y traer las respuestas
+          // antes de abrir el formulario.
+          final repo = LocalHidroserRepository();
+          final listaCodigo = raw['lista_codigo']?.toString() ?? '';
+          final borradorCompleto = await repo.getInspeccionConRespuestasById(
+            card.id,
+          );
+          final lista = await repo.getListaByCodigo(listaCodigo);
+          if (lista == null) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'No se encontró la lista "$listaCodigo". '
+                    'Sincroniza con la nube e intenta de nuevo.',
+                  ),
+                ),
+              );
+            }
+            return;
+          }
+          destino = HidroserFormScreen(
+            lista: lista,
+            borrador: borradorCompleto ?? raw,
+          );
+        }
+        break;
+      case DraftKind.visitaTecnica:
+      case DraftKind.visitaChecklistElectricidad:
+      case DraftKind.visitaChecklistPisos:
+      case DraftKind.visitaChecklistOtro:
+        destino = VisitFormScreen(borrador: raw);
+        break;
+      case DraftKind.visitaActividadesVehiculos:
+        destino = VisitFormScreen(
+          borrador: raw,
+          onlyChecklistTypes: ['VISITA_R008'],
+          customTitle: 'Registro de Actividades',
+          customSubtitle: 'Checklist Vehículos Livianos',
+          originLabel: 'Origen de la actividad',
+          documentTitle: 'INFORME DE ACTIVIDAD',
+          brandColor: Colors.indigo,
+          brandColorDark: Color(0xFF283593),
+          brandIcon: Icons.directions_car_filled,
+        );
+        break;
+      case DraftKind.checklistConfigurable:
+        {
+          final checklistKey = raw['checklist_key']?.toString() ?? '';
+          final checklist = await LocalConfigurableChecklistRepository()
+              .getChecklist(checklistKey);
+          if (checklist == null) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Error CHECKLIST_CONFIGURACION_NO_DISPONIBLE'),
+                ),
+              );
+            }
+            return;
+          }
+          destino = GenericChecklistFormScreen(
+            checklist: checklist,
+            draftId: card.id,
+          );
+        }
+        break;
+      case DraftKind.inspeccionBuceo:
+      case DraftKind.inspeccionEmbarcacion:
+      case DraftKind.bitacora:
+      case DraftKind.desconocido:
+        destino = InspectionFormScreen(
+          activityId: raw['id']?.toString() ?? card.id,
+          tipoActividad: raw['tipo_actividad']?.toString() ?? '',
+          centroId: raw['centro_id']?.toString() ?? '',
+          nombreCentro: raw['nombre_centro']?.toString() ?? '',
+        );
+        break;
+    }
+
+    if (!context.mounted) return;
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => destino!));
+    controller.cargarBorradores();
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -47,7 +171,6 @@ class DraftListWidget extends StatelessWidget {
           );
         }
 
-        // CASO 1: Lista Vacía (Solo mostramos el mensaje bonito)
         if (controller.borradores.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(30),
@@ -69,81 +192,164 @@ class DraftListWidget extends StatelessWidget {
           );
         }
 
-        // CASO 2: Hay datos (Mostramos Título + Lista)
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // El título ahora vive aquí dentro
-            const Padding(
-              padding: EdgeInsets.only(bottom: 10, left: 4),
-              child: Text(
-                "📝 Pendientes de subir / Borradores",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: controller.borradores.length,
-              itemBuilder: (context, index) {
-                final item = controller.borradores[index];
-
-                DateTime fecha;
-                try {
-                  fecha = DateTime.parse(item['fecha_realizacion']);
-                } catch (e) {
-                  fecha = DateTime.now();
-                }
-
-                final fmtFecha = DateFormat('dd/MM/yyyy HH:mm').format(fecha);
-                final centro = item['nombre_centro'] ?? 'Sin centro asignado';
-
-                return Card(
-                  elevation: 2,
-                  margin: const EdgeInsets.symmetric(
-                    vertical: 6,
-                    horizontal: 2,
-                  ),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Colors.orange.shade100,
-                      child: Icon(Icons.edit, color: Colors.orange.shade800),
-                    ),
-                    title: Text(
-                      item['tipo_actividad'] ?? 'Inspección',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text("$centro\n$fmtFecha"),
-                    isThreeLine: true,
-                    trailing: IconButton(
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        color: Colors.grey,
-                      ),
-                      onPressed: () => _confirmarEliminar(context, item['id']),
-                    ),
-                    onTap: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => InspectionFormScreen(
-                            activityId: item['id'],
-                            tipoActividad: item['tipo_actividad'],
-                            centroId: item['centro_id'],
-                            nombreCentro: item['nombre_centro'],
-                          ),
-                        ),
-                      );
-                      controller.cargarBorradores();
-                    },
-                  ),
-                );
-              },
-            ),
-          ],
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: controller.borradores.length,
+          itemBuilder: (context, index) {
+            final card = controller.borradores[index];
+            return _DraftCardTile(
+              card: card,
+              onTap: () => _abrirBorrador(context, card),
+              onDelete: () => _confirmarEliminar(context, card.id),
+            );
+          },
         );
       },
+    );
+  }
+}
+
+/// Tarjeta visual "tonta" — no conoce repositorios ni navegación.
+class _DraftCardTile extends StatelessWidget {
+  final DraftCardData card;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  const _DraftCardTile({
+    required this.card,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fmtFecha = DateFormat('dd/MM/yyyy HH:mm').format(card.fecha);
+    final relativo = DraftCardMapper.tiempoRelativo(card.fecha);
+    final theme = Theme.of(context);
+    final mutedStyle = theme.textTheme.bodySmall?.copyWith(
+      color: Colors.grey.shade700,
+    );
+
+    final chips = <Widget>[];
+    if (card.numeroReporte != null) {
+      chips.add(_chip(Icons.tag, 'Nº ${card.numeroReporte}'));
+    }
+    if (card.region != null) {
+      chips.add(_chip(Icons.public, card.region!));
+    }
+    if (card.empresa != null) {
+      chips.add(_chip(Icons.business, card.empresa!));
+    }
+    if (card.horaRango != null) {
+      chips.add(_chip(Icons.schedule, card.horaRango!));
+    }
+
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                backgroundColor: card.color.withValues(alpha: 0.15),
+                child: Icon(card.icon, color: card.color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      card.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    if (card.centro != null) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.place_outlined,
+                            size: 14,
+                            color: Colors.grey.shade700,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              card.centro!,
+                              style: mutedStyle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.event,
+                          size: 14,
+                          color: Colors.grey.shade700,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            '$fmtFecha  ·  $relativo',
+                            style: mutedStyle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (chips.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(spacing: 6, runSpacing: 4, children: chips),
+                    ],
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.grey),
+                onPressed: onDelete,
+                tooltip: 'Eliminar borrador',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.grey.shade700),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade800),
+          ),
+        ],
+      ),
     );
   }
 }

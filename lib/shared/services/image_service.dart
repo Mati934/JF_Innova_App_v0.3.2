@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart'; // IMPORTANTE
 import 'package:path_provider/path_provider.dart'
@@ -15,7 +14,7 @@ class ImageService {
 
   // --- LÓGICA DE COMPRESIÓN (NUEVO) ---
   // Clean Code: Separamos la lógica de compresión para reutilizarla
-  static Future<File> _comprimirImagen(File file) async {
+  static Future<File> comprimirImagen(File file) async {
     try {
       final dir = await path_provider.getTemporaryDirectory();
       // Creamos un path temporal único para la imagen comprimida
@@ -43,7 +42,7 @@ class ImageService {
     }
   }
 
-  // --- CÁMARA ---
+  // --- CÁMARA (CORREGIDO: COMPRESIÓN SECUENCIAL) ---
   static Future<List<File>> _tomarFotosCustom(
     BuildContext context, {
     bool modoUnica = false,
@@ -57,9 +56,14 @@ class ImageService {
       );
 
       if (result != null && result.isNotEmpty) {
-        // Mapeamos y comprimimos en paralelo para eficiencia
-        final futures = result.map((x) => _comprimirImagen(File(x.path)));
-        return await Future.wait(futures);
+        // CLEAN CODE: Procesamiento secuencial en lugar de paralelo (Future.wait).
+        // Evita picos de RAM al no intentar decodificar 10 imágenes pesadas en memoria al mismo tiempo.
+        List<File> archivosComprimidos = [];
+        for (var x in result) {
+          final compressed = await comprimirImagen(File(x.path));
+          archivosComprimidos.add(compressed);
+        }
+        return archivosComprimidos;
       }
       return [];
     } catch (e) {
@@ -81,12 +85,9 @@ class ImageService {
           requestType: RequestType.image,
           themeColor: _brandColor,
           textDelegate: const SpanishAssetPickerTextDelegate(),
-          // Opcional: Filtro nativo del picker para evitar seleccionar videos pesados por error
           filterOptions: FilterOptionGroup(
             imageOption: const FilterOption(
-              sizeConstraint: SizeConstraint(
-                ignoreSize: true,
-              ), // Cuidado con esto
+              sizeConstraint: SizeConstraint(ignoreSize: true),
             ),
           ),
         ),
@@ -96,13 +97,23 @@ class ImageService {
 
       List<File> archivosComprimidos = [];
 
-      // Procesamos las imágenes seleccionadas
       for (var asset in result) {
-        final f = await asset.file;
+        final f = await asset
+            .file; // Extrae el archivo crudo original al caché de la app
         if (f != null) {
-          // AQUI aplicamos la compresión antes de agregar a la lista final
-          final compressed = await _comprimirImagen(f);
+          final compressed = await comprimirImagen(f);
           archivosComprimidos.add(compressed);
+
+          // CLEAN CODE: Limpieza de memoria muerta.
+          // Si el archivo se comprimió correctamente (la ruta cambió), eliminamos el original.
+          // Esto evita que la memoria del teléfono se llene de basura temporal.
+          if (compressed.path != f.path && f.existsSync()) {
+            try {
+              f.deleteSync();
+            } catch (e) {
+              debugPrint('Aviso: No se pudo limpiar el archivo original: $e');
+            }
+          }
         }
       }
       return archivosComprimidos;
