@@ -20,6 +20,7 @@ import '../../features/email/presentation/screens/email_outbox_screen.dart';
 import '../../features/email/presentation/screens/email_admin_screen.dart';
 import '../../features/cronograma/presentation/screens/cronograma_empresas_screen.dart';
 import '../../features/cronograma/presentation/screens/cronograma_templates_admin_screen.dart';
+import '../../features/formative_activities/presentation/screens/formative_activity_module_screen.dart';
 
 const Color kMerieuxColor = Color(0xFF1B3B6F);
 
@@ -113,6 +114,14 @@ class ModuleRegistry {
       icon: Icons.health_and_safety,
       color: const Color(0xFF003366),
       screenBuilder: (_) => const AstModuleScreen(),
+    ),
+    ModuleDefinition(
+      moduleKey: 'ACTIVIDADES_FORMATIVAS',
+      title: 'Registro de Actividad',
+      subtitle: 'Registro formativo, charla o servicio',
+      icon: Icons.groups_outlined,
+      color: const Color(0xFF1B3B6F),
+      screenBuilder: (_) => const FormativeActivityModuleScreen(),
     ),
     ModuleDefinition(
       moduleKey: 'BUCEO_EQUIPAMIENTO',

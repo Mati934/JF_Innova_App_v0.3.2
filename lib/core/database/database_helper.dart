@@ -8,7 +8,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      60; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      61; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -170,6 +170,7 @@ class DatabaseHelper {
       CREATE TABLE actividades_pendientes (
         id TEXT PRIMARY KEY,
         usuario_id TEXT,
+        empresa_id TEXT,
         centro_id TEXT,
         contratista_id TEXT,
         embarcacion_id TEXT,
@@ -774,6 +775,7 @@ class DatabaseHelper {
     );
 
     await _createConfigurableChecklistSchema(db);
+    await _createFormativeActivitySchema(db);
 
     debugPrint("✅ Base de datos v$_dbVersion inicializada.");
   }
@@ -1982,6 +1984,12 @@ class DatabaseHelper {
       await _createConfigurableChecklistSchema(db);
       debugPrint("✅ Parche v60 aplicado.");
     }
+
+    if (oldVersion < 61) {
+      await _safeAddColumn(db, 'actividades_pendientes', 'empresa_id', 'TEXT');
+      await _createFormativeActivitySchema(db);
+      debugPrint('✅ Parche v61 aplicado (actividades formativas).');
+    }
   }
 
   Future<void> _createConfigurableChecklistSchema(DatabaseExecutor db) async {
@@ -2171,6 +2179,8 @@ class DatabaseHelper {
     try {
       // El repair tambien cubre upgrades interrumpidos antes de v60.
       await _createConfigurableChecklistSchema(db);
+      await _safeAddColumn(db, 'actividades_pendientes', 'empresa_id', 'TEXT');
+      await _createFormativeActivitySchema(db);
       await _safeAddColumn(
         db,
         "visitas_tecnicas_pendientes",
@@ -2430,6 +2440,37 @@ class DatabaseHelper {
       debugPrint("❌ Error reparando esquema crítico: $e\n$st");
       rethrow;
     }
+  }
+
+  Future<void> _createFormativeActivitySchema(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS actividades_formativas_pendientes (
+        actividad_id TEXT PRIMARY KEY,
+        empresa_id TEXT NOT NULL,
+        area_id TEXT,
+        area_nombre TEXT,
+        area_otro TEXT,
+        centro_nombre TEXT,
+        tipo_actividad TEXT NOT NULL,
+        tipo_otro TEXT,
+        descripcion TEXT,
+        hora_inicio TEXT NOT NULL,
+        hora_termino TEXT NOT NULL,
+        asistentes INTEGER NOT NULL DEFAULT 0,
+        duracion_real_minutos INTEGER,
+        duracion_contabilizada_minutos INTEGER,
+        hh_sin_relator REAL,
+        hh_con_relator REAL,
+        relator_nombre TEXT NOT NULL DEFAULT '',
+        firma_relator_image BLOB,
+        firma_relator_url TEXT,
+        subido INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_actividad_formativa_sync ON actividades_formativas_pendientes(subido, actividad_id)',
+    );
   }
 
   // Helper seguro para migraciones

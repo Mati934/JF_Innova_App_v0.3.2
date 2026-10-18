@@ -335,6 +335,18 @@ class HistoryCardConfig {
       );
     }
 
+    if (tipoRegistro == 'ACTIVIDAD_FORMATIVA') {
+      return HistoryCardConfig(
+        titulo: folio != null && folio.isNotEmpty
+            ? 'Actividad Formativa N° $folio'
+            : 'Actividad Formativa',
+        icon: Icons.groups_outlined,
+        accent: const Color(0xFF1B3B6F),
+        tipoChipLabel: 'Actividad Formativa',
+        folioLabel: folioPill,
+      );
+    }
+
     // AST (Análisis Seguro de Trabajo) — azul corporativo, icono escudo.
     if (modulo == 'AST') {
       return HistoryCardConfig(

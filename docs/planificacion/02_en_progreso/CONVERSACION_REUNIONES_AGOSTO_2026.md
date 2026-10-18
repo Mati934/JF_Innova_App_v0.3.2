@@ -259,13 +259,18 @@ la plantilla de creacion de modulos antes de programar.
 
 ## 5. Actividades formativas
 
-Estado: `IDEA`
+Estado: `PLAN EXISTENTE`
+
+Plan de trabajo: [PLAN_REGISTRO_ACTIVIDADES_FORMATIVAS.md](PLAN_REGISTRO_ACTIVIDADES_FORMATIVAS.md)
 
 ### Idea recopilada
 
 Registrar charlas, servicios u otras actividades formativas. El relator firma
 y las personas asistentes quedan como oyentes. Debe registrar fecha, hora de
 inicio y termino, participantes, tipo y descripcion; calcular horas-hombre.
+
+Las decisiones y puntos pendientes reunidos están en
+[PLAN_REGISTRO_ACTIVIDADES_FORMATIVAS.md](PLAN_REGISTRO_ACTIVIDADES_FORMATIVAS.md).
 
 ### Regla de negocio propuesta
 
@@ -274,18 +279,26 @@ Horas-hombre = cantidad de participantes x duracion de la actividad.
 La duracion se redondea siempre hacia arriba a bloques de 15 minutos. Por
 ejemplo, 16 minutos se registran como 30 minutos; el minimo es 15 minutos.
 
-### Preguntas para definir
+### Pendientes principales
 
-1. El tipo sera una lista cerrada (`Charla`, `Servicio`, `Otro`) o administrable?
-2. Los oyentes deben firmar individualmente o basta el registro del relator?
-3. Se requiere PDF, correlativo, fotos, ubicacion y empresa?
-4. Las horas-hombre se muestran por actividad, mes, empresa y usuario?
-5. Que permiso persistible controlara este modulo?
+- Consultar cuál de las dos cifras de HH es la oficial; hasta entonces se
+  mostrarán ambas, incluyendo y excluyendo al relator.
+- La empresa es obligatoria y se toma automáticamente de la sesión del usuario
+  (no es el contratista). Centro será seleccionable con opción "Sin centro";
+  área se sugerirá desde la última inspección, será modificable y tendrá
+  alternativa manual/`Otro` por confirmar.
+- Reutilizar el patrón de correlativo de inspecciones de buceo/embarcación.
+- Las actividades que crucen medianoche quedan fuera de la primera versión.
+- Acordar si se necesitan reportes agrupados; el detalle está en el plan.
+- Aplicar los permisos existentes de la app, salvo que el negocio requiera
+  restricciones diferentes.
 
 ### Siguiente paso propuesto
 
-Definir un formulario de ejemplo con una actividad real y confirmar la regla
-de firmas antes de crear su plan tecnico.
+Seguir las fases del plan técnico: cerrar la convención del conteo para ambas
+HH y decidir si se conserva el área `Otro`; luego auditar las tablas remotas de
+capacitaciones y definir la estrategia de persistencia/correlativo antes de
+crear migraciones o código.
 
 ---
 

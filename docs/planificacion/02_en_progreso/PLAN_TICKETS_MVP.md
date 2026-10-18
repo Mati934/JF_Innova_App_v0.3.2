@@ -1,11 +1,20 @@
 # Plan Módulo de Tickets (Seguimiento de No Conformidades)
 
 Fecha: 2026-07-04
-Estado: Borrador en construcción (se itera junto al usuario, sin implementar aún)
+Estado documental: Referencia historica; el MVP fue implementado y varias
+decisiones de este borrador fueron reemplazadas por iteraciones posteriores.
 
-> Este documento es un plan vivo. Cada vez que se cierre una decisión, se mueve de
-> "Preguntas abiertas" a "Decisiones cerradas" con fecha. No implementar nada de
-> este módulo hasta que las secciones marcadas como pendientes queden resueltas.
+> No usar este documento como descripcion normativa del comportamiento
+> vigente. Para el flujo implementado, consultar
+> [ACTUALIZACION_TICKETS_2026-09-03.md](../01_realizados/ACTUALIZACION_TICKETS_2026-09-03.md)
+> y
+> [PLAN_CONTINUIDAD_INFORMES_Y_TICKETS_NC.md](../01_realizados/PLAN_CONTINUIDAD_INFORMES_Y_TICKETS_NC.md).
+> La extension futura a AST esta separada en
+> [PLAN_TICKETS_POR_HALLAZGO_AST.md](../03_por_realizar/PLAN_TICKETS_POR_HALLAZGO_AST.md).
+
+> En su etapa original, este documento registro decisiones y preguntas previas
+> a la implementacion. Esa instruccion y sus pendientes corresponden al MVP
+> original y no bloquean el trabajo vigente ni las extensiones futuras.
 
 ## 1) Objetivo del módulo
 

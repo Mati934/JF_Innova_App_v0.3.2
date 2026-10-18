@@ -132,6 +132,7 @@ class DraftCardMapper {
 
   static DraftKind _kindFromInspeccion(String tipo) {
     final t = tipo.toUpperCase();
+    if (t == 'ACTIVIDAD_FORMATIVA') return DraftKind.actividadFormativa;
     if (t == 'INSPECCION_BUCEO') return DraftKind.inspeccionBuceo;
     if (t == 'INSPECCION_EMBARCACION') return DraftKind.inspeccionEmbarcacion;
     if (t == 'BITACORA' || t.startsWith('BITACORA_')) return DraftKind.bitacora;
@@ -187,6 +188,8 @@ class DraftCardMapper {
         return fallback?.isNotEmpty == true
             ? fallback!
             : 'Checklist configurable';
+      case DraftKind.actividadFormativa:
+        return 'Actividad Formativa';
       case DraftKind.desconocido:
         return fallback?.isNotEmpty == true ? fallback! : 'Borrador';
     }

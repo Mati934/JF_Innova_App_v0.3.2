@@ -14,6 +14,7 @@ import '../../../buceo_equipment/domain/models/buceo_equipment_variant.dart';
 import '../../../buceo_equipment/presentation/screens/buceo_equipment_form_screen.dart';
 import '../../../configurable_checklists/data/repositories/local_configurable_checklist_repository.dart';
 import '../../../configurable_checklists/presentation/screens/generic_checklist_form_screen.dart';
+import '../../../formative_activities/presentation/screens/formative_activity_form_screen.dart';
 
 class DraftListWidget extends StatelessWidget {
   final HomeController controller;
@@ -138,6 +139,9 @@ class DraftListWidget extends StatelessWidget {
             draftId: card.id,
           );
         }
+        break;
+      case DraftKind.actividadFormativa:
+        destino = FormativeActivityFormScreen(activityId: card.id);
         break;
       case DraftKind.inspeccionBuceo:
       case DraftKind.inspeccionEmbarcacion:

@@ -17,6 +17,7 @@ enum DraftKind {
   hidroserGruaHorquilla,
   buceoEquipamiento,
   checklistConfigurable,
+  actividadFormativa,
   desconocido,
 }
 
@@ -79,6 +80,8 @@ class DraftCardData {
         return Icons.assignment_outlined;
       case DraftKind.visitaActividadesVehiculos:
         return Icons.directions_car_filled;
+      case DraftKind.actividadFormativa:
+        return Icons.groups_outlined;
       case DraftKind.visitaChecklistElectricidad:
         return Icons.electrical_services;
       case DraftKind.visitaChecklistPisos:
@@ -122,6 +125,8 @@ class DraftCardData {
         return Colors.indigo.shade600;
       case DraftKind.visitaActividadesVehiculos:
         return Colors.indigo;
+      case DraftKind.actividadFormativa:
+        return const Color(0xFF1B3B6F);
       case DraftKind.inspeccionBuceo:
         return Colors.teal.shade700;
       case DraftKind.inspeccionEmbarcacion:

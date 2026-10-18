@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:sqflite/sqflite.dart';
@@ -14,6 +15,7 @@ import '../../../features/tickets/data/repositories/ticket_repository.dart';
 import '../../../features/tickets/data/services/ticket_module_gate.dart';
 import 'sync_execution_gate.dart';
 import '../../configurable_checklists/domain/checklist_evidence_sync.dart';
+import '../../formative_activities/services/formative_activity_pdf_service.dart';
 import 'dart:convert';
 
 class SyncService {
@@ -643,6 +645,7 @@ class SyncService {
     try {
       await _recuperarNumeroReporteFaltante();
       await _generarPdfsDiferidos();
+      await _generarPdfsFormativasDiferidos();
     } catch (e) {
       debugPrint("⚠️ Error en generación de PDFs diferidos: $e");
     }
@@ -968,6 +971,13 @@ class SyncService {
             where: 'id = ?',
             whereArgs: [activityId],
           );
+          if (tipoActividad == 'ACTIVIDAD_FORMATIVA') {
+            await db.delete(
+              'actividades_formativas_pendientes',
+              where: 'actividad_id = ?',
+              whereArgs: [activityId],
+            );
+          }
 
           // Limpieza de tablas hijas (BUCEO y EMBARCACIÓN)
           if (tipoActividad == 'INSPECCION_BUCEO') {
@@ -1037,7 +1047,8 @@ class SyncService {
             );
           }
         }
-        datosParaNube['empresa_id'] = UserSession().empresaId;
+        datosParaNube['empresa_id'] =
+            row['empresa_id'] ?? UserSession().empresaId;
 
         // --- 1. VERIFICACIÓN ESTRICTA EN LA NUBE ---
         final checkNube = await _supabase
@@ -1100,12 +1111,16 @@ class SyncService {
 
         // ¡IMPORTANTE! Los participantes aplican para AMBOS tipos de inspección
         await _sincronizarParticipantes(db, activityId);
+        if (tipoActividad == 'ACTIVIDAD_FORMATIVA') {
+          await _sincronizarDetalleActividadFormativa(db, activityId);
+        }
 
         // --- 2.5. SUBIR PDF PENDIENTE SI HAY UNO LOCAL ---
         final pdfPathLocal = row['pdf_path_local'] as String?;
         final pdfUrlActual = row['pdf_url'] as String?;
 
-        if (pdfPathLocal != null &&
+        if (tipoActividad != 'ACTIVIDAD_FORMATIVA' &&
+            pdfPathLocal != null &&
             pdfPathLocal.isNotEmpty &&
             (pdfUrlActual == null || pdfUrlActual.isEmpty)) {
           try {
@@ -1164,6 +1179,7 @@ class SyncService {
         // --- 3. MARCAR COMO SUBIDO LOCALMENTE ---
         // Si hay un PDF local pendiente de subir, dejamos subido=0 para reintento.
         final pdfPendiente =
+            tipoActividad != 'ACTIVIDAD_FORMATIVA' &&
             pdfPathLocal != null &&
             pdfPathLocal.isNotEmpty &&
             ((pdfUrlActual == null) || pdfUrlActual.isEmpty);
@@ -3269,6 +3285,142 @@ class SyncService {
     }
   }
 
+  Future<void> _sincronizarDetalleActividadFormativa(
+    Database db,
+    String activityId,
+  ) async {
+    final rows = await db.query(
+      'actividades_formativas_pendientes',
+      where: 'actividad_id = ?',
+      whereArgs: [activityId],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      throw StateError('Falta el detalle local de la actividad $activityId.');
+    }
+
+    final detail = rows.first;
+    final firma = detail['firma_relator_image'];
+    var firmaUrl = detail['firma_relator_url']?.toString();
+    if (firma is List<int> && firma.isNotEmpty) {
+      final path = '$activityId/firma_relator.png';
+      await _supabase.storage
+          .from('reportes')
+          .uploadBinary(
+            path,
+            Uint8List.fromList(firma),
+            fileOptions: const FileOptions(
+              contentType: 'image/png',
+              upsert: true,
+            ),
+          );
+      firmaUrl = _supabase.storage.from('reportes').getPublicUrl(path);
+      await db.update(
+        'actividades_formativas_pendientes',
+        {'firma_relator_url': firmaUrl},
+        where: 'actividad_id = ?',
+        whereArgs: [activityId],
+      );
+    }
+
+    final payload = Map<String, dynamic>.from(detail)
+      ..remove('firma_relator_image')
+      ..remove('subido')
+      ..remove('created_at')
+      ..['firma_relator_url'] = firmaUrl;
+    await _supabase
+        .from('actividad_formativa_registros')
+        .upsert(payload, onConflict: 'actividad_id');
+    await db.update(
+      'actividades_formativas_pendientes',
+      {'subido': 1},
+      where: 'actividad_id = ?',
+      whereArgs: [activityId],
+    );
+  }
+
+  Future<void> _generarPdfsFormativasDiferidos() async {
+    final db = await _dbHelper.database;
+    final pendientes = await db.rawQuery('''
+            SELECT a.*, e.nombre AS empresa_nombre, c.nombre AS nombre_centro,
+                   f.area_nombre, f.area_otro,
+                   f.tipo_actividad AS actividad_formativa_tipo, f.tipo_otro,
+                   f.descripcion, f.hora_inicio, f.hora_termino, f.asistentes,
+                   f.duracion_real_minutos, f.duracion_contabilizada_minutos,
+                   f.hh_sin_relator, f.hh_con_relator, f.relator_nombre,
+                   f.firma_relator_image
+              FROM actividades_pendientes a
+              JOIN actividades_formativas_pendientes f ON f.actividad_id = a.id
+              LEFT JOIN empresas e ON e.id = a.empresa_id
+              LEFT JOIN centros c ON c.id = a.centro_id
+             WHERE a.tipo_actividad = 'ACTIVIDAD_FORMATIVA'
+               AND a.estado_final = 'En Seguimiento'
+               AND a.eliminado = 0
+               AND a.numero_reporte IS NOT NULL
+               AND a.numero_reporte != ''
+               AND a.numero_reporte NOT LIKE 'PROV-%'
+               AND a.numero_reporte NOT LIKE '~%'
+               AND CAST(a.numero_reporte AS INTEGER) > 0
+               AND f.subido = 1
+               AND (a.pdf_url IS NULL OR a.pdf_url = '')
+          ''');
+
+    for (final row in pendientes) {
+      final activityId = row['id'].toString();
+      final numero = row['numero_reporte'].toString();
+      try {
+        final signature = row['firma_relator_image'];
+        final signatureBytes = signature is List<int>
+            ? Uint8List.fromList(signature)
+            : null;
+        final bytes = await FormativeActivityPdfService().generate(
+          data: row,
+          signatureBytes: signatureBytes,
+        );
+        final directory = await getApplicationDocumentsDirectory();
+        final path =
+            '${directory.path}${Platform.pathSeparator}'
+            'actividad_formativa_$activityId.pdf';
+        await File(path).writeAsBytes(bytes, flush: true);
+
+        final storagePath = '$activityId/reporte_$numero.pdf';
+        await _supabase.storage
+            .from('reportes')
+            .uploadBinary(
+              storagePath,
+              bytes,
+              fileOptions: const FileOptions(
+                contentType: 'application/pdf',
+                upsert: true,
+              ),
+            );
+        final pdfUrl = _supabase.storage
+            .from('reportes')
+            .getPublicUrl(storagePath);
+        await _supabase
+            .from('actividades')
+            .update({'pdf_url': pdfUrl})
+            .eq('id', activityId);
+        await db.update(
+          'actividades_pendientes',
+          {'pdf_url': pdfUrl, 'pdf_path_local': path, 'subido': 1},
+          where: 'id = ?',
+          whereArgs: [activityId],
+        );
+      } catch (e) {
+        debugPrint(
+          '⚠️ Error generando/subiendo PDF de actividad formativa $activityId: $e',
+        );
+        await db.update(
+          'actividades_pendientes',
+          {'subido': 0},
+          where: 'id = ?',
+          whereArgs: [activityId],
+        );
+      }
+    }
+  }
+
   // --- 6. GENERACIÓN DE PDFs DIFERIDOS (Opción C) ---
   Future<void> _generarPdfsDiferidos() async {
     try {
@@ -3277,6 +3429,7 @@ class SyncService {
         'actividades_pendientes',
         where:
             "estado_final = 'En Seguimiento' AND "
+            "tipo_actividad != 'ACTIVIDAD_FORMATIVA' AND "
             "(pdf_path_local IS NULL OR pdf_path_local = '') AND "
             "(pdf_url IS NULL OR pdf_url = '') AND "
             "eliminado = 0 AND "

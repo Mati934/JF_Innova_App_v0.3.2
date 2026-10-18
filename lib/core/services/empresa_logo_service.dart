@@ -50,7 +50,7 @@ class EmpresaLogoService {
   /// (ej: PDF diferido leyendo una actividad ya guardada).
   Future<Uint8List?> getLogoForEmpresa({
     required String? empresaId,
-    required String fallbackAsset,
+    required String? fallbackAsset,
   }) async {
     String? logoUrl;
     if (empresaId != null) {
@@ -80,13 +80,13 @@ class EmpresaLogoService {
   Future<Uint8List?> _resolve({
     required String? empresaId,
     required String? logoUrl,
-    required String fallbackAsset,
+    required String? fallbackAsset,
   }) async {
     if (empresaId != null && logoUrl != null && logoUrl.trim().isNotEmpty) {
       final bytes = await _getOrDownload(empresaId, logoUrl.trim());
       if (bytes != null) return bytes;
     }
-    return _loadAsset(fallbackAsset);
+    return fallbackAsset == null ? null : _loadAsset(fallbackAsset);
   }
 
   Future<Uint8List?> _getOrDownload(String empresaId, String url) async {
