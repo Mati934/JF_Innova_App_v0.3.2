@@ -10,9 +10,11 @@
 - No ejecutes escrituras, DDL, migraciones, cambios de permisos, reinicios de secuencias ni comandos destructivos en entornos remotos sin autorización explícita para el cambio y el entorno. Si falta acceso de lectura, informa el bloqueo y solicita habilitarlo; modificar instrucciones no concede permisos técnicos ni justifica eludirlos.
 - Valida los cambios Dart con `flutter analyze` y pruebas dirigidas con `flutter test`; escala a la suite completa si el alcance lo requiere. La compilación y validación iOS final se hace en Mac.
 - No reviertas ni sobrescribas cambios preexistentes del usuario. Resume qué cambió, qué validaste y cualquier limitación.
+- Mantén una metodología cuidadosa y valida el objetivo real, pero reduce tokens evitando consultas repetidas, lecturas redundantes y delegaciones que no aporten contexto necesario; no recortes la calidad ni las pruebas requeridas.
 
 ## Requisitos de PDF independientes del diseño
 
+- Cada generador PDF tiene su propia versión, independiente de la app y de los otros PDF. Todo cambio al contenido o diseño de ese PDF incrementa su patch final (por ejemplo, `0.1.0` → `0.1.1`).
 - Antes de crear un nuevo PDF, pregunta si debe incluir el pie de buceo/embarcación: `Generado por Servimaf`, contacto y versión. No lo omitas ni lo agregues por suposición; respeta una decisión ya confirmada para ese PDF.
 - Para Actividades Formativas ya está confirmado: incluir ese pie; mostrar `N° Informe` debajo del logo en vez de `Correlativo`; mostrar únicamente las HH incluyendo al relator. Conservar ambas cifras de HH en persistencia para métricas.
 - Estos requisitos son de contenido y deben mantenerse aunque el usuario rediseñe el PDF. No cambies el resto del diseño sin que lo solicite.

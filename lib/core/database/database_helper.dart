@@ -8,7 +8,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      61; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      62; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -34,6 +34,7 @@ class DatabaseHelper {
 
   Future<void> _onOpen(Database db) async {
     await _repairCriticalSchema(db);
+    await _createFormativePhotoDeletionSchema(db);
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -776,6 +777,7 @@ class DatabaseHelper {
 
     await _createConfigurableChecklistSchema(db);
     await _createFormativeActivitySchema(db);
+    await _createFormativePhotoDeletionSchema(db);
 
     debugPrint("✅ Base de datos v$_dbVersion inicializada.");
   }
@@ -1990,6 +1992,19 @@ class DatabaseHelper {
       await _createFormativeActivitySchema(db);
       debugPrint('✅ Parche v61 aplicado (actividades formativas).');
     }
+    if (oldVersion < 62) {
+      await _createFormativePhotoDeletionSchema(db);
+    }
+  }
+
+  Future<void> _createFormativePhotoDeletionSchema(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS formativa_fotos_eliminadas (
+        actividad_id TEXT NOT NULL,
+        local_path TEXT NOT NULL,
+        PRIMARY KEY (actividad_id, local_path)
+      )
+    ''');
   }
 
   Future<void> _createConfigurableChecklistSchema(DatabaseExecutor db) async {

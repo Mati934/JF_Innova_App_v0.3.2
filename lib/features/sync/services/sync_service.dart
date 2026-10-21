@@ -16,6 +16,7 @@ import '../../../features/tickets/data/services/ticket_module_gate.dart';
 import 'sync_execution_gate.dart';
 import '../../configurable_checklists/domain/checklist_evidence_sync.dart';
 import '../../formative_activities/services/formative_activity_pdf_service.dart';
+import '../../formative_activities/data/repositories/local_formative_activity_repository.dart';
 import 'dart:convert';
 
 class SyncService {
@@ -613,6 +614,7 @@ class SyncService {
       // 4. Subir Hijos (Respuestas y Fotos)
       await _sincronizarRespuestas();
       final actividadesConFotosSincronizadas = await _sincronizarFotos();
+      await _sincronizarBajasFotosFormativas();
 
       // 5. Generar tickets despues de que respuestas y fotos ya esten en nube.
       await _generarTicketsAutomaticosFinalizados(
@@ -2938,9 +2940,25 @@ class SyncService {
       final itemId =
           row['item_id'] as String?; // Puede ser null si es foto general
       final descripcion = row['descripcion'] as String?;
+      final parent = await db.query(
+        'actividades_pendientes',
+        columns: ['tipo_actividad', 'subido', 'eliminado'],
+        where: 'id = ?',
+        whereArgs: [actividadId],
+        limit: 1,
+      );
+      final isFormative =
+          parent.isNotEmpty &&
+          parent.first['tipo_actividad'] == 'ACTIVIDAD_FORMATIVA';
+      if (isFormative &&
+          (parent.first['subido'] != 1 || parent.first['eliminado'] == 1)) {
+        continue;
+      }
 
       final file = File(localPath);
       if (!file.existsSync()) {
+        // Keep formative evidence pending rather than publish an incomplete PDF.
+        if (isFormative) continue;
         // Limpieza de basura: Si el archivo no existe, borramos el registro
         await db.delete(
           'fotos_pendientes',
@@ -3044,6 +3062,51 @@ class SyncService {
       }
     }
     return actividadesConFotosSincronizadas;
+  }
+
+  Future<void> _sincronizarBajasFotosFormativas() async {
+    final db = await _dbHelper.database;
+    final rows = await db.query('formativa_fotos_eliminadas');
+    for (final row in rows) {
+      try {
+        final activityId = row['actividad_id'] as String;
+        final path = row['local_path'] as String;
+        final storagePath = '$activityId/${File(path).uri.pathSegments.last}';
+        final url = _supabase.storage
+            .from('evidencias')
+            .getPublicUrl(storagePath);
+        await _supabase
+            .from('registro_fotografico')
+            .delete()
+            .eq('actividad_id', activityId)
+            .eq('foto_url', url);
+        await _supabase.storage.from('evidencias').remove([storagePath]);
+        await db.transaction((txn) async {
+          await txn.delete(
+            'formativa_fotos_eliminadas',
+            where: 'actividad_id = ? AND local_path = ?',
+            whereArgs: [activityId, path],
+          );
+          // A photo restored while this request was in flight must be uploaded again.
+          final restored = await txn.update(
+            'fotos_pendientes',
+            {'subido': 0},
+            where: 'actividad_id = ? AND local_path = ? AND item_id IS NULL',
+            whereArgs: [activityId, path],
+          );
+          if (restored > 0) {
+            await txn.update(
+              'actividades_pendientes',
+              {'subido': 0, 'pdf_url': null},
+              where: 'id = ?',
+              whereArgs: [activityId],
+            );
+          }
+        });
+      } catch (e) {
+        debugPrint('⚠️ Baja de foto formativa pendiente: $e');
+      }
+    }
   }
 
   // --- 0. INICIALIZACIÓN CRÍTICA (NUEVO) ---
@@ -3362,6 +3425,14 @@ class SyncService {
                AND a.numero_reporte NOT LIKE '~%'
                AND CAST(a.numero_reporte AS INTEGER) > 0
                AND f.subido = 1
+               AND NOT EXISTS (
+                 SELECT 1 FROM fotos_pendientes p
+                  WHERE p.actividad_id = a.id AND p.subido = 0
+               )
+               AND NOT EXISTS (
+                 SELECT 1 FROM formativa_fotos_eliminadas d
+                  WHERE d.actividad_id = a.id
+               )
                AND (a.pdf_url IS NULL OR a.pdf_url = '')
           ''');
 
@@ -3376,6 +3447,9 @@ class SyncService {
         final bytes = await FormativeActivityPdfService().generate(
           data: row,
           signatureBytes: signatureBytes,
+          photoPaths: await LocalFormativeActivityRepository().getPhotoPaths(
+            activityId,
+          ),
         );
         final directory = await getApplicationDocumentsDirectory();
         final path =

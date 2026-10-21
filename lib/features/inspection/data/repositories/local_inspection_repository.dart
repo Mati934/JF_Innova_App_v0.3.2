@@ -9,6 +9,7 @@ import '../../domain/models/formulario_item.dart';
 import '../../domain/repositories/inspection_repository.dart';
 import '../../../../core/database/database_helper.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 import 'dart:io';
 
 class LocalInspectionRepository implements InspectionRepository {
@@ -160,8 +161,7 @@ class LocalInspectionRepository implements InspectionRepository {
     if (file.path.contains(folderPath)) {
       permanentPath = file.path;
     } else {
-      final fileName =
-          '${DateTime.now().millisecondsSinceEpoch}_${itemId ?? "general"}.jpg';
+      final fileName = '${const Uuid().v4()}_${itemId ?? "general"}.jpg';
       permanentPath = '$folderPath/$fileName';
       final sourceFile = File(file.path);
       if (await sourceFile.exists()) {

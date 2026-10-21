@@ -1,8 +1,10 @@
 import 'dart:typed_data';
 
 import 'package:sqflite/sqflite.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/database/database_helper.dart';
+import '../../../inspection/data/repositories/local_inspection_repository.dart';
 import '../../domain/models/formative_activity.dart';
 
 class LocalFormativeActivityRepository {
@@ -117,6 +119,66 @@ class LocalFormativeActivityRepository {
       where: 'id = ? AND tipo_actividad = ?',
       whereArgs: [activityId, 'ACTIVIDAD_FORMATIVA'],
     );
+  }
+
+  Future<List<String>> getPhotoPaths(String activityId) async {
+    final db = await _databaseHelper.database;
+    final rows = await db.query(
+      'fotos_pendientes',
+      columns: ['local_path'],
+      where: 'actividad_id = ? AND item_id IS NULL',
+      whereArgs: [activityId],
+      orderBy: 'id',
+    );
+    return rows.map((row) => row['local_path'] as String).toList();
+  }
+
+  Future<List<String>> savePhotos(String activityId, List<String> paths) async {
+    final db = await _databaseHelper.database;
+    final existing = await getPhotoPaths(activityId);
+    final retained = existing.where(paths.contains).toSet();
+    // Reuse inspection's permanent storage and the shared upload queue.
+    final inspection = LocalInspectionRepository();
+    for (final path in paths.toSet()) {
+      if (!existing.contains(path)) {
+        final savedPath = await inspection.saveFoto(
+          activityId: activityId,
+          itemId: null,
+          file: XFile(path),
+          descripcion: '',
+        );
+        retained.add(savedPath);
+      }
+    }
+    await db.transaction((txn) async {
+      for (final path in retained) {
+        await txn.delete(
+          'formativa_fotos_eliminadas',
+          where: 'actividad_id = ? AND local_path = ?',
+          whereArgs: [activityId, path],
+        );
+      }
+      for (final path in existing.where((path) => !paths.contains(path))) {
+        // Queue even an unacknowledged upload: it may have reached the server.
+        await txn.insert(
+          'formativa_fotos_eliminadas',
+          {'actividad_id': activityId, 'local_path': path},
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+        await txn.delete(
+          'fotos_pendientes',
+          where: 'actividad_id = ? AND local_path = ? AND item_id IS NULL',
+          whereArgs: [activityId, path],
+        );
+      }
+      await txn.update(
+        'actividades_pendientes',
+        {'pdf_url': null, 'subido': 0},
+        where: 'id = ? AND tipo_actividad = ?',
+        whereArgs: [activityId, 'ACTIVIDAD_FORMATIVA'],
+      );
+    });
+    return getPhotoPaths(activityId);
   }
 
   Future<List<Map<String, dynamic>>> getDrafts() async {

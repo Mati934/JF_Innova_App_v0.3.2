@@ -13,6 +13,8 @@ import 'package:jf_innova_app/features/sync/services/sync_service.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'helpers/pdf_test_content.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory directory;
@@ -21,6 +23,11 @@ void main() {
   final uploadedPdfs = <List<int>>[];
   var nextNumber = 1;
   var failPdfUpload = false;
+  var failPhotoAcknowledgement = false;
+  var failPhotoDelete = false;
+  List<String>? restoreDuringDelete;
+  final remotePhotos = <String, Map<String, dynamic>>{};
+  final storagePhotos = <String>{};
   final repository = LocalFormativeActivityRepository();
 
   FormativeActivity activity() => FormativeActivity(
@@ -106,6 +113,57 @@ void main() {
             return http.Response('', 204, request: request);
           }
         }
+        if (path.startsWith('/storage/v1/object/evidencias/')) {
+          storagePhotos.add(path);
+          return http.Response('{"Key":"photo"}', 200, headers: headers);
+        }
+        if (path == '/storage/v1/object/evidencias' &&
+            request.method == 'DELETE') {
+          final prefixes =
+              (jsonDecode(request.body) as Map<String, dynamic>)['prefixes']
+                  as List<dynamic>;
+          for (final prefix in prefixes) {
+            storagePhotos.remove('$path/$prefix');
+          }
+          return http.Response('[]', 200, headers: headers, request: request);
+        }
+        if (path == '/rest/v1/registro_fotografico') {
+          if (request.method == 'POST') {
+            final photo = jsonDecode(request.body) as Map<String, dynamic>;
+            expect(request.url.queryParameters['on_conflict'], 'foto_url');
+            expect(photo['inspeccion_respuesta_id'], isNull);
+            remotePhotos[photo['foto_url'] as String] = photo;
+            if (failPhotoAcknowledgement) {
+              return http.Response(
+                '{"message":"Retry photo acknowledgement"}',
+                503,
+                headers: headers,
+              );
+            }
+            return http.Response('', 201, request: request);
+          }
+          if (request.method == 'DELETE') {
+            if (failPhotoDelete) {
+              return http.Response(
+                '{"message":"Retry photo deletion"}',
+                503,
+                headers: headers,
+              );
+            }
+            final url = request.url.queryParameters['foto_url']!.substring(3);
+            final id = request.url.queryParameters['actividad_id']!.substring(
+              3,
+            );
+            if (restoreDuringDelete != null) {
+              final restored = restoreDuringDelete!;
+              restoreDuringDelete = null;
+              await repository.savePhotos(id, restored);
+            }
+            expect(remotePhotos[url]?['actividad_id'], anyOf(isNull, id));
+            remotePhotos.remove(url);
+            return http.Response('', 204, request: request);
+          }
+        }
         if (path.startsWith('/storage/v1/object/reportes/')) {
           if (path.endsWith('.pdf')) {
             if (failPdfUpload) {
@@ -152,10 +210,17 @@ void main() {
   setUp(() async {
     await db.delete('actividades_formativas_pendientes');
     await db.delete('actividades_pendientes');
+    await db.delete('fotos_pendientes');
+    await db.delete('formativa_fotos_eliminadas');
     remote.clear();
     uploadedPdfs.clear();
     nextNumber = 1;
     failPdfUpload = false;
+    failPhotoAcknowledgement = false;
+    failPhotoDelete = false;
+    restoreDuringDelete = null;
+    remotePhotos.clear();
+    storagePhotos.clear();
   });
 
   tearDownAll(() async {
@@ -173,6 +238,145 @@ void main() {
     await db.close();
     await directory.delete(recursive: true);
   });
+
+  test(
+    'photos survive reopening and retry without duplicate rows or storage objects',
+    () async {
+      await repository.save(activity(), finalized: false);
+      final paths = await repository.savePhotos('activity-test', [
+        File('assets/images/aquachile.png').absolute.path,
+        File('assets/images/aquachile.png').absolute.path,
+        File('assets/images/aquachile2.jpeg').absolute.path,
+      ]);
+      expect(paths, hasLength(2));
+      expect(paths.every((path) => path.contains('inspecciones_img')), isTrue);
+      expect(
+        await LocalFormativeActivityRepository().getPhotoPaths('activity-test'),
+        paths,
+      );
+      expect(
+        await File(paths[0]).readAsBytes(),
+        await File('assets/images/aquachile.png').readAsBytes(),
+      );
+      expect(
+        await File(paths[1]).readAsBytes(),
+        await File('assets/images/aquachile2.jpeg').readAsBytes(),
+      );
+      await repository.savePhotos('activity-test', paths);
+      expect(await repository.getPhotoPaths('activity-test'), paths);
+      final preview = await FormativeActivityPdfService().generate(
+        data: (await repository.getById('activity-test'))!,
+        signatureBytes: null,
+        photoPaths: paths,
+      );
+      expect(pdfImageDrawCount(preview), 2);
+      await repository.save(activity(), finalized: true);
+      failPhotoAcknowledgement = true;
+      await SyncService().sincronizarTodo();
+      expect(remotePhotos, hasLength(2));
+      expect(uploadedPdfs, isEmpty);
+      expect(
+        await db.query('fotos_pendientes', where: 'subido = 0'),
+        hasLength(2),
+      );
+
+      failPhotoAcknowledgement = false;
+      await SyncService().sincronizarTodo();
+      expect(remotePhotos, hasLength(2));
+      expect(storagePhotos, hasLength(2));
+      expect(uploadedPdfs, hasLength(1));
+      expect(pdfImageDrawCount(uploadedPdfs.single), 2);
+      expect(pdfText(uploadedPdfs.single), contains('N° Informe: 1'));
+      await SyncService().sincronizarTodo();
+      expect(uploadedPdfs, hasLength(1));
+      expect(nextNumber, 2);
+    },
+  );
+
+  test(
+    'offline removal retries and blocks official PDF until acknowledged',
+    () async {
+      await repository.save(activity(), finalized: false);
+      final paths = await repository.savePhotos('activity-test', [
+        File('assets/images/aquachile.png').absolute.path,
+      ]);
+      await SyncService().sincronizarTodo();
+      expect(remotePhotos, hasLength(1));
+      await repository.savePhotos('activity-test', []);
+      expect(await repository.getPhotoPaths('activity-test'), isEmpty);
+      expect(await db.query('formativa_fotos_eliminadas'), hasLength(1));
+      expect(await File(paths.single).exists(), isTrue);
+      await repository.save(activity(), finalized: true);
+      failPhotoDelete = true;
+      await SyncService().sincronizarTodo();
+      expect(uploadedPdfs, isEmpty);
+      expect(remotePhotos, hasLength(1));
+      expect(storagePhotos, hasLength(1));
+      failPhotoDelete = false;
+      await SyncService().sincronizarTodo();
+      expect(remotePhotos, isEmpty);
+      expect(storagePhotos, isEmpty);
+      expect(await db.query('formativa_fotos_eliminadas'), isEmpty);
+      expect(uploadedPdfs, hasLength(1));
+      expect(pdfImageDrawCount(uploadedPdfs.single), 0);
+    },
+  );
+
+  test(
+    'missing local evidence remains pending instead of publishing incomplete PDF',
+    () async {
+      await repository.save(activity(), finalized: true);
+      await db.insert('fotos_pendientes', {
+        'actividad_id': 'activity-test',
+        'local_path': '${directory.path}/missing.jpg',
+        'subido': 0,
+      });
+      await SyncService().sincronizarTodo();
+      expect(uploadedPdfs, isEmpty);
+      expect(await db.query('fotos_pendientes'), hasLength(1));
+    },
+  );
+
+  test('restoring a removed photo cancels its offline deletion', () async {
+    await repository.save(activity(), finalized: false);
+    final paths = await repository.savePhotos('activity-test', [
+      File('assets/images/aquachile.png').absolute.path,
+    ]);
+    await SyncService().sincronizarTodo();
+    await repository.savePhotos('activity-test', []);
+    expect(await db.query('formativa_fotos_eliminadas'), hasLength(1));
+    expect(await repository.savePhotos('activity-test', paths), paths);
+    expect(await db.query('formativa_fotos_eliminadas'), isEmpty);
+    await SyncService().sincronizarTodo();
+    expect(remotePhotos, hasLength(1));
+    expect(storagePhotos, hasLength(1));
+  });
+
+  test(
+    'a photo restored during remote deletion is uploaded again before PDF',
+    () async {
+      await repository.save(activity(), finalized: false);
+      final paths = await repository.savePhotos('activity-test', [
+        File('assets/images/aquachile.png').absolute.path,
+      ]);
+      await SyncService().sincronizarTodo();
+      await repository.savePhotos('activity-test', []);
+      await repository.save(activity(), finalized: true);
+      restoreDuringDelete = paths;
+      await SyncService().sincronizarTodo();
+      expect(remotePhotos, isEmpty);
+      expect(uploadedPdfs, isEmpty);
+      expect(
+        await db.query('fotos_pendientes', where: 'subido = 0'),
+        hasLength(1),
+      );
+      await SyncService().sincronizarTodo();
+      expect(remotePhotos, hasLength(1));
+      expect(storagePhotos, hasLength(1));
+      expect(uploadedPdfs, hasLength(1));
+      expect(pdfImageDrawCount(uploadedPdfs.single), 1);
+    },
+  );
 
   test(
     'drafts consume no number; finalizing synchronizes 1 and its PDF',

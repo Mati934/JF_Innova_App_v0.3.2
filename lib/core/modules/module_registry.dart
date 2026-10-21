@@ -118,7 +118,7 @@ class ModuleRegistry {
     ModuleDefinition(
       moduleKey: 'ACTIVIDADES_FORMATIVAS',
       title: 'Registro de Actividad',
-      subtitle: 'Registro formativo, charla o servicio',
+      subtitle: '',
       icon: Icons.groups_outlined,
       color: const Color(0xFF1B3B6F),
       screenBuilder: (_) => const FormativeActivityModuleScreen(),

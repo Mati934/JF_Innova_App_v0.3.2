@@ -11,6 +11,8 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/services/user_session.dart';
 import '../../../../shared/widgets/custom_dropdown.dart';
+import '../../../../shared/widgets/form_inputs/gallery_input.dart';
+import '../../../ast/presentation/controllers/ast_photo_persistence_queue.dart';
 import '../../data/repositories/local_formative_activity_repository.dart';
 import '../../domain/models/formative_activity.dart';
 import '../../services/formative_activity_pdf_service.dart';
@@ -41,6 +43,9 @@ class _FormativeActivityFormScreenState
   final _otherTypeController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _otherAreaController = TextEditingController();
+  final _photoQueue = AstPhotoPersistenceQueue();
+  List<File> _photos = [];
+  String? _photoError;
 
   final _activityId = const Uuid().v4();
   final _userId = UserSession().userId;
@@ -120,6 +125,7 @@ class _FormativeActivityFormScreenState
           : await _repository.getById(widget.activityId!);
       if (existing != null) {
         _loadExisting(existing);
+        _photos = (await _repository.getPhotoPaths(_id)).map(File.new).toList();
       } else {
         final suggestedAreaId = await _repository.getSuggestedAreaId(
           userId,
@@ -213,6 +219,7 @@ class _FormativeActivityFormScreenState
     final savingRevision = _changeRevision;
     var saveSucceeded = false;
     try {
+      await _waitForPhotos();
       await _repository.save(
         _buildActivity(status: 'En Progreso'),
         finalized: false,
@@ -662,6 +669,40 @@ class _FormativeActivityFormScreenState
 
   Future<Uint8List?> _signatureBytes() async => _savedSignature;
 
+  Future<void> _waitForPhotos() async {
+    await _photoQueue.waitUntilIdle();
+    if (_photoError != null) throw StateError(_photoError!);
+  }
+
+  void _changePhotos(List<File> photos) {
+    if (_photoQueue.isProcessing) return;
+    final operation = _persistPhotos(photos);
+    unawaited(_photoQueue.track(operation));
+    setState(() {});
+  }
+
+  Future<void> _persistPhotos(List<File> photos) async {
+    try {
+      _photoError = null;
+      final paths = await _repository.savePhotos(
+        _id,
+        photos.map((file) => file.path).toList(),
+      );
+      _photos = paths.map(File.new).toList();
+      if (mounted) _onFieldChanged();
+    } catch (e) {
+      _photoError = 'No se pudo guardar el registro fotográfico: $e';
+      try {
+        _photos = (await _repository.getPhotoPaths(_id)).map(File.new).toList();
+      } catch (_) {
+        // Keep the visible selection if local storage is temporarily unavailable.
+      }
+      _showMessage(_photoError!);
+    } finally {
+      if (mounted) setState(() {});
+    }
+  }
+
   Map<String, dynamic> _buildPdfData({required String numeroReporte}) {
     final activity = _buildActivity(status: 'En Progreso');
     final duration = _durationMinutes;
@@ -708,6 +749,7 @@ class _FormativeActivityFormScreenState
     final previewRevision = _changeRevision;
     var saveSucceeded = false;
     try {
+      await _waitForPhotos();
       await _repository.save(
         _buildActivity(status: 'En Progreso'),
         finalized: false,
@@ -722,6 +764,7 @@ class _FormativeActivityFormScreenState
               : 'Pendiente de correlativo',
         ),
         signatureBytes: _savedSignature,
+        photoPaths: await _repository.getPhotoPaths(_id),
       );
       if (!mounted) return;
       await Printing.layoutPdf(
@@ -764,6 +807,7 @@ class _FormativeActivityFormScreenState
       while (_autoSaving) {
         await Future<void>.delayed(const Duration(milliseconds: 50));
       }
+      await _waitForPhotos();
       if (!mounted) return;
       await _repository.save(
         _buildActivity(status: finalize ? 'En Seguimiento' : 'En Progreso'),
@@ -778,6 +822,7 @@ class _FormativeActivityFormScreenState
         final pdfBytes = await FormativeActivityPdfService().generate(
           data: row,
           signatureBytes: signature,
+          photoPaths: await _repository.getPhotoPaths(_id),
         );
         final directory = await getApplicationDocumentsDirectory();
         final pdfPath =
@@ -811,6 +856,7 @@ class _FormativeActivityFormScreenState
   }
 
   Future<void> _saveOnExit() async {
+    await _waitForPhotos();
     await _repository.save(
       _buildActivity(status: 'En Progreso'),
       finalized: false,
@@ -1073,6 +1119,34 @@ class _FormativeActivityFormScreenState
                           ),
                           const SizedBox(height: 16),
                           _hoursPanel(),
+                        ]),
+                        _section('Registro fotográfico', [
+                          AbsorbPointer(
+                            absorbing:
+                                _photoQueue.isProcessing || _previewingPdf,
+                            child: GalleryInput(
+                              images: _photos,
+                              onImagesChanged: _changePhotos,
+                            ),
+                          ),
+                          if (_photoQueue.isProcessing)
+                            const LinearProgressIndicator(),
+                          if (_photoError != null)
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _photoError!,
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                                TextButton(
+                                  onPressed: () => _changePhotos(_photos),
+                                  child: const Text(
+                                    'Reintentar guardado de fotos',
+                                  ),
+                                ),
+                              ],
+                            ),
                         ]),
                         _section('Relator', [
                           TextFormField(

@@ -9,7 +9,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('v60 to v61 preserves pending inspections and evidence', () async {
+  test('v60 to v62 preserves pending inspections and evidence', () async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
     final directory = await Directory.systemTemp.createTemp(
@@ -81,7 +81,7 @@ void main() {
     Database? upgraded;
     try {
       upgraded = await DatabaseHelper.instance.database;
-      expect(await upgraded.getVersion(), 61);
+      expect(await upgraded.getVersion(), 62);
       expect((await upgraded.query('actividades_pendientes')).single, {
         ...inspection,
         'empresa_id': null,
@@ -100,6 +100,7 @@ void main() {
         await upgraded.query('actividades_formativas_pendientes'),
         isEmpty,
       );
+      expect(await upgraded.query('formativa_fotos_eliminadas'), isEmpty);
       final columns = await upgraded.rawQuery(
         'PRAGMA table_info(actividades_formativas_pendientes)',
       );
