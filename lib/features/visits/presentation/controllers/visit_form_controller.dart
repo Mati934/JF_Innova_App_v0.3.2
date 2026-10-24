@@ -303,6 +303,19 @@ class VisitFormController extends ChangeNotifier {
 
       // Restaurar checklist del borrador si existe
       await _restoreChecklistFromBorrador();
+
+      // Un borrador puede usar un checklist ya oculto: se mantiene solo en él
+      // para que el dropdown tenga su valor.
+      final tipoBorrador = selectedTipoActividad;
+      if (tipoBorrador != null &&
+          !tiposChecklistDisponibles.any(
+            (t) => t['tipo_actividad'] == tipoBorrador,
+          )) {
+        tiposChecklistDisponibles = [
+          ...tiposChecklistDisponibles,
+          {'tipo_actividad': tipoBorrador},
+        ];
+      }
     }
 
     // Activamos listeners al final

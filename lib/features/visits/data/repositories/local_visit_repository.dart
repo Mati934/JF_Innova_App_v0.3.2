@@ -237,7 +237,17 @@ class LocalVisitRepository {
     } else {
       // Exclusiones por defecto + las que pidan
       // VISITA_R012 = checklist Hidroser, ahora vive en su módulo propio.
-      final defaultExcludes = <String>['VISITA_R004', 'VISITA_R012'];
+      // VISITA_CHEQUEO_* = herramientas, reemplazadas por los chq_* del motor
+      // configurable (2026-09-14). Se ocultan, no se eliminan.
+      final defaultExcludes = <String>[
+        'VISITA_R004',
+        'VISITA_R012',
+        'VISITA_CHEQUEO_HERRAMIENTAS_MANUALES',
+        'VISITA_CHEQUEO_SOLDADORA_AL_ARCO',
+        'VISITA_CHEQUEO_TALADRO_DESTORNILLADOR',
+        'VISITA_CHEQUEO_ESMERIL_ANGULAR',
+        'VISITA_CHEQUEO_EXTENSION_ELECTRICA',
+      ];
       final excludes = <String>{
         ...defaultExcludes,
         if (excludeTypes != null) ...excludeTypes,

@@ -20,6 +20,8 @@ Active for the whole session until the user says "stop ponytail" or "normal mode
 
 Read the task and the code it touches. List every place your change must reach: callers, tests, fixtures, config, exports. Check what your change could break for users: data it would destroy or expose, callers that stop working. That is scope. Extra features are not.
 
+If `graphify-out/graph.json` exists, ask the graph first: `graphify query "<what you need>"` or `graphify explain "<concept>"` to find code you can reuse, and `graphify explain "<function>"` or `graphify path "<A>" "<B>"` to find every caller your change reaches. Read source files only to confirm and edit. If the graph looks stale (missing recent files), run `graphify update .` first.
+
 ## The smallest complete change
 
 Take the first option that fully works:

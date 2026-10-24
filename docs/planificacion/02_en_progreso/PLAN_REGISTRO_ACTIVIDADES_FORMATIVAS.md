@@ -163,6 +163,10 @@ mantienen en la captura, persistencia y cálculo de HH. También debe mostrar el
 número oficial como `N° Informe` debajo del logo y la identidad visual
 correspondiente a la empresa, junto al pie `Generado por Servimaf` en cada
 página. No debe mostrar la fecha de emisión.
+Desde la versión PDF `0.1.4`, el nombre sobre el título corresponde a la empresa
+del registro, tomada de la empresa activa de la sesión mediante
+`usuario_empresas` y `empresas`, no de `usuarios.empresa_id`. El pie sigue
+identificando a Servimaf como generador.
 No se enviará automáticamente por correo.
 
 ## 7. Reglas y modelo de datos propuestos

@@ -7,7 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../../../core/services/empresa_logo_service.dart';
 
 class FormativeActivityPdfService {
-  static const pdfVersion = '0.1.3';
+  static const pdfVersion = '0.1.4';
   static const footerText =
       'Generado por Servimaf  |  +56 9 8383 3177  |  v$pdfVersion';
   static const _navy = PdfColor.fromInt(0xFF1B3B6F);
@@ -67,7 +67,7 @@ class FormativeActivityPdfService {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text(
-                            'SERVIMAF',
+                            _value(data, 'empresa_nombre'),
                             style: pw.TextStyle(
                               fontSize: 10,
                               fontWeight: pw.FontWeight.bold,
@@ -310,7 +310,7 @@ class FormativeActivityPdfService {
           child: _summaryMetric(
             label: 'HORAS-HOMBRE',
             value: hh,
-            caption: 'Incluye relator',
+            caption: '',
           ),
         ),
         pw.Container(

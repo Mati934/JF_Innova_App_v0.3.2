@@ -22,10 +22,26 @@ void main() {
   };
   final photo = File('assets/images/aquachile.png').absolute.path;
 
+  for (final company in ['Empresa de prueba', 'Otra empresa']) {
+    test('PDF header uses the record company: $company', () async {
+      final bytes = await service.generate(
+        data: {...data, 'empresa_nombre': company},
+        signatureBytes: null,
+      );
+      final text = pdfText(bytes);
+      expect(text, contains('$company Registro de Actividad Formativa'));
+      expect(text, isNot(contains('SERVIMAF')));
+      expect(
+        text,
+        contains(FormativeActivityPdfService.footerText.replaceAll('  ', ' ')),
+      );
+    });
+  }
+
   test('PDF footer contact and independent version are exact', () {
     expect(
       FormativeActivityPdfService.footerText,
-      'Generado por Servimaf  |  +56 9 8383 3177  |  v0.1.3',
+      'Generado por Servimaf  |  +56 9 8383 3177  |  v0.1.4',
     );
   });
 
@@ -52,7 +68,7 @@ void main() {
         expect(text, contains('OYENTES'));
         expect(text, contains('4'));
         expect(text, isNot(contains('HALLAZGOS')));
-        expect(FormativeActivityPdfService.pdfVersion, '0.1.3');
+        expect(FormativeActivityPdfService.pdfVersion, '0.1.4');
       },
     );
   }

@@ -688,7 +688,7 @@ class InspectionFormController extends ChangeNotifier {
     _errorMessage = null;
     _errorPdfNoRecuperable = false;
 
-    // 2. Validación de Negocio (Buceo necesita min 2 personas)
+    // 2. Validación de Negocio (Buceo necesita al menos 1 participante)
     if (tipoActividad == 'INSPECCION_BUCEO') {
       if (participantes.isEmpty) {
         _errorMessage = "Debe haber al menos 1 participante en la cuadrilla.";

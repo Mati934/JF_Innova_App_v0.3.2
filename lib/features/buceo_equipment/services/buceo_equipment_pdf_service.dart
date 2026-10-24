@@ -28,6 +28,8 @@ Future<Uint8List> generateBuceoEquipmentPdfEntryPoint(
 }
 
 class BuceoEquipmentPdfService {
+  static const String _pdfVersion = '0.1.0';
+
   Future<Uint8List> generateSync(BuceoEquipmentPdfIsolateParams params) async {
     final pdf = pw.Document();
     final data = params.data;
@@ -466,7 +468,7 @@ class BuceoEquipmentPdfService {
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
           pw.Text(
-            'JF Innova - Inspeccion de equipamiento de buceo',
+            'JF Innova - Inspeccion de equipamiento de buceo  |  v$_pdfVersion',
             style: const pw.TextStyle(fontSize: 7),
           ),
           pw.Text(
