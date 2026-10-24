@@ -20,8 +20,8 @@ class AppTheme {
         error: logoRed,
         tertiary: logoYellow, // Usaremos esto para advertencias
         surface: Colors.white,
-        background: const Color(0xFFF4F6F8),
       ),
+      scaffoldBackgroundColor: const Color(0xFFF4F6F8),
 
       appBarTheme: const AppBarTheme(
         backgroundColor: primaryBlue,

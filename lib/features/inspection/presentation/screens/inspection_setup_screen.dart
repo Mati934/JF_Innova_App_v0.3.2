@@ -1,496 +1,525 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:uuid/uuid.dart';
-import '../../../../core/database/database_helper.dart';
-import '../../../sync/services/sync_service.dart';
+import 'package:provider/provider.dart';
+import '../controllers/inspection_setup_controller.dart';
 import 'inspection_form_screen.dart';
+// Asegúrate de que esta ruta sea la correcta hacia tu archivo shared
+import '../../../../../shared/widgets/custom_dropdown.dart';
 
-class InspectionSetupScreen extends StatefulWidget {
+class InspectionSetupScreen extends StatelessWidget {
   const InspectionSetupScreen({super.key});
 
   @override
-  State<InspectionSetupScreen> createState() => _InspectionSetupScreenState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => InspectionSetupController(),
+      child: const _InspectionSetupView(),
+    );
+  }
 }
 
-class _InspectionSetupScreenState extends State<InspectionSetupScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _dbHelper = DatabaseHelper.instance;
-  final _syncService = SyncService();
-
-  bool _isLoading = true;
-  bool _isSaving = false;
-
-  List<Map<String, dynamic>> _areas = [];
-  List<Map<String, dynamic>> _centros = [];
-  List<Map<String, dynamic>> _contratistas = [];
-  List<Map<String, dynamic>> _embarcaciones = [];
-
-  String? _areaId;
-  String? _centroId;
-  String? _estadoPuerto = 'ABIERTO';
-  String? _actividadPuertoCerrado;
-  String? _tipoActividad;
-  String? _contratistaId;
-  String? _embarcacionId;
-
-  final List<String> _tiposInspeccion = [
-    'INSPECCION_BUCEO',
-    'INSPECCION_EMBARCACION',
-  ];
-  final TextEditingController _folioController = TextEditingController();
-  final List<String> _estadosPuerto = ['ABIERTO', 'CERRADO'];
-  final List<String> _opcionesPuertoCerrado = [
-    'PRE_INSPECCION',
-    'CHARLAS_SEGURIDAD',
-    'LIMPIEZA_PLAYA',
-    'SIN_ACTIVIDAD',
-    'OTRAS_LABORES',
-  ];
-
-  @override
-  void dispose() {
-    _folioController.dispose(); // No olvides limpiarlo
-    super.dispose();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _cargarListasIniciales();
-  }
-
-  Future<void> _cargarListasIniciales() async {
-    final areas = await _dbHelper.getAreas();
-    final contratistas = await _dbHelper.getContratistas();
-    if (mounted) {
-      setState(() {
-        _areas = areas;
-        _contratistas = contratistas;
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _cargarCentros(String areaId) async {
-    final centros = await _dbHelper.getCentros(areaId);
-    setState(() {
-      _centroId = null;
-      _centros = centros;
-    });
-  }
-
-  Future<void> _cargarEmbarcaciones(String contratistaId) async {
-    final naves = await _dbHelper.getEmbarcaciones(contratistaId);
-    setState(() {
-      _embarcacionId = null;
-      _embarcaciones = naves;
-    });
-  }
-
-  Future<void> _crearActividad() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _isSaving = true);
-
-    try {
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      final newActivityId = const Uuid().v4();
-
-      final bool esInspeccionCompleta =
-          _estadoPuerto == 'ABIERTO' ||
-          (_estadoPuerto == 'CERRADO' &&
-              _actividadPuertoCerrado == 'PRE_INSPECCION');
-
-      final String tipoFinal = esInspeccionCompleta
-          ? _tipoActividad!
-          : 'BITACORA';
-
-      String? obs = _estadoPuerto == 'CERRADO'
-          ? 'Puerto Cerrado: $_actividadPuertoCerrado'
-          : null;
-
-      // Obtenemos el nombre del centro para pasarlo a la siguiente pantalla
-      final nombreCentroSeleccionado = _centros.firstWhere(
-        (c) => c['id'] == _centroId,
-        orElse: () => {'nombre': 'Centro Desconocido'},
-      )['nombre'];
-
-      final datosActividad = {
-        'id': newActivityId,
-        'usuario_id': userId,
-        'centro_id': _centroId,
-        'contratista_id': esInspeccionCompleta ? _contratistaId : null,
-        'embarcacion_id': esInspeccionCompleta ? _embarcacionId : null,
-        'tipo_actividad': tipoFinal,
-        'fecha_realizacion': DateTime.now().toIso8601String(),
-        'puerto_abierto': _estadoPuerto == 'ABIERTO' ? 1 : 0,
-        'observaciones_generales': obs,
-        'estado_final':
-            'En Progreso', // Cambiado de 'En Seguimiento' a 'En Progreso'
-        'subido': 0,
-        'numero_reporte': _folioController.text.trim(),
-      };
-
-      // Asegúrate de que saveActividadOffline acepte este Mapa completo
-      await _dbHelper.saveActividadOffline(datosActividad);
-
-      // En inspection_setup_screen.dart (~línea 135)
-
-      _syncService
-          .sincronizarTodo()
-          .then((cantidad) {
-            debugPrint(
-              "Sincronización en 2do plano completada: $cantidad subidos",
-            );
-          })
-          .catchError((e) {
-            debugPrint("Sync background error: $e");
-            // ¡Borramos el return -1! No es necesario devolver nada aquí.
-          });
-
-      if (mounted) {
-        if (esInspeccionCompleta) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => InspectionFormScreen(
-                activityId: newActivityId,
-                tipoActividad: tipoFinal,
-                nombreCentro: nombreCentroSeleccionado,
-                numeroInformeInicial: _folioController.text,
-              ),
-            ),
-          );
-        } else {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('✅ Bitácora guardada localmente.')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error guardando actividad: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
+class _InspectionSetupView extends StatelessWidget {
+  const _InspectionSetupView();
 
   @override
   Widget build(BuildContext context) {
-    bool mostrarFormularioCompleto =
-        _estadoPuerto == 'ABIERTO' ||
-        (_estadoPuerto == 'CERRADO' &&
-            _actividadPuertoCerrado == 'PRE_INSPECCION');
+    final controller = Provider.of<InspectionSetupController>(context);
+
+    // Listener para errores
+    if (controller.errorMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(controller.errorMessage!),
+            backgroundColor: Colors.red,
+          ),
+        );
+      });
+    }
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
-        title: const Text('Configuración Faena'),
+        title: const Text('Configuración de Faena'),
         backgroundColor: const Color(0xFF003366),
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
-      body: _isLoading
+      body: controller.isLoading
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
-              // Asegura que no se meta en el notch o barra inferior
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    children: [
-                      const Text(
-                        '📍 Ubicación y Estado',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF003366),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                child: Column(
+                  children: [
+                    // Banner azul superior
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF003366), Color(0xFF002244)],
                         ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(
+                              0xFF003366,
+                            ).withValues(alpha: 0.18),
+                            blurRadius: 14,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 15),
-
-                      DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Área / Región',
-                          border: OutlineInputBorder(),
-                        ),
-                        value: _areaId,
-                        items: _areas
-                            .map(
-                              (x) => DropdownMenuItem(
-                                value: x['id'] as String,
-                                child: Text(
-                                  x['nombre'],
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) {
-                          setState(() => _areaId = v);
-                          if (v != null) _cargarCentros(v);
-                        },
-                        validator: (v) => v == null ? 'Requerido' : null,
-                      ),
-                      const SizedBox(height: 15),
-
-                      DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          // CAMBIO SOLICITADO
-                          labelText: 'Centro de Trabajo',
-                          border: OutlineInputBorder(),
-                        ),
-                        value: _centroId,
-                        items: _centros
-                            .map(
-                              (x) => DropdownMenuItem(
-                                value: x['id'] as String,
-                                child: Text(
-                                  x['nombre'],
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) => setState(() => _centroId = v),
-                        validator: (v) => v == null ? 'Requerido' : null,
-                      ),
-                      const SizedBox(height: 15),
-
-                      DropdownButtonFormField<String>(
-                        decoration: InputDecoration(
-                          labelText: 'Condición de Puerto',
-                          border: const OutlineInputBorder(),
-                          fillColor: _estadoPuerto == 'CERRADO'
-                              ? Colors.red.shade50
-                              : null,
-                          filled: _estadoPuerto == 'CERRADO',
-                        ),
-                        value: _estadoPuerto,
-                        items: _estadosPuerto
-                            .map(
-                              (x) => DropdownMenuItem(value: x, child: Text(x)),
-                            )
-                            .toList(),
-                        onChanged: (v) => setState(() {
-                          _estadoPuerto = v;
-                          _actividadPuertoCerrado = null;
-                        }),
-                      ),
-
-                      if (_estadoPuerto == 'CERRADO') ...[
-                        const SizedBox(height: 20),
-                        Container(
-                          padding: const EdgeInsets.all(15),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.shade50,
-                            border: Border.all(color: Colors.orange),
-                            borderRadius: BorderRadius.circular(8),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.settings,
+                              color: Colors.white,
+                              size: 24,
+                            ),
                           ),
-                          child: Column(
-                            children: [
-                              const Text(
-                                '⚠️ Puerto Cerrado',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.deepOrange,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              DropdownButtonFormField<String>(
-                                isExpanded: true,
-                                decoration: const InputDecoration(
-                                  labelText: 'Actividad Realizada',
-                                  border: OutlineInputBorder(),
-                                ),
-                                value: _actividadPuertoCerrado,
-                                items: _opcionesPuertoCerrado
-                                    .map(
-                                      (x) => DropdownMenuItem(
-                                        value: x,
-                                        child: Text(
-                                          x.replaceAll('_', ' '),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (v) =>
-                                    setState(() => _actividadPuertoCerrado = v),
-                                validator: (v) =>
-                                    v == null ? 'Requerido' : null,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-
-                      if (mostrarFormularioCompleto) ...[
-                        const SizedBox(height: 30),
-                        const Divider(),
-                        const Text(
-                          '📋 Datos Técnicos',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF003366),
-                          ),
-                        ),
-                        const SizedBox(height: 15),
-                        TextFormField(
-                          controller: _folioController,
-                          keyboardType:
-                              TextInputType.number, // O text si tiene letras
-                          decoration: const InputDecoration(
-                            labelText: 'N° de Informe',
-                            hintText: 'Ej: 01',
-                            prefixIcon: Icon(Icons.confirmation_number),
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-
-                        const SizedBox(height: 15),
-
-                        DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Tipo de Inspección',
-                            border: OutlineInputBorder(),
-                          ),
-                          value: _tipoActividad,
-                          items: _tiposInspeccion
-                              .map(
-                                (x) => DropdownMenuItem(
-                                  value: x,
-                                  child: Text(
-                                    x,
-                                    overflow: TextOverflow.ellipsis,
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Antes de comenzar',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                              )
+                                SizedBox(height: 2),
+                                Text(
+                                  'Completa la información de la faena',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // ── Sección 1: Ubicación y Estado ──
+                    _SetupSection(
+                      icon: Icons.place_outlined,
+                      title: 'Ubicación y Estado',
+                      children: [
+                        CustomDropdown(
+                          label: 'Área / Región',
+                          items: controller.areas
+                              .map((x) => x['nombre'].toString())
                               .toList(),
-                          onChanged: (v) => setState(() {
-                            _tipoActividad = v;
-                            _contratistaId = null;
-                            _embarcacionId = null;
-                            _embarcaciones = [];
-                          }),
-                          validator: (v) => v == null ? 'Requerido' : null,
+                          value: controller.areaId != null
+                              ? controller.areas.firstWhere(
+                                  (element) =>
+                                      element['id'] == controller.areaId,
+                                  orElse: () => {'nombre': null},
+                                )['nombre']
+                              : null,
+                          onChanged: (val) {
+                            if (val != null) {
+                              final selected = controller.areas.firstWhere(
+                                (element) => element['nombre'] == val,
+                              );
+                              controller.setArea(selected['id']);
+                            }
+                          },
+                          enableSearch: false,
                         ),
-                        const SizedBox(height: 15),
-
-                        if (_tipoActividad != null) ...[
-                          DropdownButtonFormField<String>(
-                            isExpanded: true,
-                            decoration: InputDecoration(
-                              labelText: _tipoActividad == 'INSPECCION_BUCEO'
-                                  ? 'Empresa de Buceo'
-                                  : 'Naviera',
-                              border: const OutlineInputBorder(),
+                        CustomDropdown(
+                          label: 'Centro de Trabajo',
+                          items: controller.centros
+                              .map((x) => x['nombre'].toString())
+                              .toList(),
+                          value: controller.centroId != null
+                              ? controller.centros.firstWhere(
+                                  (element) =>
+                                      element['id'] == controller.centroId,
+                                  orElse: () => {'nombre': null},
+                                )['nombre']
+                              : null,
+                          onChanged: (val) {
+                            if (val != null) {
+                              final selected = controller.centros.firstWhere(
+                                (element) => element['nombre'] == val,
+                              );
+                              controller.setCentro(selected['id']);
+                            }
+                          },
+                        ),
+                        CustomDropdown(
+                          label: 'Condición de Puerto',
+                          items: controller.estadosPuerto,
+                          value: controller.estadoPuerto,
+                          onChanged: (val) => controller.setEstadoPuerto(val),
+                          enableSearch: false,
+                        ),
+                        if (controller.estadoPuerto == 'CERRADO') ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              border: Border.all(color: Colors.orange.shade300),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            value: _contratistaId,
-                            items: _contratistas
-                                .map(
-                                  (x) => DropdownMenuItem(
-                                    value: x['id'] as String,
-                                    child: Text(
-                                      x['nombre'],
-                                      overflow: TextOverflow.ellipsis,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.warning_amber_rounded,
+                                      size: 18,
+                                      color: Colors.deepOrange,
                                     ),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) {
-                              setState(() => _contratistaId = v);
-                              if (v != null) _cargarEmbarcaciones(v);
-                            },
-                            validator: (v) => v == null ? 'Requerido' : null,
-                          ),
-                          const SizedBox(height: 15),
-
-                          DropdownButtonFormField<String>(
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Embarcación',
-                              border: OutlineInputBorder(),
+                                    const SizedBox(width: 6),
+                                    const Text(
+                                      'Puerto Cerrado',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.deepOrange,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                CustomDropdown(
+                                  label: 'Actividad Realizada',
+                                  items: controller.opcionesPuertoCerrado,
+                                  value: controller.actividadPuertoCerrado,
+                                  onChanged: (val) =>
+                                      controller.setActividadPuertoCerrado(val),
+                                ),
+                              ],
                             ),
-                            value:
-                                _embarcaciones.any(
-                                  (e) => e['id'] == _embarcacionId,
-                                )
-                                ? _embarcacionId
-                                : null,
-                            items: _embarcaciones
-                                .map(
-                                  (x) => DropdownMenuItem(
-                                    value: x['id'] as String,
-                                    child: Text(
-                                      x['nombre'],
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) =>
-                                setState(() => _embarcacionId = v),
                           ),
                         ],
                       ],
+                    ),
 
-                      const SizedBox(height: 40),
-
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton.icon(
-                          onPressed: _isSaving ? null : _crearActividad,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: mostrarFormularioCompleto
-                                ? const Color(0xFF003366)
-                                : Colors.orange,
-                            foregroundColor: Colors.white,
+                    // ── Sección 2: Datos del Reporte ──
+                    if (controller.estadoPuerto == 'ABIERTO' ||
+                        (controller.estadoPuerto == 'CERRADO' &&
+                            controller.actividadPuertoCerrado ==
+                                'PRE_INSPECCION')) ...[
+                      _SetupSection(
+                        icon: Icons.description_outlined,
+                        title: 'Datos del Reporte',
+                        children: [
+                          _SegmentedSelector(
+                            label: 'Tipo de Informe',
+                            value: controller.esConsecutiva,
+                            opciones: const [
+                              MapEntry(false, 'INICIAL'),
+                              MapEntry(true, 'CONSECUTIVA'),
+                            ],
+                            onChanged: (v) => controller.setEsConsecutiva(v),
                           ),
-                          icon: _isSaving
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Icon(
-                                  mostrarFormularioCompleto
-                                      ? Icons.assignment
-                                      : Icons.save,
-                                ),
-                          label: Text(
-                            _isSaving
-                                ? 'GUARDANDO...'
-                                : (mostrarFormularioCompleto
-                                      ? 'COMENZAR INSPECCIÓN'
-                                      : 'GUARDAR BITÁCORA'),
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: controller.numeroInformeController,
+                            readOnly: true,
+                            enabled: false,
+                            decoration: const InputDecoration(
+                              labelText: 'N° de Informe',
+                              hintText: 'Automático al sincronizar',
+                              prefixIcon: Icon(Icons.confirmation_number),
+                              border: OutlineInputBorder(),
+                              filled: true,
+                              fillColor: Color(0xFFF0F0F0),
                             ),
+                          ),
+                          const SizedBox(height: 12),
+                          CustomDropdown(
+                            label: 'Tipo de Inspección',
+                            items: controller.tiposInspeccion,
+                            value: controller.tipoActividad,
+                            onChanged: (val) =>
+                                controller.setTipoActividad(val),
+                            enableSearch: false,
+                          ),
+                          if (controller.tipoActividad != null) ...[
+                            CustomDropdown(
+                              label:
+                                  controller.tipoActividad == 'INSPECCION_BUCEO'
+                                  ? 'Empresa de Buceo'
+                                  : 'Naviera',
+                              items: controller.contratistas
+                                  .map((x) => x['nombre'].toString())
+                                  .toList(),
+                              value: controller.contratistaId != null
+                                  ? controller.contratistas.firstWhere(
+                                      (e) =>
+                                          e['id'] == controller.contratistaId,
+                                      orElse: () => {'nombre': null},
+                                    )['nombre']
+                                  : null,
+                              onChanged: (val) {
+                                if (val != null) {
+                                  final selected = controller.contratistas
+                                      .firstWhere((e) => e['nombre'] == val);
+                                  controller.setContratista(selected['id']);
+                                }
+                              },
+                            ),
+                            CustomDropdown(
+                              label: 'Embarcación',
+                              items: controller.embarcaciones
+                                  .map((x) => x['nombre'].toString())
+                                  .toList(),
+                              value: controller.embarcacionId != null
+                                  ? controller.embarcaciones.firstWhere(
+                                      (e) =>
+                                          e['id'] == controller.embarcacionId,
+                                      orElse: () => {'nombre': null},
+                                    )['nombre']
+                                  : null,
+                              onChanged: (val) {
+                                if (val != null) {
+                                  final selected = controller.embarcaciones
+                                      .firstWhere((e) => e['nombre'] == val);
+                                  controller.setEmbarcacion(
+                                    selected['id']?.toString(),
+                                  );
+                                }
+                              },
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+
+                    const SizedBox(height: 16),
+
+                    // BOTÓN COMENZAR
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: ElevatedButton.icon(
+                        onPressed:
+                            controller.isSaving ||
+                                !controller.validarFormulario()
+                            ? null
+                            : () async {
+                                final success = await controller
+                                    .guardarActividad();
+                                if (success && context.mounted) {
+                                  if (controller.esInspeccionCompleta) {
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => InspectionFormScreen(
+                                          activityId:
+                                              controller.createdActivityId!,
+                                          tipoActividad:
+                                              controller.finalActivityType!,
+                                          nombreCentro:
+                                              controller.finalCentroNombre,
+                                          numeroInformeInicial: controller
+                                              .numeroInformeController
+                                              .text,
+                                        ),
+                                      ),
+                                    );
+                                  } else {
+                                    Navigator.pop(context);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('✅ Bitácora guardada.'),
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF003366),
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: Colors.grey.shade300,
+                          disabledForegroundColor: Colors.grey.shade600,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 4,
+                          shadowColor: const Color(
+                            0xFF003366,
+                          ).withValues(alpha: 0.4),
+                        ),
+                        icon: controller.isSaving
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.arrow_forward_rounded),
+                        label: Text(
+                          controller.isSaving ? 'GUARDANDO...' : 'COMENZAR',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ),
-                      // COLCHÓN PARA QUE EL BOTÓN NO QUEDE PEGADO AL BORDE INFERIOR
-                      const SizedBox(height: 80),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 40),
+                  ],
                 ),
               ),
             ),
+    );
+  }
+}
+
+/// Sección visual con header (icono + título) y children apilados.
+class _SetupSection extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final List<Widget> children;
+
+  const _SetupSection({
+    required this.icon,
+    required this.title,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF003366).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 18, color: const Color(0xFF003366)),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF003366),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+/// Selector segmentado tipo "pill" para elegir entre 2 opciones.
+class _SegmentedSelector<T> extends StatelessWidget {
+  final String label;
+  final T value;
+  final List<MapEntry<T, String>> opciones;
+  final ValueChanged<T> onChanged;
+
+  const _SegmentedSelector({
+    required this.label,
+    required this.value,
+    required this.opciones,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Row(
+            children: opciones.map((entry) {
+              final selected = entry.key == value;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => onChanged(entry.key),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? const Color(0xFF003366)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      entry.value,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: selected ? Colors.white : Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
     );
   }
 }

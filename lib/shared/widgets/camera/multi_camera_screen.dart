@@ -85,8 +85,9 @@ class _MultiCameraScreenState extends State<MultiCameraScreen> {
   Future<void> _tomarFoto() async {
     if (_isTakingPicture ||
         _controller == null ||
-        !_controller!.value.isInitialized)
+        !_controller!.value.isInitialized) {
       return;
+    }
 
     if (!widget.modoUnica && _fotosTomadas.length >= 10) {
       ScaffoldMessenger.of(context).showSnackBar(

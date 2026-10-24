@@ -64,7 +64,13 @@ class GallerySection extends StatelessWidget {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.file(fotos[index], fit: BoxFit.cover),
+                      child: Image.file(
+                        fotos[index],
+                        fit: BoxFit.cover,
+                        // CLEAN CODE: Forzamos la decodificación a un máximo de 300px de ancho en RAM
+                        // Esto baja el consumo de ~6MB por foto a ~300KB por foto.
+                        cacheWidth: 300,
+                      ),
                     ),
                     Positioned(
                       top: 2,
