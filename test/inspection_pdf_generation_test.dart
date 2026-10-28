@@ -96,6 +96,22 @@ void main() {
       expect(bytes.length, greaterThan(1000));
     });
   });
+
+  // Regresión: DeferredPdfService escribía "INSPECCION DE EMBARCACION" sin tilde
+  // y el PDF diferido de embarcación salía con el diseño de buceo, sin dotación.
+  group('tipoFaenaDe', () {
+    test('embarcación activa el diseño de embarcación del PDF', () {
+      final tipo = InspectionReportData.tipoFaenaDe('INSPECCION_EMBARCACION');
+      expect(tipo.contains('EMBARCACIÓN'), isTrue);
+      expect(tipo.contains('BUCEO'), isFalse);
+    });
+
+    test('buceo activa el diseño de buceo del PDF', () {
+      final tipo = InspectionReportData.tipoFaenaDe('INSPECCION_BUCEO');
+      expect(tipo.contains('BUCEO'), isTrue);
+      expect(tipo.contains('EMBARCACIÓN'), isFalse);
+    });
+  });
 }
 
 InspectionReportData _basicData() {
@@ -416,7 +432,7 @@ InspectionReportData _nonBuceoData() {
     appVersion: 'v0.2.0',
     encargadoCentro: 'Encargado',
     profesional: 'Inspector',
-    tipoFaena: 'INSPECCION EMBARCACION',
+    tipoFaena: InspectionReportData.tipoFaenaDe('INSPECCION_EMBARCACION'),
     supervisor: 'Supervisor',
     estadoGlobal: 'HABILITADA',
     esAprobado: true,

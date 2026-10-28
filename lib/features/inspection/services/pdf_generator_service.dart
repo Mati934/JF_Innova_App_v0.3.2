@@ -2367,7 +2367,7 @@ class PdfGeneratorService {
     return widgets;
   }
 
-  static const String _pdfVersion = '0.2.0';
+  static const String _pdfVersion = '0.2.1';
 
   pw.Widget _buildFooter(pw.Context context, InspectionReportData data) {
     if (data.tipoFaena.contains('BUCEO')) {

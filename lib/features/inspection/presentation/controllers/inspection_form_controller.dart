@@ -1669,9 +1669,7 @@ class InspectionFormController extends ChangeNotifier {
       encargadoCentro: verificacionesBuceo?.encargadoCentro,
       correoEmpresaServicios: correoEmpresaServiciosCtrl.text.trim(),
       profesional: nombreProfesional,
-      tipoFaena: tipoActividad == 'INSPECCION_EMBARCACION'
-          ? "INSPECCIÓN DE EMBARCACIÓN"
-          : "INSPECCIÓN DE BUCEO",
+      tipoFaena: InspectionReportData.tipoFaenaDe(tipoActividad),
       supervisor: verificacionesBuceo?.supervisorNombre ?? "No asignado",
       horaInicio: horaInicioController.text.isNotEmpty
           ? horaInicioController.text

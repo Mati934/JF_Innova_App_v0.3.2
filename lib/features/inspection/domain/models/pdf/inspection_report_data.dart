@@ -1,4 +1,12 @@
 class InspectionReportData {
+  /// Texto de `tipoFaena` para cada tipo de actividad. El generador PDF elige
+  /// el diseño con `tipoFaena.contains('EMBARCACIÓN')`, así que el controller y
+  /// DeferredPdfService deben usar siempre esta función (no escribir el texto a mano).
+  static String tipoFaenaDe(String tipoActividad) =>
+      tipoActividad == 'INSPECCION_EMBARCACION'
+      ? 'INSPECCIÓN DE EMBARCACIÓN'
+      : 'INSPECCIÓN DE BUCEO';
+
   final String empresaProveedor;
   final String empresaContratista;
   final String cliente;

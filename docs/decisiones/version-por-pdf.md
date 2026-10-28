@@ -18,11 +18,11 @@ cambie de versión por otros motivos.
 
 - Usar la versión de la app: descartada (cambia por motivos ajenos al PDF).
 
-## Versiones actuales (2026-10-22)
+## Versiones actuales (2026-10-28)
 
 | PDF | Versión |
 |---|---|
-| Inspección buceo/embarcación | 0.2.0 |
+| Inspección buceo/embarcación | 0.2.1 |
 | Registro de Visita | 0.1.0 |
 | Extintores R-004 | 0.4.0 |
 | PROSESSO | 1.0 |

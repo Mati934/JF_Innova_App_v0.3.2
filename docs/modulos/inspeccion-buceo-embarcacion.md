@@ -1,6 +1,6 @@
 # Inspección de Buceo y Embarcación
 
-> Clave: `INSPECCION` · Estado: en producción · Última revisión: 2026-10-22
+> Clave: `INSPECCION` · Estado: en producción · Última revisión: 2026-10-28
 > Empresas con el módulo (2026-10-22): AquaChile, JF Innova, Servimaf.
 
 ## Qué hace
@@ -29,6 +29,10 @@ de informe oficial. Los "No cumple" alimentan el módulo de [Tickets](tickets.md
 - **Número de informe**: lo asigna Supabase al pasar a `En Seguimiento`
   (secuencias `seq_inf_buceo`, `seq_inf_embarcacion`). Sin número no hay PDF:
   si se finaliza offline, el PDF se genera en el siguiente sync.
+- El diseño del PDF (buceo o embarcación) depende del texto `tipoFaena`, que
+  siempre sale de `InspectionReportData.tipoFaenaDe()`. Entre 2026-03-31 y
+  2026-10-28 el PDF diferido de embarcación salía con el diseño de buceo y sin
+  la dotación (patrón, maquinista, tripulantes).
 - **Informe de seguimiento**: una actividad puede referir a otra
   (`actividad_origen_id`) como seguimiento/consecutiva.
 - Las inspecciones finalizadas **con embarcación** generan hallazgos y tickets
@@ -51,10 +55,12 @@ de informe oficial. Los "No cumple" alimentan el módulo de [Tickets](tickets.md
 
 - `lib/features/inspection/presentation/controllers/inspection_setup_controller.dart`
 - `lib/features/inspection/presentation/controllers/inspection_form_controller.dart`
-- `lib/features/inspection/services/pdf_generator_service.dart` (PDF v0.2.0)
+- `lib/features/inspection/services/pdf_generator_service.dart` (PDF v0.2.1)
 - `lib/features/inspection/services/deferred_pdf_service.dart`
 
 ## Pendientes
 
+- Decidir si se regeneran los PDFs de embarcación diferidos emitidos entre
+  2026-03-31 y 2026-10-28 (salieron sin dotación).
 - Rediseño del informe HTML de buceo: [plan](../planificacion/02_en_progreso/PLAN_REDISENO_INFORME_BUCEO_HTML_V0_2_0.md).
 - Criticidad histórica no confiable antes de 2026-03-29: [backlog](../planificacion/03_por_realizar/CRITICIDAD_BACKLOG.md).

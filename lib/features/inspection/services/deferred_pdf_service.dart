@@ -547,9 +547,7 @@ class DeferredPdfService {
       encargadoCentro: encargadoCentro,
       correoEmpresaServicios: correoEmpresaServicios,
       profesional: nombreProfesional,
-      tipoFaena: tipoActividad == 'INSPECCION_EMBARCACION'
-          ? "INSPECCION DE EMBARCACION"
-          : "INSPECCION DE BUCEO",
+      tipoFaena: InspectionReportData.tipoFaenaDe(tipoActividad),
       supervisor: supervisorNombre,
       horaInicio: horaInicio ?? "--:--",
       horaTermino: horaTermino ?? "--:--",
