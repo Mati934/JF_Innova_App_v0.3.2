@@ -57,6 +57,7 @@ entregables, correlativo, alcance v1 / fuera de v1) y crear el plan en
 - Tests dirigidos del módulo (`test/<modulo>_test.dart`) y `upgrade_data_integrity_test.dart`.
 - La "Definición de Terminado" de la sección 12 de la plantilla.
 - Prueba en dispositivo: crear, salir (borrador en Inicio), reabrir, finalizar offline, sincronizar, ver número y PDF, ver en Historial.
+- Lanzar el agente `revisor-cambios` (siempre, sin preguntar) y atender sus hallazgos.
 
 ## Paso 5: documentar
 

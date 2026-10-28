@@ -120,6 +120,7 @@ Usar la skill `documentar-app`:
 - `docs/modulos/checklists-configurables.md`: lista de checklists si cambió.
 - `docs/CHANGELOG.md`.
 - Mover el documento fuente de `documentos_checklists/Por Hacer/` a `Hechos/`.
+- Lanzar el agente `revisor-cambios` (siempre, sin preguntar) sobre el SQL generado.
 
 ## Errores conocidos que esta skill evita
 

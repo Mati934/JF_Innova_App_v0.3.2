@@ -5,6 +5,16 @@
 > Desde esa fecha se mantiene con la skill `documentar-app`.
 > Formato: `## AAAA-MM-DD` + líneas `- [Módulo] qué cambió para el usuario`.
 
+## 2026-10-28
+
+- [Inspección Buceo/Embarcación] El PDF de embarcación generado en diferido
+  (cuando el número de informe llega después de finalizar) vuelve a mostrar la
+  dotación y el diseño de embarcación. Fallaba desde 2026-03-31. PDF v0.2.1.
+- [Herramientas] Skill `diagnosticar-error` para reportes de errores
+  (evidencia real, causa, alcance y plan antes de arreglar).
+- [Herramientas] El agente `revisor-cambios` se lanza siempre antes de cerrar un
+  cambio de código o SQL, compara caminos paralelos y corre analyze y tests.
+
 ## 2026-10-22
 
 - [App] Versión `0.7.6+62` subida a producción.

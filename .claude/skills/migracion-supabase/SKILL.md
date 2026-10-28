@@ -90,5 +90,5 @@ Reglas:
 ## Paso 5: cerrar
 
 - Si cambió Dart: `flutter analyze` y tests dirigidos (incluido `upgrade_data_integrity_test.dart` si cambió SQLite).
-- Para cambios de sync, RLS o datos: ofrecer el agente `revisor-cambios`.
+- Lanzar el agente `revisor-cambios` (siempre, sin preguntar) sobre el script y el código tocado.
 - Documentar con `documentar-app` (esquema, glosario, decisiones, CHANGELOG).
