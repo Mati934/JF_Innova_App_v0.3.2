@@ -1,0 +1,252 @@
+{
+  "generated_at": "2026-08-03T22:24:01",
+  "project_ref": "mgaijlogqbeqnpiwbsyo",
+  "empresa": "AquaChile",
+  "empresa_id": "88f539a7-8312-41e9-93ac-6b4470a274c3",
+  "hypothesis": "Hallazgo unico NC persistente entre inicial/consecutiva",
+  "implementation_status": "NO_APLICADA_EN_CODIGO_PRODUCTIVO",
+  "user_focus": {
+    "usuario_id": "572a7b41-bc3d-45a1-8814-9575acf52b60",
+    "nombre": "Yashin Olivares",
+    "consecutivas": 17,
+    "item_unicos_inicial": 18,
+    "total_actividades": 34,
+    "nc_consecutiva": 9,
+    "interseccion_item_id": 9,
+    "item_unicos_consecutiva": 9,
+    "nc_inicial": 27,
+    "iniciales": 17
+  },
+  "cross_user_summary": [
+    {
+      "usuario": "Martin Jerez",
+      "usuario_id": "b36c845f-7f45-48da-9fd9-a834d9cdf53f",
+      "actividades_total": 71,
+      "iniciales": 35,
+      "consecutivas": 36,
+      "nc_inicial": 51,
+      "nc_consecutiva": 74,
+      "item_unicos_inicial": 12,
+      "item_unicos_consecutiva": 11,
+      "inter_item_id": 9,
+      "jaccard_item_id": 0.643,
+      "inter_clave_tipo_embarc_item": 21
+    },
+    {
+      "usuario": "Constanza Leyton",
+      "usuario_id": "7360c273-59ad-46cb-a56d-11d3eea199e6",
+      "actividades_total": 43,
+      "iniciales": 17,
+      "consecutivas": 26,
+      "nc_inicial": 43,
+      "nc_consecutiva": 65,
+      "item_unicos_inicial": 25,
+      "item_unicos_consecutiva": 9,
+      "inter_item_id": 7,
+      "jaccard_item_id": 0.259,
+      "inter_clave_tipo_embarc_item": 6
+    },
+    {
+      "usuario": "Gary Rios",
+      "usuario_id": "49b21e0d-db02-4af2-a623-71d548fd316a",
+      "actividades_total": 41,
+      "iniciales": 9,
+      "consecutivas": 32,
+      "nc_inicial": 6,
+      "nc_consecutiva": 20,
+      "item_unicos_inicial": 5,
+      "item_unicos_consecutiva": 6,
+      "inter_item_id": 4,
+      "jaccard_item_id": 0.571,
+      "inter_clave_tipo_embarc_item": 0
+    },
+    {
+      "usuario": "Arturo Alvarez",
+      "usuario_id": "3580f6d9-cc3f-4a38-9c21-ac36771455e6",
+      "actividades_total": 38,
+      "iniciales": 26,
+      "consecutivas": 12,
+      "nc_inicial": 58,
+      "nc_consecutiva": 7,
+      "item_unicos_inicial": 33,
+      "item_unicos_consecutiva": 4,
+      "inter_item_id": 3,
+      "jaccard_item_id": 0.088,
+      "inter_clave_tipo_embarc_item": 2
+    },
+    {
+      "usuario": "Paola Villarroel",
+      "usuario_id": "4e095cf2-51aa-40bd-80a9-78d8b5b4ed48",
+      "actividades_total": 37,
+      "iniciales": 14,
+      "consecutivas": 23,
+      "nc_inicial": 8,
+      "nc_consecutiva": 18,
+      "item_unicos_inicial": 7,
+      "item_unicos_consecutiva": 8,
+      "inter_item_id": 4,
+      "jaccard_item_id": 0.364,
+      "inter_clave_tipo_embarc_item": 4
+    },
+    {
+      "usuario": "Sebastian Chaparro",
+      "usuario_id": "a3ae7085-7390-49a3-a8f7-0e18b18ed2a8",
+      "actividades_total": 35,
+      "iniciales": 23,
+      "consecutivas": 12,
+      "nc_inicial": 83,
+      "nc_consecutiva": 25,
+      "item_unicos_inicial": 37,
+      "item_unicos_consecutiva": 7,
+      "inter_item_id": 7,
+      "jaccard_item_id": 0.189,
+      "inter_clave_tipo_embarc_item": 10
+    },
+    {
+      "usuario": "Yashin Olivares",
+      "usuario_id": "572a7b41-bc3d-45a1-8814-9575acf52b60",
+      "actividades_total": 34,
+      "iniciales": 17,
+      "consecutivas": 17,
+      "nc_inicial": 27,
+      "nc_consecutiva": 9,
+      "item_unicos_inicial": 18,
+      "item_unicos_consecutiva": 9,
+      "inter_item_id": 9,
+      "jaccard_item_id": 0.5,
+      "inter_clave_tipo_embarc_item": 8
+    },
+    {
+      "usuario": "Raul Mardones",
+      "usuario_id": "c27d51e4-c9e1-47e9-ae5f-c2c68588017d",
+      "actividades_total": 33,
+      "iniciales": 10,
+      "consecutivas": 23,
+      "nc_inicial": 10,
+      "nc_consecutiva": 53,
+      "item_unicos_inicial": 8,
+      "item_unicos_consecutiva": 8,
+      "inter_item_id": 8,
+      "jaccard_item_id": 1.0,
+      "inter_clave_tipo_embarc_item": 8
+    },
+    {
+      "usuario": "Álvaro Quena",
+      "usuario_id": "5b9a9eec-8fd4-4747-968a-8c372b99a96a",
+      "actividades_total": 24,
+      "iniciales": 13,
+      "consecutivas": 11,
+      "nc_inicial": 20,
+      "nc_consecutiva": 24,
+      "item_unicos_inicial": 15,
+      "item_unicos_consecutiva": 6,
+      "inter_item_id": 5,
+      "jaccard_item_id": 0.312,
+      "inter_clave_tipo_embarc_item": 7
+    },
+    {
+      "usuario": "Eugenio Jara",
+      "usuario_id": "ef15615c-dc9d-4eba-b27f-5eacfb7bccf3",
+      "actividades_total": 23,
+      "iniciales": 10,
+      "consecutivas": 13,
+      "nc_inicial": 22,
+      "nc_consecutiva": 38,
+      "item_unicos_inicial": 9,
+      "item_unicos_consecutiva": 7,
+      "inter_item_id": 7,
+      "jaccard_item_id": 0.778,
+      "inter_clave_tipo_embarc_item": 9
+    },
+    {
+      "usuario": "Pia Villegas",
+      "usuario_id": "d4cd093b-272b-4ae6-a89f-69c143bf48e4",
+      "actividades_total": 19,
+      "iniciales": 17,
+      "consecutivas": 2,
+      "nc_inicial": 23,
+      "nc_consecutiva": 8,
+      "item_unicos_inicial": 13,
+      "item_unicos_consecutiva": 7,
+      "inter_item_id": 7,
+      "jaccard_item_id": 0.538,
+      "inter_clave_tipo_embarc_item": 7
+    },
+    {
+      "usuario": "Yoselin Barriga",
+      "usuario_id": "fc43d7c5-eb8a-4b9a-832b-ba7abbfdd07c",
+      "actividades_total": 10,
+      "iniciales": 3,
+      "consecutivas": 7,
+      "nc_inicial": 2,
+      "nc_consecutiva": 6,
+      "item_unicos_inicial": 1,
+      "item_unicos_consecutiva": 1,
+      "inter_item_id": 1,
+      "jaccard_item_id": 1.0,
+      "inter_clave_tipo_embarc_item": 1
+    },
+    {
+      "usuario": "Fabiola Orellana",
+      "usuario_id": "07126987-e486-4537-ad59-b1e8c7d2e4ac",
+      "actividades_total": 5,
+      "iniciales": 4,
+      "consecutivas": 1,
+      "nc_inicial": 9,
+      "nc_consecutiva": 0,
+      "item_unicos_inicial": 6,
+      "item_unicos_consecutiva": 0,
+      "inter_item_id": 0,
+      "jaccard_item_id": 0.0,
+      "inter_clave_tipo_embarc_item": 0
+    }
+  ],
+  "pairwise_checks": [
+    {
+      "par": "EMBARCACION Mar-21 inicial vs Mar-26 consecutiva",
+      "init_count": 7,
+      "cons_count": 7,
+      "comunes_count": 6,
+      "solo_inicial_count": 1,
+      "solo_consecutiva_count": 1
+    },
+    {
+      "par": "BUCEO Mar-22 inicial vs Mar-26 consecutiva",
+      "init_count": 6,
+      "cons_count": 2,
+      "comunes_count": 2,
+      "solo_inicial_count": 4,
+      "solo_consecutiva_count": 0
+    }
+  ],
+  "embarcacion_null_stats": {
+    "yashin": [
+      {
+        "tipo_actividad": "INSPECCION_BUCEO",
+        "total": 31,
+        "con_embarcacion": 13,
+        "sin_embarcacion": 18
+      },
+      {
+        "tipo_actividad": "INSPECCION_EMBARCACION",
+        "total": 3,
+        "con_embarcacion": 1,
+        "sin_embarcacion": 2
+      }
+    ],
+    "aquachile_total": [
+      {
+        "tipo_actividad": "INSPECCION_BUCEO",
+        "total": 390,
+        "con_embarcacion": 340,
+        "sin_embarcacion": 50
+      },
+      {
+        "tipo_actividad": "INSPECCION_EMBARCACION",
+        "total": 24,
+        "con_embarcacion": 21,
+        "sin_embarcacion": 3
+      }
+    ]
+  }
+}
