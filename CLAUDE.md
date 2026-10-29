@@ -79,8 +79,11 @@ iOS se compila, firma y valida en Mac (`docs/IOS_HANDOFF_MAC_CHECKLIST.md`).
 - Backlog: `docs/planificacion/03_por_realizar/CRITICIDAD_BACKLOG.md`.
 
 ### numero_informe y PDFs
-- El número lo asigna el trigger de Supabase `trg_asignar_numero_informe`, solo al pasar a "En Seguimiento"
-  (secuencias `seq_inf_buceo`, `seq_inf_embarcacion`). Los borradores tienen `numero_informe = NULL`. Detalle en `supabase_migration_numero_informe.sql`.
+- El número lo asigna el trigger de Supabase `trg_asignar_numero_informe`, solo al pasar a "En Seguimiento".
+  Los borradores tienen `numero_informe = NULL`.
+- Desde 2026-10-29 todo número/correlativo de informe (todos los módulos) es por empresa y tipo, en `numeradores_informe`
+  (`next_numero_informe`); un número nunca se reutiliza. Las secuencias `seq_inf_*` y los contadores viejos son solo respaldo.
+  Detalle: `docs/decisiones/numeracion-por-empresa.md`.
 - El PDF solo se genera con número real. Si se finaliza offline, `_generarPdfsDiferidos()` (llama a `DeferredPdfService`) lo genera al final de `sincronizarTodo()`.
 - No volver a crear números provisorios `PROV-*`; el código solo filtra registros antiguos con ese prefijo.
 - Cada generador PDF tiene versión propia: todo cambio de contenido o diseño sube su patch (ver copilot-instructions).

@@ -21,6 +21,8 @@ la clasificacion indicada aqui.
 
 ## En ejecucion
 
+- [Demo Searov SpA](02_en_progreso/PLAN_DEMO_SEAROV.md) — inspeccion de buceo y
+  embarcacion con formato propio, numeracion por empresa.
 - [Registro de Actividades Formativas](02_en_progreso/PLAN_REGISTRO_ACTIVIDADES_FORMATIVAS.md) —
   implementacion en curso; migracion Supabase pendiente.
 - [Seguimiento operativo de Tickets](02_en_progreso/ERRORES_PENDIENTES_TICKETS.md) —

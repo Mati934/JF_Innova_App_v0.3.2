@@ -1,6 +1,6 @@
 # Glosario y traductor de códigos
 
-> Última revisión: 2026-10-22. Traduce entre lo que ve el usuario, lo que dice el
+> Última revisión: 2026-10-29. Traduce entre lo que ve el usuario, lo que dice el
 > código y lo que guarda la base. Columna "Fuente de verdad" = dónde se valida
 > realmente el valor; si dos lugares no coinciden, manda esa.
 
@@ -92,7 +92,7 @@ Criticidad: inspecciones `Tolerable / Moderado / Intolerable` ↔ tickets
 | SAL / SAM | Sistemas de buceo para faenas de 20 m / 36 m. |
 | HH | Horas-hombre (actividades formativas). |
 | R-003, R-004… | Código de cada formulario/registro (ej. R-003 = Registro de Visita, R-004 = Extintores). Origen de la numeración: pendiente de confirmar. |
-| N° de informe / correlativo | Número oficial asignado por Supabase al finalizar. |
+| N° de informe / correlativo | Número oficial asignado por Supabase al finalizar. Continuo por empresa y tipo de informe; no se reutiliza (desde 2026-10-29). |
 | Borrador | Registro `En Progreso` guardado en el teléfono. |
 | Módulo genérico | Tarjeta del motor de checklists configurables: misma pantalla y encabezado base, distinto checklist. Se crea con datos (skill `nuevo-checklist`). |
 | Módulo normal | Módulo con código propio (pantalla, tablas, sync, PDF), registrado en `ModuleRegistry` (skill `nuevo-modulo`). |

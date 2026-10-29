@@ -74,8 +74,10 @@ Notas:
 
 ## Por hacer (documentos fuente)
 
-En `documentos_checklists/Por Hacer/`: catálogo preliminar y "Registro de
-rotación de puestos" (no es checklist de inspección; fuera de alcance por ahora).
+Carpetas de `documentos_checklists/`: `Por Hacer/` (fuentes por cargar),
+`Hechos/` (ya cargados, incluye los borradores de Equipos Críticos) y
+`En Pausa/` ("Registro de rotación de puestos": no es checklist de inspección;
+fuera de alcance por ahora).
 
 ## Cómo agregar una fila
 

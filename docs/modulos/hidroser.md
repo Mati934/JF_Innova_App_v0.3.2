@@ -1,6 +1,6 @@
 # Hidroser
 
-> Clave: `HIDROSER` · Estado: **sin cliente activo** (Hidroser es ex-cliente desde 2026) · Última revisión: 2026-10-22
+> Clave: `HIDROSER` · Estado: **sin cliente activo** (Hidroser es ex-cliente desde 2026) · Última revisión: 2026-10-29
 > Empresas con el módulo (2026-10-22): Servimaf (empresa propia).
 
 ## Qué hace
@@ -15,7 +15,7 @@ Listas de chequeo para el cliente **Hidroser**. Hoy tiene una lista:
   extra (N° de grúa, hora inicio/horómetro, hora término/horómetro).
 - **Dos firmas**: supervisor y operador.
 - Foto por pregunta y galería general.
-- Al guardar definitivo pasa a `En Seguimiento` (correlativo por trigger) y se
+- Al guardar definitivo pasa a `En Seguimiento` (correlativo por trigger, propio por empresa y lista desde 2026-10-29) y se
   sincroniza **en segundo plano**: desde 2026-08-21 el sync no bloquea el guardado.
 - Integrado con [Correo](correo.md): al finalizar puede abrir la vista previa
   del correo con el PDF.

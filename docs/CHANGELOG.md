@@ -5,6 +5,15 @@
 > Desde esa fecha se mantiene con la skill `documentar-app`.
 > Formato: `## AAAA-MM-DD` + líneas `- [Módulo] qué cambió para el usuario`.
 
+## 2026-10-29
+
+- [Todos los informes] El número de informe es propio de cada empresa y de cada
+  tipo de informe (buceo, embarcación, formativa, AST, Hidroser, Merieux visitas y
+  extintores, equipamiento de buceo, checklists). AquaChile sigue su numeración;
+  una empresa nueva parte en 1. Un número ya no se reutiliza al borrar un informe.
+- [AST, Hidroser y otros] Reintentar la sincronización ya no deja saltos en la numeración.
+- [Inspección Buceo/Embarcación] El N° estimado antes de finalizar usa la empresa activa.
+
 ## 2026-10-28
 
 - [Inspección Buceo/Embarcación] El PDF de embarcación generado en diferido

@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/models/formulario_item.dart';
 import '../../domain/repositories/inspection_repository.dart';
 import '../../../../core/database/database_helper.dart';
+import '../../../../core/services/user_session.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:io';
@@ -450,13 +451,19 @@ class LocalInspectionRepository implements InspectionRepository {
   /// Estima el siguiente numero_informe consultando Supabase (online) o SQLite (offline).
   /// Retorna el número estimado como String, o null si no hay datos.
   Future<String?> estimarSiguienteNumeroInforme(String tipoActividad) async {
-    // 1. Intentar online: consultar MAX(numero_informe) de Supabase
+    // 1. Intentar online: consultar MAX(numero_informe) de Supabase.
+    // La numeración es por empresa (trigger trg_asignar_numero_informe).
     try {
       final supabase = Supabase.instance.client;
-      final result = await supabase
+      var query = supabase
           .from('actividades')
           .select('numero_informe')
-          .eq('tipo_actividad', tipoActividad)
+          .eq('tipo_actividad', tipoActividad);
+      final empresaId = UserSession().empresaId;
+      if (empresaId != null) {
+        query = query.eq('empresa_id', empresaId);
+      }
+      final result = await query
           .not('numero_informe', 'is', null)
           .order('numero_informe', ascending: false)
           .limit(1)

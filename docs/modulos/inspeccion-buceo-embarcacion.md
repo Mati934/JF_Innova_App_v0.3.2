@@ -1,6 +1,6 @@
 # Inspección de Buceo y Embarcación
 
-> Clave: `INSPECCION` · Estado: en producción · Última revisión: 2026-10-28
+> Clave: `INSPECCION` · Estado: en producción · Última revisión: 2026-10-29
 > Empresas con el módulo (2026-10-22): AquaChile, JF Innova, Servimaf.
 
 ## Qué hace
@@ -26,8 +26,9 @@ de informe oficial. Los "No cumple" alimentan el módulo de [Tickets](tickets.md
   centro, permiso de buceo del centro, plan de contingencias, exámenes
   ocupacionales vigentes). Hay fotos obligatorias de buceo por "slot".
 - **NC** exige observación; se registra criticidad (`Tolerable / Moderado / Intolerable`).
-- **Número de informe**: lo asigna Supabase al pasar a `En Seguimiento`
-  (secuencias `seq_inf_buceo`, `seq_inf_embarcacion`). Sin número no hay PDF:
+- **Número de informe**: lo asigna Supabase al pasar a `En Seguimiento`, con
+  numeración propia por empresa y por tipo (buceo / embarcación) desde 2026-10-29;
+  un número no se reutiliza ([decisión](../decisiones/numeracion-por-empresa.md)). Sin número no hay PDF:
   si se finaliza offline, el PDF se genera en el siguiente sync.
 - El diseño del PDF (buceo o embarcación) depende del texto `tipoFaena`, que
   siempre sale de `InspectionReportData.tipoFaenaDe()`. Entre 2026-03-31 y

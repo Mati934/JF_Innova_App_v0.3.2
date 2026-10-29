@@ -1,12 +1,13 @@
 # Decisiones de diseño
 
-> Última revisión: 2026-10-22. Una decisión por archivo. Las fechas son las del
+> Última revisión: 2026-10-29. Una decisión por archivo. Las fechas son las del
 > primer registro encontrado (commit, script o documento).
 
 | Decisión | Estado | Fecha |
 |---|---|---|
 | [Offline-first con SQLite y sync](offline-first.md) | Vigente | 2026-01 |
 | [Número de informe asignado por trigger en Supabase](numero-informe-por-trigger.md) | Vigente | 2026-03-29 |
+| [Numeración por empresa y tipo de informe, sin reutilizar números](numeracion-por-empresa.md) | Vigente | 2026-10-29 |
 | [Versión independiente por cada PDF](version-por-pdf.md) | Vigente | Pendiente de confirmar |
 | [Dos escalas de criticidad](dos-escalas-criticidad.md) | Vigente (con backlog) | 2026-03 |
 | [Módulos habilitados por empresa, no tablas por empresa](modulo-por-empresa-no-tabla.md) | Vigente | 2026-04-17 |

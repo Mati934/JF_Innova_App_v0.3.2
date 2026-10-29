@@ -1,7 +1,7 @@
 # Checklists Configurables (motor de módulos genéricos)
 
 > Sin clave en `ModuleRegistry`: las tarjetas salen de `checklist_navigation_nodes` por empresa.
-> Estado: piloto (ninguna inspección finalizada en producción al 2026-10-22) · Última revisión: 2026-10-22
+> Estado: piloto (ninguna inspección finalizada en producción al 2026-10-22) · Última revisión: 2026-10-29
 > Plan: [PLAN_MOTOR_CHECKLISTS_CONFIGURABLES.md](../planificacion/02_en_progreso/PLAN_MOTOR_CHECKLISTS_CONFIGURABLES.md).
 > Crear o cambiar checklists: skill `nuevo-checklist`. Módulos que no caben: skill `nuevo-modulo`.
 
@@ -42,7 +42,8 @@ Hoy tiene 8 checklists: 5 de **Herramientas y Equipos** (M&S) y 3 de
   congela su versión (trigger `trg_checklist_snapshot`). Un **borrador** se
   reabre con la última versión publicada y une respuestas por id de pregunta.
 - Al finalizar (`En Seguimiento`) Supabase asigna el correlativo
-  `<PREFIJO>-0001` por checklist (trigger `trg_checklist_correlativo`).
+  `<PREFIJO>-0001` por checklist y por empresa (trigger `trg_checklist_correlativo`,
+  por empresa desde 2026-10-29).
 - **Visibilidad**: la tarjeta se ve si está habilitada para la empresa **y** el
   usuario tiene permiso `ver` (RLS `checklist_user_can`). Sin permiso, el sync
   no baja la tarjeta y no deja subir inspecciones.
@@ -82,4 +83,4 @@ de tarjetas y permisos en [Administración](administracion.md) (`ChecklistNodesA
 - Ninguna inspección finalizada en producción (15 borradores/eliminadas): validar el ciclo completo (finalizar, correlativo, PDF, Historial) en un piloto.
 - Panel para crear checklists desde la app (en el plan; hoy se cargan por SQL con la skill).
 - Validar las preguntas de Equipos Críticos con Prevención de Riesgos.
-- "Registro de rotación de puestos" (`documentos_checklists/Por Hacer`): no es inspección; fuera de alcance.
+- "Registro de rotación de puestos" (`documentos_checklists/En Pausa`): no es inspección; fuera de alcance.

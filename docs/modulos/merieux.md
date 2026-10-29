@@ -1,6 +1,6 @@
 # Merieux (Visitas y Extintores)
 
-> Claves: `MERIEUX_VISITAS`, `MERIEUX_EXTINTORES` · Estado: demo / bajo uso (2 visitas, 1 mantención) · Última revisión: 2026-10-22
+> Claves: `MERIEUX_VISITAS`, `MERIEUX_EXTINTORES` · Estado: demo / bajo uso (2 visitas, 1 mantención) · Última revisión: 2026-10-29
 > Empresas con el módulo (2026-10-22): Merieux NutriSciences, Servimaf.
 
 ## Qué hace
@@ -18,6 +18,8 @@ Dos submódulos para el cliente **Merieux NutriSciences**, con el mismo encabeza
   editables (una misma cuenta la usan varias personas).
 - El nombre de quien firma se autocompleta pero puede ser otra persona.
 - Al guardar definitivo se asigna correlativo (trigger) y se sincroniza.
+  Desde 2026-10-29 visitas y extintores tienen numeración propia por empresa
+  (antes compartían la secuencia).
 - El PDF reutiliza el generador de Hidroser; cada extintor se muestra como una
   categoría del checklist.
 

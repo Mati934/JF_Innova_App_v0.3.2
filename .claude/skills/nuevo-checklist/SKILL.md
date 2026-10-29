@@ -53,7 +53,7 @@ Si solo una parte no cabe, decirlo y proponer: (a) cargar sin esa parte, (b) mej
 
 1. Leer la fuente (Word, Excel, PDF, foto o texto). Los documentos fuente se
    guardan en `documentos_checklists/` (`Por Hacer/` mientras se trabaja,
-   `Hechos/` al terminar).
+   `Hechos/` al terminar, `En Pausa/` si queda postergado o descartado).
 2. Preguntar lo que falte, en una sola tanda:
    - Empresa(s) cliente a la que va dirigido (nombre exacto en `empresas`).
      Servimaf es la empresa propia: incluirla solo si el usuario lo pide.

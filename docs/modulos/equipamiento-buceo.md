@@ -1,6 +1,6 @@
 # Equipamiento de Buceo (SAL / SAM)
 
-> Clave: `BUCEO_EQUIPAMIENTO` · Estado: implementado, bajo uso (2 inspecciones) · Última revisión: 2026-10-22
+> Clave: `BUCEO_EQUIPAMIENTO` · Estado: implementado, bajo uso (2 inspecciones) · Última revisión: 2026-10-29
 > Empresas con el módulo (2026-10-22): AquaChile, GNS, JF Innova, PROSESSO, Servimaf.
 
 ## Qué hace
@@ -21,7 +21,8 @@ Lista de chequeo del **equipo de buceo** antes de una faena, en dos variantes:
 
 `buceo_equipamiento_listas`, `buceo_equipamiento_items`,
 `buceo_equipamiento_inspecciones`, `buceo_equipamiento_respuestas`,
-`buceo_equipamiento_numeradores`. La app lee las preguntas de
+`numeradores_informe` (número por empresa y lista desde 2026-10-29;
+`buceo_equipamiento_numeradores` queda como respaldo). La app lee las preguntas de
 `buceo_equipamiento_items`. Las mismas preguntas también siguen en
 `formulario_items` (tipos `BUCEO_SAL_20M` / `BUCEO_SAM_36M`), sin uso en este módulo.
 

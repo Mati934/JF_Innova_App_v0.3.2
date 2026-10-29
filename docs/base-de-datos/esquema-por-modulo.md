@@ -1,7 +1,13 @@
 # Esquema por módulo
 
-> Última revisión: 2026-10-22. Filas = conteo aproximado en Supabase a esa fecha.
+> Última revisión: 2026-10-29. Filas = conteo aproximado en Supabase al 2026-10-22.
 > Local = tabla espejo en SQLite (normalmente `<tabla>_pendientes`).
+
+## Numeración de informes (todos los módulos)
+
+| Supabase | Local | Contenido | Filas |
+|---|---|---|---:|
+| `numeradores_informe` | — | Último número por empresa, tipo de informe y año (año 0 si no aplica). Solo lo escriben los triggers. Desde 2026-10-29; ver [decisión](../decisiones/numeracion-por-empresa.md). | 8 |
 
 ## Inspección de Buceo y Embarcación (`INSPECCION`)
 
@@ -49,7 +55,7 @@
 | `ast_informes` | `ast_informes_pendientes` | Cabecera (área, centro, contratista, descripción). Correlativo propio. | 306 |
 | `ast_hallazgos` | `ast_hallazgos_pendientes` | Hallazgos numerados con título, detalle y foto. | 114 |
 | `ast_evidencias` | — | Fotos de hallazgos y galería. | 1159 |
-| `ast_correlativo_counters` | — | Contador del correlativo AST. | 1 |
+| `ast_correlativo_counters` | — | Contador global AST por año. Desde 2026-10-29 solo respaldo (filas sin empresa); se usa `numeradores_informe`. | 1 |
 
 ## Equipamiento de Buceo (SAL/SAM)
 
@@ -59,7 +65,7 @@
 | `buceo_equipamiento_items` | `buceo_equipamiento_items` | Preguntas por lista; `aplica_por_buzo` repite la pregunta por buzo. | 136 |
 | `buceo_equipamiento_inspecciones` | `buceo_equipamiento_inspecciones_pendientes` | Cabecera. | 2 |
 | `buceo_equipamiento_respuestas` | `buceo_equipamiento_respuestas_pendientes` | Respuestas. | 12 |
-| `buceo_equipamiento_numeradores` | — | Numerador por lista. | 0 |
+| `buceo_equipamiento_numeradores` | — | Numerador global por lista. Desde 2026-10-29 solo respaldo; se usa `numeradores_informe`. | 0 |
 
 ## Actividades Formativas
 
@@ -83,7 +89,7 @@
 | `checklist_respuestas` | `checklist_respuestas_pendientes` | Respuestas. | 245 |
 | `checklist_campo_valores` | `checklist_campo_valores_pendientes` | Valores de campos dinámicos. | 104 |
 | `checklist_evidencias` | `checklist_evidencias_pendientes` | Fotos. | 0 |
-| `checklist_correlativo_counters` | — | Correlativo por checklist. | 0 |
+| `checklist_correlativo_counters` | — | Correlativo global por checklist. Desde 2026-10-29 solo respaldo; se usa `numeradores_informe`. | 0 |
 
 ## Tickets y hallazgos (solo online)
 

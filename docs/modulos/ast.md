@@ -1,6 +1,6 @@
 # AST – Análisis Seguro de Trabajo
 
-> Clave: `AST` · Estado: en producción · Última revisión: 2026-10-22
+> Clave: `AST` · Estado: en producción · Última revisión: 2026-10-29
 > Empresas con el módulo (2026-10-22): AquaChile, JF Innova, Servimaf.
 
 ## Qué hace
@@ -13,14 +13,16 @@ detalle y foto), observaciones y galería general. Genera un PDF con correlativo
 - Configuración inicial: área, centro y contratista obligatorios.
 - Hallazgos numerados 1, 2, 3… dentro del informe.
 - Al finalizar pasa a `En Seguimiento`; Supabase asigna el correlativo AST
-  (contador `ast_correlativo_counters`), se genera el PDF y se sincroniza.
+  (por empresa y año desde 2026-10-29, contador `numeradores_informe`), se
+  genera el PDF y se sincroniza.
 - El PDF usa **siempre el logo de AquaChile**, sin importar la empresa.
 - Las fotos se copian al almacenamiento permanente de la app antes de guardarse.
 - Es independiente de visitas e inspecciones (tablas propias).
 
 ## Datos
 
-`ast_informes`, `ast_hallazgos`, `ast_evidencias`, `ast_correlativo_counters`.
+`ast_informes`, `ast_hallazgos`, `ast_evidencias`, `numeradores_informe`
+(`ast_correlativo_counters` queda solo como respaldo).
 
 ## Pantallas
 
