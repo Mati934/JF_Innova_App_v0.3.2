@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../../core/database/database_helper.dart';
+
+// Importación obligatoria para acceder a la lógica centralizada
+import '../../../sync/services/sync_service.dart';
 
 class LoginController extends ChangeNotifier {
   bool _isLoading = false;
@@ -9,7 +11,6 @@ class LoginController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  // Retorna true si el login fue exitoso, false si falló
   Future<bool> login({required String email, required String password}) async {
     _isLoading = true;
     _errorMessage = null;
@@ -18,23 +19,21 @@ class LoginController extends ChangeNotifier {
     try {
       final supabase = Supabase.instance.client;
 
-      // 1. Autenticación con Supabase
       final response = await supabase.auth.signInWithPassword(
         email: email.trim(),
         password: password.trim(),
       );
 
       if (response.user != null) {
-        // 2. Descarga de datos maestros (Formularios, etc.)
-        await _descargarDatosIniciales(supabase);
-        return true; // Éxito
+        // LLAMADA CORRECTA AL SERVICIO EXTERNO
+        await SyncService().hidratarContextoInicial(response.user!.id);
+        return true;
       } else {
         _errorMessage = "No se pudo iniciar sesión.";
         return false;
       }
     } on AuthException catch (e) {
-      _errorMessage =
-          e.message; // Error legible de Supabase (ej: Contraseña incorrecta)
+      _errorMessage = e.message;
       return false;
     } catch (e) {
       _errorMessage = "Error inesperado de conexión.";
@@ -42,25 +41,6 @@ class LoginController extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
-    }
-  }
-
-  Future<void> _descargarDatosIniciales(SupabaseClient supabase) async {
-    try {
-      // Descargamos items de formulario activos para tenerlos offline
-      final data = await supabase
-          .from('formulario_items')
-          .select()
-          .eq('activo', true);
-
-      if (data.isNotEmpty) {
-        await DatabaseHelper.instance.guardarItemsOffline(
-          List<Map<String, dynamic>>.from(data),
-        );
-      }
-    } catch (e) {
-      debugPrint("Advertencia: No se pudieron descargar datos iniciales: $e");
-      // No bloqueamos el login por esto, pero lo dejamos registrado
     }
   }
 }

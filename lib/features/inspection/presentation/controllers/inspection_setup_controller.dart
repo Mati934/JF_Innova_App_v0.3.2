@@ -1,12 +1,17 @@
+import '../../domain/formato_inspeccion.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/database/database_helper.dart';
+import '../../../../core/services/user_session.dart';
 import '../../../sync/services/sync_service.dart';
+import '../../data/repositories/local_inspection_repository.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class InspectionSetupController extends ChangeNotifier {
   final _dbHelper = DatabaseHelper.instance;
   final _syncService = SyncService();
+  final _localRepo = LocalInspectionRepository();
 
   // Estados de carga
   bool _isLoading = true;
@@ -27,6 +32,12 @@ class InspectionSetupController extends ChangeNotifier {
   String? tipoActividad;
   String? contratistaId;
   String? embarcacionId;
+
+  // --- NUEVA VARIABLE: TIPO DE REPORTE ---
+  // false = Inicial (0), true = Consecutiva (1)
+  bool _esConsecutiva = false;
+
+  final TextEditingController numeroInformeController = TextEditingController();
 
   // Datos calculados para la navegación posterior
   String? createdActivityId;
@@ -52,13 +63,17 @@ class InspectionSetupController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
   String? get errorMessage => _errorMessage;
+  bool get esConsecutiva => _esConsecutiva; // Getter para la UI
 
   List<Map<String, dynamic>> get areas => _areas;
   List<Map<String, dynamic>> get centros => _centros;
   List<Map<String, dynamic>> get contratistas => _contratistas;
   List<Map<String, dynamic>> get embarcaciones => _embarcaciones;
 
-  InspectionSetupController() {
+  /// Formato interno del informe; queda guardado en la actividad.
+  final String formato;
+
+  InspectionSetupController({this.formato = FormatoInspeccion.estandar}) {
     _cargarListasIniciales();
   }
 
@@ -67,7 +82,14 @@ class InspectionSetupController extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
-      final areasData = await _dbHelper.getAreas();
+      final empresaId = UserSession().empresaId;
+      final areasResult = empresaId != null
+          ? await _dbHelper.getAreasByEmpresa(empresaId)
+          : await _dbHelper.getAreas();
+      // Fallback si empresa_areas no tiene datos aún
+      final areasData = areasResult.isNotEmpty
+          ? areasResult
+          : await _dbHelper.getAreas();
       final contratistasData = await _dbHelper.getContratistas();
 
       _areas = areasData;
@@ -81,6 +103,12 @@ class InspectionSetupController extends ChangeNotifier {
   }
 
   // --- MÉTODOS DE SELECCIÓN ---
+
+  // NUEVO MÉTODO PARA CAMBIAR TIPO
+  void setEsConsecutiva(bool valor) {
+    _esConsecutiva = valor;
+    notifyListeners();
+  }
 
   void setArea(String? v) {
     areaId = v;
@@ -100,8 +128,16 @@ class InspectionSetupController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setCentro(String? v) {
+  void setCentro(String? v) async {
     centroId = v;
+    notifyListeners();
+
+    // --- CORRECCIÓN CLEAN CODE ---
+    // NO llamamos a sugerirSiguienteNumeroReporte.
+    // Dejamos el campo vacío para indicar que es nuevo y está pendiente.
+    if (v != null) {
+      numeroInformeController.text = ""; // Se queda vacío
+    }
     notifyListeners();
   }
 
@@ -123,6 +159,26 @@ class InspectionSetupController extends ChangeNotifier {
     embarcacionId = null;
     _embarcaciones = [];
     notifyListeners();
+    if (v != null) _cargarEmbarcaciones(null);
+
+    // Estimar número de informe cuando se selecciona tipo
+    if (v != null) {
+      _cargarNumeroEstimado(v);
+    }
+  }
+
+  Future<void> _cargarNumeroEstimado(String tipoActividad) async {
+    try {
+      final estimado = await _localRepo.estimarSiguienteNumeroInforme(
+        tipoActividad,
+      );
+      if (estimado != null) {
+        numeroInformeController.text = "~$estimado";
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint("⚠️ Error estimando número: $e");
+    }
   }
 
   void setContratista(String? v) {
@@ -131,25 +187,31 @@ class InspectionSetupController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Todas las embarcaciones, primero las del servicio elegido (las embarcaciones rotan de servicio: si solo se
+  /// mostraban las del servicio, la que faltaba se creaba de nuevo y quedaba duplicada). La embarcación ya elegida
+  /// se mantiene al cambiar el servicio.
   Future<void> _cargarEmbarcaciones(String? contratistaId) async {
-    if (contratistaId == null) {
-      _embarcaciones = [];
-      embarcacionId = null;
-    } else {
-      final naves = await _dbHelper.getEmbarcaciones(contratistaId);
-      _embarcaciones = naves;
-      embarcacionId = null;
+    final carga = ++_cargaEmbarcaciones;
+    final lista = await _dbHelper.getEmbarcacionesParaSelector(contratistaId);
+    if (carga != _cargaEmbarcaciones) return; // llegó otra carga más nueva
+    _embarcaciones = lista;
+    notifyListeners();
+  }
+
+  int _cargaEmbarcaciones = 0;
+
+  /// Si aún no hay servicio elegido, se propone el servicio actual de la embarcación (se puede cambiar).
+  void setEmbarcacion(String? v) {
+    embarcacionId = v?.toString();
+    if (contratistaId == null && v != null) {
+      final emb = _embarcaciones.where((e) => e['id']?.toString() == v);
+      final servicio = emb.isEmpty ? null : emb.first['contratista_id'];
+      if (servicio != null) setContratista(servicio.toString());
     }
     notifyListeners();
   }
 
-  void setEmbarcacion(String? v) {
-    embarcacionId = v;
-    notifyListeners();
-  }
-
   // --- LÓGICA DE GUARDADO ---
-  bool _yaGuardado = false;
   // Retorna true si todo salió bien
   Future<bool> guardarActividad() async {
     if (_isSaving) return false;
@@ -158,10 +220,13 @@ class InspectionSetupController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // <--- 1. OBTENEMOS LA VERSIÓN AQUÍ AL PRINCIPIO
+      final packageInfo = await PackageInfo.fromPlatform();
+      final versionActual = "v${packageInfo.version}";
+      // ----------------------------------------------
+
       final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (createdActivityId == null) {
-        createdActivityId = const Uuid().v4();
-      }
+      createdActivityId ??= const Uuid().v4();
 
       // Regla de Negocio: ¿Es inspección completa o solo bitácora?
       esInspeccionCompleta =
@@ -191,8 +256,16 @@ class InspectionSetupController extends ChangeNotifier {
         'observaciones_generales': obs,
         'contratista_id': esInspeccionCompleta ? contratistaId : null,
         'embarcacion_id': esInspeccionCompleta ? embarcacionId : null,
-        'estado_final': 'En Seguimiento',
+
+        // <--- 2. AGREGAMOS LA VERSIÓN AL MAPA
+        'app_version': versionActual,
+
+        // -----------------------------------
+        'estado_final': 'En Progreso',
+        'numero_seguimiento': _esConsecutiva ? 1 : 0,
         'subido': 0,
+        'numero_reporte': _obtenerNumeroParaGuardar(),
+        if (formato != FormatoInspeccion.estandar) 'formato_informe': formato,
       };
 
       await _dbHelper.saveActividadOffline(datosActividad);
@@ -217,12 +290,21 @@ class InspectionSetupController extends ChangeNotifier {
     }
   }
 
+  /// Retorna null si el número es estimado (~) o vacío.
+  /// Solo guarda números reales en SQLite.
+  String? _obtenerNumeroParaGuardar() {
+    final texto = numeroInformeController.text.trim();
+    if (texto.isEmpty || texto.startsWith("~")) return null;
+    return texto;
+  }
+
   // Validador manual simple para usar en el Controller
   bool validarFormulario() {
     if (areaId == null) return false;
     if (centroId == null) return false;
-    if (estadoPuerto == 'CERRADO' && actividadPuertoCerrado == null)
+    if (estadoPuerto == 'CERRADO' && actividadPuertoCerrado == null) {
       return false;
+    }
 
     // Si es inspección completa, validamos campos técnicos
     bool requiereTecnicos =

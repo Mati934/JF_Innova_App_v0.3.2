@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=mgaijlogqbeqnpiwbsyo&read_only=true&features=docs%2Cdatabase%2Cdebugging"
+    },
+    "supabase-write": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=mgaijlogqbeqnpiwbsyo&features=database"
+    },
+    "dart": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": ["/c", "dart", "mcp-server"]
+    }
+  }
+}
