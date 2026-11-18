@@ -46,6 +46,7 @@ tiene todos los módulos.
 | Merieux (Visitas y Extintores) | `MERIEUX_VISITAS`, `MERIEUX_EXTINTORES` | [ficha](modulos/merieux.md) |
 | AST – Análisis Seguro de Trabajo | `AST` | [ficha](modulos/ast.md) |
 | Equipamiento de Buceo (SAL/SAM) | `BUCEO_EQUIPAMIENTO` | [ficha](modulos/equipamiento-buceo.md) |
+| Registro de inmersiones | `REGISTRO_INMERSIONES` | [ficha](modulos/registro-inmersiones.md) |
 | Actividades Formativas | `ACTIVIDADES_FORMATIVAS` | [ficha](modulos/actividades-formativas.md) |
 | Checklists Configurables (motor) | nodos por empresa | [ficha](modulos/checklists-configurables.md) |
 | Tickets | `TICKETS` | [ficha](modulos/tickets.md) |

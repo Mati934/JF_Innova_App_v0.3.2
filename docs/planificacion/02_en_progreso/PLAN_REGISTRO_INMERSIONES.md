@@ -1,19 +1,19 @@
-# Propuesta: Registro de inmersiones (AquaChile)
+# Plan: Registro de inmersiones (AquaChile)
 
 > **Para qué es:** Diseño del registro de inmersiones de buceo: qué datos guarda, cómo se vincula a la inspección de buceo, numeración, PDF y métricas para el dashboard.
 
-> Estado: **idea definida, sin implementar** · Creado: 2026-11-08 · Actualizado: 2026-11-08 (respuestas de Mati) ·
+> Estado: **app implementada (2026-11-18), migración Supabase sin ejecutar** · Creado: 2026-11-08 · Actualizado: 2026-11-18 (aviso de exceso, varias inmersiones, hora "desde") ·
 > Origen: reuniones 24-08 y 29-10-2026, explicación de Mati
 > Alcance: AquaChile, inspección de buceo (`INSPECCION_BUCEO`) · Relacionado:
 > [reunión 29-10](../../1.%20Cosas/REUNIONES/REUNION-29-10-2026.md) ·
-> [conversación agosto §4](../02_en_progreso/CONVERSACION_REUNIONES_AGOSTO_2026.md#4-registro-de-inmersiones-de-buceo) ·
-> [pendientes del dashboard](PENDIENTES_DASHBOARD.md)
+> [conversación agosto §4](CONVERSACION_REUNIONES_AGOSTO_2026.md#4-registro-de-inmersiones-de-buceo) ·
+> [pendientes del dashboard](../03_por_realizar/PENDIENTES_DASHBOARD.md)
 
 ## Resumen
 
 | | |
 |---|---|
-| **Qué es** | Informe con una fila por buzo de la faena: cargo, si buceó, profundidad máxima, desde–hasta, nota y fotos (profundímetro, registrador Sensus Ultra, general del buzo y galería general). Es la evidencia de cuánto bajó cada buzo. |
+| **Qué es** | Informe con una fila por buzo de la faena: cargo, si buceó, profundidad máxima, desde–hasta (una inmersión por defecto, se pueden agregar más), nota y fotos (profundímetro, registrador Sensus Ultra, general del buzo y galería general). Es la evidencia de cuánto bajó cada buzo. |
 | **Quién y cuándo** | El auditor en terreno, al terminar la inspección de buceo, con los datos de la bitácora. La app se lo ofrece al finalizar la inspección. |
 | **Qué reemplaza** | Los datos de inmersión que hoy los auditores escriben en el cuerpo del correo (y el registro que Paola arma aparte). |
 | **Reglas** | 1 registro por inspección de buceo · **solo se crea vinculado a una inspección**, y lo hace el auditor que hizo la inspección · se anota la profundidad máxima del día · **ninguna foto obligatoria** · sin firma · sin envío por correo · correlativo propio. |
@@ -47,7 +47,7 @@ Encabezado: centro y fecha. Pie: "Datos extraídos desde bitácoras".
 |---|---|---|
 | Buzos de la faena | `actividad_participantes` (rol `Buzo`, `Supervisor`, `Asistente`…) + `personal_externo` (nombre, RUT, matrícula) | Se cargan solos al elegir la inspección, con su cargo. |
 | Centro, fecha, contratista | `actividades` | Encabezado del registro. |
-| Profundidad máxima **planificada** | `verificaciones_buceo.profundidad_maxima` (805 de 805 inspecciones la tienen) | Se compara con la real de cada buzo: **alerta si se supera**. En el ejemplo, 21 m sería un exceso si la faena era de 20 m. |
+| Profundidad máxima **planificada** | **No se captura.** `verificaciones_buceo.profundidad_maxima` existe en Supabase pero vale 0 en las 833 filas (revisado 2026-11-18) y no existe en SQLite. | El auditor la ingresa en el encabezado del registro. Vacía o 0 = sin dato (nunca cuenta como exceso). Si supera, **aviso** y el auditor decide si lo marca en rojo. |
 | Numeración por empresa | `numeradores_informe` + `next_numero_informe` | Contador propio del registro. |
 
 ---
@@ -94,9 +94,10 @@ auditor (las que están en su teléfono).
    |---|---|---|
    | Cargo | Lista, viene de la cuadrilla y se puede cambiar | Buzo, Supervisor, Asistente… y **Buzo de emergencia**. |
    | ¿Buceó? | Sí / No | Si es "No", no se piden profundidad ni tiempo. |
-   | Profundidad máxima | Número en metros, con decimales | Se marca en rojo si supera la autorizada. |
+   | Profundidad máxima | Número en metros, con decimales | Si supera la autorizada, sale un aviso (ver "Exceso de profundidad"). |
    | Desde | Hora, **se llena sola** y se puede cambiar | Ver "Tiempo" abajo. |
    | Hasta | Hora | El tiempo de inmersión se calcula solo. |
+   | + Agregar otra inmersión | Botón discreto | Ver "Varias inmersiones" abajo. |
    | Fotos | Profundímetro · dispositivo · general del buzo | Todas opcionales. |
    | Equipo (opcional) | Marca y serie del profundímetro, serie del registrador | Para una futura tabla de equipos. |
    | Nota adicional | Texto libre | Cualquier comentario sobre ese buzo. |
@@ -104,12 +105,30 @@ auditor (las que están en su teléfono).
 3. Galería general del informe y observación general.
 4. **Finalizar** → número y PDF, como en los demás módulos (en Supabase, con PDF diferido si se finaliza offline).
 
+### Exceso de profundidad (decidido 2026-11-18)
+
+- Al ingresar una profundidad mayor que la autorizada, sale un mensaje: *"El buzo bajó más de la profundidad
+  permitida (20 m). ¿Desea marcarlo en rojo?"* → **Sí** / **No**.
+- **Sí:** se resalta en rojo en el formulario y en el PDF (`marcado_rojo = true`). **No:** se ve normal.
+- `excede_autorizada` se calcula y guarda **siempre**, sin depender de la respuesta. Así el dashboard cuenta todos los
+  excesos y además sabe cuáles el auditor quiso destacar.
+
+### Varias inmersiones por buzo (decidido 2026-11-18)
+
+- La pantalla está pensada para **una inmersión**: cada buzo muestra un solo bloque de profundidad y desde–hasta,
+  como hoy en el papel.
+- Un botón discreto **"+ Agregar otra inmersión"** abre un segundo bloque, por si un buzo bajó más de una vez.
+- En la base, cada inmersión es su propia fila. En el buzo se guarda el resumen: profundidad máxima del día (la mayor),
+  tiempo total y cantidad de inmersiones.
+- El PDF muestra una línea por buzo si bajó una vez (lo normal) y sub-líneas si bajó más veces.
+
 ### Tiempo: desde–hasta (decidido)
 
-- **Desde se llena solo**, como la hora de inicio en las demás inspecciones, y el auditor la puede corregir.
-  Propuesta de qué hora poner: la **hora de inicio de la inspección de buceo** (`verificaciones_buceo.hora_inicio`).
-  No la hora en que se abre el registro, porque el registro se llena después de la inmersión y esa hora siempre
-  quedaría tarde.
+- **Desde se llena solo** con la **hora en que se crea el registro** (en la práctica, cuando se finaliza la
+  inspección y se acepta el aviso), y el auditor la puede corregir.
+  Ojo: si el registro se hace "más tarde" desde Inicio, esa hora puede quedar horas después de la inmersión; por eso
+  queda editable y se guarda si se cambió.
+- En una segunda inmersión, "desde" se deja vacío (no hay una hora razonable para proponer).
 - **Hasta** lo pone el auditor con la bitácora.
 - El **tiempo de inmersión en minutos** se calcula solo al guardar (si "hasta" es menor que "desde", se asume que cruzó
   la medianoche).
@@ -122,6 +141,7 @@ erDiagram
     actividades ||--o| registros_inmersion : "1 por inspección de buceo"
     registros_inmersion ||--o{ registro_inmersion_buzos : "una fila por buzo"
     registros_inmersion ||--o{ registro_inmersion_fotos : "fotos"
+    registro_inmersion_buzos ||--|{ registro_inmersion_inmersiones : "1 o más inmersiones"
     registro_inmersion_buzos ||--o{ registro_inmersion_fotos : "fotos del buzo"
     personal_externo ||--o{ registro_inmersion_buzos : "buzo"
 
@@ -132,11 +152,12 @@ erDiagram
         uuid usuario_id FK "auditor"
         uuid centro_id FK "copia de la inspección"
         date fecha
-        numeric profundidad_autorizada_m "copia de verificaciones_buceo"
+        numeric profundidad_autorizada_m "la ingresa el auditor"
         text observacion_general
         text origen "AVISO_FINALIZAR / TARJETA_INICIO"
-        text estado_final "borrador / finalizado"
-        int numero_informe "lo asigna el trigger"
+        text estado_final "Borrador / Finalizado / Eliminada"
+        int numero "lo asigna el trigger"
+        text correlativo "RI-NNNN, lo asigna el trigger"
         text pdf_url
         text pdf_version
         timestamptz created_at
@@ -151,18 +172,30 @@ erDiagram
         text rut "copia normalizada"
         text cargo "copia de la cuadrilla, editable (incluye Buzo de emergencia)"
         boolean realizo_inmersion
-        numeric profundidad_maxima_m "ej. 18.8"
-        boolean excede_autorizada "calculado al guardar"
-        text hora_inicio "HH:mm, se llena sola"
-        boolean hora_inicio_editada "el auditor la cambió"
-        text hora_termino "HH:mm"
-        int tiempo_min "calculado al guardar"
+        numeric profundidad_maxima_m "resumen: la mayor del día"
+        boolean excede_autorizada "resumen: alguna inmersión excede"
+        boolean marcado_rojo "el auditor aceptó marcarlo"
+        int tiempo_total_min "resumen: suma de inmersiones"
+        int cantidad_inmersiones "resumen"
         text profundimetro_marca "opcional"
         text profundimetro_serie "opcional"
         text dispositivo_tipo "ej. SENSUS_ULTRA"
         text dispositivo_serie "ej. U-18659, normalizada"
         text nota "nota adicional del buzo"
         int orden
+    }
+
+    registro_inmersion_inmersiones {
+        uuid id PK
+        uuid buzo_id FK
+        uuid registro_id FK "para consultas directas"
+        int orden "1 = primera inmersión"
+        numeric profundidad_maxima_m "ej. 18.8"
+        boolean excede_autorizada "calculado al guardar"
+        text hora_inicio "HH:mm, la primera se llena sola"
+        boolean hora_inicio_editada "el auditor la cambió"
+        text hora_termino "HH:mm"
+        int tiempo_min "calculado al guardar"
     }
 
     registro_inmersion_fotos {
@@ -184,6 +217,9 @@ Por qué así:
   bajar queda bien registrado (cargo de emergencia, buceó = sí).
 - **Tiempo:** las horas tal cual (`hora_inicio`, `hora_termino`, formato `HH:mm` como en `verificaciones_buceo`) y el
   valor en minutos (`tiempo_min`, para métricas sin recalcular).
+- **Inmersiones en tabla aparte + resumen en el buzo:** soporta varias bajadas sin complicar la pantalla, y el dashboard
+  lee el resumen por buzo sin sumar filas (las filas sirven para "cuántas veces bajó").
+- **`marcado_rojo` separado de `excede_autorizada`:** el rojo es decisión del auditor; el exceso es un hecho.
 - **Fotos con `tipo`**: cubre "foto por buzo" y "galería general" a la vez, y permite contar la evidencia faltante.
 - **Serie del dispositivo normalizada** (`U18659`): si después se quiere una tabla de equipos (como la de compresores),
   los datos ya están listos para juntarse.
@@ -206,7 +242,7 @@ PDF diferidos de hoy) para que salgan los dos números.
 
 - Encabezado: "Registro de inmersiones", N° propio, **N° de la inspección de buceo vinculada**, centro, fecha,
   contratista y profundidad autorizada.
-- Tabla como la del papel: N°, buzo, RUT, cargo, profundidad máxima (resaltada si supera la autorizada), desde–hasta y tiempo, foto del
+- Tabla como la del papel: N°, buzo, RUT, cargo, profundidad máxima (en rojo solo si el auditor lo marcó), desde–hasta y tiempo (sub-líneas si bajó más de una vez), foto del
   profundímetro y foto del dispositivo. "No buceó" en lugar de la profundidad cuando corresponde.
 - Notas por buzo (si hay), foto general de cada buzo (si hay), galería general y observación general.
 - Pie: "Datos extraídos desde bitácoras". **Sin firmas.**
@@ -219,16 +255,16 @@ PDF diferidos de hoy) para que salgan los dos números.
 | Métrica | Cómo sale |
 |---|---|
 | Profundidad máxima por buzo, centro, contratista y mes | `profundidad_maxima_m` + centro y contratista de la inspección |
-| **Inmersiones que superan la profundidad autorizada** | `excede_autorizada = true` |
-| Inmersiones por buzo (frecuencia y exposición) | conteo por `personal_id` / `rut` con `realizo_inmersion = true` |
-| Tiempo de inmersión por buzo y faena, y a qué hora se bucea | `tiempo_min`, `hora_inicio` |
+| **Inmersiones que superan la profundidad autorizada** | `excede_autorizada = true` (y cuántas marcó el auditor: `marcado_rojo`) |
+| Inmersiones por buzo (frecuencia y exposición) | conteo por `personal_id` / `rut` con `realizo_inmersion = true`; bajadas: filas de `registro_inmersion_inmersiones` |
+| Tiempo de inmersión por buzo y faena, y a qué hora se bucea | `tiempo_total_min`, `tiempo_min`, `hora_inicio` |
 | Faenas con buzo de emergencia, y cuántas veces tuvo que bajar | `cargo = 'Buzo de emergencia'` + `realizo_inmersion` |
 | Evidencia (% de buzos que bucearon con foto de profundímetro y dispositivo) | fotos por `tipo` |
 | Inspecciones de buceo **sin** registro de inmersiones | `actividades` sin fila en `registros_inmersion` |
 | Uso del aviso al finalizar | `origen` |
 | Uso de registradores (qué Sensus usó cada buzo) | `dispositivo_serie` |
 
-Anotar en [PENDIENTES_DASHBOARD.md](PENDIENTES_DASHBOARD.md) cuando se implemente.
+Anotado en [PENDIENTES_DASHBOARD.md §5](../03_por_realizar/PENDIENTES_DASHBOARD.md).
 
 ---
 
@@ -256,7 +292,15 @@ con la skill `nuevo-modulo`, que revisa primero si basta con un checklist del mo
 - Cambios al PDF de la inspección de buceo (DPR24).
 - Inspecciones de otras empresas o Searov (se puede habilitar después).
 
-## 7. Decisiones tomadas (2026-11-08)
+## 7. Decisiones tomadas
+
+**2026-11-18:**
+
+- Exceso de profundidad: aviso opcional "¿Desea marcarlo en rojo?"; el exceso se guarda siempre.
+- Varias inmersiones por buzo permitidas, pero la pantalla está pensada para una.
+- "Desde" automático = hora en que se crea el registro, editable.
+
+**2026-11-08:**
 
 - 1 registro por inspección; se anota solo la profundidad máxima.
 - Fotos: profundímetro, dispositivo, general del buzo y galería general; ninguna obligatoria.
@@ -267,6 +311,49 @@ con la skill `nuevo-modulo`, que revisa primero si basta con un checklist del mo
 - Lo usan **todos los auditores** de AquaChile desde el inicio (no solo Paola).
 - Guardar todos los datos posibles, estructurados, para el dashboard.
 
-## 8. Preguntas abiertas
+## 8. Lo que lleva todo módulo (según skill `nuevo-modulo` y su plantilla)
 
-1. ¿El "desde" automático es la hora de inicio de la inspección de buceo? (propuesta; ver "Tiempo")
+| Pieza | En este módulo |
+|---|---|
+| Borradores en Inicio | Sí: si se sale sin finalizar, aparece en borradores y se reabre. |
+| Sync | Subida de registro, buzos, inmersiones y fotos (`subido = 0/1`); soft delete con `eliminado = 1`. |
+| PDF diferido | Si se finaliza offline o la inspección aún no tiene número, se genera al final del sync. |
+| Historial | Rama nueva en `historial_unificado`. |
+| RLS y permisos | Como los módulos vecinos: el auditor ve y edita lo suyo, por empresa. |
+| Glosario | `moduleKey`, estados, tipos de foto y contador `REGISTRO_INMERSIONES`. |
+| Pruebas | `test/registro_inmersiones_test.dart` + `upgrade_data_integrity_test.dart`. |
+| Orden | El SQL se escribe al principio pero **se ejecuta al final**, con la app ya conectada a las tablas nuevas (lección de Equipamiento de Buceo). |
+
+## 9. Respuestas (2026-11-18)
+
+1. El PDF lleva el pie "Generado por Servimaf".
+2. Si se elimina la inspección de buceo, se elimina también su registro. Lo ideal es no eliminar inspecciones;
+   a futuro se quiere una columna de "activo" (`isActive`) en todas las tablas, para verlo aparte.
+3. No genera tickets.
+
+## 10. Implementación (2026-11-18)
+
+| Parte | Estado |
+|---|---|
+| App: tablas SQLite (v65), formulario, aviso al finalizar, tarjeta, borradores, sync, PDF v0.1.0, Historial | Hecho, `flutter analyze` y tests OK |
+| Supabase: [`supabase_migration_registro_inmersiones_v1.sql`](../../../supabase_migration_registro_inmersiones_v1.sql) (tablas, número RI-NNNN, baja en cascada, RLS, historial, habilitar AquaChile) | **Sin ejecutar** |
+| Prueba en dispositivo (crear, borrador, finalizar offline, sync, número, PDF, Historial) | Pendiente |
+| Publicar versión de la app | Pendiente |
+
+Detalles que se resolvieron al implementar:
+
+- Estados: `Borrador`, `Finalizado`, `Eliminada`. Los borradores **no suben** a Supabase: solo los finalizados.
+- Para finalizar, cada persona que buceó debe tener la profundidad máxima de su primera inmersión. Las horas,
+  fotos y equipo son opcionales.
+- Un buzo de emergencia agregado a mano parte con "¿Buceó? = No"; si bajó, se cambia.
+- El PDF se genera en el sync, cuando ya existen el RI-NNNN y el N° de la inspección. Si la inspección aún no
+  tiene número, el registro queda pendiente y se reintenta en el siguiente sync.
+- Una foto cuyo archivo ya no está en el teléfono se omite al subir (no bloquea el registro).
+- Profundidad autorizada: la ingresa el auditor en el encabezado (la inspección no la captura; ver §1).
+- El registro nuevo se guarda apenas se abre y se autoguarda cada 20 s y al agregar cada foto.
+- Los borradores no cuentan como "pendientes de sincronizar".
+- Supabase: una baja (`Eliminada`) no se revierte con un reintento del sync, y un registro de una inspección ya
+  eliminada nace de baja sin consumir número. Si al subir vuelve `Eliminada`, el teléfono lo borra.
+- Pendiente de decidir: la lista del módulo muestra las inspecciones de buceo del auditor sin filtrar por empresa
+  (las inspecciones dejan `empresa_id` vacío). Solo importa si un auditor trabaja para varias empresas con buceo.
+- Ficha del módulo: [registro-inmersiones.md](../../modulos/registro-inmersiones.md).

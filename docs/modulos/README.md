@@ -2,7 +2,7 @@
 
 > **Para qué es:** Lista de todos los módulos de la app con su clave, estado y enlace a su ficha.
 
-> Última revisión: 2026-10-29. Fuente de la lista: `lib/core/modules/module_registry.dart`,
+> Última revisión: 2026-11-18. Fuente de la lista: `lib/core/modules/module_registry.dart`,
 > `lib/features/*` y `checklist_navigation_nodes` en Supabase.
 
 Cada ficha tiene: qué hace, quién lo usa, reglas de negocio, tablas, pantallas,
@@ -22,6 +22,7 @@ archivos principales y pendientes. **Antes de trabajar en un módulo, leer su fi
 | [Merieux](merieux.md) | `MERIEUX_VISITAS`, `MERIEUX_EXTINTORES` | Demo / bajo uso |
 | [AST](ast.md) | `AST` | En producción |
 | [Equipamiento de Buceo](equipamiento-buceo.md) | `BUCEO_EQUIPAMIENTO` | Implementado, bajo uso |
+| [Registro de inmersiones](registro-inmersiones.md) | `REGISTRO_INMERSIONES` | En desarrollo (migración sin ejecutar) |
 | [Actividades Formativas](actividades-formativas.md) | `ACTIVIDADES_FORMATIVAS` | En producción, en ajustes |
 | [Checklists Configurables](checklists-configurables.md) | nodos por empresa | Piloto |
 | [Tickets](tickets.md) | `TICKETS` | En producción |

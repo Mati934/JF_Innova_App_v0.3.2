@@ -59,7 +59,7 @@ void main() {
       Database? upgraded;
       try {
         upgraded = await DatabaseHelper.instance.database;
-        expect(await upgraded.getVersion(), 64);
+        expect(await upgraded.getVersion(), 65);
         expect((await upgraded.query('fotos_pendientes')).single, photo);
         expect(
           (await upgraded.query('formativa_fotos_eliminadas')).single,

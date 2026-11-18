@@ -69,3 +69,13 @@ No se copian aquí para no duplicar: al empezar ese trabajo, pasarlos a `dashboa
 - Hoy el dashboard no usa compresores: no aparecen en `src/` ni en vistas o funciones de Supabase (revisado el 2026-11-08).
 - Si se implementa [PROPUESTA_COMPRESORES.md](PROPUESTA_COMPRESORES.md): buscar `compresor_` en `src/` antes de la
   fase 5 (borrar columnas), y evaluar un indicador "faenas con compresor vencido".
+
+## 5. Registro de inmersiones (2026-11-18)
+
+- **Por qué:** módulo nuevo con datos estructurados por buzo e inmersión, pensado para medir exposición.
+- **Dónde:** tablas `registros_inmersion`, `registro_inmersion_buzos`, `registro_inmersion_inmersiones`,
+  `registro_inmersion_fotos` (ver [plan §4](../02_en_progreso/PLAN_REGISTRO_INMERSIONES.md#4-datos-para-el-dashboard-qué-permite-medir)).
+- **Qué cambiar:** métricas de profundidad por buzo/centro/contratista/mes, excesos (`excede_autorizada`, y
+  cuántos marcó el auditor con `marcado_rojo`), tiempo de inmersión, buzo de emergencia, % de evidencia,
+  inspecciones de buceo sin registro y uso del aviso (`origen`). Leer como admin (RLS `admin_select`).
+- **Estado:** [ ] pendiente; requiere ejecutar la migración y que haya datos.

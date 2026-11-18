@@ -358,6 +358,19 @@ class HistoryCardConfig {
       );
     }
 
+    // Registro de inmersiones (folio RI-NNNN).
+    if (tipoRegistro == 'REGISTRO_INMERSIONES') {
+      return HistoryCardConfig(
+        titulo: folio != null && folio.isNotEmpty
+            ? 'Registro de inmersiones $folio'
+            : 'Registro de inmersiones',
+        icon: Icons.scuba_diving,
+        accent: const Color(0xFF00507A),
+        tipoChipLabel: 'Inmersiones',
+        folioLabel: folioPill,
+      );
+    }
+
     // Inspección clásica.
     if (modulo == 'Inspección') {
       return HistoryCardConfig(

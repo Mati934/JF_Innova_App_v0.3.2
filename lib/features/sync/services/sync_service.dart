@@ -17,6 +17,7 @@ import 'sync_execution_gate.dart';
 import '../../configurable_checklists/domain/checklist_evidence_sync.dart';
 import '../../formative_activities/services/formative_activity_pdf_service.dart';
 import '../../formative_activities/data/repositories/local_formative_activity_repository.dart';
+import '../../registro_inmersiones/services/registro_inmersion_sync.dart';
 import 'dart:convert';
 
 class SyncService {
@@ -611,6 +612,10 @@ class SyncService {
       int checklistsConfigurablesSubidos =
           await _sincronizarChecklistsConfigurables();
 
+      // 3.f Registro de inmersiones (después de actividades: depende de la
+      // inspección de buceo y de su N° para el PDF).
+      int inmersionesSubidas = await RegistroInmersionSync().sincronizar();
+
       // 4. Subir Hijos (Respuestas y Fotos)
       await _sincronizarRespuestas();
       final actividadesConFotosSincronizadas = await _sincronizarFotos();
@@ -631,7 +636,8 @@ class SyncService {
           buceoSubidas +
           astSubidos +
           merieuxSubidos +
-          checklistsConfigurablesSubidos;
+          checklistsConfigurablesSubidos +
+          inmersionesSubidas;
     } catch (e) {
       debugPrint("❌ Error en sincronización global: $e");
       FirebaseCrashlytics.instance.recordError(
@@ -1234,6 +1240,13 @@ class SyncService {
 
   /// Cuenta cabeceras pendientes de sincronizar para evitar mensajes engañosos
   /// de "todo sincronizado" cuando aún hay trabajo en cola.
+  /// Los borradores del registro de inmersiones no suben (solo el
+  /// finalizado): no cuentan como pendientes de sincronizar.
+  static String _condicionSoloLocal(String tabla) =>
+      tabla == 'registros_inmersion_pendientes'
+      ? " AND (estado_final <> 'Borrador' OR eliminado = 1)"
+      : '';
+
   Future<int> contarPendientesCabecera() async {
     final db = await _dbHelper.database;
     final tablas = [
@@ -1243,12 +1256,16 @@ class SyncService {
       'buceo_equipamiento_inspecciones_pendientes',
       'ast_informes_pendientes',
       'merieux_visitas_pendientes',
+      'registros_inmersion_pendientes',
     ];
 
     int total = 0;
     for (final tabla in tablas) {
       final count = Sqflite.firstIntValue(
-        await db.rawQuery('SELECT COUNT(*) FROM $tabla WHERE subido = 0'),
+        await db.rawQuery(
+          'SELECT COUNT(*) FROM $tabla WHERE subido = 0'
+          '${_condicionSoloLocal(tabla)}',
+        ),
       );
       total += count ?? 0;
     }
@@ -1269,6 +1286,10 @@ class SyncService {
       },
       {'tabla': 'ast_informes_pendientes', 'modulo': 'AST'},
       {'tabla': 'merieux_visitas_pendientes', 'modulo': 'MERIEUX'},
+      {
+        'tabla': 'registros_inmersion_pendientes',
+        'modulo': 'REGISTRO_INMERSIONES',
+      },
     ];
 
     final items = <Map<String, dynamic>>[];
@@ -1277,7 +1298,10 @@ class SyncService {
       final tabla = f['tabla']!;
       final modulo = f['modulo']!;
 
-      final rows = await db.query(tabla, where: 'subido = 0');
+      final rows = await db.query(
+        tabla,
+        where: 'subido = 0${_condicionSoloLocal(tabla)}',
+      );
 
       for (final row in rows) {
         final eliminadoRaw = row['eliminado'];

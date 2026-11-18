@@ -2,7 +2,7 @@
 
 > **Para qué es:** Qué tablas usa cada módulo, en SQLite y en Supabase, qué guarda cada una y su tamaño aproximado.
 
-> Última revisión: 2026-10-29. Filas = conteo aproximado en Supabase al 2026-10-22.
+> Última revisión: 2026-11-18. Filas = conteo aproximado en Supabase al 2026-10-22.
 > Local = tabla espejo en SQLite (normalmente `<tabla>_pendientes`).
 
 ## Numeración de informes (todos los módulos)
@@ -68,6 +68,22 @@
 | `buceo_equipamiento_inspecciones` | `buceo_equipamiento_inspecciones_pendientes` | Cabecera. | 2 |
 | `buceo_equipamiento_respuestas` | `buceo_equipamiento_respuestas_pendientes` | Respuestas. | 12 |
 | `buceo_equipamiento_numeradores` | — | Numerador global por lista. Desde 2026-10-29 solo respaldo; se usa `numeradores_informe`. | 0 |
+
+## Registro de inmersiones
+
+Desde 2026-11-18 (app v65 local). Tablas de Supabase creadas por `supabase_migration_registro_inmersiones_v1.sql`
+(**sin ejecutar** a esa fecha). Ficha: [registro-inmersiones](../modulos/registro-inmersiones.md).
+
+| Supabase | Local | Contenido | Filas |
+|---|---|---|---:|
+| `registros_inmersion` | `registros_inmersion_pendientes` | Cabecera: 1 vigente por `actividad_id` (inspección de buceo), copias del día (centro, contratista, N° inspección, profundidad autorizada), `origen`, `estado_final`, `numero`/`correlativo` (RI-NNNN, trigger), `pdf_url`, `pdf_version`. Local: `pdf_path_local`, `subido`, `eliminado`. | 0 |
+| `registro_inmersion_buzos` | `registro_inmersion_buzos_pendientes` | Una fila por persona: `personal_id` (nulo si es nueva), nombre, RUT, cargo, `realizo_inmersion`, resumen (`profundidad_maxima_m`, `tiempo_total_min`, `cantidad_inmersiones`, `excede_autorizada`), `marcado_rojo`, equipo (series normalizadas), nota. | 0 |
+| `registro_inmersion_inmersiones` | `registro_inmersion_inmersiones_pendientes` | Una fila por bajada: `orden`, profundidad, `hora_inicio` (+ `hora_inicio_editada`), `hora_termino`, `tiempo_min`, `excede_autorizada`. | 0 |
+| `registro_inmersion_fotos` | `registro_inmersion_fotos_pendientes` | Fotos con `tipo` y `buzo_id` (nulo = galería general). Bucket `evidencias`, carpeta `inmersiones/<registro>/`. Local: `local_path`. | 0 |
+
+Trigger `trg_registro_inmersion_numero` (número al pasar a `Finalizado`, no gasta números en reintentos) y
+`trg_actividades_baja_registro_inmersion` (si la inspección pasa a `Eliminada`, el registro también).
+Rama `Registro de inmersiones` en `historial_unificado`.
 
 ## Actividades Formativas
 

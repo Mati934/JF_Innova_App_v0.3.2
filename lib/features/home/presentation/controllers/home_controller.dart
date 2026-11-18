@@ -11,6 +11,7 @@ import '../../../visits/data/repositories/local_visit_repository.dart';
 import '../../../extintores/data/repositories/local_extintor_repository.dart';
 import '../../../hidroser/data/repositories/local_hidroser_repository.dart';
 import '../../../buceo_equipment/data/repositories/local_buceo_equipment_repository.dart';
+import '../../../registro_inmersiones/data/repositories/local_registro_inmersion_repository.dart';
 import '../../../prosesso/data/repositories/local_prosesso_repository.dart';
 import '../../../configurable_checklists/data/repositories/local_configurable_checklist_repository.dart';
 import '../../../configurable_checklists/domain/checklist_navigation_tree.dart';
@@ -28,6 +29,7 @@ class HomeController extends ChangeNotifier {
   final _extintorRepo = LocalExtintorRepository();
   final _hidroserRepo = LocalHidroserRepository();
   final _buceoRepo = LocalBuceoEquipmentRepository();
+  final _inmersionRepo = LocalRegistroInmersionRepository();
   final _prosessoRepo = LocalProsessoRepository();
   final _configurableChecklistRepo = LocalConfigurableChecklistRepository();
   final _connectivity = ConnectivityService();
@@ -115,6 +117,7 @@ class HomeController extends ChangeNotifier {
         empresaId == null
             ? Future.value(<Map<String, dynamic>>[])
             : _configurableChecklistRepo.getDrafts(empresaId),
+        _inmersionRepo.getBorradores(UserSession().userId),
       ]);
 
       final inspecciones = resultados[0].map(DraftCardMapper.fromInspeccion);
@@ -126,6 +129,9 @@ class HomeController extends ChangeNotifier {
       final checklistsConfigurables = resultados[6].map(
         DraftCardMapper.fromConfigurableChecklist,
       );
+      final inmersiones = resultados[7].map(
+        DraftCardMapper.fromRegistroInmersiones,
+      );
 
       // Fusionamos y ordenamos por fecha (del más reciente al más antiguo)
       borradores = [
@@ -136,6 +142,7 @@ class HomeController extends ChangeNotifier {
         ...hidroser,
         ...buceo,
         ...checklistsConfigurables,
+        ...inmersiones,
       ]..sort((a, b) => b.fecha.compareTo(a.fecha));
     } catch (e) {
       debugPrint("❌ Error cargando borradores combinados: $e");
@@ -172,6 +179,9 @@ class HomeController extends ChangeNotifier {
           break;
         case DraftKind.checklistConfigurable:
           await _configurableChecklistRepo.deleteDraft(id);
+          break;
+        case DraftKind.registroInmersiones:
+          await _inmersionRepo.eliminarBorrador(id);
           break;
         case DraftKind.visitaTecnica:
         case DraftKind.visitaChecklistElectricidad:

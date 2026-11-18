@@ -9,7 +9,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      64; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      65; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -787,6 +787,7 @@ class DatabaseHelper {
     await _createConfigurableChecklistSchema(db);
     await _createFormativeActivitySchema(db);
     await _createFormativePhotoDeletionSchema(db);
+    await _createRegistroInmersionesSchema(db);
 
     debugPrint("✅ Base de datos v$_dbVersion inicializada.");
   }
@@ -2012,6 +2013,107 @@ class DatabaseHelper {
       await _addInspectionSignatureColumns(db);
       debugPrint('✅ Parche v64 aplicado (firmas Inspección Searov).');
     }
+    if (oldVersion < 65) {
+      await _createRegistroInmersionesSchema(db);
+      debugPrint('✅ Parche v65 aplicado (registro de inmersiones).');
+    }
+  }
+
+  /// v65: módulo Registro de inmersiones (cabecera por inspección de buceo,
+  /// buzos, inmersiones y fotos). Idempotente: también lo llama el repair.
+  Future<void> _createRegistroInmersionesSchema(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS registros_inmersion_pendientes (
+        id TEXT PRIMARY KEY,
+        actividad_id TEXT NOT NULL,
+        empresa_id TEXT,
+        usuario_id TEXT,
+        centro_id TEXT,
+        contratista_id TEXT,
+        centro_nombre TEXT,
+        contratista_nombre TEXT,
+        numero_inspeccion TEXT,
+        fecha_realizacion TEXT,
+        profundidad_autorizada_m REAL,
+        observacion_general TEXT,
+        origen TEXT NOT NULL DEFAULT 'TARJETA_INICIO',
+        estado_final TEXT NOT NULL DEFAULT 'Borrador',
+        numero INTEGER,
+        correlativo TEXT,
+        pdf_url TEXT,
+        pdf_version TEXT,
+        pdf_path_local TEXT,
+        subido INTEGER NOT NULL DEFAULT 0,
+        eliminado INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT,
+        updated_at TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_reg_inm_actividad ON registros_inmersion_pendientes(actividad_id)',
+    );
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS registro_inmersion_buzos_pendientes (
+        id TEXT PRIMARY KEY,
+        registro_id TEXT NOT NULL,
+        personal_id TEXT,
+        nombre TEXT NOT NULL,
+        rut TEXT,
+        cargo TEXT,
+        realizo_inmersion INTEGER NOT NULL DEFAULT 1,
+        profundidad_maxima_m REAL,
+        excede_autorizada INTEGER NOT NULL DEFAULT 0,
+        marcado_rojo INTEGER NOT NULL DEFAULT 0,
+        tiempo_total_min INTEGER,
+        cantidad_inmersiones INTEGER NOT NULL DEFAULT 0,
+        profundimetro_marca TEXT,
+        profundimetro_serie TEXT,
+        dispositivo_tipo TEXT,
+        dispositivo_serie TEXT,
+        nota TEXT,
+        orden INTEGER NOT NULL DEFAULT 0,
+        subido INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_reg_inm_buzos_registro ON registro_inmersion_buzos_pendientes(registro_id)',
+    );
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS registro_inmersion_inmersiones_pendientes (
+        id TEXT PRIMARY KEY,
+        buzo_id TEXT NOT NULL,
+        registro_id TEXT NOT NULL,
+        orden INTEGER NOT NULL DEFAULT 1,
+        profundidad_maxima_m REAL,
+        excede_autorizada INTEGER NOT NULL DEFAULT 0,
+        hora_inicio TEXT,
+        hora_inicio_editada INTEGER NOT NULL DEFAULT 0,
+        hora_termino TEXT,
+        tiempo_min INTEGER,
+        subido INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_reg_inm_inm_registro ON registro_inmersion_inmersiones_pendientes(registro_id)',
+    );
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS registro_inmersion_fotos_pendientes (
+        id TEXT PRIMARY KEY,
+        registro_id TEXT NOT NULL,
+        buzo_id TEXT,
+        tipo TEXT NOT NULL,
+        posicion INTEGER NOT NULL DEFAULT 0,
+        local_path TEXT,
+        storage_path TEXT,
+        foto_url TEXT,
+        descripcion TEXT,
+        subido INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_reg_inm_fotos_registro ON registro_inmersion_fotos_pendientes(registro_id)',
+    );
   }
 
   /// v64: quién realiza y quién recibe la inspección (usuario general por
@@ -2248,6 +2350,7 @@ class DatabaseHelper {
       await _addInspectionSignatureColumns(db);
       await _safeAddColumn(db, 'actividades_pendientes', 'empresa_id', 'TEXT');
       await _createFormativeActivitySchema(db);
+      await _createRegistroInmersionesSchema(db);
       await _safeAddColumn(
         db,
         "visitas_tecnicas_pendientes",

@@ -5,6 +5,15 @@
 > Desde esa fecha se mantiene con la skill `documentar-app`.
 > Formato: `## AAAA-MM-DD` + líneas `- [Módulo] qué cambió para el usuario`.
 
+## 2026-11-18
+
+- [Registro de inmersiones] Módulo nuevo para AquaChile: una fila por buzo con cargo, si buceó, profundidad
+  máxima, desde–hasta (una inmersión por defecto, se pueden agregar más), nota y fotos opcionales. Se ofrece al
+  finalizar la inspección de buceo o desde su tarjeta en Inicio, y funciona sin señal. Si un buzo supera la
+  profundidad autorizada, la app pregunta si se marca en rojo. Número propio `RI-NNNN` y PDF v0.1.0 con el N° de
+  la inspección. Aparece en borradores e Historial. Falta ejecutar la migración Supabase y publicar la versión.
+- [App] Base local v65 (tablas del registro de inmersiones).
+
 ## 2026-11-08
 
 - [Toda la app] Las cajas de texto se sueltan al tocar fuera de ellas o al

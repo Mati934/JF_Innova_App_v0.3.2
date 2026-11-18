@@ -237,7 +237,7 @@ en app, PDF, sincronizacion, tickets y panel de control.
 ## 4. Registro de inmersiones de buceo
 
 Estado: `IDEA` → **definida el 2026-11-08 en
-[PROPUESTA_REGISTRO_INMERSIONES.md](../03_por_realizar/PROPUESTA_REGISTRO_INMERSIONES.md)** (esta seccion queda como historia).
+[PLAN_REGISTRO_INMERSIONES.md](PLAN_REGISTRO_INMERSIONES.md)** (esta seccion queda como historia).
 
 ### Idea recopilada
 

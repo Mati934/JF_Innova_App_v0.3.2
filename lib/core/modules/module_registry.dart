@@ -9,6 +9,7 @@ import '../../features/extintores/presentation/screens/extintor_form_screen.dart
 import '../../features/prosesso/presentation/screens/prosesso_form_screen.dart';
 import '../../features/hidroser/presentation/screens/hidroser_module_screen.dart';
 import '../../features/ast/presentation/screens/ast_module_screen.dart';
+import '../../features/registro_inmersiones/presentation/screens/registro_inmersion_module_screen.dart';
 import '../../features/buceo_equipment/presentation/screens/buceo_equipment_module_screen.dart';
 
 import '../../features/admin/presentation/screens/master_data_admin_screen.dart';
@@ -147,6 +148,14 @@ class ModuleRegistry {
       icon: Icons.scuba_diving,
       color: const Color(0xFF005B8A),
       screenBuilder: (_) => const BuceoEquipmentModuleScreen(),
+    ),
+    ModuleDefinition(
+      moduleKey: 'REGISTRO_INMERSIONES',
+      title: 'Registro de inmersiones',
+      subtitle: 'Profundidad y tiempo por buzo',
+      icon: Icons.scuba_diving,
+      color: const Color(0xFF00507A),
+      screenBuilder: (_) => const RegistroInmersionModuleScreen(),
     ),
     ModuleDefinition(
       moduleKey: 'ADMIN',

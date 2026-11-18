@@ -109,6 +109,20 @@ class DraftCardMapper {
     );
   }
 
+  /// Borradores del Registro de inmersiones
+  /// (`registros_inmersion_pendientes`).
+  static DraftCardData fromRegistroInmersiones(Map<String, dynamic> raw) {
+    const kind = DraftKind.registroInmersiones;
+    return DraftCardData(
+      id: raw['id'].toString(),
+      kind: kind,
+      title: _titleForKind(kind),
+      centro: _firstNonEmpty([raw['centro_nombre']]),
+      fecha: _parseFecha(raw['created_at'] ?? raw['fecha_realizacion']),
+      raw: raw,
+    );
+  }
+
   static DraftCardData fromConfigurableChecklist(Map<String, dynamic> raw) {
     final checklistKey = (raw['checklist_key'] ?? '').toString();
     return DraftCardData(
@@ -184,6 +198,8 @@ class DraftCardMapper {
         return 'Inspección Grúa Horquilla';
       case DraftKind.buceoEquipamiento:
         return 'Inspección Eq. de Buceo';
+      case DraftKind.registroInmersiones:
+        return 'Registro de inmersiones';
       case DraftKind.checklistConfigurable:
         return fallback?.isNotEmpty == true
             ? fallback!

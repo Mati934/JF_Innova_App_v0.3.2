@@ -28,6 +28,8 @@ la clasificacion indicada aqui.
 - [Seguimiento operativo de Tickets](02_en_progreso/ERRORES_PENDIENTES_TICKETS.md) —
   correcciones implementadas; quedan verificaciones y limpieza de datos
   historicos por confirmar.
+- [Registro de inmersiones (AquaChile)](02_en_progreso/PLAN_REGISTRO_INMERSIONES.md) — app implementada
+  (2026-11-18); falta ejecutar la migracion Supabase, probar en dispositivo y publicar.
 - [Conversaciones y reuniones](02_en_progreso/CONVERSACION_REUNIONES_AGOSTO_2026.md) —
   documento vivo que deriva ideas a planes concretos.
 
@@ -47,8 +49,6 @@ la clasificacion indicada aqui.
 - [Criticidad fija por pregunta (AquaChile)](03_por_realizar/CRITICIDAD_BACKLOG.md) —
   analisis 2026-11-08: bloquear desde ahora en buceo o embarcacion (por confirmar), no sobrescribir el historial;
   el dashboard hoy muestra la criticidad fija y no la registrada.
-- [Registro de inmersiones (AquaChile)](03_por_realizar/PROPUESTA_REGISTRO_INMERSIONES.md) — una fila por
-  buzo con profundidad maxima y fotos, vinculado a la inspeccion de buceo, correlativo propio, sin firma ni correo.
 - [Pendientes del dashboard](03_por_realizar/PENDIENTES_DASHBOARD.md) — cambios que la app le pide al
   dashboard web (`../jf_innova_web/dashboard-jfinnova`): criticidad, filtro, informes, compresores.
 - [Variables pendientes del dashboard de hallazgos](03_por_realizar/DASHBOARD_HALLAZGOS_VARIABLES_PENDIENTES.md).

@@ -10,6 +10,9 @@ import '../../../../shared/widgets/confirm_finalize_dialog.dart';
 import '../../../../shared/widgets/estado_faena_warning_dialog.dart';
 import '../../../../shared/widgets/form_inputs/gallery_input.dart';
 import '../../../../core/errors/app_error_utils.dart';
+import '../../../registro_inmersiones/domain/models/registro_inmersion_models.dart';
+import '../../../registro_inmersiones/presentation/screens/registro_inmersion_form_screen.dart';
+import '../../../registro_inmersiones/services/registro_inmersion_aviso.dart';
 import '../controllers/inspection_form_controller.dart';
 import '../utils/inspection_error_presentation_state.dart';
 import '../widgets/question_card.dart';
@@ -142,8 +145,34 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
     } finally {
       _errorPresentationState.endFinalization();
     }
+    var volvioDeRegistro = false;
+    if (exito) {
+      final ofrecer = await RegistroInmersionAviso.debeOfrecer(
+        actividadId: widget.activityId,
+        tipoActividad: widget.tipoActividad,
+      );
+      if (ofrecer &&
+          mounted &&
+          await RegistroInmersionAviso.preguntar(context)) {
+        if (!mounted) return;
+        setState(() => _canPop = true);
+        // push (no pushReplacement): al volver se cierra la inspección con su
+        // aviso de PDF, y Inicio recarga borradores con el registro ya creado.
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RegistroInmersionFormScreen(
+              actividadId: widget.activityId,
+              origen: RegistroInmersionOrigen.avisoFinalizar,
+            ),
+          ),
+        );
+        volvioDeRegistro = true;
+      }
+    }
     if (mounted) {
-      ScaffoldMessenger.of(context).clearSnackBars();
+      // Si viene del registro, no se borra su aviso de "Registro finalizado".
+      if (!volvioDeRegistro) ScaffoldMessenger.of(context).clearSnackBars();
       if (exito) {
         setState(() => _canPop = true);
         Navigator.pop(context);

@@ -15,6 +15,7 @@ import '../../../buceo_equipment/presentation/screens/buceo_equipment_form_scree
 import '../../../configurable_checklists/data/repositories/local_configurable_checklist_repository.dart';
 import '../../../configurable_checklists/presentation/screens/generic_checklist_form_screen.dart';
 import '../../../formative_activities/presentation/screens/formative_activity_form_screen.dart';
+import '../../../registro_inmersiones/presentation/screens/registro_inmersion_form_screen.dart';
 
 class DraftListWidget extends StatelessWidget {
   final HomeController controller;
@@ -142,6 +143,9 @@ class DraftListWidget extends StatelessWidget {
         break;
       case DraftKind.actividadFormativa:
         destino = FormativeActivityFormScreen(activityId: card.id);
+        break;
+      case DraftKind.registroInmersiones:
+        destino = RegistroInmersionFormScreen(registroId: card.id);
         break;
       case DraftKind.inspeccionBuceo:
       case DraftKind.inspeccionEmbarcacion:

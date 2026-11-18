@@ -1,6 +1,6 @@
 # Glosario y traductor de códigos
 
-> Última revisión: 2026-10-29. Traduce entre lo que ve el usuario, lo que dice el
+> Última revisión: 2026-11-18. Traduce entre lo que ve el usuario, lo que dice el
 > código y lo que guarda la base. Columna "Fuente de verdad" = dónde se valida
 > realmente el valor; si dos lugares no coinciden, manda esa.
 
@@ -28,6 +28,7 @@
 | `MERIEUX_VISITAS` / `MERIEUX_EXTINTORES` | Merieux · Visitas / Merieux · Extintores | [ficha](modulos/merieux.md) |
 | `AST` | AST – Análisis Seguro de Trabajo | [ficha](modulos/ast.md) |
 | `BUCEO_EQUIPAMIENTO` | Eq. Buceo – SAL / SAM | [ficha](modulos/equipamiento-buceo.md) |
+| `REGISTRO_INMERSIONES` | Registro de inmersiones – Profundidad y tiempo por buzo (también contador en `numeradores_informe`; folio `RI-NNNN`) | [ficha](modulos/registro-inmersiones.md) |
 | `TICKETS` | Tickets | [ficha](modulos/tickets.md) |
 | `HISTORY` | Historial | [ficha](modulos/historial.md) |
 | `ADMIN` | Admin Maestros | [ficha](modulos/administracion.md) |
@@ -66,6 +67,9 @@ Las etiquetas visibles salen de `lib/features/visits/domain/visit_checklist_labe
 | Ticket | `ABIERTO`, `TOMADO`, `PARCIAL`, `FINALIZADO_PENDIENTE_REVISION`, `CERRADO` | Abierto, Tomado, Parcial, Pendiente de revisión, Cerrado | Check `tickets_estado_check` (columna texto) + `TicketEstado` en código |
 | Ticket (legado) | Enum `estado_ticket`: `Abierto, Tomado, En Progreso, Resuelto, Cerrado, Cancelado` | — | **Sin uso**: solo lo usa `ticket_historial` (vacía). No usar. |
 | Origen de ticket | `INSPECCION`, `SOLICITUD` | — | Check `tickets_origen_check` |
+| Registro de inmersiones | `Borrador`, `Finalizado`, `Eliminada` | Borrador / Finalizado | Check en `registros_inmersion.estado_final` + `RegistroInmersionEstado` en código |
+| Origen del registro de inmersiones | `AVISO_FINALIZAR`, `TARJETA_INICIO` | — (aviso al finalizar la inspección / tarjeta de Inicio) | Check en `registros_inmersion.origen` + `RegistroInmersionOrigen` |
+| Tipo de foto de inmersión | `PROFUNDIMETRO`, `DISPOSITIVO`, `BUZO_GENERAL`, `GENERAL` | Profundímetro, Dispositivo, Foto del buzo, Galería general | Check en `registro_inmersion_fotos.tipo` + `RegistroInmersionFotoTipo` |
 | Tipo de ticket | `REVISION_OBSERVACIONES`, `SOLICITUD` | Revisión de observaciones, Solicitud | Check `tickets_tipo_ticket_check` |
 
 ## Respuestas y criticidad

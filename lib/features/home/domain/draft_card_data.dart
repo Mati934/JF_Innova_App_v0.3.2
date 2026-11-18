@@ -16,6 +16,7 @@ enum DraftKind {
   mantencionProsesso,
   hidroserGruaHorquilla,
   buceoEquipamiento,
+  registroInmersiones,
   checklistConfigurable,
   actividadFormativa,
   desconocido,
@@ -72,6 +73,7 @@ class DraftCardData {
       case DraftKind.hidroserGruaHorquilla:
         return Icons.engineering;
       case DraftKind.buceoEquipamiento:
+      case DraftKind.registroInmersiones:
         return Icons.scuba_diving;
       case DraftKind.checklistConfigurable:
         return Icons.fact_check_outlined;
@@ -113,6 +115,8 @@ class DraftCardData {
         return const Color(0xFF0277BD);
       case DraftKind.buceoEquipamiento:
         return const Color(0xFF005B8A);
+      case DraftKind.registroInmersiones:
+        return const Color(0xFF00507A);
       case DraftKind.checklistConfigurable:
         return Colors.teal.shade700;
       case DraftKind.visitaTecnica:
