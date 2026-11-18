@@ -336,7 +336,7 @@ con la skill `nuevo-modulo`, que revisa primero si basta con un checklist del mo
 | Parte | Estado |
 |---|---|
 | App: tablas SQLite (v65), formulario, aviso al finalizar, tarjeta, borradores, sync, PDF v0.1.0, Historial | Hecho, `flutter analyze` y tests OK |
-| Supabase: [`supabase_migration_registro_inmersiones_v1.sql`](../../../supabase_migration_registro_inmersiones_v1.sql) (tablas, número RI-NNNN, baja en cascada, RLS, historial, habilitar AquaChile) | **Sin ejecutar** |
+| Supabase: [`supabase_migration_registro_inmersiones_v1.sql`](../../../supabase_migration_registro_inmersiones_v1.sql) (tablas, número RI-NNNN, baja en cascada, RLS, historial, habilitar AquaChile) | **Ejecutada 2026-11-18**: verificación OK (RLS y 2 políticas por tabla, 2 triggers, historial con los mismos conteos por módulo, módulo habilitado solo para Aquachile, sin alertas RLS en advisors) |
 | Prueba en dispositivo (crear, borrador, finalizar offline, sync, número, PDF, Historial) | Pendiente |
 | Publicar versión de la app | Pendiente |
 

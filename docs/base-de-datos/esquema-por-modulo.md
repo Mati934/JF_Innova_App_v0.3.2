@@ -72,7 +72,7 @@
 ## Registro de inmersiones
 
 Desde 2026-11-18 (app v65 local). Tablas de Supabase creadas por `supabase_migration_registro_inmersiones_v1.sql`
-(**sin ejecutar** a esa fecha). Ficha: [registro-inmersiones](../modulos/registro-inmersiones.md).
+(**ejecutada el 2026-11-18**: las tablas ya existen en Supabase, vacías). Ficha: [registro-inmersiones](../modulos/registro-inmersiones.md).
 
 | Supabase | Local | Contenido | Filas |
 |---|---|---|---:|

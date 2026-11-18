@@ -2,8 +2,8 @@
 
 > **Para qué es:** Ficha del módulo Registro de inmersiones: qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
 
-> Clave: `REGISTRO_INMERSIONES` · Estado: en desarrollo (app lista, migración Supabase sin ejecutar) · Última revisión: 2026-11-18
-> Empresas con el módulo (2026-11-18): ninguna todavía. La migración lo habilita para AquaChile.
+> Clave: `REGISTRO_INMERSIONES` · Estado: en desarrollo (migración Supabase ejecutada, falta probar en dispositivo y publicar) · Última revisión: 2026-11-18
+> Empresas con el módulo (2026-11-18): AquaChile.
 
 ## Qué hace
 
@@ -65,7 +65,8 @@ Lee de la inspección: `actividades_pendientes`, `verificaciones_buceo.profundid
 
 ## Pendientes
 
-- Ejecutar la migración Supabase, probar en dispositivo y publicar la versión de la app.
+- Migración Supabase ejecutada el 2026-11-18. Falta probar en dispositivo y publicar la versión de la app
+  (hasta entonces la tarjeta no aparece: la app publicada no conoce el módulo).
 - Métricas en el dashboard: [PENDIENTES_DASHBOARD.md §5](../planificacion/03_por_realizar/PENDIENTES_DASHBOARD.md).
 - Habilitar para Searov u otras empresas: pendiente de decidir.
 - La lista de inspecciones no filtra por empresa: pendiente de decidir si importa (auditores con varias empresas).

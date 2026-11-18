@@ -22,7 +22,7 @@ archivos principales y pendientes. **Antes de trabajar en un módulo, leer su fi
 | [Merieux](merieux.md) | `MERIEUX_VISITAS`, `MERIEUX_EXTINTORES` | Demo / bajo uso |
 | [AST](ast.md) | `AST` | En producción |
 | [Equipamiento de Buceo](equipamiento-buceo.md) | `BUCEO_EQUIPAMIENTO` | Implementado, bajo uso |
-| [Registro de inmersiones](registro-inmersiones.md) | `REGISTRO_INMERSIONES` | En desarrollo (migración sin ejecutar) |
+| [Registro de inmersiones](registro-inmersiones.md) | `REGISTRO_INMERSIONES` | En desarrollo (migración ejecutada 2026-11-18; falta prueba y publicar) |
 | [Actividades Formativas](actividades-formativas.md) | `ACTIVIDADES_FORMATIVAS` | En producción, en ajustes |
 | [Checklists Configurables](checklists-configurables.md) | nodos por empresa | Piloto |
 | [Tickets](tickets.md) | `TICKETS` | En producción |

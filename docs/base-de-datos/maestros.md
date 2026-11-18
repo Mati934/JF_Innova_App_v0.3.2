@@ -2,7 +2,7 @@
 
 > **Para qué es:** Tablas maestras que usan todos los módulos (empresas, áreas, centros, contratistas, personal…): qué contienen y cómo se descargan.
 
-> Última revisión: 2026-10-22 (filas aproximadas en Supabase a esa fecha).
+> Última revisión: 2026-11-18 (filas aproximadas en Supabase al 2026-10-22).
 
 Datos de referencia que usan todos los módulos. Se descargan a SQLite en
 `descargarDatosMaestros()` (cada tabla por separado; si una falla, se registra
@@ -28,7 +28,7 @@ en Crashlytics y se informa la lista de tablas fallidas). Se editan en
 
 | Empresa | Módulos habilitados |
 |---|---|
-| AquaChile | INSPECCION, RENDICIONES, HISTORY, AST, TICKETS, ACTIVIDADES_FORMATIVAS, BUCEO_EQUIPAMIENTO (+ REGISTRO_INMERSIONES al ejecutar `supabase_migration_registro_inmersiones_v1.sql`) |
+| AquaChile | INSPECCION, RENDICIONES, HISTORY, AST, TICKETS, ACTIVIDADES_FORMATIVAS, BUCEO_EQUIPAMIENTO, REGISTRO_INMERSIONES (desde 2026-11-18) |
 | GNS | VISITA_R003, VISITA_R004, HISTORY, ACTIVIDADES_FORMATIVAS, BUCEO_EQUIPAMIENTO |
 | Hidroser | ACTIVIDADES_FORMATIVAS |
 | JF Innova | INSPECCION, VISITA_R003, VISITA_R004, RENDICIONES, HISTORY, AST, TICKETS, ACTIVIDADES_FORMATIVAS, BUCEO_EQUIPAMIENTO |

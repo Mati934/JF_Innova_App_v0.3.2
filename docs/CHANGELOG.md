@@ -11,8 +11,10 @@
   máxima, desde–hasta (una inmersión por defecto, se pueden agregar más), nota y fotos opcionales. Se ofrece al
   finalizar la inspección de buceo o desde su tarjeta en Inicio, y funciona sin señal. Si un buzo supera la
   profundidad autorizada, la app pregunta si se marca en rojo. Número propio `RI-NNNN` y PDF v0.1.0 con el N° de
-  la inspección. Aparece en borradores e Historial. Falta ejecutar la migración Supabase y publicar la versión.
+  la inspección. Aparece en borradores e Historial.
 - [App] Base local v65 (tablas del registro de inmersiones).
+- [Registro de inmersiones] Migración Supabase ejecutada: tablas, número `RI-NNNN`, baja en cascada, permisos,
+  entrada en el Historial y módulo habilitado para AquaChile. Falta probar en el teléfono y publicar la versión.
 
 ## 2026-11-08
 
