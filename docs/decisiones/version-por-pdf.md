@@ -1,5 +1,7 @@
 # Versión independiente por cada PDF
 
+> **Para qué es:** Decisión: cada generador de PDF tiene su propia versión y la sube con cada cambio.
+
 - **Fecha:** pendiente de confirmar
 - **Estado:** vigente (regla en `.github/copilot-instructions.md`)
 
@@ -31,3 +33,4 @@ cambie de versión por otros motivos.
 | Checklists configurables | 0.1.0 |
 | Actividades formativas | 0.1.4 |
 | Equipamiento de buceo | 0.1.0 (versión agregada 2026-10-22, visible en el pie) |
+| Inspección Searov (buceo y embarcación) | 0.3.0 (2026-10-29) |

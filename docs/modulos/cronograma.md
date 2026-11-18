@@ -1,5 +1,7 @@
 # Cronograma
 
+> **Para qué es:** Ficha del módulo Cronograma: qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
+
 > Claves: `CRONOGRAMA_EMPRESAS` (operativo), `CRONOGRAMA_PLANTILLAS` (admin)
 > Estado: implementación parcial · Solo online · Última revisión: 2026-10-22
 > Empresas con el módulo (2026-10-22): Servimaf.

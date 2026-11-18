@@ -211,7 +211,7 @@ void main() {
   // ===================================================================
   group('ModuleRegistry - Registro Global', () {
     test('tiene la cantidad esperada de módulos registrados', () {
-      final expectedCount = kDebugMode ? 20 : 19;
+      final expectedCount = kDebugMode ? 21 : 20;
       expect(ModuleRegistry.all.length, expectedCount);
     });
 

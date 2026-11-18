@@ -1,5 +1,7 @@
 # Inicio y borradores
 
+> **Para qué es:** Ficha transversal de la pantalla de inicio y los borradores: qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
+
 > Transversal · Última revisión: 2026-10-22
 
 ## Qué hace

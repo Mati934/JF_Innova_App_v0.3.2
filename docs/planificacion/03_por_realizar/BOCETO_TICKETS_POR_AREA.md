@@ -1,5 +1,7 @@
 # Boceto UI - Tickets por Area (Vista Jefatura)
 
+> **Para qué es:** Boceto de la vista de Tickets por área para jefaturas (idea, sin implementar).
+
 ## Objetivo
 Al entrar al modulo Tickets, en vez de ver primero el listado plano, mostrar un tablero por area con estado operacional rapido:
 

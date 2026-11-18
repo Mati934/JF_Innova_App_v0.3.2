@@ -1,5 +1,7 @@
 # Plan de Rediseño Informe de Buceo HTML v0.2.0
 
+> **Para qué es:** Plan para rediseñar el PDF de la inspección de buceo según el diseño HTML v0.2.0.
+
 Fecha: 2026-08-12
 Estado: Definido para implementación
 Prioridad: Alta

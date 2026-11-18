@@ -1,5 +1,7 @@
 # Arquitectura de Correos y Listas por Area
 
+> **Para qué es:** Referencia: cómo se arman los correos de informes (plantillas, configuración, listas y destinatarios por área).
+
 ## Estado actual
 
 El modulo de correo funciona con cuatro entidades principales y una cola operativa:

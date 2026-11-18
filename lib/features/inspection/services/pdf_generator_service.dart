@@ -2,7 +2,9 @@ import 'dart:io'; // Importante para leer archivos dentro del Isolate
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 // import 'package:image/image.dart' as img;
+import '../domain/formato_inspeccion.dart';
 import '../domain/models/pdf/inspection_report_data.dart';
+import 'searov_pdf_service.dart';
 import 'package:flutter/foundation.dart';
 
 class PdfIsolateParams {
@@ -28,6 +30,9 @@ Future<Uint8List> generatePdfEntryPoint(PdfIsolateParams params) async {
 }
 
 Future<Uint8List> _buildPdfInIsolate(PdfIsolateParams params) async {
+  if (params.data.formato == FormatoInspeccion.searov) {
+    return SearovPdfService().generar(params);
+  }
   final pdfService = PdfGeneratorService();
   return await pdfService._generatePdfSync(params);
 }

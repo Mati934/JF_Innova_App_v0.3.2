@@ -19,12 +19,17 @@ class TicketItemTile extends StatelessWidget {
   final bool procesando;
   final Future<void> Function(bool subsanado, File? foto) onCambiar;
 
+  /// Solo muestra el ítem, sin controles de subsanación: ocurrencias de un
+  /// ticket de hallazgo, que se subsanan juntas con [TicketHallazgoSubsanacion].
+  final bool soloLectura;
+
   const TicketItemTile({
     super.key,
     required this.item,
     required this.puedeEditar,
     required this.procesando,
     required this.onCambiar,
+    this.soloLectura = false,
   });
 
   bool get _esFoto => item.origenItem == TicketItemOrigen.fotoObservacion;
@@ -86,7 +91,7 @@ class TicketItemTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              if (puedeEditar && !procesando)
+              if (puedeEditar && !procesando && !soloLectura)
                 TextButton(
                   onPressed: () => onCambiar(false, null),
                   style: TextButton.styleFrom(
@@ -201,7 +206,9 @@ class TicketItemTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              if (procesando)
+              if (soloLectura)
+                const SizedBox.shrink()
+              else if (procesando)
                 const SizedBox(
                   width: 18,
                   height: 18,
@@ -236,22 +243,165 @@ class TicketItemTile extends StatelessWidget {
             children: [
               _Thumbnail(url: item.fotoOriginalUrl),
               const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: puedeEditar
-                      ? () => _onToggle(context, true)
-                      : null,
-                  icon: const Icon(Icons.camera_alt_outlined, size: 14),
-                  label: const Text(
-                    'Foto de subsanación',
-                    style: TextStyle(fontSize: 12),
+              if (!soloLectura)
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: puedeEditar
+                        ? () => _onToggle(context, true)
+                        : null,
+                    icon: const Icon(Icons.camera_alt_outlined, size: 14),
+                    label: const Text(
+                      'Foto de subsanación',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.primaryBlue,
+                      side: BorderSide(color: Colors.grey.shade300),
+                    ),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.primaryBlue,
-                    side: BorderSide(color: Colors.grey.shade300),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Subsanación de un ticket de hallazgo: una sola foto para todas las
+/// ocurrencias (ítems) del ticket.
+class TicketHallazgoSubsanacion extends StatelessWidget {
+  final List<TicketItemModel> items;
+  final bool puedeEditar;
+  final bool procesando;
+  final Future<void> Function(bool subsanado, File? foto) onCambiar;
+
+  const TicketHallazgoSubsanacion({
+    super.key,
+    required this.items,
+    required this.puedeEditar,
+    required this.procesando,
+    required this.onCambiar,
+  });
+
+  void _elegirFoto(BuildContext context) {
+    ImageService.mostrarOpciones(
+      context,
+      soloUna: true,
+      onFotoTomada: (file) => onCambiar(true, file),
+      onGaleriaSeleccionada: (files) {
+        if (files.isNotEmpty) onCambiar(true, files.first);
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pendientes = items.where((i) => !i.subsanado).length;
+    final subsanado = pendientes == 0;
+    // Al reabrirse por una nueva ocurrencia, la evidencia anterior sigue en
+    // los ítems ya subsanados: se muestra la más reciente.
+    final conFoto =
+        items.where((i) => i.subsanado && i.fotoSubsanacionUrl != null).toList()
+          ..sort(
+            (a, b) => (b.subsanadoAt ?? DateTime(0)).compareTo(
+              a.subsanadoAt ?? DateTime(0),
+            ),
+          );
+    final fotoActual = conFoto.isEmpty ? null : conFoto.first;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: subsanado ? Colors.green.shade200 : Colors.grey.shade200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                subsanado ? Icons.check_rounded : Icons.build_outlined,
+                size: 16,
+                color: subsanado ? Colors.green.shade700 : Colors.grey.shade600,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  subsanado ? 'Hallazgo subsanado' : 'Subsanación pendiente',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5,
                   ),
                 ),
               ),
+              if (procesando)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subsanado
+                ? 'La foto de subsanación cubre todas las ocurrencias.'
+                : fotoActual != null
+                ? 'Hay $pendientes ocurrencia(s) nueva(s) desde la última '
+                      'subsanación. Sube una foto actual para cubrirlas.'
+                : 'Una sola foto subsana las ${items.length} ocurrencia(s) '
+                      'del hallazgo.',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (fotoActual != null) ...[
+                _LabeledThumbnail(
+                  label: 'Subsanación',
+                  url: fotoActual.fotoSubsanacionUrl,
+                  highlight: true,
+                ),
+                const SizedBox(width: 10),
+              ],
+              if (puedeEditar && !procesando)
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () => _elegirFoto(context),
+                        icon: const Icon(Icons.camera_alt_outlined, size: 14),
+                        label: Text(
+                          subsanado ? 'Cambiar foto' : 'Foto de subsanación',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppTheme.primaryBlue,
+                          side: BorderSide(color: Colors.grey.shade300),
+                        ),
+                      ),
+                      if (fotoActual != null)
+                        TextButton(
+                          onPressed: () => onCambiar(false, null),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.grey.shade600,
+                          ),
+                          child: const Text(
+                            'Deshacer',
+                            style: TextStyle(fontSize: 11),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ],

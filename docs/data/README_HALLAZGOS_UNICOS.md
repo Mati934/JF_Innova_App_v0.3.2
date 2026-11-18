@@ -1,5 +1,7 @@
 # Minibase Hallazgos Unicos (AquaChile)
 
+> **Para qué es:** Explica el snapshot JSON de hallazgos únicos de AquaChile (2026-08-03) usado para validar la lógica de hallazgo único.
+
 ## Archivo base
 
 - `hallazgos_unicos_aquachile_snapshot_2026-08-03.json`

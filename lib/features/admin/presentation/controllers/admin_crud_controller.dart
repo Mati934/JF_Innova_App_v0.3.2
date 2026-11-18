@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/database/database_helper.dart';
 import '../../../../core/services/user_session.dart';
+// Nombres de centros, servicios y embarcaciones se guardan con la regla de nombres (igual que el dashboard).
+import '../../../../core/utils/nombre_propio.dart';
 import '../../../sync/services/sync_service.dart';
 
 class AdminCrudController extends ChangeNotifier {
@@ -97,10 +99,26 @@ class AdminCrudController extends ChangeNotifier {
     }
   }
 
+  /// Al editar, la regla de nombres se aplica solo si se cambió el nombre: editar el RUT, la matrícula, el área o el
+  /// servicio no reescribe un nombre que ya existe (ni choca con los índices únicos de Supabase por eso).
+  Future<String> _nombreAlEditar(String tabla, String id, String nombre) async {
+    final db = await _db.database;
+    final filas = await db.query(
+      tabla,
+      columns: ['nombre'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    final actual = filas.isEmpty ? null : filas.first['nombre'] as String?;
+    if (actual != null && actual.trim() == nombre.trim()) return actual;
+    return nombrePropio(nombre);
+  }
+
   Future<bool> crearCentro(String nombre, String areaId) async {
     try {
       final id = const Uuid().v4();
-      await _db.insertCentro(id, nombre.trim(), areaId);
+      await _db.insertCentro(id, nombrePropio(nombre), areaId);
       await _recargarTabla('centros');
       _syncMaestrosPendientes();
       return true;
@@ -115,7 +133,11 @@ class AdminCrudController extends ChangeNotifier {
       final db = await _db.database;
       await db.update(
         'centros',
-        {'nombre': nombre.trim(), 'area_id': areaId, 'subido': 0},
+        {
+          'nombre': await _nombreAlEditar('centros', id, nombre),
+          'area_id': areaId,
+          'subido': 0,
+        },
         where: 'id = ?',
         whereArgs: [id],
       );
@@ -136,9 +158,9 @@ class AdminCrudController extends ChangeNotifier {
           ? rut.trim()
           : 'PENDIENTE-${id.substring(0, 8)}';
       debugPrint(
-        '🔍 DEBUG-SYNC [1/4] Creando contratista: id=$id, nombre="${nombre.trim()}", rut="$rutFinal"',
+        '🔍 DEBUG-SYNC [1/4] Creando contratista: id=$id, nombre="${nombrePropio(nombre)}", rut="$rutFinal"',
       );
-      await _db.insertContratista(id, nombre.trim(), rutFinal);
+      await _db.insertContratista(id, nombrePropio(nombre), rutFinal);
       debugPrint('🔍 DEBUG-SYNC [2/4] Insertado en SQLite con subido=0');
       await _recargarTabla('contratistas');
       debugPrint('🔍 DEBUG-SYNC [3/4] Tabla recargada. Disparando sync...');
@@ -158,7 +180,10 @@ class AdminCrudController extends ChangeNotifier {
   }) async {
     try {
       final db = await _db.database;
-      final updateMap = <String, dynamic>{'nombre': nombre.trim(), 'subido': 0};
+      final updateMap = <String, dynamic>{
+        'nombre': await _nombreAlEditar('contratistas', id, nombre),
+        'subido': 0,
+      };
       if (rut != null && rut.trim().isNotEmpty) {
         updateMap['rut'] = rut.trim();
       }
@@ -186,7 +211,7 @@ class AdminCrudController extends ChangeNotifier {
       final id = const Uuid().v4();
       await _db.insertEmbarcacion(
         id,
-        nombre.trim(),
+        nombrePropio(nombre),
         contratistaId,
         matricula?.trim(),
       );
@@ -210,7 +235,7 @@ class AdminCrudController extends ChangeNotifier {
       await db.update(
         'embarcaciones',
         {
-          'nombre': nombre.trim(),
+          'nombre': await _nombreAlEditar('embarcaciones', id, nombre),
           'contratista_id': contratistaId,
           'matricula': matricula?.trim(),
           'subido': 0,

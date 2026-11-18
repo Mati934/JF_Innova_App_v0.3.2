@@ -25,9 +25,9 @@ class ExtintorCard extends StatefulWidget {
   final void Function(String tipoExtintor) onTipoExtintorChanged;
   final void Function(String pesoExtintor) onPesoExtintorChanged;
   final void Function(String fechaUltimaMantencion)
-      onFechaUltimaMantencionChanged;
+  onFechaUltimaMantencionChanged;
   final void Function(String fechaProximaMantencion)
-      onFechaProximaMantencionChanged;
+  onFechaProximaMantencionChanged;
   final VoidCallback onEliminar;
   final void Function(String path) onFotoAdded;
   final void Function(int fotoIndex) onFotoRemoved;
@@ -73,8 +73,9 @@ class _ExtintorCardState extends State<ExtintorCard> {
     _matriculaCtrl = TextEditingController(
       text: widget.extintor.matricula ?? '',
     );
-    _matriculaCtrl
-        .addListener(() => widget.onMatriculaChanged(_matriculaCtrl.text));
+    _matriculaCtrl.addListener(
+      () => widget.onMatriculaChanged(_matriculaCtrl.text),
+    );
     _tipoExtintorCtrl = TextEditingController(
       text: widget.extintor.tipoExtintor ?? '',
     );
@@ -104,7 +105,11 @@ class _ExtintorCardState extends State<ExtintorCard> {
   @override
   void didUpdateWidget(ExtintorCard old) {
     super.didUpdateWidget(old);
-    _syncCtrl(_matriculaCtrl, old.extintor.matricula, widget.extintor.matricula);
+    _syncCtrl(
+      _matriculaCtrl,
+      old.extintor.matricula,
+      widget.extintor.matricula,
+    );
     _syncCtrl(
       _tipoExtintorCtrl,
       old.extintor.tipoExtintor,
@@ -187,8 +192,8 @@ class _ExtintorCardState extends State<ExtintorCard> {
     final accentColor = hayNC
         ? _kExtintorRed
         : completo
-            ? Colors.green.shade700
-            : AppTheme.primaryBlue;
+        ? Colors.green.shade700
+        : AppTheme.primaryBlue;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -207,8 +212,7 @@ class _ExtintorCardState extends State<ExtintorCard> {
       child: Column(
         children: [
           InkWell(
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(16)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
@@ -273,8 +277,8 @@ class _ExtintorCardState extends State<ExtintorCard> {
                                   hayNC
                                       ? Icons.warning_amber_rounded
                                       : completo
-                                          ? Icons.check_circle
-                                          : Icons.pending_actions,
+                                      ? Icons.check_circle
+                                      : Icons.pending_actions,
                                   size: 13,
                                   color: accentColor,
                                 ),
@@ -283,8 +287,8 @@ class _ExtintorCardState extends State<ExtintorCard> {
                                   hayNC
                                       ? '${e.puntosNC.length} NC'
                                       : completo
-                                          ? 'Completo'
-                                          : 'En revisión',
+                                      ? 'Completo'
+                                      : 'En revisión',
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
@@ -319,8 +323,7 @@ class _ExtintorCardState extends State<ExtintorCard> {
                                 value: progreso,
                                 strokeWidth: 3,
                                 backgroundColor: Colors.grey.shade200,
-                                valueColor:
-                                    AlwaysStoppedAnimation(accentColor),
+                                valueColor: AlwaysStoppedAnimation(accentColor),
                               ),
                             ),
                             Text(
@@ -518,9 +521,7 @@ class _ExtintorCardState extends State<ExtintorCard> {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Row(
           children: [
             const Icon(Icons.warning_amber_rounded, color: _kExtintorRed),
@@ -611,10 +612,7 @@ class _MiniInput extends StatelessWidget {
           minHeight: 32,
         ),
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 8,
-          vertical: 12,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: Colors.grey.shade300),
@@ -625,10 +623,7 @@ class _MiniInput extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(
-            color: AppTheme.primaryBlue,
-            width: 1.4,
-          ),
+          borderSide: const BorderSide(color: AppTheme.primaryBlue, width: 1.4),
         ),
         filled: true,
         fillColor: Colors.grey.shade50,

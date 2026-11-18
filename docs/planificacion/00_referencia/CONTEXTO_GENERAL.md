@@ -1,3 +1,7 @@
+# Contexto general del proyecto
+
+> **Para qué es:** Resumen del proyecto (objetivo, usuarios, módulos y stack) para dar contexto a alguien nuevo o a otra IA.
+
 sigamos con la app, # CONTEXTO DEL PROYECTO: APP JF INNOVA (Inspecciones & Prevención)
 
 ## 1. Resumen del Proyecto

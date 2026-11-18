@@ -540,10 +540,7 @@ class ExtintorPdfGeneratorService {
           // Header del bloque
           pw.Container(
             width: double.infinity,
-            padding: const pw.EdgeInsets.symmetric(
-              horizontal: 6,
-              vertical: 3,
-            ),
+            padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
             color: const PdfColor.fromInt(0xFFFFEBEE),
             child: pw.Row(
               children: [
@@ -635,9 +632,7 @@ class ExtintorPdfGeneratorService {
       children: [
         pw.Expanded(child: colWidget(col1)),
         pw.SizedBox(width: 6),
-        pw.Expanded(
-          child: col2.isNotEmpty ? colWidget(col2) : pw.SizedBox(),
-        ),
+        pw.Expanded(child: col2.isNotEmpty ? colWidget(col2) : pw.SizedBox()),
       ],
     );
   }
@@ -805,9 +800,7 @@ class ExtintorPdfGeneratorService {
                 pw.Expanded(
                   child: pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      _buildInfoGrid(extintor),
-                    ],
+                    children: [_buildInfoGrid(extintor)],
                   ),
                 ),
                 pw.SizedBox(width: 7),
@@ -860,8 +853,9 @@ class ExtintorPdfGeneratorService {
                   child: pw.Wrap(
                     spacing: 2.5,
                     runSpacing: 2.5,
-                    children:
-                        extintor.puntos.map((p) => _puntoChip(p)).toList(),
+                    children: extintor.puntos
+                        .map((p) => _puntoChip(p))
+                        .toList(),
                   ),
                 ),
                 pw.SizedBox(width: 8),

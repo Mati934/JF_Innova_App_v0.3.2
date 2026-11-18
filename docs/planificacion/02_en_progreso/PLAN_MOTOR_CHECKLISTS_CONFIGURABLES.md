@@ -1,5 +1,7 @@
 # Plan Maestro: Creador y Motor de Modulos Configurables
 
+> **Para qué es:** Plan maestro del motor de checklists configurables (crear módulos de checklist sin programar).
+
 Fecha: 2026-09-02
 Estado: Listo para diseno de migracion e implementacion por etapas. Este es el
 unico plan para el motor que ejecuta los checklists y el panel Super Admin que

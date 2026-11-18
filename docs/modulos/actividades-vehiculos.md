@@ -1,5 +1,7 @@
 # Registro de Actividades – Vehículos Livianos
 
+> **Para qué es:** Ficha del módulo Registro de Actividades – Vehículos Livianos: qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
+
 > Clave: `VISITA_ACTIVIDADES_VEHICULOS` · Estado: en producción · Última revisión: 2026-10-22
 > Empresas con el módulo (2026-10-22): Laboratorio CIBA, Servimaf, Vaxxinnova.
 

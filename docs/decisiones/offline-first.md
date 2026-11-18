@@ -1,5 +1,7 @@
 # Offline-first con SQLite y sincronización
 
+> **Para qué es:** Decisión: la app guarda todo primero en SQLite y sincroniza con Supabase cuando hay conexión.
+
 - **Fecha:** 2026-01 (arquitectura desde el inicio del repo)
 - **Estado:** vigente
 

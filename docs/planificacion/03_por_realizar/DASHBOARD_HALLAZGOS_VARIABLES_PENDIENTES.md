@@ -1,5 +1,7 @@
 # Dashboard Hallazgos Unicos - Variables Pendientes
 
+> **Para qué es:** Qué preguntas ya puede responder el dashboard de hallazgos únicos y qué datos faltan para el resto.
+
 Fecha: 2026-08-03
 Estado: levantamiento inicial para diseno de dashboard
 

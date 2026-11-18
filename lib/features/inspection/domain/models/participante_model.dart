@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class ParticipanteModel {
   final String personalId;
   final String nombreCompleto;
@@ -7,6 +9,9 @@ class ParticipanteModel {
   final String? contratistaId; // <--- ID de la empresa contratista del buzo
   bool condicionesOptimas;
 
+  /// Respuestas de las preguntas "por buzo": item_id -> `C` / `NC` / `N/A`.
+  final Map<String, String> respuestasPersonal;
+
   ParticipanteModel({
     required this.personalId,
     required this.nombreCompleto,
@@ -15,7 +20,24 @@ class ParticipanteModel {
     this.matricula = '', // <--- Por defecto vacío para no romper nada
     this.contratistaId, // <--- Opcional, puede ser null
     this.condicionesOptimas = true,
-  });
+    Map<String, String>? respuestasPersonal,
+  }) : respuestasPersonal = respuestasPersonal ?? {};
+
+  /// JSON para `actividad_participantes.respuestas_personal` (null si vacío).
+  String? get respuestasPersonalJson =>
+      respuestasPersonal.isEmpty ? null : jsonEncode(respuestasPersonal);
+
+  /// Lee `respuestas_personal` (texto JSON en SQLite o mapa desde Supabase).
+  static Map<String, String> decodeRespuestas(Object? raw) {
+    if (raw == null) return {};
+    try {
+      final decoded = raw is String ? jsonDecode(raw) : raw;
+      if (decoded is Map) {
+        return decoded.map((k, v) => MapEntry(k.toString(), v.toString()));
+      }
+    } catch (_) {}
+    return {};
+  }
 
   // Factory simple para cuando lees de la DB uniendo tablas
   factory ParticipanteModel.fromMap(Map<String, dynamic> map) {
@@ -28,6 +50,7 @@ class ParticipanteModel {
       matricula: map['matricula'] ?? '',
       contratistaId: map['contratista_id'], // <--- LEER DE DB
       condicionesOptimas: map['condiciones_optimas'] == 1,
+      respuestasPersonal: decodeRespuestas(map['respuestas_personal']),
     );
   }
 }

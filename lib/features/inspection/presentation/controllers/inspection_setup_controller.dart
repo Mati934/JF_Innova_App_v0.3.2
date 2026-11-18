@@ -1,3 +1,4 @@
+import '../../domain/formato_inspeccion.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -69,7 +70,10 @@ class InspectionSetupController extends ChangeNotifier {
   List<Map<String, dynamic>> get contratistas => _contratistas;
   List<Map<String, dynamic>> get embarcaciones => _embarcaciones;
 
-  InspectionSetupController() {
+  /// Formato interno del informe; queda guardado en la actividad.
+  final String formato;
+
+  InspectionSetupController({this.formato = FormatoInspeccion.estandar}) {
     _cargarListasIniciales();
   }
 
@@ -155,6 +159,7 @@ class InspectionSetupController extends ChangeNotifier {
     embarcacionId = null;
     _embarcaciones = [];
     notifyListeners();
+    if (v != null) _cargarEmbarcaciones(null);
 
     // Estimar número de informe cuando se selecciona tipo
     if (v != null) {
@@ -182,20 +187,27 @@ class InspectionSetupController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Todas las embarcaciones, primero las del servicio elegido (las embarcaciones rotan de servicio: si solo se
+  /// mostraban las del servicio, la que faltaba se creaba de nuevo y quedaba duplicada). La embarcación ya elegida
+  /// se mantiene al cambiar el servicio.
   Future<void> _cargarEmbarcaciones(String? contratistaId) async {
-    if (contratistaId == null) {
-      _embarcaciones = [];
-      embarcacionId = null;
-    } else {
-      final naves = await _dbHelper.getEmbarcaciones(contratistaId);
-      _embarcaciones = naves;
-      embarcacionId = null;
-    }
+    final carga = ++_cargaEmbarcaciones;
+    final lista = await _dbHelper.getEmbarcacionesParaSelector(contratistaId);
+    if (carga != _cargaEmbarcaciones) return; // llegó otra carga más nueva
+    _embarcaciones = lista;
     notifyListeners();
   }
 
+  int _cargaEmbarcaciones = 0;
+
+  /// Si aún no hay servicio elegido, se propone el servicio actual de la embarcación (se puede cambiar).
   void setEmbarcacion(String? v) {
     embarcacionId = v?.toString();
+    if (contratistaId == null && v != null) {
+      final emb = _embarcaciones.where((e) => e['id']?.toString() == v);
+      final servicio = emb.isEmpty ? null : emb.first['contratista_id'];
+      if (servicio != null) setContratista(servicio.toString());
+    }
     notifyListeners();
   }
 
@@ -253,6 +265,7 @@ class InspectionSetupController extends ChangeNotifier {
         'numero_seguimiento': _esConsecutiva ? 1 : 0,
         'subido': 0,
         'numero_reporte': _obtenerNumeroParaGuardar(),
+        if (formato != FormatoInspeccion.estandar) 'formato_informe': formato,
       };
 
       await _dbHelper.saveActividadOffline(datosActividad);

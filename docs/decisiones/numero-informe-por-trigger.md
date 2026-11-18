@@ -1,5 +1,7 @@
 # Número de informe asignado por trigger en Supabase
 
+> **Para qué es:** Decisión: el número de informe lo asigna un trigger de Supabase al finalizar, no el dispositivo.
+
 - **Fecha:** 2026-03-29 (refactor de número de informe)
 - **Estado:** vigente. Desde 2026-10-29 el número es por empresa y no se reutiliza: ver [numeración por empresa](numeracion-por-empresa.md).
 

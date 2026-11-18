@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../domain/formato_inspeccion.dart';
 import '../controllers/inspection_setup_controller.dart';
 import 'inspection_form_screen.dart';
 // Asegúrate de que esta ruta sea la correcta hacia tu archivo shared
 import '../../../../../shared/widgets/custom_dropdown.dart';
 
 class InspectionSetupScreen extends StatelessWidget {
-  const InspectionSetupScreen({super.key});
+  /// Formato interno del informe (`FormatoInspeccion`): lo fija el módulo.
+  final String formato;
+
+  const InspectionSetupScreen({
+    super.key,
+    this.formato = FormatoInspeccion.estandar,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => InspectionSetupController(),
+      create: (_) => InspectionSetupController(formato: formato),
       child: const _InspectionSetupView(),
     );
   }
@@ -223,16 +230,20 @@ class _InspectionSetupView extends StatelessWidget {
                         icon: Icons.description_outlined,
                         title: 'Datos del Reporte',
                         children: [
-                          _SegmentedSelector(
-                            label: 'Tipo de Informe',
-                            value: controller.esConsecutiva,
-                            opciones: const [
-                              MapEntry(false, 'INICIAL'),
-                              MapEntry(true, 'CONSECUTIVA'),
-                            ],
-                            onChanged: (v) => controller.setEsConsecutiva(v),
-                          ),
-                          const SizedBox(height: 12),
+                          // Searov no distingue inicial / consecutiva.
+                          if (controller.formato ==
+                              FormatoInspeccion.estandar) ...[
+                            _SegmentedSelector(
+                              label: 'Tipo de Informe',
+                              value: controller.esConsecutiva,
+                              opciones: const [
+                                MapEntry(false, 'INICIAL'),
+                                MapEntry(true, 'CONSECUTIVA'),
+                              ],
+                              onChanged: (v) => controller.setEsConsecutiva(v),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
                           TextFormField(
                             controller: controller.numeroInformeController,
                             readOnly: true,
@@ -281,20 +292,26 @@ class _InspectionSetupView extends StatelessWidget {
                             ),
                             CustomDropdown(
                               label: 'Embarcación',
+                              // Todas las embarcaciones; las de otro servicio dicen "nombre · servicio".
                               items: controller.embarcaciones
-                                  .map((x) => x['nombre'].toString())
+                                  .map((x) => x['etiqueta'].toString())
                                   .toList(),
                               value: controller.embarcacionId != null
                                   ? controller.embarcaciones.firstWhere(
                                       (e) =>
                                           e['id'] == controller.embarcacionId,
-                                      orElse: () => {'nombre': null},
-                                    )['nombre']
+                                      orElse: () => {'etiqueta': null},
+                                    )['etiqueta']
                                   : null,
                               onChanged: (val) {
                                 if (val != null) {
+                                  // Si la lista se recargó mientras estaba abierta, la etiqueta puede no existir.
                                   final selected = controller.embarcaciones
-                                      .firstWhere((e) => e['nombre'] == val);
+                                      .firstWhere(
+                                        (e) => e['etiqueta'] == val,
+                                        orElse: () => {'id': null},
+                                      );
+                                  if (selected['id'] == null) return;
                                   controller.setEmbarcacion(
                                     selected['id']?.toString(),
                                   );

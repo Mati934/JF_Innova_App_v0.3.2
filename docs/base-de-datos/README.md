@@ -1,5 +1,7 @@
 # Base de datos
 
+> **Para qué es:** Entrada a la documentación de la base de datos (SQLite local y Supabase): relaciones, estados y tipos de respuesta.
+
 > Última revisión: 2026-10-22 contra Supabase (lectura) y `lib/core/database/database_helper.dart` (v62).
 
 Hay **dos bases**:

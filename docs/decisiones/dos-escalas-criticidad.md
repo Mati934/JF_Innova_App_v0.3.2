@@ -1,5 +1,7 @@
 # Dos escalas de criticidad
 
+> **Para qué es:** Decisión: inspecciones y tickets usan escalas de criticidad distintas, y cómo se equivalen.
+
 - **Fecha:** 2026-03 (corrección del 2026-03-26/29)
 - **Estado:** vigente, con backlog ([CRITICIDAD_BACKLOG.md](../planificacion/03_por_realizar/CRITICIDAD_BACKLOG.md))
 

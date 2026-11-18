@@ -91,16 +91,27 @@ class _AstSetupView extends StatelessWidget {
                       CustomDropdown(
                         label: 'Embarcación (opcional)',
                         icon: Icons.directions_boat_outlined,
+                        // Todas las embarcaciones; las de otro servicio dicen "nombre · servicio".
                         items: ctrl.embarcaciones
-                            .map((e) => (e['nombre'] ?? '').toString())
+                            .map((e) => (e['etiqueta'] ?? '').toString())
                             .toList(),
                         value: _nombrePorId(
                           ctrl.embarcaciones,
                           ctrl.embarcacionId,
+                          campo: 'etiqueta',
                         ),
-                        onChanged: (nombre) => ctrl.setEmbarcacion(
-                          _idPorNombre(ctrl.embarcaciones, nombre),
-                        ),
+                        onChanged: (etiqueta) {
+                          // Si la lista se recargó mientras estaba abierta, la etiqueta puede no existir:
+                          // no se borra la embarcación ya elegida.
+                          final id = _idPorNombre(
+                            ctrl.embarcaciones,
+                            etiqueta,
+                            campo: 'etiqueta',
+                          );
+                          if (id != null || etiqueta == null) {
+                            ctrl.setEmbarcacion(id);
+                          }
+                        },
                       ),
                     ],
                   ),
@@ -210,18 +221,26 @@ class _AstSetupView extends StatelessWidget {
     }
   }
 
-  String? _nombrePorId(List<Map<String, dynamic>> lista, String? id) {
+  String? _nombrePorId(
+    List<Map<String, dynamic>> lista,
+    String? id, {
+    String campo = 'nombre',
+  }) {
     if (id == null) return null;
     for (final e in lista) {
-      if (e['id'] == id) return (e['nombre'] ?? '').toString();
+      if (e['id'] == id) return (e[campo] ?? '').toString();
     }
     return null;
   }
 
-  String? _idPorNombre(List<Map<String, dynamic>> lista, String? nombre) {
+  String? _idPorNombre(
+    List<Map<String, dynamic>> lista,
+    String? nombre, {
+    String campo = 'nombre',
+  }) {
     if (nombre == null) return null;
     for (final e in lista) {
-      if ((e['nombre'] ?? '').toString() == nombre) return e['id'] as String?;
+      if ((e[campo] ?? '').toString() == nombre) return e['id'] as String?;
     }
     return null;
   }

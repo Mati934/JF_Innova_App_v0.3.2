@@ -1,5 +1,7 @@
 # Plan de Continuidad de Informes y Tickets por No Cumple
 
+> **Para qué es:** Plan (cerrado) para dar continuidad a los informes de seguimiento y crear tickets por cada No Cumple.
+
 Estado: V1 funcional cerrado (pendiente solo matriz de campos duros/informativos)
 Fecha: 2026-07-23
 Objetivo: evitar duplicados de No Cumple (NC) cuando se repiten en informes consecutivos, y generar tickets por hallazgo real (1 ticket por NC real), no por cada informe.

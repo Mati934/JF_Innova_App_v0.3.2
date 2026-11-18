@@ -1,5 +1,7 @@
 # Recordatorio: iPhone y acceso por navegador
 
+> **Para qué es:** Recordatorio de cómo dar la app a usuarios de iPhone: camino nativo (TestFlight/App Store) o uso por navegador con Flutter Web.
+
 ## 1) Objetivo inmediato
 Tener la app disponible para usuarios de iPhone de la forma mas simple posible.
 

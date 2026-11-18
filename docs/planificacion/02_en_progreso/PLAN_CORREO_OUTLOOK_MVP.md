@@ -1,5 +1,7 @@
 # Plan MVP de Envio de Inspecciones por Correo (Outlook)
 
+> **Para qué es:** Plan del envío de informes por correo usando el Outlook del dispositivo (MVP).
+
 Fecha: 2026-06-22
 Estado: Aprobado para etapa inicial (sin envio automatico)
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../../core/theme/app_theme.dart';
 import 'hidroser_checklists.dart';
+import '../../features/inspection/domain/formato_inspeccion.dart';
 import '../../features/inspection/presentation/screens/inspection_setup_screen.dart';
 import '../../features/visits/presentation/screens/visit_form_screen.dart';
 import '../../features/extintores/presentation/screens/extintor_form_screen.dart';
@@ -34,6 +35,9 @@ class ModuleDefinition {
   final bool isPlaceholder;
   final Widget Function(BuildContext) screenBuilder;
 
+  /// Nombre solo para Administración, cuando dos módulos comparten [title].
+  final String? adminTitle;
+
   const ModuleDefinition({
     required this.moduleKey,
     required this.title,
@@ -43,6 +47,7 @@ class ModuleDefinition {
     required this.screenBuilder,
     this.requiresAdmin = false,
     this.isPlaceholder = false,
+    this.adminTitle,
   });
 }
 
@@ -57,6 +62,18 @@ class ModuleRegistry {
       icon: Icons.assignment_turned_in,
       color: AppTheme.primaryBlue,
       screenBuilder: (_) => const InspectionSetupScreen(),
+    ),
+    // Módulo propio de Searov SpA: mismo flujo que Inspección, con sus
+    // preguntas y su PDF. La clave no se muestra; el título es el mismo.
+    ModuleDefinition(
+      moduleKey: 'INSPECCION_SEAROV',
+      title: 'Nueva Inspección',
+      adminTitle: 'Nueva Inspección · Searov',
+      subtitle: 'Barcos / Buceo',
+      icon: Icons.assignment_turned_in,
+      color: AppTheme.primaryBlue,
+      screenBuilder: (_) =>
+          const InspectionSetupScreen(formato: FormatoInspeccion.searov),
     ),
     ModuleDefinition(
       moduleKey: 'VISITA_R003',

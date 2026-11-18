@@ -1,5 +1,7 @@
 # Numeración de informes por empresa y tipo de informe, sin reutilizar números
 
+> **Para qué es:** Decisión: el número de informe es correlativo por empresa y tipo de informe, y nunca se reutiliza.
+
 - **Fecha:** 2026-10-29
 - **Estado:** vigente
 - **Fuente:** pedido de Mati (conversación 2026-10-29); script `supabase_migration_numeracion_por_empresa_v1.sql`, aplicado ese día.

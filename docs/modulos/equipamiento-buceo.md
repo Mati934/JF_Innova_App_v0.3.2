@@ -1,5 +1,7 @@
 # Equipamiento de Buceo (SAL / SAM)
 
+> **Para qué es:** Ficha del módulo Equipamiento de Buceo (SAL / SAM): qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
+
 > Clave: `BUCEO_EQUIPAMIENTO` · Estado: implementado, bajo uso (2 inspecciones) · Última revisión: 2026-10-29
 > Empresas con el módulo (2026-10-22): AquaChile, GNS, JF Innova, PROSESSO, Servimaf.
 

@@ -1,6 +1,8 @@
 # Módulos
 
-> Última revisión: 2026-10-22. Fuente de la lista: `lib/core/modules/module_registry.dart`,
+> **Para qué es:** Lista de todos los módulos de la app con su clave, estado y enlace a su ficha.
+
+> Última revisión: 2026-10-29. Fuente de la lista: `lib/core/modules/module_registry.dart`,
 > `lib/features/*` y `checklist_navigation_nodes` en Supabase.
 
 Cada ficha tiene: qué hace, quién lo usa, reglas de negocio, tablas, pantallas,
@@ -11,6 +13,7 @@ archivos principales y pendientes. **Antes de trabajar en un módulo, leer su fi
 | Ficha | Clave(s) | Estado |
 |---|---|---|
 | [Inspección de Buceo y Embarcación](inspeccion-buceo-embarcacion.md) | `INSPECCION` | En producción |
+| [Inspección Searov](inspeccion-searov.md) | `INSPECCION_SEAROV` | En desarrollo (demo) |
 | [Registro de Visita (R-003)](registro-visita.md) | `VISITA_R003` | En producción |
 | [Actividades – Vehículos Livianos](actividades-vehiculos.md) | `VISITA_ACTIVIDADES_VEHICULOS` | En producción |
 | [Inspección de Extintores (R-004)](inspeccion-extintores.md) | `VISITA_R004` | En producción |

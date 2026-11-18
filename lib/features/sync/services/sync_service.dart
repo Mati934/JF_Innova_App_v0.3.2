@@ -1031,6 +1031,21 @@ class SyncService {
         datosParaNube.remove('eliminado');
         datosParaNube.remove('pdf_path_local');
         datosParaNube.remove('app_version');
+        // Solo las inspecciones de un formato propio (ej. Searov) lo envían;
+        // el resto sube igual que antes de existir la columna.
+        final formato = row['formato_informe']?.toString();
+        if (formato == null || formato.isEmpty || formato == 'ESTANDAR') {
+          datosParaNube.remove('formato_informe');
+        }
+        // Firmas: rutas de archivos del dispositivo, solo locales.
+        datosParaNube.remove('firma_inspector_path');
+        datosParaNube.remove('firma_recibe_path');
+        // Quién realiza / recibe: solo los formatos propios (Searov) los
+        // envían, aunque vengan vacíos, para limpiar un valor ya subido.
+        if (!datosParaNube.containsKey('formato_informe')) {
+          datosParaNube.remove('inspector_nombre');
+          datosParaNube.remove('recibe_nombre');
+        }
         if (!_estadoFaenaEnNube) {
           datosParaNube.remove('estado_faena');
         }
@@ -1828,6 +1843,13 @@ class SyncService {
         if (rel['condiciones_optimas'] is int) {
           datosRelacion['condiciones_optimas'] =
               (rel['condiciones_optimas'] == 1);
+        }
+        // En SQLite es texto JSON; en Supabase, jsonb.
+        final respuestasPersonal = rel['respuestas_personal'];
+        if (respuestasPersonal is String && respuestasPersonal.isNotEmpty) {
+          datosRelacion['respuestas_personal'] = jsonDecode(respuestasPersonal);
+        } else {
+          datosRelacion.remove('respuestas_personal');
         }
         await _supabase.from('actividad_participantes').upsert(datosRelacion);
       } catch (e) {

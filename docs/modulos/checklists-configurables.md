@@ -1,5 +1,7 @@
 # Checklists Configurables (motor de módulos genéricos)
 
+> **Para qué es:** Ficha del módulo Checklists Configurables (motor de módulos genéricos): qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
+
 > Sin clave en `ModuleRegistry`: las tarjetas salen de `checklist_navigation_nodes` por empresa.
 > Estado: piloto (ninguna inspección finalizada en producción al 2026-10-22) · Última revisión: 2026-10-29
 > Plan: [PLAN_MOTOR_CHECKLISTS_CONFIGURABLES.md](../planificacion/02_en_progreso/PLAN_MOTOR_CHECKLISTS_CONFIGURABLES.md).

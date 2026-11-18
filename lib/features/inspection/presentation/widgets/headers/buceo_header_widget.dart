@@ -414,185 +414,190 @@ class BuceoVerificacionesWidget extends StatelessWidget {
 
     return Column(
       children: [
-        Card(
-          margin: const EdgeInsets.all(12),
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: isSafe ? Colors.green : Colors.red,
-              width: 2,
+        // Formato Searov: sin estado final ni verificaciones IV–VIII,
+        // solo observaciones generales.
+        if (controller.usaVerificacionesCriticas)
+          Card(
+            margin: const EdgeInsets.all(12),
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: isSafe ? Colors.green : Colors.red,
+                width: 2,
+              ),
+            ),
+            child: Column(
+              children: [
+                // CABECERA ESTADO (Se mantiene igual tu código original de UI)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isSafe ? Colors.green.shade50 : Colors.red.shade50,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(12),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isSafe ? Icons.check_circle : Icons.warning_amber,
+                        color: isSafe ? Colors.green : Colors.red,
+                        size: 30,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "ESTADO FINAL DE FAENA",
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            DropdownButton<String?>(
+                              value: verificaciones.estadoManual,
+                              isDense: true,
+                              underline: Container(),
+                              isExpanded: true,
+                              hint: Text(
+                                isSafe
+                                    ? "APROBADA (Automático)"
+                                    : "SUSPENDIDA (Automático)",
+                                style: TextStyle(
+                                  color: isSafe
+                                      ? Colors.green.shade900
+                                      : Colors.red.shade900,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: null,
+                                  child: Text("Automático"),
+                                ),
+                                DropdownMenuItem(
+                                  value: "APROBADO",
+                                  child: Text("Forzar APROBACIÓN"),
+                                ),
+                                DropdownMenuItem(
+                                  value: "SUSPENDIDO",
+                                  child: Text("Forzar SUSPENSIÓN"),
+                                ),
+                              ],
+                              onChanged: (val) => controller.updateVerificacion(
+                                (m) => m.estadoManual = val,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 🟢 LISTA DE CHECKS (Conectados al ImageService)
+                _DetailedCheckItem(
+                  label: "IV. Autorización de la Faena",
+                  value: verificaciones.autorizacionAutoridadMaritima,
+                  obs: verificaciones.obsAutorizacion,
+                  imgPath: verificaciones.imgAutorizacion,
+                  onChanged: (v) => controller.updateVerificacion(
+                    (m) => m.autorizacionAutoridadMaritima = v,
+                  ),
+                  onObsChanged: (v) => controller.updateVerificacion(
+                    (m) => m.obsAutorizacion = v,
+                  ),
+                  onCameraTap: () => _capturarEvidencia(
+                    context,
+                    "autorizacion",
+                    (path) => controller.updateVerificacion(
+                      (m) => m.imgAutorizacion = path,
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+
+                _DetailedCheckItem(
+                  label: "V. Inducción Centro de Cultivo",
+                  value: verificaciones.induccionCentroCultivo,
+                  obs: verificaciones.obsInduccion,
+                  imgPath: verificaciones.imgInduccion,
+                  onChanged: (v) => controller.updateVerificacion(
+                    (m) => m.induccionCentroCultivo = v,
+                  ),
+                  onObsChanged: (v) =>
+                      controller.updateVerificacion((m) => m.obsInduccion = v),
+                  onCameraTap: () => _capturarEvidencia(
+                    context,
+                    "induccion",
+                    (path) => controller.updateVerificacion(
+                      (m) => m.imgInduccion = path,
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+
+                _DetailedCheckItem(
+                  label: "VI. Permiso de Buceo",
+                  value: verificaciones.permisoBuceoCentroCorrecto,
+                  obs: verificaciones.obsPermiso,
+                  imgPath: verificaciones.imgPermiso,
+                  onChanged: (v) => controller.updateVerificacion(
+                    (m) => m.permisoBuceoCentroCorrecto = v,
+                  ),
+                  onObsChanged: (v) =>
+                      controller.updateVerificacion((m) => m.obsPermiso = v),
+                  onCameraTap: () => _capturarEvidencia(
+                    context,
+                    "permiso",
+                    (path) => controller.updateVerificacion(
+                      (m) => m.imgPermiso = path,
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+
+                _DetailedCheckItem(
+                  label: "VII. Plan de Contingencias",
+                  value: verificaciones.planContingenciasCentroOk,
+                  obs: verificaciones.obsPlan,
+                  imgPath: verificaciones.imgPlan,
+                  onChanged: (v) => controller.updateVerificacion(
+                    (m) => m.planContingenciasCentroOk = v,
+                  ),
+                  onObsChanged: (v) =>
+                      controller.updateVerificacion((m) => m.obsPlan = v),
+                  onCameraTap: () => _capturarEvidencia(
+                    context,
+                    "plan",
+                    (path) =>
+                        controller.updateVerificacion((m) => m.imgPlan = path),
+                  ),
+                ),
+                const Divider(height: 1),
+
+                _DetailedCheckItem(
+                  label: "VIII. Exámenes Ocupacionales",
+                  value: verificaciones.examenesOcupacionalesVigentes,
+                  obs: verificaciones.obsExamenes,
+                  imgPath: verificaciones.imgExamenes,
+                  onChanged: (v) => controller.updateVerificacion(
+                    (m) => m.examenesOcupacionalesVigentes = v,
+                  ),
+                  onObsChanged: (v) =>
+                      controller.updateVerificacion((m) => m.obsExamenes = v),
+                  onCameraTap: () => _capturarEvidencia(
+                    context,
+                    "examenes",
+                    (path) => controller.updateVerificacion(
+                      (m) => m.imgExamenes = path,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
             ),
           ),
-          child: Column(
-            children: [
-              // CABECERA ESTADO (Se mantiene igual tu código original de UI)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isSafe ? Colors.green.shade50 : Colors.red.shade50,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(12),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      isSafe ? Icons.check_circle : Icons.warning_amber,
-                      color: isSafe ? Colors.green : Colors.red,
-                      size: 30,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "ESTADO FINAL DE FAENA",
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          DropdownButton<String?>(
-                            value: verificaciones.estadoManual,
-                            isDense: true,
-                            underline: Container(),
-                            isExpanded: true,
-                            hint: Text(
-                              isSafe
-                                  ? "APROBADA (Automático)"
-                                  : "SUSPENDIDA (Automático)",
-                              style: TextStyle(
-                                color: isSafe
-                                    ? Colors.green.shade900
-                                    : Colors.red.shade900,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: null,
-                                child: Text("Automático"),
-                              ),
-                              DropdownMenuItem(
-                                value: "APROBADO",
-                                child: Text("Forzar APROBACIÓN"),
-                              ),
-                              DropdownMenuItem(
-                                value: "SUSPENDIDO",
-                                child: Text("Forzar SUSPENSIÓN"),
-                              ),
-                            ],
-                            onChanged: (val) => controller.updateVerificacion(
-                              (m) => m.estadoManual = val,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // 🟢 LISTA DE CHECKS (Conectados al ImageService)
-              _DetailedCheckItem(
-                label: "IV. Autorización de la Faena",
-                value: verificaciones.autorizacionAutoridadMaritima,
-                obs: verificaciones.obsAutorizacion,
-                imgPath: verificaciones.imgAutorizacion,
-                onChanged: (v) => controller.updateVerificacion(
-                  (m) => m.autorizacionAutoridadMaritima = v,
-                ),
-                onObsChanged: (v) =>
-                    controller.updateVerificacion((m) => m.obsAutorizacion = v),
-                onCameraTap: () => _capturarEvidencia(
-                  context,
-                  "autorizacion",
-                  (path) => controller.updateVerificacion(
-                    (m) => m.imgAutorizacion = path,
-                  ),
-                ),
-              ),
-              const Divider(height: 1),
-
-              _DetailedCheckItem(
-                label: "V. Inducción Centro de Cultivo",
-                value: verificaciones.induccionCentroCultivo,
-                obs: verificaciones.obsInduccion,
-                imgPath: verificaciones.imgInduccion,
-                onChanged: (v) => controller.updateVerificacion(
-                  (m) => m.induccionCentroCultivo = v,
-                ),
-                onObsChanged: (v) =>
-                    controller.updateVerificacion((m) => m.obsInduccion = v),
-                onCameraTap: () => _capturarEvidencia(
-                  context,
-                  "induccion",
-                  (path) => controller.updateVerificacion(
-                    (m) => m.imgInduccion = path,
-                  ),
-                ),
-              ),
-              const Divider(height: 1),
-
-              _DetailedCheckItem(
-                label: "VI. Permiso de Buceo",
-                value: verificaciones.permisoBuceoCentroCorrecto,
-                obs: verificaciones.obsPermiso,
-                imgPath: verificaciones.imgPermiso,
-                onChanged: (v) => controller.updateVerificacion(
-                  (m) => m.permisoBuceoCentroCorrecto = v,
-                ),
-                onObsChanged: (v) =>
-                    controller.updateVerificacion((m) => m.obsPermiso = v),
-                onCameraTap: () => _capturarEvidencia(
-                  context,
-                  "permiso",
-                  (path) =>
-                      controller.updateVerificacion((m) => m.imgPermiso = path),
-                ),
-              ),
-              const Divider(height: 1),
-
-              _DetailedCheckItem(
-                label: "VII. Plan de Contingencias",
-                value: verificaciones.planContingenciasCentroOk,
-                obs: verificaciones.obsPlan,
-                imgPath: verificaciones.imgPlan,
-                onChanged: (v) => controller.updateVerificacion(
-                  (m) => m.planContingenciasCentroOk = v,
-                ),
-                onObsChanged: (v) =>
-                    controller.updateVerificacion((m) => m.obsPlan = v),
-                onCameraTap: () => _capturarEvidencia(
-                  context,
-                  "plan",
-                  (path) =>
-                      controller.updateVerificacion((m) => m.imgPlan = path),
-                ),
-              ),
-              const Divider(height: 1),
-
-              _DetailedCheckItem(
-                label: "VIII. Exámenes Ocupacionales",
-                value: verificaciones.examenesOcupacionalesVigentes,
-                obs: verificaciones.obsExamenes,
-                imgPath: verificaciones.imgExamenes,
-                onChanged: (v) => controller.updateVerificacion(
-                  (m) => m.examenesOcupacionalesVigentes = v,
-                ),
-                onObsChanged: (v) =>
-                    controller.updateVerificacion((m) => m.obsExamenes = v),
-                onCameraTap: () => _capturarEvidencia(
-                  context,
-                  "examenes",
-                  (path) => controller.updateVerificacion(
-                    (m) => m.imgExamenes = path,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-            ],
-          ),
-        ),
 
         // TARJETA DE OBSERVACIONES GENERALES (Tu código original)
         Card(

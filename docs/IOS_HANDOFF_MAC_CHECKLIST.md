@@ -1,5 +1,7 @@
 # Preparacion iPhone: handoff a Mac
 
+> **Para qué es:** Pasos para compilar, firmar y probar la app en iPhone con acceso a un Mac.
+
 Este archivo deja el proyecto listo para el dia en que haya acceso a un Mac.
 
 ## Estado actual del repo

@@ -1,5 +1,7 @@
 # Plantilla Base — Creación de Módulos de Inspección
 
+> **Para qué es:** Plantilla para crear un módulo de inspección nuevo, con las lecciones de módulos anteriores.
+
 Fecha: 2026-06-26 (actualizada 2026-07-08 con lecciones de Merieux)
 Estado: Plantilla reutilizable (alineada al código actual)
 

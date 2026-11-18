@@ -446,7 +446,7 @@ class _EmpresaModulosScreenState extends State<EmpresaModulosScreen> {
                     child: Icon(mod.icon, color: mod.color, size: 20),
                   ),
                   title: Text(
-                    mod.title,
+                    mod.adminTitle ?? mod.title,
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   subtitle: Text(mod.subtitle),

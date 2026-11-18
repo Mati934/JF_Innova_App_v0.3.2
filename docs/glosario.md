@@ -10,6 +10,7 @@
 |---|---|
 | **Servimaf** | Empresa propia (dueña de la app). Tiene todos los módulos habilitados y actúa como empresa administradora ("super admin" = admin de Servimaf). Que Servimaf tenga un módulo **no** significa que un cliente lo use. |
 | **Hidroser** | Ex-cliente (dejó de trabajar con Servimaf en 2026). Su módulo `HIDROSER` queda solo en Servimaf, con su historial. |
+| **Searov SpA** | Servicio de buceo; demo del módulo `INSPECCION_SEAROV` (2026-10-29). |
 | Demás empresas | Clientes: cada una ve solo sus módulos (ver [maestros](base-de-datos/maestros.md#módulos-habilitados-por-empresa-2026-10-22)). |
 
 ## Módulos: clave ↔ nombre en Inicio
@@ -17,6 +18,7 @@
 | Clave (`modulo_key`) | Tarjeta en Inicio | Ficha |
 |---|---|---|
 | `INSPECCION` | Nueva Inspección – Barcos / Buceo | [ficha](modulos/inspeccion-buceo-embarcacion.md) |
+| `INSPECCION_SEAROV` | Nueva Inspección – Barcos / Buceo (mismo nombre; preguntas y PDF de Searov) | [ficha](modulos/inspeccion-searov.md) |
 | `VISITA_R003` | Registro de Visita – R-003 | [ficha](modulos/registro-visita.md) |
 | `VISITA_ACTIVIDADES_VEHICULOS` | Registro de Actividades – Checklist Vehículos Livianos | [ficha](modulos/actividades-vehiculos.md) |
 | `ACTIVIDADES_FORMATIVAS` | Registro de Actividad (charlas, capacitaciones) | [ficha](modulos/actividades-formativas.md) |
@@ -74,6 +76,11 @@ Las etiquetas visibles salen de `lib/features/visits/domain/visit_checklist_labe
 | `NC` | No cumple (rojo, exige observación) |
 | `N/A` (`NA` en PROSESSO) | No aplica |
 | Motor configurable: Sí / No / No aplica | Cumple / No cumple / No aplica |
+
+Formato del informe de inspección (`actividades.formato_informe`, interno):
+`NULL`/`ESTANDAR` = Inspección; `SEAROV` = [Inspección Searov](modulos/inspeccion-searov.md).
+Potencialidad (`formulario_items.potencialidad`, solo Searov embarcación): `ALTA` / `MEDIA`;
+resultado `FAENA AUTORIZADA` / `AUTORIZADA CONDICIONAL` / `RECHAZADA` en `estado_faena`.
 
 Criticidad: inspecciones `Tolerable / Moderado / Intolerable` ↔ tickets
 `Bajo / Medio / Alto / Intolerable` ([decisión](decisiones/dos-escalas-criticidad.md)).

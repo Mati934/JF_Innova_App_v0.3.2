@@ -14,6 +14,8 @@ import '../controllers/inspection_form_controller.dart';
 import '../utils/inspection_error_presentation_state.dart';
 import '../widgets/question_card.dart';
 import '../widgets/category_header.dart';
+import '../widgets/checklist_por_buzo_widget.dart';
+import '../widgets/firmas_inspeccion_widget.dart';
 import '../widgets/fotos_observacion_widget.dart';
 import '../widgets/mandatory_buceo_photos_widget.dart';
 import '../widgets/headers/inspection_header_factory.dart';
@@ -107,16 +109,23 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
   void _finalizar() async {
     final preview = _controller.estadoFaenaPreview;
     final intolerables = _controller.totalIntolerables;
-    final continuar = await showEstadoFaenaWarningDialog(
-      context,
-      estado: preview.estado,
-      aprobada: preview.aprobada,
-      detalle: intolerables > 0 && preview.aprobada
-          ? 'Hay $intolerables hallazgo(s) intolerable(s) y la faena fue aprobada '
-                'manualmente. Este será el estado registrado en el informe.'
-          : null,
-    );
-    if (!continuar || !mounted) return;
+    // Buceo Searov no tiene estado final: solo avisa si queda suspendida.
+    final avisarEstado =
+        _controller.usaVerificacionesCriticas ||
+        widget.tipoActividad != 'INSPECCION_BUCEO' ||
+        !preview.aprobada;
+    if (avisarEstado) {
+      final continuar = await showEstadoFaenaWarningDialog(
+        context,
+        estado: preview.estado,
+        aprobada: preview.aprobada,
+        detalle: intolerables > 0 && preview.aprobada
+            ? 'Hay $intolerables hallazgo(s) intolerable(s) y la faena fue aprobada '
+                  'manualmente. Este será el estado registrado en el informe.'
+            : null,
+      );
+      if (!continuar || !mounted) return;
+    }
 
     final confirmar = await showConfirmFinalizeDialog(
       context,
@@ -285,6 +294,12 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
           ),
         ),
 
+        // 1.b PREGUNTAS POR BUZO (formato Searov)
+        if (_controller.itemsPorBuzo.isNotEmpty)
+          SliverToBoxAdapter(
+            child: ChecklistPorBuzoWidget(controller: _controller),
+          ),
+
         // 2. DETECTOR DE FALLO DE BASE DE DATOS (Te salvará la vida en desarrollo)
         if (categorias.isEmpty && !_controller.isLoading)
           SliverToBoxAdapter(
@@ -353,7 +368,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
             }, childCount: categorias.length),
           ),
 
-        // 4. VERIFICACIONES DE BUCEO
+        // 4. VERIFICACIONES DE BUCEO (en Searov solo observaciones generales)
         if (widget.tipoActividad == 'INSPECCION_BUCEO')
           SliverToBoxAdapter(
             child: BuceoVerificacionesWidget(controller: _controller),
@@ -369,10 +384,11 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
     return Column(
       children: [
         const SizedBox(height: 22),
-        if (widget.tipoActividad == 'INSPECCION_BUCEO')
+        if (widget.tipoActividad == 'INSPECCION_BUCEO' &&
+            _controller.usaVerificacionesCriticas) ...[
           MandatoryBuceoPhotosWidget(controller: _controller),
-        if (widget.tipoActividad == 'INSPECCION_BUCEO')
           const SizedBox(height: 12),
+        ],
         FotosConObservacionWidget(controller: _controller),
         const SizedBox(height: 18),
         // Sección "Fotos Generales"
@@ -430,6 +446,14 @@ class _InspectionFormScreenState extends State<InspectionFormScreen> {
             ],
           ),
         ),
+        // Formato Searov: usuario general, el inspector se identifica aquí.
+        if (!_controller.usaVerificacionesCriticas) ...[
+          const SizedBox(height: 18),
+          FirmasInspeccionWidget(
+            controller: _controller,
+            esBuceo: widget.tipoActividad == 'INSPECCION_BUCEO',
+          ),
+        ],
         const SizedBox(height: 22),
         // Botón Finalizar con gradiente
         Container(

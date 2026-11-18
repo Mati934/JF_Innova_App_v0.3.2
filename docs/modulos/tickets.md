@@ -1,5 +1,7 @@
 # Tickets
 
+> **Para qué es:** Ficha del módulo Tickets: qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
+
 > Clave: `TICKETS` · Estado: en producción · Solo online · Última revisión: 2026-10-22
 > Empresas con el módulo (2026-10-22): AquaChile, JF Innova, Servimaf.
 > Detalle: [ACTUALIZACION_TICKETS_2026-09-03.md](../planificacion/01_realizados/ACTUALIZACION_TICKETS_2026-09-03.md).

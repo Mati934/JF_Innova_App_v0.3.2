@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // Imports de configuración y UI
 import 'core/config/supabase_config.dart';
 import 'core/theme/app_theme.dart';
+import 'core/utils/focus_utils.dart';
 import 'core/database/database_helper.dart'; // Para el chequeo de supervivencia offline
 import 'core/services/connectivity_service.dart';
 import 'core/services/user_session.dart';
@@ -104,6 +105,10 @@ class MyApp extends StatelessWidget {
 
       // Tema de la aplicación
       theme: AppTheme.lightTheme,
+
+      // Suelta la caja de texto al tocar afuera o al desplazar (todas las pantallas)
+      builder: (context, child) =>
+          TextFieldFocusGuard(child: child ?? const SizedBox.shrink()),
 
       home: const AuthGate(),
     );

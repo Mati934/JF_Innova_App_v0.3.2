@@ -34,7 +34,8 @@ class BatchDraftController extends ChangeNotifier {
   bool get isEmpty => _draftItems.isEmpty;
   bool get hasErrors => _errorMessage != null || _validationErrors.isNotEmpty;
   String? get errorMessage => _errorMessage;
-  Map<String, int> get validationErrors => UnmodifiableMapView(_validationErrors);
+  Map<String, int> get validationErrors =>
+      UnmodifiableMapView(_validationErrors);
 
   // 📊 Estadísticas del draft
   int get totalItems => _draftItems.length;
@@ -79,7 +80,7 @@ class BatchDraftController extends ChangeNotifier {
       if (_dependencyGraph.hasCycles()) {
         throw Exception(
           'No se puede crear ciclo de dependencias. '
-          'Verifica la relación con ${_getEntityName(parentTempId ?? '')}.'
+          'Verifica la relación con ${_getEntityName(parentTempId ?? '')}.',
         );
       }
 
@@ -128,7 +129,7 @@ class BatchDraftController extends ChangeNotifier {
       if (dependents.isNotEmpty) {
         final names = dependents.map(_getEntityName).join(', ');
         throw Exception(
-          'No se puede eliminar. Los siguientes elementos dependen de esta entidad: $names'
+          'No se puede eliminar. Los siguientes elementos dependen de esta entidad: $names',
         );
       }
 
@@ -166,7 +167,9 @@ class BatchDraftController extends ChangeNotifier {
       // 1. Verificar dependencias resueltas
       for (final item in _draftItems) {
         if (item.parentTempId != null) {
-          final parentExists = _draftItems.any((p) => p.tempId == item.parentTempId);
+          final parentExists = _draftItems.any(
+            (p) => p.tempId == item.parentTempId,
+          );
           if (!parentExists) {
             _validationErrors[item.entityType] =
                 (_validationErrors[item.entityType] ?? 0) + 1;
@@ -184,7 +187,8 @@ class BatchDraftController extends ChangeNotifier {
 
       final isValid = _validationErrors.isEmpty;
       if (!isValid) {
-        _errorMessage = 'Se encontraron ${_validationErrors.values.fold(0, (a, b) => a + b)} errores de validación';
+        _errorMessage =
+            'Se encontraron ${_validationErrors.values.fold(0, (a, b) => a + b)} errores de validación';
       }
 
       return isValid;
@@ -222,8 +226,12 @@ class BatchDraftController extends ChangeNotifier {
       final sortedIds = _dependencyGraph.topologicalSort();
       final orderedEntities = _orderEntitiesByDependencies(sortedIds);
 
-      debugPrint('🎯 [BatchDraft] Iniciando batch upload de ${orderedEntities.length} entidades');
-      debugPrint('📋 [BatchDraft] Orden de inserción: ${sortedIds.join(' → ')}');
+      debugPrint(
+        '🎯 [BatchDraft] Iniciando batch upload de ${orderedEntities.length} entidades',
+      );
+      debugPrint(
+        '📋 [BatchDraft] Orden de inserción: ${sortedIds.join(' → ')}',
+      );
 
       // 3. Ejecutar inserción ordenada con transacción
       _tempIdMapping.clear();
@@ -244,7 +252,6 @@ class BatchDraftController extends ChangeNotifier {
 
       debugPrint('🎉 [BatchDraft] Batch upload completado exitosamente');
       return true;
-
     } catch (e) {
       _errorMessage = 'Error en batch upload: ${e.toString()}';
       debugPrint('❌ [BatchDraft] Batch upload falló: $e');
@@ -279,7 +286,8 @@ class BatchDraftController extends ChangeNotifier {
     final entity = getEntityById(tempId);
     if (entity == null) return tempId;
 
-    final nombre = entity.data['nombre'] ?? entity.data['nombre_completo'] ?? 'Sin nombre';
+    final nombre =
+        entity.data['nombre'] ?? entity.data['nombre_completo'] ?? 'Sin nombre';
     return '${entity.entityType}: $nombre';
   }
 

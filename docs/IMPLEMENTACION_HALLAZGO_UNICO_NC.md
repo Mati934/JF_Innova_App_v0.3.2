@@ -1,5 +1,7 @@
 # Implementacion Hallazgo Unico NC (V1)
 
+> **Para qué es:** Detalle técnico de la implementación V1 del hallazgo único para No Cumple (base de Tickets), de 2026-08.
+
 Fecha: 2026-08-03
 Estado: Diseno listo para implementar
 

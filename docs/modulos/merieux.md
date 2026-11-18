@@ -1,5 +1,7 @@
 # Merieux (Visitas y Extintores)
 
+> **Para qué es:** Ficha del módulo Merieux (Visitas y Extintores): qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
+
 > Claves: `MERIEUX_VISITAS`, `MERIEUX_EXTINTORES` · Estado: demo / bajo uso (2 visitas, 1 mantención) · Última revisión: 2026-10-29
 > Empresas con el módulo (2026-10-22): Merieux NutriSciences, Servimaf.
 

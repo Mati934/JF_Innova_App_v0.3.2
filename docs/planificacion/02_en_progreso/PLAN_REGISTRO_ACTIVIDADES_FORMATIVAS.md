@@ -1,5 +1,7 @@
 # Registro de Actividades Formativas
 
+> **Para qué es:** Plan y avance del registro de actividades formativas (charlas, capacitaciones y servicios con HH).
+
 Estado: `IMPLEMENTACION EN PROGRESO / CORRELATIVO INDEPENDIENTE APLICADO EN SUPABASE`
 
 Este documento reúne lo encontrado sobre el registro de actividades formativas

@@ -1,5 +1,7 @@
 # Plan Módulo de Tickets (Seguimiento de No Conformidades)
 
+> **Para qué es:** Requisitos originales del módulo Tickets. Documento histórico: parte quedó superada por la implementación.
+
 Fecha: 2026-07-04
 Estado documental: Referencia historica; el MVP fue implementado y varias
 decisiones de este borrador fueron reemplazadas por iteraciones posteriores.

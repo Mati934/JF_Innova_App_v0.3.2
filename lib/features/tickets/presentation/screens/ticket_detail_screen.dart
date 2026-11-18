@@ -403,7 +403,66 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
     return Column(children: filas);
   }
 
+  /// Ticket de hallazgo: una subsanación para todo el ticket y las ocurrencias
+  /// (una por informe) como historial de solo lectura, la más reciente arriba.
+  Widget _buildHallazgo() {
+    final ocurrencias = _ctrl.items.reversed.toList();
+    final aMostrar = _mostrarTodasSubsanadas
+        ? ocurrencias
+        : ocurrencias.take(3).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Subsanación',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
+        const SizedBox(height: 8),
+        TicketHallazgoSubsanacion(
+          items: _ctrl.items,
+          puedeEditar: _ctrl.puedoSubsanar && !_ctrl.isProcessing,
+          procesando: _ctrl.isProcessing,
+          onCambiar: (subsanado, foto) async {
+            final error = await _ctrl.subsanarHallazgo(
+              subsanado: subsanado,
+              foto: foto,
+            );
+            _mostrarMensaje(error, esError: true);
+          },
+        ),
+        const SizedBox(height: 18),
+        Text(
+          'Ocurrencias (${ocurrencias.length})',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
+        const SizedBox(height: 8),
+        for (final item in aMostrar)
+          TicketItemTile(
+            item: item,
+            puedeEditar: false,
+            procesando: false,
+            soloLectura: true,
+            onCambiar: (_, _) async {},
+          ),
+        if (ocurrencias.length > aMostrar.length)
+          _buildExpandButton(
+            label:
+                'Ver ${ocurrencias.length - aMostrar.length} ocurrencias más',
+            onTap: () => setState(() => _mostrarTodasSubsanadas = true),
+          )
+        else if (_mostrarTodasSubsanadas && ocurrencias.length > 3)
+          _buildExpandButton(
+            label: 'Mostrar menos',
+            expandido: true,
+            onTap: () => setState(() => _mostrarTodasSubsanadas = false),
+          ),
+      ],
+    );
+  }
+
   Widget _buildObservaciones() {
+    if (_ctrl.esHallazgo) return _buildHallazgo();
     final pendientes = _ctrl.items.where((i) => !i.subsanado).toList();
     final subsanados = _ctrl.items.where((i) => i.subsanado).toList();
     final subsanadosAMostrar = _mostrarTodasSubsanadas

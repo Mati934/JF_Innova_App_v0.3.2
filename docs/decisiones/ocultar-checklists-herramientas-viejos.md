@@ -1,5 +1,7 @@
 # Ocultar los checklists de herramientas viejos del Registro de Visita
 
+> **Para qué es:** Decisión: los checklists de herramientas antiguos (`VISITA_CHEQUEO_*`) se ocultan del Registro de Visita, sin eliminarlos.
+
 - **Fecha:** 2026-10-22
 - **Estado:** vigente
 - **Fuente:** decisión del usuario en conversación (2026-10-22)

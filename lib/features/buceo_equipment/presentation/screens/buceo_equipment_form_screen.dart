@@ -317,6 +317,8 @@ class _BuceoEquipmentFormView extends StatelessWidget {
     final isLast = ctrl.compresores.length > 1;
 
     return Card(
+      // La clave sigue a la fila: al borrar una, las demás conservan su texto.
+      key: ObjectKey(data),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
         padding: const EdgeInsets.all(10),
@@ -337,38 +339,38 @@ class _BuceoEquipmentFormView extends StatelessWidget {
                   ),
               ],
             ),
-            _input(
-              TextEditingController(text: data['matricula'] ?? ''),
-              'Matricula',
-              Icons.badge,
+            _RowTextField(
+              value: data['matricula'] ?? '',
+              label: 'Matricula',
+              icon: Icons.badge,
               onChanged: (v) => ctrl.updateCompresor(index, 'matricula', v),
             ),
             Row(
               children: [
                 Expanded(
-                  child: _input(
-                    TextEditingController(text: data['vigencia'] ?? ''),
-                    'Vigencia',
-                    Icons.date_range,
+                  child: _RowTextField(
+                    value: data['vigencia'] ?? '',
+                    label: 'Vigencia',
+                    icon: Icons.date_range,
                     onChanged: (v) =>
                         ctrl.updateCompresor(index, 'vigencia', v),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: _input(
-                    TextEditingController(text: data['ph'] ?? ''),
-                    'PH',
-                    Icons.schedule,
+                  child: _RowTextField(
+                    value: data['ph'] ?? '',
+                    label: 'PH',
+                    icon: Icons.schedule,
                     onChanged: (v) => ctrl.updateCompresor(index, 'ph', v),
                   ),
                 ),
               ],
             ),
-            _input(
-              TextEditingController(text: data['buzosCargo'] ?? ''),
-              'Numero de buzos a cargo',
-              Icons.groups,
+            _RowTextField(
+              value: data['buzosCargo'] ?? '',
+              label: 'Numero de buzos a cargo',
+              icon: Icons.groups,
               keyboardType: TextInputType.number,
               onChanged: (v) => ctrl.updateCompresor(index, 'buzosCargo', v),
             ),
@@ -387,6 +389,7 @@ class _BuceoEquipmentFormView extends StatelessWidget {
     final removable = ctrl.buzos.length > 1;
 
     return Card(
+      key: ObjectKey(data),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
         padding: const EdgeInsets.all(10),
@@ -407,28 +410,28 @@ class _BuceoEquipmentFormView extends StatelessWidget {
                   ),
               ],
             ),
-            _input(
-              TextEditingController(text: data['nombre'] ?? ''),
-              'Nombre',
-              Icons.person,
+            _RowTextField(
+              value: data['nombre'] ?? '',
+              label: 'Nombre',
+              icon: Icons.person,
               onChanged: (v) => ctrl.updateBuzo(index, 'nombre', v),
             ),
             Row(
               children: [
                 Expanded(
-                  child: _input(
-                    TextEditingController(text: data['matricula'] ?? ''),
-                    'Matricula',
-                    Icons.badge,
+                  child: _RowTextField(
+                    value: data['matricula'] ?? '',
+                    label: 'Matricula',
+                    icon: Icons.badge,
                     onChanged: (v) => ctrl.updateBuzo(index, 'matricula', v),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: _input(
-                    TextEditingController(text: data['profundidad'] ?? ''),
-                    'Profundidad',
-                    Icons.height,
+                  child: _RowTextField(
+                    value: data['profundidad'] ?? '',
+                    label: 'Profundidad',
+                    icon: Icons.height,
                     onChanged: (v) => ctrl.updateBuzo(index, 'profundidad', v),
                   ),
                 ),
@@ -688,4 +691,62 @@ void _tomarFotoPregunta(
       if (files.isNotEmpty) ctrl.setFotoPregunta(itemId, files.first);
     },
   );
+}
+
+/// Campo de texto de una fila (compresor o buzo) que conserva su propio
+/// controller entre redibujos. Antes se creaba un controller nuevo en cada
+/// build, y el cursor saltaba o se perdía lo escrito.
+class _RowTextField extends StatefulWidget {
+  const _RowTextField({
+    required this.value,
+    required this.label,
+    required this.icon,
+    this.keyboardType,
+    this.onChanged,
+  });
+
+  final String value;
+  final String label;
+  final IconData icon;
+  final TextInputType? keyboardType;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  State<_RowTextField> createState() => _RowTextFieldState();
+}
+
+class _RowTextFieldState extends State<_RowTextField> {
+  late final TextEditingController _ctrl = TextEditingController(
+    text: widget.value,
+  );
+
+  @override
+  void didUpdateWidget(_RowTextField old) {
+    super.didUpdateWidget(old);
+    // Sincronizar solo si el valor cambió desde afuera (ej. cargar borrador).
+    if (widget.value != _ctrl.text) _ctrl.text = widget.value;
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextField(
+        controller: _ctrl,
+        keyboardType: widget.keyboardType,
+        onChanged: widget.onChanged,
+        decoration: InputDecoration(
+          labelText: widget.label,
+          prefixIcon: Icon(widget.icon),
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
 }

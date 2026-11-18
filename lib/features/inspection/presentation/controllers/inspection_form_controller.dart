@@ -13,6 +13,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:uuid/uuid.dart';
+import '../../domain/formato_inspeccion.dart';
 import '../../domain/models/buceo_verificacion_model.dart';
 import '../../domain/models/foto_evidencia_item_id.dart';
 import '../../domain/models/participante_model.dart';
@@ -32,6 +33,10 @@ class InspectionFormController extends ChangeNotifier {
   final _autoSaveDebouncer = Debouncer(milliseconds: 2000);
   final String activityId;
   final String tipoActividad;
+
+  /// Formato interno del informe (preguntas y PDF); viene de la actividad,
+  /// que lo hereda del módulo con que se creó. No se muestra.
+  String formatoInspeccion = FormatoInspeccion.estandar;
   String? usuarioId;
   String? centroId;
   String? contratistaId;
@@ -70,6 +75,13 @@ class InspectionFormController extends ChangeNotifier {
       TextEditingController();
   final TextEditingController numeroZarpeCtrl = TextEditingController();
 
+  /// Quién realiza / recibe la inspección (formato Searov: el usuario de la
+  /// app es general por empresa). Las firmas son PNG en el dispositivo.
+  final TextEditingController inspectorNombreCtrl = TextEditingController();
+  final TextEditingController recibeNombreCtrl = TextEditingController();
+  String? firmaInspectorPath;
+  String? firmaRecibePath;
+
   List<File> fotosGenerales = [];
   final Map<String, File> mandatoryPhotos = {};
 
@@ -87,6 +99,10 @@ class InspectionFormController extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   List<FormularioItem> get items => _items;
 
+  /// Preguntas que se responden por cada buzo de la cuadrilla.
+  List<FormularioItem> get itemsPorBuzo =>
+      _items.where((i) => i.aplicaPorBuzo).toList();
+
   int get totalIntolerables {
     int total = 0;
     for (final item in _items) {
@@ -96,17 +112,47 @@ class InspectionFormController extends ChangeNotifier {
     return total;
   }
 
+  /// Resultado por potencialidad (embarcación con formato propio); null en
+  /// el resto. Es una medición distinta de la criticidad.
+  ResultadoPotencialidad? get resultadoPorPotencialidad {
+    if (tipoActividad != 'INSPECCION_EMBARCACION' ||
+        formatoInspeccion == FormatoInspeccion.estandar) {
+      return null;
+    }
+    return FormatoInspeccion.resultadoPorPotencialidad(
+      _items.map(
+        (i) => (
+          potencialidad: i.potencialidad,
+          respuesta: respuestas[i.id] ?? 'N/A',
+        ),
+      ),
+    );
+  }
+
   /// Estado que quedará registrado en el informe, calculado antes de finalizar.
   ({bool aprobada, String estado}) get estadoFaenaPreview {
+    final porPotencialidad = resultadoPorPotencialidad;
+    if (porPotencialidad != null) {
+      return (
+        aprobada: porPotencialidad.resultado != ResultadoEmbarcacion.rechazada,
+        estado: porPotencialidad.resultado.etiqueta,
+      );
+    }
     if (tipoActividad != 'INSPECCION_BUCEO') {
       return (aprobada: true, estado: 'REALIZADA');
     }
     final aprobada = BuceoVerificacionModel.resolverAprobacionFaena(
-      verificaciones: verificacionesBuceo,
+      verificaciones: usaVerificacionesCriticas ? verificacionesBuceo : null,
       totalIntolerables: totalIntolerables,
     );
     return (aprobada: aprobada, estado: aprobada ? 'HABILITADA' : 'SUSPENDIDA');
   }
+
+  /// Verificaciones críticas IV–VIII, estado final manual y fotos
+  /// complementarias: solo en el formato estándar. Searov no las tiene y su
+  /// estado de buceo sale solo de los hallazgos intolerables.
+  bool get usaVerificacionesCriticas =>
+      formatoInspeccion == FormatoInspeccion.estandar;
 
   bool _disposed = false;
 
@@ -122,6 +168,8 @@ class InspectionFormController extends ChangeNotifier {
     supervisorCentroController.dispose(); // 🟢 Limpieza
     numeroZarpeCtrl.dispose(); // 🟢 Limpieza
     correoEmpresaServiciosCtrl.dispose();
+    inspectorNombreCtrl.dispose();
+    recibeNombreCtrl.dispose();
     _disposed = true;
     super.dispose();
   }
@@ -168,6 +216,12 @@ class InspectionFormController extends ChangeNotifier {
           contratistaId = data['contratista_id']?.toString();
           embarcacionId = data['embarcacion_id']?.toString();
           _numeroSeguimiento = data['numero_seguimiento'] as int? ?? 0;
+          formatoInspeccion =
+              data['formato_informe']?.toString() ?? FormatoInspeccion.estandar;
+          inspectorNombreCtrl.text = data['inspector_nombre']?.toString() ?? '';
+          recibeNombreCtrl.text = data['recibe_nombre']?.toString() ?? '';
+          firmaInspectorPath = data['firma_inspector_path']?.toString();
+          firmaRecibePath = data['firma_recibe_path']?.toString();
 
           final numeroReal = data['numero_reporte']?.toString();
 
@@ -182,8 +236,16 @@ class InspectionFormController extends ChangeNotifier {
         }
       }
 
-      // 2. Cargar Items
-      _items = await _repo.getItems(tipoActividad);
+      // 2. Cargar Items (el banco depende del formato de la empresa)
+      _items = await _repo.getItems(
+        FormatoInspeccion.bancoPreguntas(tipoActividad, formatoInspeccion),
+      );
+      if (_items.isEmpty && formatoInspeccion != FormatoInspeccion.estandar) {
+        debugPrint(
+          "⚠️ Sin preguntas para el formato $formatoInspeccion; uso el banco estándar.",
+        );
+        _items = await _repo.getItems(tipoActividad);
+      }
 
       // 3. Cargar Respuestas Previas
       final datos = await _repo.cargarRespuestasGuardadas(activityId);
@@ -233,6 +295,9 @@ class InspectionFormController extends ChangeNotifier {
 
       // 5. CARGAR DATOS ESPECÍFICOS (BUCEO)
       await cargarDatosEspecificos();
+      for (final p in participantes) {
+        _completarRespuestasPorBuzo(p);
+      }
       await _recuperarFotosVerificacionesDesdePendientes();
     } catch (e) {
       _errorMessage = "Error cargando: $e";
@@ -415,13 +480,91 @@ class InspectionFormController extends ChangeNotifier {
       }
       // -------------------------------
 
+      _completarRespuestasPorBuzo(participante);
+      _consolidarRespuestasPorBuzo();
       notifyListeners();
       _triggerAutoSave();
     }
   }
 
+  /// Un buzo nuevo parte con todas sus preguntas "por buzo" en Cumple;
+  /// el inspector cambia solo las que fallan.
+  void _completarRespuestasPorBuzo(ParticipanteModel participante) {
+    for (final item in itemsPorBuzo) {
+      participante.respuestasPersonal.putIfAbsent(item.id, () => 'C');
+    }
+  }
+
+  void setRespuestaBuzo(String personalId, String itemId, String valor) {
+    final index = participantes.indexWhere((p) => p.personalId == personalId);
+    if (index == -1) return;
+    participantes[index].respuestasPersonal[itemId] = valor;
+    _consolidarRespuestasPorBuzo();
+    notifyListeners();
+    _triggerAutoSave();
+  }
+
+  /// Lleva las respuestas por buzo a la respuesta de cada pregunta, para que
+  /// conteos, tickets y PDF las traten como cualquier otra pregunta.
+  void _consolidarRespuestasPorBuzo() {
+    for (final item in itemsPorBuzo) {
+      final consolidada = FormatoInspeccion.consolidarPorBuzo(
+        participantes.map((p) => p.respuestasPersonal[item.id]),
+      );
+      if (consolidada == null) {
+        // Sin buzos: se guarda N/A para pisar respuestas anteriores.
+        respuestas[item.id] = 'N/A';
+        observaciones.remove(item.id);
+        continue;
+      }
+      respuestas[item.id] = consolidada;
+      final fallan = participantes
+          .where((p) => p.respuestasPersonal[item.id] == 'NC')
+          .map((p) => p.nombreCompleto)
+          .toList();
+      if (fallan.isEmpty) {
+        observaciones.remove(item.id);
+      } else {
+        observaciones[item.id] = 'No cumple: ${fallan.join(', ')}';
+      }
+    }
+  }
+
   void removerParticipante(String personalId) {
     participantes.removeWhere((p) => p.personalId == personalId);
+    _consolidarRespuestasPorBuzo();
+    notifyListeners();
+    _triggerAutoSave();
+  }
+
+  void onFirmanteChanged() => _triggerAutoSave();
+
+  /// Guarda la firma dibujada como PNG local y la deja asociada a la actividad.
+  Future<void> guardarFirma({
+    required bool inspector,
+    required Uint8List png,
+  }) async {
+    final dir = Directory(
+      '${(await getApplicationDocumentsDirectory()).path}/firmas_inspeccion',
+    );
+    if (!await dir.exists()) await dir.create(recursive: true);
+    final rol = inspector ? 'inspector' : 'recibe';
+    final file = File(
+      '${dir.path}/${activityId}_${rol}_${DateTime.now().millisecondsSinceEpoch}.png',
+    );
+    await file.writeAsBytes(png, flush: true);
+    final anterior = inspector ? firmaInspectorPath : firmaRecibePath;
+    if (anterior != null) {
+      try {
+        await File(anterior).delete();
+      } catch (_) {}
+    }
+    if (inspector) {
+      firmaInspectorPath = file.path;
+    } else {
+      firmaRecibePath = file.path;
+    }
+    if (_disposed) return;
     notifyListeners();
     _triggerAutoSave();
   }
@@ -668,8 +811,8 @@ class InspectionFormController extends ChangeNotifier {
 
     Uint8List? logoBytes;
     try {
-      logoBytes = await EmpresaLogoService.instance.getLogoForActiveEmpresa(
-        fallbackAsset: 'assets/images/aquachileporfin3.png',
+      logoBytes = await EmpresaLogoService.instance.getLogoInspeccionActiva(
+        formato: formatoInspeccion,
       );
     } catch (e) {
       debugPrint("⚠️ No se pudo cargar el logo: $e");
@@ -683,10 +826,23 @@ class InspectionFormController extends ChangeNotifier {
     );
   }
 
+  String? _textoONull(TextEditingController c) {
+    final t = c.text.trim();
+    return t.isEmpty ? null : t;
+  }
+
   Future<bool> finalizarInspeccion() async {
     // 1. Limpiamos errores previos
     _errorMessage = null;
     _errorPdfNoRecuperable = false;
+
+    // Usuario general por empresa: el informe debe decir quién inspeccionó.
+    if (formatoInspeccion != FormatoInspeccion.estandar &&
+        inspectorNombreCtrl.text.trim().isEmpty) {
+      _errorMessage = "Indica quién realiza la inspección (sección Firmas).";
+      notifyListeners();
+      return false;
+    }
 
     // 2. Validación de Negocio (Buceo necesita al menos 1 participante)
     if (tipoActividad == 'INSPECCION_BUCEO') {
@@ -961,6 +1117,8 @@ class InspectionFormController extends ChangeNotifier {
       "💾 PERSISTIR: Iniciando guardado completo (Borrador: $esBorrador)...",
     );
 
+    _consolidarRespuestasPorBuzo();
+
     String? numeroFinal = numeroInformeController.text.trim();
     // No guardar estimados (~) ni legacy como numero_reporte en SQLite
     final bool esNumeroNoReal =
@@ -1002,6 +1160,12 @@ class InspectionFormController extends ChangeNotifier {
       'estado_faena': estadoFaenaPreview.estado,
       'pdf_url': pdfUrlFinal,
       'pdf_path_local': pdfPathLocal, // Para sync posterior cuando no hay red
+      if (formatoInspeccion != FormatoInspeccion.estandar)
+        'formato_informe': formatoInspeccion,
+      'inspector_nombre': _textoONull(inspectorNombreCtrl),
+      'recibe_nombre': _textoONull(recibeNombreCtrl),
+      'firma_inspector_path': firmaInspectorPath,
+      'firma_recibe_path': firmaRecibePath,
     };
 
     // 2. Respuestas
@@ -1130,8 +1294,9 @@ class InspectionFormController extends ChangeNotifier {
       };
     }
 
-    // Participantes: común a BUCEO y EMBARCACIÓN
-    if (participantes.isNotEmpty) {
+    // Participantes: común a BUCEO y EMBARCACIÓN. Con preguntas por buzo se
+    // guarda también la lista vacía, para que quitar a todos borre la cuadrilla.
+    if (participantes.isNotEmpty || itemsPorBuzo.isNotEmpty) {
       participantesMap = participantes.map((p) {
         return {
           'actividad_id': activityId,
@@ -1144,6 +1309,7 @@ class InspectionFormController extends ChangeNotifier {
           'activo': 1,
           'matricula': p.matricula,
           'contratista_id': p.contratistaId, // <--- INCLUIR CONTRATISTA_ID
+          'respuestas_personal': p.respuestasPersonalJson,
         };
       }).toList();
     }
@@ -1184,6 +1350,7 @@ class InspectionFormController extends ChangeNotifier {
         contratistaId: p.contratistaId, // <--- COPIAR CONTRATISTA_ID
 
         condicionesOptimas: valor,
+        respuestasPersonal: p.respuestasPersonal,
       );
 
       notifyListeners();
@@ -1224,8 +1391,8 @@ class InspectionFormController extends ChangeNotifier {
       );
       Uint8List? logoBytes;
       try {
-        logoBytes = await EmpresaLogoService.instance.getLogoForActiveEmpresa(
-          fallbackAsset: 'assets/images/aquachileporfin3.png',
+        logoBytes = await EmpresaLogoService.instance.getLogoInspeccionActiva(
+          formato: formatoInspeccion,
         );
       } catch (_) {}
 
@@ -1357,6 +1524,7 @@ class InspectionFormController extends ChangeNotifier {
     required bool esConsecutiva,
   }) async {
     final db = await DatabaseHelper.instance.database;
+    _consolidarRespuestasPorBuzo();
 
     String versionApp = "v1.0.0";
     try {
@@ -1542,13 +1710,17 @@ class InspectionFormController extends ChangeNotifier {
           orden: item.orden,
           fotosPaths:
               fotosPaths, // <--- CUIDADO: Tienes que actualizar el DTO en tu modelo PDF para aceptar List<String>
+          potencialidad: item.potencialidad,
+          aplicaPorBuzo: item.aplicaPorBuzo,
         ),
       );
 
       globalItemNumber++;
     }
 
-    if (tipoActividad == 'INSPECCION_BUCEO' && verificacionesBuceo != null) {
+    if (tipoActividad == 'INSPECCION_BUCEO' &&
+        usaVerificacionesCriticas &&
+        verificacionesBuceo != null) {
       final criticas = [
         verificacionesBuceo!.autorizacionAutoridadMaritima,
         verificacionesBuceo!.induccionCentroCultivo,
@@ -1583,6 +1755,10 @@ class InspectionFormController extends ChangeNotifier {
         cargo: p.cargo,
         matricula: p.matricula.isEmpty ? "-" : p.matricula,
         rolEnFaena: textoCondicion,
+        respuestasPorItem: {
+          for (final item in itemsPorBuzo)
+            item.id: p.respuestasPersonal[item.id] ?? 'N/A',
+        },
       );
     }).toList();
 
@@ -1592,11 +1768,15 @@ class InspectionFormController extends ChangeNotifier {
 
     if (tipoActividad == 'INSPECCION_BUCEO') {
       aprobadoFinal = BuceoVerificacionModel.resolverAprobacionFaena(
-        verificaciones: verificacionesBuceo,
+        verificaciones: usaVerificacionesCriticas ? verificacionesBuceo : null,
         totalIntolerables: countIntolerables,
       );
 
       estadoGlobalFinal = aprobadoFinal ? "HABILITADA" : "SUSPENDIDA";
+    } else if (resultadoPorPotencialidad != null) {
+      final preview = estadoFaenaPreview;
+      aprobadoFinal = preview.aprobada;
+      estadoGlobalFinal = preview.estado;
     } else {
       // INSPECCION_EMBARCACION: NO SE SUSPENDE
       aprobadoFinal = true;
@@ -1702,6 +1882,12 @@ class InspectionFormController extends ChangeNotifier {
       sumPesoNoCumple: sumPesoNC,
       observacionPrevencionista:
           verificacionesBuceo?.observacionGeneral ?? "Sin observaciones.",
+      formato: formatoInspeccion,
+      inspectorNombre: _textoONull(inspectorNombreCtrl),
+      recibeNombre: _textoONull(recibeNombreCtrl),
+      firmaInspectorPath: firmaInspectorPath,
+      firmaRecibePath: firmaRecibePath,
+      preguntasPorBuzo: {for (final i in itemsPorBuzo) i.id: i.pregunta},
       verificacionesBuceo: {
         'IV. Autorización de la Faena':
             verificacionesBuceo?.autorizacionAutoridadMaritima ?? false,
@@ -1759,6 +1945,8 @@ class InspectionFormController extends ChangeNotifier {
   Map<String, List<FormularioItem>> agruparPorCategoria() {
     final Map<String, List<FormularioItem>> map = {};
     for (var item in _items) {
+      // Las preguntas por buzo se responden en la cuadrilla.
+      if (item.aplicaPorBuzo) continue;
       if (!map.containsKey(item.categoria)) map[item.categoria] = [];
       map[item.categoria]!.add(item);
     }

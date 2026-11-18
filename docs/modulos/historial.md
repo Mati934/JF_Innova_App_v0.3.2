@@ -1,5 +1,7 @@
 # Historial
 
+> **Para qué es:** Ficha del módulo Historial: qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
+
 > Clave: `HISTORY` · Estado: en producción · Solo online · Última revisión: 2026-10-22
 > Empresas con el módulo (2026-10-22): todas menos Hidroser.
 

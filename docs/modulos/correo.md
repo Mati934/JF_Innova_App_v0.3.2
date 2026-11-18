@@ -1,5 +1,7 @@
 # Correo
 
+> **Para qué es:** Ficha del módulo Correo: qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
+
 > Claves: `EMAIL_OUTBOX` (Bandeja), `EMAIL_ADMIN` (admin), `EMAIL_TEST` (solo en modo debug)
 > Estado: etapa inicial · Última revisión: 2026-10-22
 > Empresas con el módulo (2026-10-22): Servimaf.

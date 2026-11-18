@@ -1,5 +1,7 @@
 # Hidroser
 
+> **Para qué es:** Ficha del módulo Hidroser: qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
+
 > Clave: `HIDROSER` · Estado: **sin cliente activo** (Hidroser es ex-cliente desde 2026) · Última revisión: 2026-10-29
 > Empresas con el módulo (2026-10-22): Servimaf (empresa propia).
 

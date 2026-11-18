@@ -1,5 +1,7 @@
 # Idea: porcentaje de cumplimiento real despues de subsanar
 
+> **Para qué es:** Idea: calcular el % de cumplimiento real de una inspección después de subsanar sus No Cumple.
+
 **Estado:** Idea pendiente de diseno  
 **Fecha:** 2026-09-03
 

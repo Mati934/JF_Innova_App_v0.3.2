@@ -7,7 +7,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/database/database_helper.dart';
 import '../../../core/services/empresa_logo_service.dart';
 import '../../../core/services/user_session.dart';
+import '../domain/formato_inspeccion.dart';
 import '../domain/models/mandatory_buceo_photo_slot.dart';
+import '../domain/models/participante_model.dart';
 import '../domain/models/pdf/inspection_report_data.dart';
 import '../domain/models/buceo_verificacion_model.dart';
 import '../domain/models/foto_evidencia_item_id.dart';
@@ -60,8 +62,8 @@ class DeferredPdfService {
 
       Uint8List? logoBytes;
       try {
-        logoBytes = await EmpresaLogoService.instance.getLogoForActiveEmpresa(
-          fallbackAsset: 'assets/images/aquachileporfin3.png',
+        logoBytes = await EmpresaLogoService.instance.getLogoInspeccionActiva(
+          formato: reportData.formato,
         );
       } catch (e) {
         debugPrint("⚠️ [PDF Diferido] No se pudo cargar el logo: $e");
@@ -251,12 +253,27 @@ class DeferredPdfService {
     }
 
     // --- Items del formulario + Respuestas ---
-    final itemsDb = await db.query(
+    // Mismo banco que usó el formulario (depende del formato de la empresa).
+    final formato =
+        activityRow['formato_informe']?.toString() ??
+        FormatoInspeccion.estandar;
+    var itemsDb = await db.query(
       'formulario_items',
       where: 'tipo_actividad = ? AND activo = 1',
-      whereArgs: [tipoActividad],
+      whereArgs: [FormatoInspeccion.bancoPreguntas(tipoActividad, formato)],
       orderBy: 'orden ASC',
     );
+    if (itemsDb.isEmpty && formato != FormatoInspeccion.estandar) {
+      itemsDb = await db.query(
+        'formulario_items',
+        where: 'tipo_actividad = ? AND activo = 1',
+        whereArgs: [tipoActividad],
+        orderBy: 'orden ASC',
+      );
+    }
+    final itemsPorBuzo = itemsDb
+        .where((i) => i['aplica_por_buzo'] == 1)
+        .toList();
 
     final respuestasDb = await db.query(
       'inspeccion_respuestas_pendientes',
@@ -363,6 +380,8 @@ class DeferredPdfService {
           comentario: observacion,
           orden: item['orden'] as int? ?? 0,
           fotosPaths: fotosPaths,
+          potencialidad: item['potencialidad'] as String?,
+          aplicaPorBuzo: item['aplica_por_buzo'] == 1,
         ),
       );
 
@@ -439,13 +458,15 @@ class DeferredPdfService {
         compresor2PH = _fmtDate(verificacionesBuceo.compresor2VigenciaPH);
         compresor2Buzos = verificacionesBuceo.compresor2BuzosCargo?.toString();
 
-        // Sumar verificaciones al conteo
+        // Sumar verificaciones al conteo (Searov no las tiene)
         final criticas = [
-          verificacionesBuceo.autorizacionAutoridadMaritima,
-          verificacionesBuceo.induccionCentroCultivo,
-          verificacionesBuceo.permisoBuceoCentroCorrecto,
-          verificacionesBuceo.planContingenciasCentroOk,
-          verificacionesBuceo.examenesOcupacionalesVigentes,
+          if (formato == FormatoInspeccion.estandar) ...[
+            verificacionesBuceo.autorizacionAutoridadMaritima,
+            verificacionesBuceo.induccionCentroCultivo,
+            verificacionesBuceo.permisoBuceoCentroCorrecto,
+            verificacionesBuceo.planContingenciasCentroOk,
+            verificacionesBuceo.examenesOcupacionalesVigentes,
+          ],
         ];
         for (var cumple in criticas) {
           if (cumple) {
@@ -474,7 +495,8 @@ class DeferredPdfService {
     // --- Participantes ---
     final partRows = await db.rawQuery(
       '''
-      SELECT pe.nombre_completo, pe.rut, pe.cargo, pe.matricula, ap.condiciones_optimas
+      SELECT pe.nombre_completo, pe.rut, pe.cargo, pe.matricula, ap.condiciones_optimas,
+             ap.respuestas_personal
       FROM actividad_participantes ap
       INNER JOIN personal_externo pe ON pe.id = ap.personal_id
       WHERE ap.actividad_id = ?
@@ -484,6 +506,9 @@ class DeferredPdfService {
 
     final List<PersonalDto> equipoDto = partRows.map<PersonalDto>((p) {
       final condiciones = (p['condiciones_optimas'] as int?) == 1;
+      final respuestasBuzo = ParticipanteModel.decodeRespuestas(
+        p['respuestas_personal'],
+      );
       return PersonalDto(
         nombre: p['nombre_completo']?.toString() ?? '',
         rut: p['rut']?.toString() ?? '',
@@ -492,6 +517,10 @@ class DeferredPdfService {
             ? "-"
             : p['matricula'].toString(),
         rolEnFaena: condiciones ? "Optima" : "NO APTO",
+        respuestasPorItem: {
+          for (final item in itemsPorBuzo)
+            item['id'] as String: respuestasBuzo[item['id'] as String] ?? 'N/A',
+        },
       );
     }).toList();
 
@@ -501,10 +530,22 @@ class DeferredPdfService {
 
     if (tipoActividad == 'INSPECCION_BUCEO') {
       aprobadoFinal = BuceoVerificacionModel.resolverAprobacionFaena(
-        verificaciones: verificacionesBuceo,
+        // Searov no tiene verificaciones críticas: solo cuentan los intolerables.
+        verificaciones: formato == FormatoInspeccion.estandar
+            ? verificacionesBuceo
+            : null,
         totalIntolerables: countIntolerables,
       );
       estadoGlobalFinal = aprobadoFinal ? "HABILITADA" : "SUSPENDIDA";
+    } else if (tipoActividad == 'INSPECCION_EMBARCACION' &&
+        formato != FormatoInspeccion.estandar) {
+      final r = FormatoInspeccion.resultadoPorPotencialidad(
+        itemsProcesados.map(
+          (i) => (potencialidad: i.potencialidad, respuesta: i.respuesta),
+        ),
+      ).resultado;
+      aprobadoFinal = r != ResultadoEmbarcacion.rechazada;
+      estadoGlobalFinal = r.etiqueta;
     } else {
       aprobadoFinal = true;
       estadoGlobalFinal = "REALIZADA";
@@ -574,6 +615,15 @@ class DeferredPdfService {
       sumPesoCumple: sumPesoC,
       sumPesoNoCumple: sumPesoNC,
       observacionPrevencionista: observacionPrevencionista,
+      formato: formato,
+      inspectorNombre: _textoONull(activityRow['inspector_nombre']),
+      recibeNombre: _textoONull(activityRow['recibe_nombre']),
+      firmaInspectorPath: _textoONull(activityRow['firma_inspector_path']),
+      firmaRecibePath: _textoONull(activityRow['firma_recibe_path']),
+      preguntasPorBuzo: {
+        for (final i in itemsPorBuzo)
+          i['id'] as String: i['pregunta'].toString(),
+      },
       verificacionesBuceo: verificacionesBuceo != null
           ? {
               'IV. Autorizacion de la Faena':
@@ -589,6 +639,11 @@ class DeferredPdfService {
             }
           : {},
     );
+  }
+
+  String? _textoONull(Object? v) {
+    final t = v?.toString().trim() ?? '';
+    return t.isEmpty ? null : t;
   }
 
   String? _fmtDate(DateTime? dt) {

@@ -1,5 +1,7 @@
 # Mantención de Extintores (PROSESSO)
 
+> **Para qué es:** Ficha del módulo Mantención de Extintores (PROSESSO): qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
+
 > Clave: `MANTENCION_PROSESSO` · Estado: en producción · Última revisión: 2026-10-22
 > Empresas con el módulo (2026-10-22): PROSESSO, Servimaf.
 > Documento maestro anterior: [PROSESSO_MODULE.md](../PROSESSO_MODULE.md).

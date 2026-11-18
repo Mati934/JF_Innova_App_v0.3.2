@@ -2,13 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'dart:convert';
+import '../utils/embarcacion_opciones.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
   static const int _dbVersion =
-      62; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      64; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -66,7 +67,9 @@ class DatabaseHelper {
         activo INTEGER,
         info_adicional TEXT,
         url_imagen_referencia TEXT,
-        peso REAL DEFAULT 1.0
+        peso REAL DEFAULT 1.0,
+        potencialidad TEXT,
+        aplica_por_buzo INTEGER DEFAULT 0
       )
     ''');
 
@@ -187,7 +190,12 @@ class DatabaseHelper {
         pdf_path_local TEXT,
         eliminado INTEGER DEFAULT 0,
         subido INTEGER DEFAULT 0,
-        app_version TEXT
+        app_version TEXT,
+        formato_informe TEXT,
+        inspector_nombre TEXT,
+        recibe_nombre TEXT,
+        firma_inspector_path TEXT,
+        firma_recibe_path TEXT
       )
     ''');
 
@@ -274,6 +282,7 @@ class DatabaseHelper {
         personal_id TEXT,
         rol_en_faena TEXT,
         condiciones_optimas INTEGER DEFAULT 1,
+        respuestas_personal TEXT,
         PRIMARY KEY (actividad_id, personal_id)
       )
     ''');
@@ -1995,6 +2004,47 @@ class DatabaseHelper {
     if (oldVersion < 62) {
       await _createFormativePhotoDeletionSchema(db);
     }
+    if (oldVersion < 63) {
+      await _addInspectionFormatColumns(db);
+      debugPrint('✅ Parche v63 aplicado (módulo Inspección Searov).');
+    }
+    if (oldVersion < 64) {
+      await _addInspectionSignatureColumns(db);
+      debugPrint('✅ Parche v64 aplicado (firmas Inspección Searov).');
+    }
+  }
+
+  /// v64: quién realiza y quién recibe la inspección (usuario general por
+  /// empresa, ej. Searov) y sus firmas. Las rutas de firma son solo locales.
+  Future<void> _addInspectionSignatureColumns(Database db) async {
+    for (final columna in const [
+      'inspector_nombre',
+      'recibe_nombre',
+      'firma_inspector_path',
+      'firma_recibe_path',
+    ]) {
+      await _safeAddColumn(db, 'actividades_pendientes', columna, 'TEXT');
+    }
+  }
+
+  /// Columnas del módulo Inspección Searov (v63): formato del informe por
+  /// actividad, potencialidad y preguntas por buzo, respuestas por buzo.
+  /// Revisa que cada tabla exista: una base parcial no debe impedir abrir la app.
+  Future<void> _addInspectionFormatColumns(Database db) async {
+    const columnas = [
+      ('actividades_pendientes', 'formato_informe', 'TEXT'),
+      ('formulario_items', 'potencialidad', 'TEXT'),
+      ('formulario_items', 'aplica_por_buzo', 'INTEGER DEFAULT 0'),
+      ('actividad_participantes', 'respuestas_personal', 'TEXT'),
+    ];
+    for (final (tabla, columna, tipo) in columnas) {
+      final existe = await db.rawQuery(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        [tabla],
+      );
+      if (existe.isEmpty) continue;
+      await _safeAddColumn(db, tabla, columna, tipo);
+    }
   }
 
   Future<void> _createFormativePhotoDeletionSchema(DatabaseExecutor db) async {
@@ -2194,6 +2244,8 @@ class DatabaseHelper {
     try {
       // El repair tambien cubre upgrades interrumpidos antes de v60.
       await _createConfigurableChecklistSchema(db);
+      await _addInspectionFormatColumns(db);
+      await _addInspectionSignatureColumns(db);
       await _safeAddColumn(db, 'actividades_pendientes', 'empresa_id', 'TEXT');
       await _createFormativeActivitySchema(db);
       await _safeAddColumn(
@@ -2691,6 +2743,19 @@ class DatabaseHelper {
     );
   }
 
+  /// Todas las embarcaciones para el selector de Inspección y AST (sin filtrar por servicio: las embarcaciones rotan
+  /// de servicio). Primero las del servicio elegido; cada fila trae `etiqueta` (ver `opcionesEmbarcacion`).
+  Future<List<Map<String, dynamic>>> getEmbarcacionesParaSelector(
+    String? contratistaId,
+  ) async {
+    final db = await instance.database;
+    final filas = await db.rawQuery(
+      'SELECT e.id, e.nombre, e.contratista_id, e.matricula, c.nombre AS contratista_nombre '
+      'FROM embarcaciones e LEFT JOIN contratistas c ON c.id = e.contratista_id',
+    );
+    return opcionesEmbarcacion(filas, contratistaId);
+  }
+
   Future<void> guardarItemsOffline(List<Map<String, dynamic>> items) async {
     // BLINDAJE: Si la lista está vacía, NO toques la base de datos
     if (items.isEmpty) {
@@ -2718,6 +2783,8 @@ class DatabaseHelper {
         'info_adicional': item['info_adicional'],
         'url_imagen_referencia': item['url_imagen_referencia'],
         'peso': (item['peso'] as num?)?.toDouble() ?? 1.0,
+        'potencialidad': item['potencialidad'],
+        'aplica_por_buzo': item['aplica_por_buzo'] == true ? 1 : 0,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
     await batch.commit(noResult: true);

@@ -1,5 +1,7 @@
 # Playbook de Errores - JF Innova App
 
+> **Para qué es:** Método para diagnosticar errores e historial de errores ya resueltos.
+
 ## Metodología de resolución
 
 Cuando el usuario reporta un error, seguir este flujo:

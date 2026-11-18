@@ -307,11 +307,7 @@ class FormativeActivityPdfService {
     child: pw.Row(
       children: [
         pw.Expanded(
-          child: _summaryMetric(
-            label: 'HORAS-HOMBRE',
-            value: hh,
-            caption: '',
-          ),
+          child: _summaryMetric(label: 'HORAS-HOMBRE', value: hh, caption: ''),
         ),
         pw.Container(
           width: 0.6,

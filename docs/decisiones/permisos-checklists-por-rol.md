@@ -1,5 +1,7 @@
 # Permisos de checklists configurables por rol, no por usuario
 
+> **Para qué es:** Decisión: los permisos de los checklists configurables se asignan por rol, no por usuario.
+
 - **Fecha:** 2026-10-22
 - **Estado:** vigente (aplicado en MB Embajadores; pendiente en M&S y Servimaf)
 - **Fuente:** decisión del usuario en conversación (2026-10-22)

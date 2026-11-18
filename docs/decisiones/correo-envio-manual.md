@@ -1,5 +1,7 @@
 # Correo preparado, envío manual por el usuario
 
+> **Para qué es:** Decisión: la app prepara el correo con el informe y el usuario lo envía a mano.
+
 - **Fecha:** 2026-06-22
 - **Estado:** vigente
 - **Fuente:** [PLAN_CORREO_OUTLOOK_MVP.md](../planificacion/02_en_progreso/PLAN_CORREO_OUTLOOK_MVP.md)

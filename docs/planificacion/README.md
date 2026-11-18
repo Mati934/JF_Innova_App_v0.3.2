@@ -44,9 +44,17 @@ la clasificacion indicada aqui.
 - [Cronograma por empresas](02_en_progreso/PLAN_CRONOGRAMA_EMPRESAS_MVP.md) —
   alcance en definicion, aun no implementado.
 - [Boceto de Tickets por Area](03_por_realizar/BOCETO_TICKETS_POR_AREA.md).
-- [Criticidad de hallazgos](03_por_realizar/CRITICIDAD_BACKLOG.md).
+- [Criticidad fija por pregunta (AquaChile)](03_por_realizar/CRITICIDAD_BACKLOG.md) —
+  analisis 2026-11-08: bloquear desde ahora en buceo o embarcacion (por confirmar), no sobrescribir el historial;
+  el dashboard hoy muestra la criticidad fija y no la registrada.
+- [Registro de inmersiones (AquaChile)](03_por_realizar/PROPUESTA_REGISTRO_INMERSIONES.md) — una fila por
+  buzo con profundidad maxima y fotos, vinculado a la inspeccion de buceo, correlativo propio, sin firma ni correo.
+- [Pendientes del dashboard](03_por_realizar/PENDIENTES_DASHBOARD.md) — cambios que la app le pide al
+  dashboard web (`../jf_innova_web/dashboard-jfinnova`): criticidad, filtro, informes, compresores.
 - [Variables pendientes del dashboard de hallazgos](03_por_realizar/DASHBOARD_HALLAZGOS_VARIABLES_PENDIENTES.md).
 - [Cumplimiento real despues de subsanar](03_por_realizar/IDEA_CUMPLIMIENTO_REAL_SUBSANACIONES.md).
+- [Compresores como registro propio](03_por_realizar/PROPUESTA_COMPRESORES.md) —
+  ficha por compresor + compresores por inspeccion, con autocompletado por matricula; analisis de datos y plan por fases.
 
 ## Cerrado
 
@@ -71,6 +79,18 @@ la clasificacion indicada aqui.
 ## Plantillas
 
 - [Creacion de modulos de inspeccion](99_plantillas/PLANTILLA_CREACION_MODULOS_INSPECCION.md).
+- [Propuesta o analisis con datos](99_plantillas/PLANTILLA_PROPUESTA_CON_DATOS.md) — para cambios de
+  datos o reglas de negocio que se analizan con la base real antes de decidir.
+
+## Donde va cada cosa
+
+| Que es | Donde |
+|---|---|
+| Notas de una reunion | `docs/1. Cosas/REUNIONES/REUNION-DD-MM-AAAA.md` (notas originales + version redactada) |
+| Idea o cambio de datos que hay que analizar | `03_por_realizar/PROPUESTA_<TEMA>.md` con la [plantilla](99_plantillas/PLANTILLA_PROPUESTA_CON_DATOS.md); si el tema ya tiene backlog, actualizar ese |
+| Cambio que hay que hacer en el dashboard web | Una seccion en [PENDIENTES_DASHBOARD.md](03_por_realizar/PENDIENTES_DASHBOARD.md) |
+| Plan aprobado en curso | `02_en_progreso/` y moverlo a "En ejecucion" en este indice |
+| Lo que la app ya hace | Fuera de planificacion: `docs/modulos/`, `docs/base-de-datos/`, `docs/decisiones/` (skill `documentar-app`) |
 
 Antes de iniciar un modulo nuevo, completar la plantilla y revisar los patrones
 de referencia que indica. Para actividades formativas, usar su plan especifico

@@ -1,5 +1,7 @@
 # Actividades Formativas
 
+> **Para qué es:** Ficha del módulo Actividades Formativas: qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
+
 > Clave: `ACTIVIDADES_FORMATIVAS` · Estado: en producción, en ajustes · Última revisión: 2026-10-22
 > Empresas con el módulo (2026-10-22): las 11 empresas.
 > Plan: [PLAN_REGISTRO_ACTIVIDADES_FORMATIVAS.md](../planificacion/02_en_progreso/PLAN_REGISTRO_ACTIVIDADES_FORMATIVAS.md).

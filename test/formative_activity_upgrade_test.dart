@@ -81,10 +81,15 @@ void main() {
     Database? upgraded;
     try {
       upgraded = await DatabaseHelper.instance.database;
-      expect(await upgraded.getVersion(), 62);
+      expect(await upgraded.getVersion(), 64);
       expect((await upgraded.query('actividades_pendientes')).single, {
         ...inspection,
         'empresa_id': null,
+        'formato_informe': null,
+        'inspector_nombre': null,
+        'recibe_nombre': null,
+        'firma_inspector_path': null,
+        'firma_recibe_path': null,
       });
       expect(
         (await upgraded.query('inspeccion_respuestas_pendientes')).single,

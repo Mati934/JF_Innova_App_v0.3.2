@@ -1,5 +1,7 @@
 # Módulos habilitados por empresa, no tablas por empresa
 
+> **Para qué es:** Decisión: los módulos se habilitan por empresa (`empresa_modulos`) en vez de crear tablas por empresa.
+
 - **Fecha:** 2026-04-17 ("configuración de módulos por empresa")
 - **Estado:** vigente
 

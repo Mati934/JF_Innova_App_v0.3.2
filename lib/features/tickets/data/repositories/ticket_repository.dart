@@ -1657,6 +1657,69 @@ class TicketRepository {
     return actualizado;
   }
 
+  /// Subsana (o deshace) un ticket de hallazgo completo con una sola foto.
+  ///
+  /// En un ticket con `hallazgo_id` cada ítem es una ocurrencia del mismo
+  /// problema en otro informe: se corrige una vez, así que la misma evidencia
+  /// marca todos los ítems. Subsanar de nuevo reemplaza la foto en todos (caso
+  /// de un rechazo del admin).
+  Future<void> subsanarHallazgo({
+    required TicketModel ticket,
+    required String usuarioId,
+    required bool subsanado,
+    File? foto,
+  }) async {
+    String? fotoUrl;
+    if (subsanado) {
+      if (foto == null) {
+        throw TicketAccionFallidaException(
+          'Debes adjuntar una foto para marcar el hallazgo como subsanado.',
+        );
+      }
+      final path =
+          'tickets/${ticket.id}/hallazgo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      await _client.storage.from('evidencias').upload(path, foto);
+      fotoUrl = _client.storage.from('evidencias').getPublicUrl(path);
+    }
+
+    final rows = await _client
+        .from('ticket_items')
+        .update({
+          'subsanado': subsanado,
+          'foto_subsanacion_url': fotoUrl,
+          'subsanado_por_id': subsanado ? usuarioId : null,
+          'subsanado_at': subsanado ? DateTime.now().toIso8601String() : null,
+        })
+        .eq('ticket_id', ticket.id)
+        .select('id');
+
+    try {
+      final bitacora = [
+        for (final row in (rows as List))
+          {
+            'id': _uuid.v4(),
+            'ticket_id': ticket.id,
+            'ticket_item_id': row['id'] as String,
+            'hallazgo_id': ticket.hallazgoId,
+            'accion': subsanado ? 'SUBSANADO' : 'DESHECHO',
+            'usuario_id': usuarioId,
+            'foto_subsanacion_url': fotoUrl,
+          },
+      ];
+      if (bitacora.isNotEmpty) {
+        await _client.from('ticket_item_subsanaciones').insert(bitacora);
+      }
+    } catch (e) {
+      debugPrint(
+        '⚠️ [TicketRepository] Error guardando bitácora de subsanación: $e',
+      );
+    }
+
+    if (subsanado) {
+      await _finalizarSiCorresponde(ticketId: ticket.id, usuarioId: usuarioId);
+    }
+  }
+
   Future<void> _finalizarSiCorresponde({
     required String ticketId,
     required String usuarioId,

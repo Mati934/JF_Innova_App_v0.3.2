@@ -6,9 +6,9 @@ import 'dart:collection';
 /// y calcular el orden correcto de inserción usando Topological Sort.
 class DependencyGraph {
   // Mapas principales del grafo
-  final Map<String, String> _nodeTypes = {};           // nodeId -> entityType
+  final Map<String, String> _nodeTypes = {}; // nodeId -> entityType
   final Map<String, Set<String>> _adjacencyList = {}; // node -> {dependencies}
-  final Map<String, Set<String>> _reverseGraph = {};  // node -> {dependents}
+  final Map<String, Set<String>> _reverseGraph = {}; // node -> {dependents}
 
   /// 🎯 **AGREGAR NODO AL GRAFO**
   void addNode(String nodeId, String entityType) {
@@ -77,7 +77,7 @@ class DependencyGraph {
 
     bool dfsHasCycle(String node) {
       if (recursionStack.contains(node)) return true; // Ciclo detectado
-      if (visited.contains(node)) return false;       // Ya procesado
+      if (visited.contains(node)) return false; // Ya procesado
 
       visited.add(node);
       recursionStack.add(node);
@@ -152,7 +152,9 @@ class DependencyGraph {
 
     // Verificación final: todos los nodos deben estar en el resultado
     if (result.length != _nodeTypes.length) {
-      throw Exception('Error en ordenamiento topológico: posible ciclo no detectado');
+      throw Exception(
+        'Error en ordenamiento topológico: posible ciclo no detectado',
+      );
     }
 
     return result.reversed.toList(); // Revertir para tener dependencias primero
@@ -167,7 +169,10 @@ class DependencyGraph {
 
     return {
       'totalNodes': _nodeTypes.length,
-      'totalEdges': _adjacencyList.values.fold(0, (sum, set) => sum + set.length),
+      'totalEdges': _adjacencyList.values.fold(
+        0,
+        (sum, set) => sum + set.length,
+      ),
       'nodesByType': typeCount,
       'hasCycles': hasCycles(),
     };
@@ -220,7 +225,7 @@ class DependencyGraph {
   String toString() {
     final stats = getStats();
     return 'DependencyGraph(nodes: ${stats['totalNodes']}, '
-           'edges: ${stats['totalEdges']}, '
-           'hasCycles: ${stats['hasCycles']})';
+        'edges: ${stats['totalEdges']}, '
+        'hasCycles: ${stats['hasCycles']})';
   }
 }

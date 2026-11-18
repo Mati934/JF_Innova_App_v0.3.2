@@ -70,6 +70,19 @@ class InspectionReportData {
 
   final String? correoEmpresaServicios;
 
+  /// Formato interno (`FormatoInspeccion`): elige el diseño del PDF.
+  final String formato;
+
+  /// Quién realiza / recibe la inspección y sus firmas (formato Searov:
+  /// usuario general por empresa). Firmas: rutas PNG locales.
+  final String? inspectorNombre;
+  final String? recibeNombre;
+  final String? firmaInspectorPath;
+  final String? firmaRecibePath;
+
+  /// Preguntas "por buzo" en orden (item_id -> texto), para la matriz de la cuadrilla.
+  final Map<String, String> preguntasPorBuzo;
+
   InspectionReportData({
     this.empresaProveedor = 'JF INNOVA',
     required this.empresaContratista,
@@ -121,6 +134,12 @@ class InspectionReportData {
     this.compresor2Buzos,
 
     this.correoEmpresaServicios,
+    this.formato = 'ESTANDAR',
+    this.inspectorNombre,
+    this.recibeNombre,
+    this.firmaInspectorPath,
+    this.firmaRecibePath,
+    this.preguntasPorBuzo = const {},
   });
 }
 
@@ -131,12 +150,16 @@ class PersonalDto {
   final String matricula;
   final String rolEnFaena;
 
+  /// Respuestas de las preguntas "por buzo": item_id -> `C` / `NC` / `N/A`.
+  final Map<String, String> respuestasPorItem;
+
   PersonalDto({
     required this.nombre,
     required this.rut,
     this.cargo = '',
     this.matricula = '',
     required this.rolEnFaena,
+    this.respuestasPorItem = const {},
   });
 }
 
@@ -151,6 +174,12 @@ class InspectionItemDto {
   // CLEAN CODE: Lista de rutas de disco, no binarios
   final List<String> fotosPaths;
 
+  /// `ALTA` / `MEDIA` (formato Searov de embarcación); null en el resto.
+  final String? potencialidad;
+
+  /// Pregunta respondida por buzo; su respuesta aquí es la consolidada.
+  final bool aplicaPorBuzo;
+
   InspectionItemDto({
     required this.categoria,
     required this.pregunta,
@@ -159,6 +188,8 @@ class InspectionItemDto {
     this.comentario,
     this.orden = 0,
     this.fotosPaths = const [],
+    this.potencialidad,
+    this.aplicaPorBuzo = false,
   });
 }
 

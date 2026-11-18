@@ -301,6 +301,7 @@ class LocalInspectionRepository implements InspectionRepository {
           'personal_id': p.personalId,
           'rol_en_faena': p.cargo,
           'condiciones_optimas': p.condicionesOptimas ? 1 : 0,
+          'respuestas_personal': p.respuestasPersonalJson,
         });
       }
     });
@@ -311,7 +312,8 @@ class LocalInspectionRepository implements InspectionRepository {
     final db = await dbHelper.database;
     final res = await db.rawQuery(
       '''
-      SELECT ap.personal_id, p.nombre_completo, p.rut, p.matricula, p.contratista_id, ap.rol_en_faena, ap.condiciones_optimas
+      SELECT ap.personal_id, p.nombre_completo, p.rut, p.matricula, p.contratista_id, ap.rol_en_faena, ap.condiciones_optimas,
+             ap.respuestas_personal
       FROM actividad_participantes ap
       INNER JOIN personal_externo p ON ap.personal_id = p.id
       WHERE ap.actividad_id = ?
@@ -416,6 +418,7 @@ class LocalInspectionRepository implements InspectionRepository {
                     p['condiciones_optimas'] == 1)
                 ? 1
                 : 0,
+            'respuestas_personal': p['respuestas_personal'],
           });
         }
       }

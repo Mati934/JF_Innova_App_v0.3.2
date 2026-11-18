@@ -1,5 +1,7 @@
 # Actividades formativas sin nómina y con HH del relator
 
+> **Para qué es:** Decisión: las actividades formativas guardan solo el número de asistentes (sin nómina) y cómo se calculan las HH.
+
 - **Fecha:** 2026-10 (implementación)
 - **Estado:** vigente
 - **Fuente:** [PLAN_REGISTRO_ACTIVIDADES_FORMATIVAS.md](../planificacion/02_en_progreso/PLAN_REGISTRO_ACTIVIDADES_FORMATIVAS.md), `.github/copilot-instructions.md`

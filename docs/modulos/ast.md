@@ -1,5 +1,7 @@
 # AST – Análisis Seguro de Trabajo
 
+> **Para qué es:** Ficha del módulo AST – Análisis Seguro de Trabajo: qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
+
 > Clave: `AST` · Estado: en producción · Última revisión: 2026-10-29
 > Empresas con el módulo (2026-10-22): AquaChile, JF Innova, Servimaf.
 
@@ -10,7 +12,9 @@ detalle y foto), observaciones y galería general. Genera un PDF con correlativo
 
 ## Reglas de negocio
 
-- Configuración inicial: área, centro y contratista obligatorios.
+- Configuración inicial: área, centro y contratista obligatorios. Embarcación opcional: desde 2026-11-17 se
+  elige entre **todas** (primero las del contratista; las demás como "nombre · servicio"). `embarcacion_nombre`
+  guarda el nombre real, no la etiqueta.
 - Hallazgos numerados 1, 2, 3… dentro del informe.
 - Al finalizar pasa a `En Seguimiento`; Supabase asigna el correlativo AST
   (por empresa y año desde 2026-10-29, contador `numeradores_informe`), se

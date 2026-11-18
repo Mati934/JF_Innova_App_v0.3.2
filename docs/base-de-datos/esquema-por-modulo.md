@@ -1,5 +1,7 @@
 # Esquema por módulo
 
+> **Para qué es:** Qué tablas usa cada módulo, en SQLite y en Supabase, qué guarda cada una y su tamaño aproximado.
+
 > Última revisión: 2026-10-29. Filas = conteo aproximado en Supabase al 2026-10-22.
 > Local = tabla espejo en SQLite (normalmente `<tabla>_pendientes`).
 
@@ -13,13 +15,13 @@
 
 | Supabase | Local | Contenido | Filas |
 |---|---|---|---:|
-| `actividades` | `actividades_pendientes` | Cabecera: tipo (`INSPECCION_BUCEO`, `INSPECCION_EMBARCACION`, `BITACORA`), centro, contratista, embarcación, fechas, horas, estado, `numero_informe`, `actividad_origen_id` (seguimiento). | 844 |
+| `actividades` | `actividades_pendientes` | Cabecera: tipo (`INSPECCION_BUCEO`, `INSPECCION_EMBARCACION`, `BITACORA`), centro, contratista, embarcación, fechas, horas, estado, `numero_informe`, `actividad_origen_id` (seguimiento), `formato_informe` (NULL = estándar, `SEAROV` = [Inspección Searov](../modulos/inspeccion-searov.md); desde v63), `inspector_nombre` y `recibe_nombre` (quién realiza y quién recibe, escritos en el formulario Searov; desde v64). Solo en SQLite: `firma_inspector_path`, `firma_recibe_path` (PNG en el dispositivo, no suben). | 844 |
 | `verificaciones_buceo` | `verificaciones_buceo` | 1:1 con actividad. Checks críticos de faena, nivel y profundidad, compresores, supervisor. | 739 |
 | `verificaciones_embarcacion` | `verificaciones_embarcacion` | 1:1 con actividad de embarcación. | 70 |
-| `actividad_participantes` | `actividad_participantes` | Cuadrilla: personal y rol en la faena. | 3170 |
+| `actividad_participantes` | `actividad_participantes` | Cuadrilla: personal y rol en la faena. `respuestas_personal` (jsonb, v63): respuestas por buzo de Inspección Searov. | 3170 |
 | `inspeccion_respuestas` | `inspeccion_respuestas_pendientes` | Respuesta por pregunta (`C/NC/N/A`), observación, criticidad registrada. | 29162 |
 | `registro_fotografico` | `fotos_pendientes` | Fotos por pregunta, generales y con observación. | 34852 |
-| `formulario_items` | `formulario_items` | Banco de preguntas (catálogo). | 406 |
+| `formulario_items` | `formulario_items` | Banco de preguntas (catálogo). Desde v63: `potencialidad` (ALTA/MEDIA) y `aplica_por_buzo`, usados por Inspección Searov. | 406 |
 
 ## Registro de Visita, Extintores R-004, Vehículos y PROSESSO
 

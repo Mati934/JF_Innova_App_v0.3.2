@@ -1,5 +1,7 @@
 # Tickets: hallazgo único y unidad = observación
 
+> **Para qué es:** Decisión: un ticket por hallazgo único, y la unidad de seguimiento es la observación.
+
 - **Fecha:** 2026-09-03
 - **Estado:** vigente
 - **Fuente:** [ACTUALIZACION_TICKETS_2026-09-03.md](../planificacion/01_realizados/ACTUALIZACION_TICKETS_2026-09-03.md), [IMPLEMENTACION_HALLAZGO_UNICO_NC.md](../IMPLEMENTACION_HALLAZGO_UNICO_NC.md)

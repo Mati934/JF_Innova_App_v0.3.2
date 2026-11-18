@@ -1,5 +1,7 @@
 # Motor de checklists configurables en paralelo
 
+> **Para qué es:** Decisión: el motor de checklists configurables convive con los módulos existentes, sin reemplazarlos.
+
 - **Fecha:** 2026-09-02 (plan) / 2026-09-14 (implementación)
 - **Estado:** vigente, en piloto
 - **Fuente:** [PLAN_MOTOR_CHECKLISTS_CONFIGURABLES.md](../planificacion/02_en_progreso/PLAN_MOTOR_CHECKLISTS_CONFIGURABLES.md)

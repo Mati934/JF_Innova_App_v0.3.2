@@ -1,5 +1,7 @@
 # Actualizacion de Tickets - 2026-09-03
 
+> **Para qué es:** Estado del flujo de Tickets después de la corrección del 2026-09-03 y sus limitaciones conocidas.
+
 ## Estado
 
 Modulo de Tickets corregido y con las migraciones de esta etapa ejecutadas en Supabase.

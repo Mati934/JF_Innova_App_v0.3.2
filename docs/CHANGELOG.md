@@ -5,8 +5,36 @@
 > Desde esa fecha se mantiene con la skill `documentar-app`.
 > Formato: `## AAAA-MM-DD` + líneas `- [Módulo] qué cambió para el usuario`.
 
+## 2026-11-08
+
+- [Toda la app] Las cajas de texto se sueltan al tocar fuera de ellas o al
+  desplazar la pantalla con el dedo (en Android/iOS antes no se soltaban). Ya no
+  hay que cerrar una observación para salir de ella, y la pantalla deja de
+  volver a la caja de más arriba cuando uno está más abajo.
+- [Equipamiento de buceo] Los campos de compresores y buzos ya no pierden el
+  cursor ni lo escrito cuando la pantalla se redibuja.
+
 ## 2026-10-29
 
+- [Inspección Searov] Buceo sin "Estado final de faena", sin verificaciones
+  críticas IV–VIII y sin registro fotográfico complementario (no están en el
+  formato de Searov). PDF v0.1.1: el checklist muestra una sola columna
+  "Estado" (Cumple / No cumple / N/A) en vez de tres columnas marcadas con X.
+- [Inspección Searov] PDF v0.3.0: fotos de cada pregunta solo en el checklist y
+  más grandes (el anexo final queda con fotos con observación y galería general);
+  estado como píldora de color; firmas lado a lado con línea y nombre debajo;
+  tabla de compresores en buceo.
+- [Inspección Searov] PDF v0.2.0: checklist con la estructura del PDF estándar de
+  buceo (observación bajo la pregunta, fotos a la derecha, estado) y diseño
+  Searov; sin Inicial / Consecutiva. Nueva sección Firmas en el formulario:
+  quién realiza (obligatorio) y quién recibe la inspección, con firma en
+  pizarra. Base local v64; Supabase `actividades.inspector_nombre` y `recibe_nombre`.
+- [Inspección Searov] Módulo nuevo `INSPECCION_SEAROV` para Searov SpA (en
+  desarrollo, sin publicar): inspección de buceo con checklist por buzo e
+  inspección de embarcación con potencialidad ALTA/MEDIA, cada una con PDF propio
+  (v0.1.0). Inspección (AquaChile) no cambia.
+- [Herramientas] Skill `nueva-empresa-demo`: SQL de alta de empresa + módulos y
+  diagnóstico de qué le falta a una empresa para usar la app.
 - [Todos los informes] El número de informe es propio de cada empresa y de cada
   tipo de informe (buceo, embarcación, formativa, AST, Hidroser, Merieux visitas y
   extintores, equipamiento de buceo, checklists). AquaChile sigue su numeración;

@@ -1,5 +1,7 @@
 # Errores de Tickets
 
+> **Para qué es:** Errores de Tickets que quedan por verificar después de la corrección del 2026-09-03.
+
 Registro resumido despues de la correccion del 2026-09-03.
 
 ## INC-001: Tickets vacios

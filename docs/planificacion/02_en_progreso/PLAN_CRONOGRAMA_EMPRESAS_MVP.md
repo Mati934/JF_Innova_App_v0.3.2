@@ -1,5 +1,7 @@
 # Plan Módulo Cronograma de Trabajo por Empresa
 
+> **Para qué es:** Plan del módulo Cronograma de trabajo por empresa.
+
 Fecha: 2026-08-13
 Estado: En progreso de definicion (alcance MVP actualizado, sin implementar)
 

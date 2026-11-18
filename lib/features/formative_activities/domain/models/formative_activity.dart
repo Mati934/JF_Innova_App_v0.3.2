@@ -42,7 +42,9 @@ class FormativeActivity {
   static int? durationMinutes(String start, String end) {
     final startMinutes = _minuteOfDay(start);
     final endMinutes = _minuteOfDay(end);
-    if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
+    if (startMinutes == null ||
+        endMinutes == null ||
+        endMinutes <= startMinutes) {
       return null;
     }
     return endMinutes - startMinutes;

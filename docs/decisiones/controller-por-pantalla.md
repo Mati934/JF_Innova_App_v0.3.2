@@ -1,5 +1,7 @@
 # Controller por pantalla, sin estado global
 
+> **Para qué es:** Decisión: cada pantalla crea y libera su propio Controller, sin estado global.
+
 - **Fecha:** 2026-01-13 (refactor a arquitectura por features)
 - **Estado:** vigente
 

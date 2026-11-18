@@ -8,6 +8,13 @@ class FormularioItem {
   final String? infoAdicional;
   final String? urlImagenReferencia;
 
+  /// `ALTA` / `MEDIA` en el formato de embarcación Searov; null en el resto.
+  /// Es una medición distinta de la criticidad.
+  final String? potencialidad;
+
+  /// La pregunta se responde una vez por cada buzo de la cuadrilla.
+  final bool aplicaPorBuzo;
+
   FormularioItem({
     required this.id,
     required this.pregunta,
@@ -17,6 +24,8 @@ class FormularioItem {
     this.peso = 1.0,
     this.infoAdicional,
     this.urlImagenReferencia,
+    this.potencialidad,
+    this.aplicaPorBuzo = false,
   });
 
   factory FormularioItem.fromJson(Map<String, dynamic> json) {
@@ -29,6 +38,9 @@ class FormularioItem {
       peso: (json['peso'] as num?)?.toDouble() ?? 1.0,
       infoAdicional: json['info_adicional'] ?? json['infoAdicional'],
       urlImagenReferencia: json['url_imagen_referencia'],
+      potencialidad: json['potencialidad'] as String?,
+      aplicaPorBuzo:
+          json['aplica_por_buzo'] == 1 || json['aplica_por_buzo'] == true,
     );
   }
 }

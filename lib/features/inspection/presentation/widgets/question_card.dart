@@ -125,13 +125,16 @@ class _QuestionCardState extends State<QuestionCard>
                   Expanded(
                     child: Row(
                       children: [
-                        Text(
-                          widget.item.categoria.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.blueGrey.shade600,
-                            letterSpacing: 0.8,
+                        // Flexible: categorías largas saltan de línea.
+                        Flexible(
+                          child: Text(
+                            widget.item.categoria.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.blueGrey.shade600,
+                              letterSpacing: 0.8,
+                            ),
                           ),
                         ),
                         // ICONO DE INFORMACIÓN (Hitbox generosa de 45x40)

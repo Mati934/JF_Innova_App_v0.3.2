@@ -1,5 +1,7 @@
 # Datos maestros
 
+> **Para qué es:** Tablas maestras que usan todos los módulos (empresas, áreas, centros, contratistas, personal…): qué contienen y cómo se descargan.
+
 > Última revisión: 2026-10-22 (filas aproximadas en Supabase a esa fecha).
 
 Datos de referencia que usan todos los módulos. Se descargan a SQLite en

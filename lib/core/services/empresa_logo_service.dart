@@ -46,6 +46,19 @@ class EmpresaLogoService {
     );
   }
 
+  /// Logo para el informe de inspección de la empresa activa. Un formato
+  /// propio (ej. Searov) sin logo configurado recibe null y el PDF escribe el
+  /// nombre de la empresa; el formato estándar mantiene su respaldo de siempre.
+  Future<Uint8List?> getLogoInspeccionActiva({required String formato}) async {
+    if (formato != 'ESTANDAR' &&
+        (UserSession().empresaLogoUrl ?? '').trim().isEmpty) {
+      return null;
+    }
+    return getLogoForActiveEmpresa(
+      fallbackAsset: 'assets/images/aquachileporfin3.png',
+    );
+  }
+
   /// Versión explícita para módulos que conocen la empresa por contexto
   /// (ej: PDF diferido leyendo una actividad ya guardada).
   Future<Uint8List?> getLogoForEmpresa({

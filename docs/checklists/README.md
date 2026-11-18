@@ -1,5 +1,7 @@
 # Catálogo de checklists
 
+> **Para qué es:** Catálogo de todas las listas de chequeo cargadas: código, módulo, empresa y cantidad de preguntas.
+
 > Última revisión: 2026-10-22, consultando Supabase (`formulario_items`,
 > `buceo_equipamiento_items`, `hidroser_listas`, `checklists`, `checklist_versions`,
 > `empresa_modulos`, `checklist_navigation_nodes`).
@@ -21,6 +23,8 @@ Hay **tres fuentes** de checklists:
 |---|---|---|---|---:|---|---|---|
 | `INSPECCION_BUCEO` | Inspección de Buceo | [Inspección](../modulos/inspeccion-buceo-embarcacion.md) | 3: Equipo de buceo, Equipo personal, Seguridad y apoyo | 39 | 2026-01 (origen de la app) | AquaChile, JF Innova | Vigente |
 | `INSPECCION_EMBARCACION` | Inspección de Embarcación | [Inspección](../modulos/inspeccion-buceo-embarcacion.md) | 6: Administrativo, Brazo hidráulico, Conductas, Infraestructura, Sala máquinas, Seguridad | 54 | 2026-02-26 (habilitada 2026-03-09) | AquaChile, JF Innova | Vigente |
+| `INSPECCION_BUCEO_SEAROV` | Lista de chequeo faenas de buceo 20 y 36 m (Searov) | [Inspección Searov](../modulos/inspeccion-searov.md) | 7: Personal (por buzo, 11), Equipos 36 m, Equipos 20 m, Manguera, Unión compresor/manguera, Emergencia, Documentos | 68 | 2026-10-29 | Searov SpA | Vigente |
+| `INSPECCION_EMBARCACION_SEAROV` | Inspección barcos / barcazas (formato del mandante de Searov, v10 mayo 2026) | [Inspección Searov](../modulos/inspeccion-searov.md) | 3: Cumplimiento normas laborales, Documentación, Seguridad, higiene y emergencias. Potencialidad 35 ALTA / 40 MEDIA | 75 | 2026-10-29 | Searov SpA | Vigente |
 | `VISITA_R004` | Inspección Extintores | [Extintores R-004](../modulos/inspeccion-extintores.md) | 1: Condiciones del extintor | 17 | 2026-03-26 | GNS, JF Innova | Vigente |
 | `VISITA_R005` | Insp. Condiciones Eléctricas | [Registro de Visita](../modulos/registro-visita.md) | 1: Condiciones eléctricas generales | 12 | ≤ 2026-04-22 | GNS, JF Innova | Vigente |
 | `VISITA_R006` | Insp. Pisos y Superficies | [Registro de Visita](../modulos/registro-visita.md) | 5: Superficies, Iluminación y tránsito, Orden y limpieza, Prevención de caídas, Señalización | 10 | ≤ 2026-04-22 | GNS, JF Innova | Vigente |

@@ -1,5 +1,7 @@
 # Registro de Visita (R-003)
 
+> **Para qué es:** Ficha del módulo Registro de Visita (R-003): qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
+
 > Clave: `VISITA_R003` · Estado: en producción · Última revisión: 2026-10-22
 > Empresas con el módulo (2026-10-22): GNS, JF Innova, Servimaf.
 

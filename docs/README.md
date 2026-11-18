@@ -66,7 +66,10 @@ Se mantiene en su lugar para no romper enlaces desde `CLAUDE.md`,
 - [planificacion/](planificacion/README.md): planes por estado (en progreso, por
   realizar, realizados, referencia, plantillas). Es la fuente de **qué se quiere
   hacer**; esta documentación describe **lo que existe hoy**.
-- `1. Cosas/REUNIONES/`: minutas de reuniones (agosto–septiembre 2026).
+- `1. Cosas/REUNIONES/`: minutas de reuniones (agosto–octubre 2026).
+- **Dashboard web** (repo aparte): `C:\src\Proyectos\jf_innova_web\dashboard-jfinnova` (React + Vite, lee
+  Supabase directo). Lo que la app le pide al dashboard:
+  [planificacion/03_por_realizar/PENDIENTES_DASHBOARD.md](planificacion/03_por_realizar/PENDIENTES_DASHBOARD.md).
 - [ESTABILIZACION_Y_MANTENIMIENTO.md](ESTABILIZACION_Y_MANTENIMIENTO.md),
   [IOS_HANDOFF_MAC_CHECKLIST.md](IOS_HANDOFF_MAC_CHECKLIST.md),
   [RECORDATORIO_IPHONE_WEB.md](RECORDATORIO_IPHONE_WEB.md): operación y despliegue.
@@ -85,3 +88,5 @@ Se mantiene en su lugar para no romper enlaces desde `CLAUDE.md`,
   programada. El detalle técnico va solo donde ayuda a ubicar algo.
 - Las cifras de la base (filas, empresas habilitadas) son una foto a la fecha
   indicada en cada archivo.
+- **Todo archivo empieza con su título y una línea `> **Para qué es:** …`** que
+  dice el tema del archivo en una frase. Después van el estado, las fechas y el resto.

@@ -153,6 +153,27 @@ class TicketDetailController extends ChangeNotifier {
     });
   }
 
+  /// Ticket de un hallazgo NC: sus ítems son ocurrencias del mismo problema y
+  /// se subsanan todos juntos con una sola foto.
+  bool get esHallazgo => ticket?.hallazgoId != null;
+
+  Future<String?> subsanarHallazgo({
+    required bool subsanado,
+    File? foto,
+  }) async {
+    final uid = usuarioActualId;
+    final t = ticket;
+    if (uid == null || t == null) return 'Sesión no válida.';
+    return _ejecutar(
+      () => _repo.subsanarHallazgo(
+        ticket: t,
+        usuarioId: uid,
+        subsanado: subsanado,
+        foto: foto,
+      ),
+    );
+  }
+
   Future<String?> finalizar() async {
     final uid = usuarioActualId;
     if (uid == null) return 'Sesión no válida.';

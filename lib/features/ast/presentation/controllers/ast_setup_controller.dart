@@ -59,6 +59,7 @@ class AstSetupController extends ChangeNotifier {
           ? areasResult
           : await _dbHelper.getAreas();
       _contratistas = await _dbHelper.getContratistas();
+      _embarcaciones = await _dbHelper.getEmbarcacionesParaSelector(null);
     } catch (e) {
       _errorMessage = 'Error cargando listas: $e';
     } finally {
@@ -91,23 +92,30 @@ class AstSetupController extends ChangeNotifier {
 
   void setContratista(String? v) {
     contratistaId = v;
-    embarcacionId = null;
     _cargarEmbarcaciones(v);
     notifyListeners();
   }
 
+  /// Todas las embarcaciones, primero las del servicio elegido (rotan de servicio; ver `opcionesEmbarcacion`).
+  /// La embarcación ya elegida se mantiene al cambiar el servicio.
   Future<void> _cargarEmbarcaciones(String? contratistaId) async {
-    if (contratistaId == null) {
-      _embarcaciones = [];
-    } else {
-      _embarcaciones = await _dbHelper.getEmbarcaciones(contratistaId);
-    }
-    embarcacionId = null;
+    final carga = ++_cargaEmbarcaciones;
+    final lista = await _dbHelper.getEmbarcacionesParaSelector(contratistaId);
+    if (carga != _cargaEmbarcaciones) return; // llegó otra carga más nueva
+    _embarcaciones = lista;
     notifyListeners();
   }
 
+  int _cargaEmbarcaciones = 0;
+
+  /// Si aún no hay empresa elegida, se propone el servicio actual de la embarcación (se puede cambiar).
   void setEmbarcacion(String? v) {
     embarcacionId = v;
+    if (contratistaId == null && v != null) {
+      final emb = _embarcaciones.where((e) => e['id'] == v);
+      final servicio = emb.isEmpty ? null : emb.first['contratista_id'];
+      if (servicio != null) setContratista(servicio.toString());
+    }
     notifyListeners();
   }
 

@@ -1,5 +1,7 @@
 # Plan: Tickets por hallazgo AST
 
+> **Para qué es:** Plan para crear un ticket automático por cada hallazgo registrado en un AST.
+
 **Estado:** Pendiente de implementacion.  
 **Alcance:** Extender el modulo de Tickets para que cada hallazgo de un informe
 AST finalizado pueda tener su propio ticket, manteniendo intacto el flujo

@@ -1,5 +1,7 @@
 # Acceso, sesión y multiempresa
 
+> **Para qué es:** Ficha transversal de acceso, sesión y multiempresa: qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
+
 > Transversal · Última revisión: 2026-10-22
 
 ## Qué hace

@@ -1,5 +1,7 @@
 # Estrategia de estabilizacion y mantenimiento
 
+> **Para qué es:** Criterio para mantener la app estable: qué cambios se aceptan, cómo se prueban y cómo se liberan versiones.
+
 Este documento fija el criterio para dejar la app lista y evitar que aparezcan cambios innecesarios a partir de ahora.
 
 ## Objetivo

@@ -1,5 +1,7 @@
 # Dashboard JF Innova App - Contexto Técnico VALIDADO
 
+> **Para qué es:** Contexto técnico del dashboard validado el 2026-04-01: tablas, consultas y KPIs. Ojo: algunas consultas usan la criticidad fija y no la registrada (ver [PENDIENTES_DASHBOARD.md](../03_por_realizar/PENDIENTES_DASHBOARD.md)).
+
 **Fecha:** 2026-04-01
 **Proyecto:** JF Innova App (Flutter + SQLite + Supabase)
 **Módulo:** Dashboard & Reportería

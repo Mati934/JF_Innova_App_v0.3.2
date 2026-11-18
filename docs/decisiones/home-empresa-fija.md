@@ -1,5 +1,7 @@
 # Home con empresa fija, sin selector
 
+> **Para qué es:** Decisión: la pantalla de inicio muestra la empresa fija, sin selector.
+
 - **Fecha:** pendiente de confirmar
 - **Estado:** vigente (decisión del usuario, registrada en `CLAUDE.md`)
 

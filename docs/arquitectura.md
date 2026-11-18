@@ -1,5 +1,7 @@
 # Arquitectura
 
+> **Para qué es:** Cómo está construida la app: stack, carpetas, cómo se conectan las partes y cómo ejecutarla.
+
 > Última revisión: 2026-10-22 · App `0.7.6+62` · DB local versión 62 (`jfinnova_v18_local.db`)
 
 ## Stack
