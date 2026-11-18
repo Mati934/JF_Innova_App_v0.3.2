@@ -17,8 +17,9 @@ Reglas generales del proyecto (alcance de cambios, Supabase solo lectura, versio
 - Servimaf es la empresa propia (tiene todos los módulos); no deducir el uso de un cliente a partir de Servimaf.
 - Checklists nuevos o cambios de preguntas: skill `nuevo-checklist`. Módulos nuevos: skill `nuevo-modulo`
   (primero decide si basta con un checklist del motor). Scripts SQL de Supabase: skill `migracion-supabase`.
-- **Antes de dar por cerrado cualquier cambio en `lib/`, `test/` o SQL**: lanzar el agente `revisor-cambios`
-  (sin preguntar) y corregir o reportar sus hallazgos. No hace falta para cambios solo de docs o config de Claude.
+- **Antes de dar por cerrado un cambio de sync, SQL/Supabase, base local (migraciones), datos o de más de ~50 líneas
+  en `lib/`**: lanzar el agente `revisor-cambios` (sin preguntar) y corregir o reportar sus hallazgos. En cambios
+  chicos basta con `flutter analyze` y el test dirigido. No hace falta para cambios solo de docs o config de Claude.
 - Errores reportados ("no sale…", "falla…", "me comentaron que…"): skill `diagnosticar-error` (diagnóstico y plan antes de arreglar).
 - Herramientas Dart/Flutter (analizar, tests, pub): MCP `dart`. Un hook formatea con `dart format` cada `.dart` editado.
 - **Al terminar cualquier tarea que cambie funcionalidades, la base de datos (SQLite o Supabase) o los checklists**,

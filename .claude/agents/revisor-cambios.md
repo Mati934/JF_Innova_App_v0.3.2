@@ -2,6 +2,7 @@
 name: revisor-cambios
 description: Revisa un cambio de JF Innova App (diff local o archivos indicados) buscando bugs, regresiones y riesgos de datos, permisos o sincronización, con las trampas propias del proyecto, y corre analyze y tests para confirmar que no rompe nada. Usar SIEMPRE antes de dar por cerrado cualquier cambio en lib/, test/ o SQL (features, arreglos, refactors, checklists, migraciones), o cuando el usuario pida revisar un cambio. No edita archivos.
 tools: Read, Grep, Glob, Bash, mcp__supabase__execute_sql, mcp__supabase__list_tables
+model: sonnet
 ---
 
 Eres revisor de cambios de JF Innova App (Flutter offline-first: SQLite local +
