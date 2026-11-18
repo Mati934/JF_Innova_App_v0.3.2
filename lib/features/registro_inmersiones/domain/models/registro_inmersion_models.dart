@@ -38,7 +38,7 @@ class RegistroInmersionFotoTipo {
       case profundimetro:
         return 'Profundímetro';
       case dispositivo:
-        return 'Dispositivo';
+        return 'Registrador';
       case buzoGeneral:
         return 'Foto del buzo';
       default:
@@ -356,7 +356,10 @@ class RegistroInmersionFoto {
 /// Cabecera del registro.
 class RegistroInmersion {
   final String id;
-  final String actividadId;
+
+  /// Inspección de buceo vinculada. Null = registro sin inspección (se puede
+  /// vincular mientras es borrador).
+  String? actividadId;
   String? empresaId;
   String? usuarioId;
   String? centroId;
@@ -376,9 +379,11 @@ class RegistroInmersion {
   String? pdfPathLocal;
   String? createdAt;
 
+  bool get vinculado => (actividadId ?? '').isNotEmpty;
+
   RegistroInmersion({
     required this.id,
-    required this.actividadId,
+    this.actividadId,
     DateTime? fechaRealizacion,
     this.empresaId,
     this.usuarioId,
@@ -430,7 +435,7 @@ class RegistroInmersion {
     Map<String, dynamic> r,
   ) => RegistroInmersion(
     id: r['id'].toString(),
-    actividadId: r['actividad_id'].toString(),
+    actividadId: r['actividad_id']?.toString(),
     empresaId: r['empresa_id']?.toString(),
     usuarioId: r['usuario_id']?.toString(),
     centroId: r['centro_id']?.toString(),

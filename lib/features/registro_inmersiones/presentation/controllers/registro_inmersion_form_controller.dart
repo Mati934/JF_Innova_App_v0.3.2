@@ -8,6 +8,8 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/services/user_session.dart';
 import '../../../ast/presentation/controllers/ast_photo_persistence_queue.dart';
+import '../../../inspection/data/repositories/local_inspection_repository.dart';
+import '../../../inspection/domain/models/participante_model.dart';
 import '../../../sync/services/sync_service.dart';
 import '../../data/repositories/local_registro_inmersion_repository.dart';
 import '../../domain/models/registro_inmersion_models.dart';
@@ -16,10 +18,11 @@ import '../../services/registro_inmersion_pdf_service.dart';
 
 /// Controlador del formulario del registro de inmersiones.
 ///
-/// Se abre de dos formas: con [registroId] (reabrir un borrador o ver uno
-/// finalizado) o con [actividadId] (desde el aviso al finalizar la inspección
-/// o desde la lista del módulo). Si la inspección ya tiene registro vigente,
-/// se reabre ese en vez de crear otro.
+/// Se abre de tres formas: con [registroId] (reabrir un borrador o ver uno
+/// finalizado), con [actividadId] (desde el aviso al finalizar la inspección
+/// o desde la lista del módulo) o sin ninguno (registro nuevo sin inspección,
+/// que se puede vincular después). Si la inspección ya tiene registro
+/// vigente, se reabre ese en vez de crear otro.
 class RegistroInmersionFormController extends ChangeNotifier {
   final String? registroId;
   final String? actividadId;
@@ -37,8 +40,7 @@ class RegistroInmersionFormController extends ChangeNotifier {
     this.origen = RegistroInmersionOrigen.tarjetaInicio,
     LocalRegistroInmersionRepository? repo,
     SyncService? sync,
-  }) : assert(registroId != null || actividadId != null),
-       _repo = repo ?? LocalRegistroInmersionRepository(),
+  }) : _repo = repo ?? LocalRegistroInmersionRepository(),
        _sync = sync;
 
   bool _disposed = false;
@@ -76,7 +78,7 @@ class RegistroInmersionFormController extends ChangeNotifier {
       var esNuevo = false;
       if (registroId != null) {
         completo = await _repo.getCompleto(registroId!);
-      } else {
+      } else if (actividadId != null) {
         final vigente = await _repo.getRegistroVigentePorActividad(
           actividadId!,
         );
@@ -88,8 +90,23 @@ class RegistroInmersionFormController extends ChangeNotifier {
       final actId = completo?.registro.actividadId ?? actividadId;
       final base = actId == null ? null : await _repo.cargarInspeccion(actId);
       cuadrilla = base?.cuadrilla ?? const [];
+      await _cargarListas();
 
-      if (completo == null) {
+      if (completo == null && registroId != null) {
+        errorMessage = 'El registro ya no está en este teléfono.';
+        return;
+      }
+      if (completo == null && actId == null) {
+        completo = RegistroInmersionCompleto(
+          registro: LocalRegistroInmersionRepository.nuevoSinInspeccion(
+            usuarioId: UserSession().userId,
+            empresaId: UserSession().empresaId,
+          ),
+          buzos: const [],
+          fotos: const [],
+        );
+        esNuevo = true;
+      } else if (completo == null) {
         if (base == null) {
           errorMessage =
               'No se encontró la inspección de buceo en este teléfono.';
@@ -134,6 +151,137 @@ class RegistroInmersionFormController extends ChangeNotifier {
     }
   }
 
+  // --- INSPECCIÓN VINCULADA -------------------------------------------------
+
+  /// Listas desplegables del encabezado (maestros locales).
+  List<Map<String, dynamic>> centros = const [];
+  List<Map<String, dynamic>> contratistas = const [];
+
+  Future<void> _cargarListas() async {
+    try {
+      centros = await _repo.getCentrosEmpresa(UserSession().empresaId);
+      contratistas = await _repo.getContratistas();
+    } catch (e) {
+      debugPrint('⚠️ No se pudieron cargar centros/contratistas: $e');
+    }
+  }
+
+  /// Centro elegido de la lista (por nombre visible).
+  /// Etiqueta visible -> centro. Hay centros con el mismo nombre en
+  /// distintas zonas (ej. "JESUS 5" en Aysén y en Melinka): esos llevan la
+  /// zona en la etiqueta para no guardar el `centro_id` equivocado.
+  Map<String, Map<String, dynamic>> get centrosPorEtiqueta {
+    final cuenta = <String, int>{};
+    for (final c in centros) {
+      final n = (c['nombre'] ?? '').toString();
+      cuenta[n] = (cuenta[n] ?? 0) + 1;
+    }
+    final out = <String, Map<String, dynamic>>{};
+    for (final c in centros) {
+      final n = (c['nombre'] ?? '').toString();
+      if (n.isEmpty) continue;
+      final area = (c['area_nombre'] ?? '').toString();
+      var etiqueta = (cuenta[n] ?? 0) > 1 && area.isNotEmpty ? '$n · $area' : n;
+      if (out.containsKey(etiqueta)) etiqueta = '$etiqueta (${c['id']})';
+      out[etiqueta] = c;
+    }
+    return out;
+  }
+
+  /// Etiqueta del centro actual (por id); si no está en la lista, su nombre.
+  String? get centroEtiquetaActual {
+    final id = _registro?.centroId;
+    if (id != null) {
+      for (final e in centrosPorEtiqueta.entries) {
+        if (e.value['id']?.toString() == id) return e.key;
+      }
+    }
+    return _registro?.centroNombre;
+  }
+
+  /// Centro elegido de la lista (por etiqueta visible).
+  void setCentro(String etiqueta) {
+    final c = centrosPorEtiqueta[etiqueta];
+    if (c == null) return;
+    registro
+      ..centroId = c['id']?.toString()
+      ..centroNombre = (c['nombre'] ?? '').toString();
+    _safeNotify();
+  }
+
+  /// Contratista de la lista o escrito a mano (sin id).
+  void setContratista(String nombre) {
+    final t = nombre.trim();
+    if (t.isEmpty) return;
+    final clave = t.toLowerCase();
+    final c = contratistas
+        .where(
+          (c) => (c['nombre'] ?? '').toString().trim().toLowerCase() == clave,
+        )
+        .firstOrNull;
+    registro
+      ..contratistaId = c?['id']?.toString()
+      ..contratistaNombre = c?['nombre']?.toString() ?? t;
+    _safeNotify();
+  }
+
+  /// Busca a la persona en el personal registrado (mismo buscador por RUT que
+  /// la cuadrilla de la inspección de buceo).
+  Future<ParticipanteModel?> buscarPersonalPorRut(String rut) async {
+    try {
+      return await LocalInspectionRepository().getPersonalByRut(rut);
+    } catch (e) {
+      debugPrint('⚠️ Error buscando RUT: $e');
+      return null;
+    }
+  }
+
+  /// Vincula el borrador a una inspección de buceo: copia centro,
+  /// contratista, fecha y N° de la inspección, y agrega los buzos de la
+  /// cuadrilla que no estén. Retorna el mensaje de error o null si resultó.
+  Future<String?> vincularInspeccion(String nuevaActividadId) async {
+    if (soloLectura) return 'El registro ya está finalizado.';
+    if (registro.vinculado) return 'El registro ya está vinculado.';
+    try {
+      final vigente = await _repo.getRegistroVigentePorActividad(
+        nuevaActividadId,
+      );
+      if (vigente != null && vigente['id'].toString() != registro.id) {
+        return 'Esa inspección ya tiene su registro de inmersiones.';
+      }
+      final base = await _repo.cargarInspeccion(nuevaActividadId);
+      if (base == null) {
+        return 'No se encontró la inspección de buceo en este teléfono.';
+      }
+      registro
+        ..actividadId = base.actividadId
+        ..centroId = base.centroId
+        ..centroNombre = base.centroNombre ?? registro.centroNombre
+        ..contratistaId = base.contratistaId
+        ..contratistaNombre = base.contratistaNombre
+        ..numeroInspeccion = base.numeroInspeccion
+        ..fechaRealizacion = base.fecha ?? registro.fechaRealizacion;
+      cuadrilla = base.cuadrilla;
+      buzos.addAll(
+        LocalRegistroInmersionRepository.buzosDesdeCuadrilla(
+          cuadrilla: base.cuadrilla,
+          registroId: registro.id,
+          horaInicio: _horaActual(),
+          yaEstan: buzos,
+        ),
+      );
+      _safeNotify();
+      if (!await guardarBorradorSilencioso()) {
+        return 'Quedó vinculado, pero no se pudo guardar todavía. '
+            'Se reintenta solo en unos segundos.';
+      }
+      return null;
+    } catch (e, st) {
+      debugPrint('❌ Error vinculando inspección: $e\n$st');
+      return 'No se pudo vincular la inspección: $e';
+    }
+  }
+
   // --- BUZOS -----------------------------------------------------------------
 
   RegistroInmersionBuzo? _buzo(String id) {
@@ -155,7 +303,32 @@ class RegistroInmersionFormController extends ChangeNotifier {
   /// Personas de la cuadrilla que todavía no están en el registro.
   List<ParticipanteCuadrilla> get cuadrillaDisponible {
     final usados = buzos.map((b) => b.personalId).whereType<String>().toSet();
-    return cuadrilla.where((p) => !usados.contains(p.personalId)).toList();
+    final nombres = buzos.map((b) => b.nombre.trim().toLowerCase()).toSet();
+    return cuadrilla
+        .where(
+          (p) =>
+              !usados.contains(p.personalId) &&
+              !nombres.contains(p.nombre.trim().toLowerCase()),
+        )
+        .toList();
+  }
+
+  /// Borrador sin inspección y sin nada escrito (se descarta al salir).
+  bool get estaVacio =>
+      cargado &&
+      !soloLectura &&
+      !registro.vinculado &&
+      buzos.isEmpty &&
+      fotos.isEmpty &&
+      (registro.centroNombre ?? '').isEmpty &&
+      (registro.contratistaNombre ?? '').isEmpty &&
+      registro.profundidadAutorizadaM == null &&
+      observacionCtrl.text.trim().isEmpty;
+
+  Future<void> descartarSiVacio() async {
+    if (!estaVacio) return;
+    _autoGuardado?.cancel();
+    await _repo.eliminarBorrador(registro.id);
   }
 
   void agregarPersona({

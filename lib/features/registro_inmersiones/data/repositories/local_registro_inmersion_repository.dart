@@ -213,10 +213,47 @@ class LocalRegistroInmersionRepository {
       origen: origen,
     );
 
-    final buzos = <RegistroInmersionBuzo>[];
-    for (final p in base.cuadrilla.where((p) => p.esBuzo)) {
+    final buzos = buzosDesdeCuadrilla(
+      cuadrilla: base.cuadrilla,
+      registroId: registroId,
+      horaInicio: horaInicio,
+      uuid: uuid,
+    );
+    return RegistroInmersionCompleto(
+      registro: registro,
+      buzos: buzos,
+      fotos: const [],
+    );
+  }
+
+  /// Buzos (rol `Buzo`) de la cuadrilla que no están en [yaEstan], cada uno
+  /// con una inmersión que empieza a [horaInicio]. Se compara por persona,
+  /// RUT o nombre para no duplicar a quien se agregó a mano.
+  static List<RegistroInmersionBuzo> buzosDesdeCuadrilla({
+    required List<ParticipanteCuadrilla> cuadrilla,
+    required String registroId,
+    required String horaInicio,
+    List<RegistroInmersionBuzo> yaEstan = const [],
+    Uuid uuid = const Uuid(),
+  }) {
+    String clave(String? v) =>
+        (v ?? '').replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').toLowerCase();
+    final ids = yaEstan.map((b) => b.personalId).whereType<String>().toSet();
+    final ruts = yaEstan
+        .map((b) => clave(b.rut))
+        .where((r) => r.isNotEmpty)
+        .toSet();
+    final nombres = yaEstan.map((b) => b.nombre.trim().toLowerCase()).toSet();
+
+    final nuevos = <RegistroInmersionBuzo>[];
+    for (final p in cuadrilla.where((p) => p.esBuzo)) {
+      if (ids.contains(p.personalId) ||
+          (clave(p.rut).isNotEmpty && ruts.contains(clave(p.rut))) ||
+          nombres.contains(p.nombre.trim().toLowerCase())) {
+        continue;
+      }
       final buzoId = uuid.v4();
-      buzos.add(
+      nuevos.add(
         RegistroInmersionBuzo(
           id: buzoId,
           registroId: registroId,
@@ -224,7 +261,7 @@ class LocalRegistroInmersionRepository {
           nombre: p.nombre,
           rut: p.rut,
           cargo: 'Buzo',
-          orden: buzos.length,
+          orden: yaEstan.length + nuevos.length,
           inmersiones: [
             Inmersion(
               id: uuid.v4(),
@@ -236,10 +273,80 @@ class LocalRegistroInmersionRepository {
         ),
       );
     }
-    return RegistroInmersionCompleto(
-      registro: registro,
-      buzos: buzos,
-      fotos: const [],
+    return nuevos;
+  }
+
+  /// Registro vacío sin inspección de buceo (las personas se agregan a mano
+  /// o al vincularlo después a una inspección).
+  static RegistroInmersion nuevoSinInspeccion({
+    required String? usuarioId,
+    required String? empresaId,
+    DateTime? ahora,
+    Uuid uuid = const Uuid(),
+  }) => RegistroInmersion(
+    id: uuid.v4(),
+    usuarioId: usuarioId,
+    empresaId: empresaId,
+    fechaRealizacion: ahora ?? DateTime.now(),
+  );
+
+  /// Centros de la empresa (por sus áreas, `empresa_areas`); si la empresa
+  /// no tiene áreas asignadas, todos los centros (mismo respaldo que la
+  /// inspección).
+  Future<List<Map<String, dynamic>>> getCentrosEmpresa(
+    String? empresaId,
+  ) async {
+    final db = await _db.database;
+    if (empresaId != null) {
+      final rows = await db.rawQuery(
+        '''
+        SELECT DISTINCT c.id, c.nombre, a.nombre AS area_nombre
+          FROM centros c
+          JOIN empresa_areas ea ON ea.area_id = c.area_id
+          LEFT JOIN areas a ON a.id = c.area_id
+         WHERE ea.empresa_id = ?
+         ORDER BY c.nombre, a.nombre
+        ''',
+        [empresaId],
+      );
+      if (rows.isNotEmpty) return rows;
+    }
+    return db.rawQuery('''
+      SELECT c.id, c.nombre, a.nombre AS area_nombre
+        FROM centros c
+        LEFT JOIN areas a ON a.id = c.area_id
+       ORDER BY c.nombre, a.nombre
+    ''');
+  }
+
+  /// Contratistas (compartidos entre empresas).
+  Future<List<Map<String, dynamic>>> getContratistas() async {
+    final db = await _db.database;
+    return db.query(
+      'contratistas',
+      columns: ['id', 'nombre'],
+      orderBy: 'nombre',
+    );
+  }
+
+  /// Registros del usuario sin inspección vinculada (borradores y
+  /// finalizados), los más recientes primero.
+  Future<List<Map<String, dynamic>>> getRegistrosSinInspeccion(
+    String usuarioId,
+  ) async {
+    final db = await _db.database;
+    return db.rawQuery(
+      '''
+      SELECT r.id AS registro_id, r.fecha_realizacion, r.centro_nombre,
+             r.estado_final AS registro_estado,
+             r.correlativo AS registro_correlativo
+        FROM $_tRegistro r
+       WHERE r.eliminado = 0
+         AND (r.actividad_id IS NULL OR r.actividad_id = '')
+         AND r.usuario_id = ?
+       ORDER BY r.fecha_realizacion DESC
+      ''',
+      [usuarioId],
     );
   }
 

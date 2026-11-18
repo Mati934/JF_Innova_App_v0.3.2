@@ -34,4 +34,4 @@ cambie de versión por otros motivos.
 | Actividades formativas | 0.1.4 |
 | Equipamiento de buceo | 0.1.0 (versión agregada 2026-10-22, visible en el pie) |
 | Inspección Searov (buceo y embarcación) | 0.3.0 (2026-10-29) |
-| Registro de inmersiones | 0.1.0 (2026-11-18) |
+| Registro de inmersiones | 0.1.2 (2026-11-18: resumen y una ficha por persona con sus fotos al lado) |

@@ -60,7 +60,7 @@ Map<String, dynamic> registroPayloadSupabase(Map<String, dynamic> row) =>
 
 /// Subida del registro de inmersiones. Solo sube registros finalizados (los
 /// borradores viven en el teléfono). El PDF se genera aquí, cuando ya existen
-/// el N° propio (RI-NNNN) y el N° de la inspección de buceo.
+/// el N° propio (RI-NNNN) y, si está vinculado, el N° de la inspección.
 class RegistroInmersionSync {
   final SupabaseClient _supabase;
   final DatabaseHelper _dbHelper;
@@ -248,7 +248,7 @@ class RegistroInmersionSync {
     return completo;
   }
 
-  /// Genera el PDF con los dos números reales. Null si todavía falta alguno
+  /// Genera el PDF con los números reales. Null si todavía falta alguno
   /// (queda para el próximo sync).
   Future<String?> _generarYSubirPdf(
     Database db,
@@ -261,10 +261,13 @@ class RegistroInmersionSync {
     if (completo == null) return null;
     final registro = completo.registro;
 
-    final numeroInspeccion =
-        numeroInspeccionValido(registro.numeroInspeccion) ??
-        await _numeroInspeccion(db, registro.actividadId);
-    if (numeroInspeccion == null) {
+    // Sin inspección vinculada, el PDF sale sin ese número.
+    final actividadId = registro.vinculado ? registro.actividadId : null;
+    final numeroInspeccion = actividadId == null
+        ? null
+        : numeroInspeccionValido(registro.numeroInspeccion) ??
+              await _numeroInspeccion(db, actividadId);
+    if (actividadId != null && numeroInspeccion == null) {
       debugPrint('⏳ Registro $id espera el N° de su inspección para el PDF.');
       return null;
     }
@@ -319,8 +322,16 @@ class RegistroInmersionSync {
         whereArgs: [id],
       );
       return url;
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('⚠️ [RI-PDF-001] Error generando/subiendo PDF $id: $e');
+      try {
+        await FirebaseCrashlytics.instance.recordError(
+          e,
+          st,
+          reason: 'RegistroInmersionSync PDF: $id',
+          fatal: false,
+        );
+      } catch (_) {}
       return null;
     }
   }

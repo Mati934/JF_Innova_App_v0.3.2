@@ -13,6 +13,11 @@
 //    módulo marca qué inspecciones ya tienen registro.
 // 6. Payloads de Supabase: booleanos reales y sin columnas del trigger.
 // 7. PDF: "No buceó", rojo y N° pendiente.
+// 8. Registro sin inspección: se crea vacío, aparece en la lista del módulo y
+//    al vincularlo trae los buzos de la cuadrilla sin duplicar a los que ya
+//    estaban.
+
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -25,6 +30,7 @@ import 'package:jf_innova_app/features/registro_inmersiones/data/repositories/lo
 import 'package:jf_innova_app/features/registro_inmersiones/domain/models/registro_inmersion_models.dart';
 import 'package:jf_innova_app/features/registro_inmersiones/domain/models/registro_inmersion_pdf_data.dart';
 import 'package:jf_innova_app/features/registro_inmersiones/presentation/controllers/registro_inmersion_form_controller.dart';
+import 'package:jf_innova_app/features/registro_inmersiones/services/registro_inmersion_pdf_service.dart';
 import 'package:jf_innova_app/features/registro_inmersiones/services/registro_inmersion_sync.dart';
 
 void main() {
@@ -217,7 +223,10 @@ void main() {
 
     test('abre un registro nuevo desde una inspección del teléfono', () async {
       final db = await DatabaseHelper.instance.database;
-      await db.delete('actividad_participantes', where: "actividad_id LIKE 'ri-%'");
+      await db.delete(
+        'actividad_participantes',
+        where: "actividad_id LIKE 'ri-%'",
+      );
       await db.delete('personal_externo', where: "id LIKE 'ri-%'");
       await db.insert('actividades_pendientes', {
         'id': 'ri-act-9',
@@ -270,6 +279,104 @@ void main() {
       }
     });
 
+    test('un registroId que ya no existe no crea un borrador vacío', () async {
+      final ctrl = RegistroInmersionFormController(registroId: 'no-existe');
+      await ctrl.init();
+      try {
+        expect(ctrl.cargado, isFalse);
+        expect(ctrl.errorMessage, contains('ya no está'));
+        expect(await repo.getBorradores(null), isEmpty);
+      } finally {
+        ctrl.dispose();
+      }
+    });
+
+    test('registro sin inspección y vinculación posterior', () async {
+      final db = await DatabaseHelper.instance.database;
+      await db.delete(
+        'actividad_participantes',
+        where: "actividad_id LIKE 'ri-%'",
+      );
+      await db.delete('personal_externo', where: "id LIKE 'ri-%'");
+      await db.insert('actividades_pendientes', {
+        'id': 'ri-act-7',
+        'usuario_id': 'u1',
+        'tipo_actividad': 'INSPECCION_BUCEO',
+        'estado_final': 'Aprobado',
+        'fecha_realizacion': '2026-07-30T10:00:00',
+        'numero_reporte': '777',
+        'eliminado': 0,
+      });
+      for (final p in [
+        ['ri-p7', 'Buzo Uno', 'Buzo'],
+        ['ri-p8', 'Buzo Dos', 'Buzo'],
+      ]) {
+        await db.insert('personal_externo', {
+          'id': p[0],
+          'nombre_completo': p[1],
+        });
+        await db.insert('actividad_participantes', {
+          'actividad_id': 'ri-act-7',
+          'personal_id': p[0],
+          'rol_en_faena': p[2],
+        });
+      }
+
+      final ctrl = RegistroInmersionFormController();
+      await ctrl.init();
+      try {
+        expect(ctrl.errorMessage, isNull);
+        expect(ctrl.registro.vinculado, isFalse);
+        expect(ctrl.buzos, isEmpty);
+        // Se agregó a mano a uno que también está en la cuadrilla.
+        ctrl.agregarPersona(nombre: 'buzo uno');
+        // Dos centros con el mismo nombre en zonas distintas.
+        ctrl.centros = [
+          {'id': 'c-aysen', 'nombre': 'JESUS 5', 'area_nombre': 'AYSEN'},
+          {'id': 'c-melinka', 'nombre': 'JESUS 5', 'area_nombre': 'MELINKA'},
+          {'id': 'c-huar', 'nombre': 'Isla Huar', 'area_nombre': 'CALBUCO'},
+        ];
+        expect(ctrl.centrosPorEtiqueta.keys, [
+          'JESUS 5 · AYSEN',
+          'JESUS 5 · MELINKA',
+          'Isla Huar',
+        ]);
+        ctrl.setCentro('JESUS 5 · MELINKA');
+        expect(ctrl.registro.centroId, 'c-melinka');
+        expect(ctrl.registro.centroNombre, 'JESUS 5');
+        expect(ctrl.centroEtiquetaActual, 'JESUS 5 · MELINKA');
+        ctrl.setCentro('Isla Huar');
+        // Contratista escrito a mano: queda sin id.
+        ctrl.setContratista('Buzos del Sur');
+        expect(ctrl.registro.contratistaNombre, 'Buzos del Sur');
+        expect(ctrl.registro.contratistaId, isNull);
+        ctrl.registro.usuarioId = 'u1';
+        await ctrl.guardarBorradorSilencioso();
+
+        final guardado = await repo.getCompleto(ctrl.registro.id);
+        expect(guardado!.registro.actividadId, isNull);
+        expect(guardado.registro.centroId, 'c-huar');
+        expect(guardado.registro.centroNombre, 'Isla Huar');
+        expect(
+          (await repo.getRegistrosSinInspeccion('u1')).single['registro_id'],
+          ctrl.registro.id,
+        );
+
+        expect(await ctrl.vincularInspeccion('ri-act-7'), isNull);
+        expect(ctrl.registro.actividadId, 'ri-act-7');
+        expect(ctrl.registro.numeroInspeccion, '777');
+        expect(ctrl.buzos.map((b) => b.nombre), ['buzo uno', 'Buzo Dos']);
+        expect(await ctrl.vincularInspeccion('ri-act-7'), isNotNull);
+
+        expect(await repo.getRegistrosSinInspeccion('u1'), isEmpty);
+        final lista = await repo.getInspeccionesBuceoDisponibles('u1');
+        final fila = lista.firstWhere((r) => r['actividad_id'] == 'ri-act-7');
+        expect(fila['registro_id'], ctrl.registro.id);
+      } finally {
+        ctrl.dispose();
+      }
+    });
+
     test('borradores del usuario y lista del módulo', () async {
       final db = await DatabaseHelper.instance.database;
       for (final a in [
@@ -309,6 +416,87 @@ void main() {
       expect(await repo.getBorradores('u1'), isEmpty);
       expect(await repo.getRegistroVigentePorActividad('ri-act-1'), isNull);
     });
+  });
+
+  test('PDF: RUT con formato y equipo separado', () {
+    final data = buildRegistroInmersionPdfData(
+      registro: RegistroInmersion(id: 'r8', profundidadAutorizadaM: 20),
+      buzos: [
+        RegistroInmersionBuzo(
+          id: 'b8',
+          registroId: 'r8',
+          nombre: 'Uno',
+          rut: '131677804',
+          profundimetroMarca: 'Scubapro',
+          profundimetroSerie: '55821',
+          dispositivoTipo: kDispositivoSensusUltra,
+          dispositivoSerie: 'U18659',
+          inmersiones: [
+            Inmersion(
+              id: 'i8',
+              buzoId: 'b8',
+              registroId: 'r8',
+              profundidadMaximaM: 21,
+            ),
+          ],
+        ),
+      ],
+      fotos: const [],
+      auditor: 'A',
+    );
+    final b = data.buzos.single;
+    expect(b.rut, '13.167.780-4');
+    expect(b.profundimetro, 'Scubapro · S/N 55821');
+    expect(b.registrador, 'Sensus Ultra · S/N U18659');
+    expect(b.excede, isTrue);
+  });
+
+  test('PDF se genera con nota y observación muy largas', () async {
+    final largo = List.filled(400, 'palabra').join(' ');
+    final bytes = await generateRegistroInmersionPdfEntryPoint(
+      RegistroInmersionPdfParams(
+        data: RegistroInmersionPdfData(
+          correlativo: 'RI-0001',
+          fecha: '31/07/2026',
+          centro: 'Centro',
+          contratista: 'Contratista',
+          profundidadAutorizada: '20 m',
+          auditor: 'A',
+          observacionGeneral: largo * 3,
+          buzos: [
+            RegistroInmersionPdfBuzo(
+              numero: 1,
+              nombre: 'Nombre muy largo de un buzo con varios apellidos',
+              rut: '13.167.780-4',
+              cargo: 'Buzo de emergencia',
+              realizoInmersion: true,
+              marcadoRojo: false,
+              excede: true,
+              inmersiones: const [],
+              profundidadMaxima: '21 m',
+              tiempoTotal: '',
+              nota: largo,
+            ),
+          ],
+        ),
+        fontRegular: File(
+          'assets/fonts/OpenSans-Regular.ttf',
+        ).readAsBytesSync(),
+        fontBold: File('assets/fonts/OpenSans-Bold.ttf').readAsBytesSync(),
+      ),
+    );
+    expect(bytes.length, greaterThan(1000));
+  });
+
+  test('PDF sin inspección vinculada no muestra N° de inspección', () {
+    final data = buildRegistroInmersionPdfData(
+      registro: RegistroInmersion(id: 'r9'),
+      buzos: const [],
+      fotos: const [],
+      auditor: 'A',
+      existe: (_) => false,
+    );
+    expect(data.numeroInspeccion, isNull);
   });
 
   group('Payloads de Supabase', () {

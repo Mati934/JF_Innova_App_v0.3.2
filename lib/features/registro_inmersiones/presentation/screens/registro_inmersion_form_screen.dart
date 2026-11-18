@@ -4,13 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../shared/services/image_service.dart';
+import '../../../../shared/utils/debouncer.dart';
+import '../../../../shared/widgets/custom_dropdown.dart';
+import '../../../inspection/domain/models/participante_model.dart';
 import '../../../../shared/widgets/form_inputs/gallery_input.dart';
 import '../../../../core/utils/rut_utils.dart';
 import '../../data/repositories/local_registro_inmersion_repository.dart';
 import '../../domain/models/registro_inmersion_models.dart';
 import '../controllers/registro_inmersion_form_controller.dart';
+import '../widgets/selector_inspeccion_buceo.dart';
 
-const Color kRegistroInmersionColor = Color(0xFF00507A);
+export '../widgets/selector_inspeccion_buceo.dart' show kRegistroInmersionColor;
+
 const Color _rojo = Color(0xFFC62828);
 
 class RegistroInmersionFormScreen extends StatefulWidget {
@@ -23,7 +28,7 @@ class RegistroInmersionFormScreen extends StatefulWidget {
     this.registroId,
     this.actividadId,
     this.origen = RegistroInmersionOrigen.tarjetaInicio,
-  }) : assert(registroId != null || actividadId != null);
+  });
 
   @override
   State<RegistroInmersionFormScreen> createState() =>
@@ -57,7 +62,12 @@ class _RegistroInmersionFormScreenState
     _saliendo = true;
     if (!_ctrl.soloLectura) {
       await _cerrarEdicion();
-      await _ctrl.guardarBorradorSilencioso();
+      if (_ctrl.estaVacio) {
+        // "Nuevo registro" sin nada escrito: no deja un borrador en blanco.
+        await _ctrl.descartarSiVacio();
+      } else {
+        await _ctrl.guardarBorradorSilencioso();
+      }
     }
     if (mounted) Navigator.of(context).pop();
   }
@@ -163,12 +173,56 @@ class _RegistroInmersionFormScreenState
     }
   }
 
+  Future<void> _vincular() async {
+    FocusScope.of(context).unfocus();
+    final actividadId = await elegirInspeccionBuceo(context);
+    if (actividadId == null || !mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Vincular a la inspección'),
+        content: const Text(
+          'El centro, el contratista y la fecha pasan a ser los de la '
+          'inspección, y se agregan sus buzos. Después no se puede '
+          'desvincular.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Vincular'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final antes = _ctrl.buzos.length;
+    final error = await _ctrl.vincularInspeccion(actividadId);
+    if (!mounted) return;
+    if (error != null) {
+      _snack(error, Colors.red.shade700);
+      return;
+    }
+    final nuevos = _ctrl.buzos.length - antes;
+    _snack(
+      nuevos > 0
+          ? 'Vinculado. Se agregaron $nuevos buzo(s) de la cuadrilla.'
+          : 'Vinculado a la inspección.',
+      Colors.green,
+    );
+  }
+
   Future<void> _agregarPersona() async {
     final res = await showModalBottomSheet<_NuevaPersona>(
       context: context,
       isScrollControlled: true,
-      builder: (_) =>
-          _AgregarPersonaSheet(disponibles: _ctrl.cuadrillaDisponible),
+      builder: (_) => _AgregarPersonaSheet(
+        disponibles: _ctrl.cuadrillaDisponible,
+        buscarPorRut: _ctrl.buscarPersonalPorRut,
+      ),
     );
     if (res == null) return;
     _ctrl.agregarPersona(
@@ -220,113 +274,124 @@ class _RegistroInmersionFormScreenState
     final r = _ctrl.registro;
     final lectura = _ctrl.soloLectura;
     final bloqueado = lectura || _ctrl.isSaving || _ctrl.isProcessingPhotos;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _Encabezado(
-            registro: r,
-            readOnly: lectura,
-            onAutorizadaChanged: _ctrl.setProfundidadAutorizada,
-            onAutorizadaLista: _revisarTodos,
-          ),
-          if (lectura)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                (r.correlativo ?? '').isEmpty
-                    ? 'Finalizado. El número y el PDF llegan al sincronizar.'
-                    : 'Finalizado (${r.correlativo}). Solo lectura.',
-                style: TextStyle(color: Colors.grey.shade700),
-              ),
-            ),
-          const SizedBox(height: 16),
-          _titulo('Personas (${_ctrl.buzos.length})'),
-          if (_ctrl.buzos.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                'La cuadrilla no tiene buzos. Agrega a las personas que bucearon.',
-              ),
-            ),
-          for (final b in _ctrl.buzos)
-            _BuzoCard(
-              key: ValueKey(b.id),
-              buzo: b,
+    // SafeArea abajo: "Ver PDF" y "Finalizar" no quedan bajo los botones de
+    // navegación de Android.
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _Encabezado(
+              // Se reconstruye al vincular (cambian centro y N° de inspección).
+              key: ValueKey(r.actividadId),
+              registro: r,
+              readOnly: lectura,
+              onAutorizadaChanged: _ctrl.setProfundidadAutorizada,
+              onAutorizadaLista: _revisarTodos,
               ctrl: _ctrl,
-              readOnly: bloqueado,
-              onProfundidadLista: () => _revisarExceso(b.id),
+              onVincular: bloqueado ? null : _vincular,
             ),
-          if (!lectura)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
+            if (lectura)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  (r.correlativo ?? '').isEmpty
+                      ? 'Finalizado. El número y el PDF llegan al sincronizar.'
+                      : 'Finalizado (${r.correlativo}). Solo lectura.',
+                  style: TextStyle(color: Colors.grey.shade700),
+                ),
+              ),
+            const SizedBox(height: 16),
+            _titulo('Personas (${_ctrl.buzos.length})'),
+            if (_ctrl.buzos.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('Agrega a las personas que bucearon.'),
+              ),
+            for (final b in _ctrl.buzos)
+              _BuzoCard(
+                key: ValueKey(b.id),
+                buzo: b,
+                ctrl: _ctrl,
+                readOnly: bloqueado,
+                onProfundidadLista: () => _revisarExceso(b.id),
+              ),
+            if (!lectura)
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(44),
+                ),
                 onPressed: bloqueado ? null : _agregarPersona,
                 icon: const Icon(Icons.person_add_alt_1),
                 label: const Text('Agregar persona'),
               ),
-            ),
-          const SizedBox(height: 16),
-          _titulo('Observación general'),
-          TextField(
-            controller: _ctrl.observacionCtrl,
-            readOnly: lectura,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Comentarios generales de la faena (opcional)',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _titulo('Galería general'),
-          GalleryInput(
-            images: _ctrl.fotosGenerales,
-            onImagesChanged: _ctrl.setFotosGenerales,
-            readOnly: bloqueado,
-          ),
-          if (_ctrl.isProcessingPhotos)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Text('Procesando fotos...'),
-            ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _ctrl.isSaving || _ctrl.isProcessingPhotos
-                      ? null
-                      : () => _ctrl.previsualizar(context),
-                  icon: const Icon(Icons.picture_as_pdf_outlined),
-                  label: const Text('Ver PDF'),
-                ),
+            const SizedBox(height: 16),
+            _titulo('Observación general'),
+            TextField(
+              controller: _ctrl.observacionCtrl,
+              readOnly: lectura,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: 'Comentarios generales de la faena (opcional)',
+                border: OutlineInputBorder(),
               ),
-              if (!lectura) ...[
-                const SizedBox(width: 12),
+            ),
+            const SizedBox(height: 16),
+            _titulo('Galería general'),
+            GalleryInput(
+              images: _ctrl.fotosGenerales,
+              onImagesChanged: _ctrl.setFotosGenerales,
+              readOnly: bloqueado,
+            ),
+            if (_ctrl.isProcessingPhotos)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('Procesando fotos...'),
+              ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
                 Expanded(
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: kRegistroInmersionColor,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
                     ),
-                    onPressed: bloqueado ? null : _finalizar,
-                    icon: _ctrl.isSaving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.check),
-                    label: const Text('Finalizar'),
+                    onPressed: _ctrl.isSaving || _ctrl.isProcessingPhotos
+                        ? null
+                        : () => _ctrl.previsualizar(context),
+                    icon: const Icon(Icons.picture_as_pdf_outlined),
+                    label: const Text('Ver PDF'),
                   ),
                 ),
+                if (!lectura) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: kRegistroInmersionColor,
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                      onPressed: bloqueado ? null : _finalizar,
+                      icon: _ctrl.isSaving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.check),
+                      label: const Text('Finalizar'),
+                    ),
+                  ),
+                ],
               ],
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -345,36 +410,66 @@ class _Encabezado extends StatelessWidget {
   final bool readOnly;
   final ValueChanged<String> onAutorizadaChanged;
   final VoidCallback onAutorizadaLista;
+  final RegistroInmersionFormController ctrl;
+  final VoidCallback? onVincular;
   const _Encabezado({
+    super.key,
     required this.registro,
     required this.readOnly,
     required this.onAutorizadaChanged,
     required this.onAutorizadaLista,
+    required this.ctrl,
+    required this.onVincular,
   });
 
   @override
   Widget build(BuildContext context) {
     final aut = registro.profundidadAutorizadaM;
+    final vinculado = registro.vinculado;
     final filas = <List<String>>[
-      ['Centro', registro.centroNombre ?? '—'],
       ['Fecha', DateFormat('dd/MM/yyyy').format(registro.fechaRealizacion)],
-      ['Contratista', registro.contratistaNombre ?? '—'],
-      ['N° inspección', registro.numeroInspeccion ?? 'Pendiente de sync'],
-      if (readOnly)
+      [
+        'Inspección',
+        vinculado
+            ? 'N° ${registro.numeroInspeccion ?? 'pendiente de sync'}'
+            : 'Sin inspección vinculada',
+      ],
+      if (readOnly) ...[
+        ['Centro', registro.centroNombre ?? '—'],
+        ['Contratista', registro.contratistaNombre ?? '—'],
         [
           'Prof. autorizada',
           aut == null
               ? '—'
               : '${RegistroInmersionCalculos.formatoMetros(aut)} m',
         ],
+      ],
     ];
+    final centros = ctrl.centrosPorEtiqueta.keys.toList();
+    final contratistas = ctrl.contratistas
+        .map((c) => (c['nombre'] ?? '').toString())
+        .where((n) => n.isNotEmpty)
+        .toList();
+    // Un valor que no está en la lista (escrito a mano o de otra empresa)
+    // igual se muestra.
+    final centroActual = ctrl.centroEtiquetaActual;
+    if (centroActual != null && !centros.contains(centroActual)) {
+      centros.insert(0, centroActual);
+    }
+    final contratistaActual = registro.contratistaNombre;
+    if (contratistaActual != null &&
+        !contratistas.contains(contratistaActual)) {
+      contratistas.insert(0, contratistaActual);
+    }
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFFE6F0F5),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (final f in filas)
             Padding(
@@ -383,7 +478,7 @@ class _Encabezado extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SizedBox(
-                    width: 120,
+                    width: 110,
                     child: Text(
                       f[0],
                       style: const TextStyle(
@@ -396,32 +491,63 @@ class _Encabezado extends StatelessWidget {
                 ],
               ),
             ),
-          if (!readOnly)
+          if (!readOnly && !vinculado)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Focus(
-                onFocusChange: (f) {
-                  if (!f) onAutorizadaLista();
-                },
-                child: TextFormField(
-                  initialValue: RegistroInmersionCalculos.formatoMetros(aut),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Profundidad autorizada de la faena (m)',
-                    helperText: 'Para avisar si un buzo la supera',
-                    suffixText: 'm',
-                    isDense: true,
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: onAutorizadaChanged,
-                  onFieldSubmitted: (_) => onAutorizadaLista(),
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(44),
                 ),
+                onPressed: onVincular,
+                icon: const Icon(Icons.link),
+                label: const Text('Vincular a una inspección de buceo'),
               ),
             ),
+          if (!readOnly) ...[
+            const SizedBox(height: 12),
+            CustomDropdown(
+              label: 'Centro',
+              icon: Icons.place_outlined,
+              items: centros,
+              value: centroActual,
+              onChanged: (v) {
+                if (v != null) ctrl.setCentro(v);
+              },
+            ),
+            CustomDropdown(
+              label: 'Contratista',
+              icon: Icons.business_outlined,
+              hintText: 'Selecciona, busca o escribe uno nuevo…',
+              items: contratistas,
+              value: contratistaActual,
+              onChanged: (v) {
+                if (v != null) ctrl.setContratista(v);
+              },
+              onAddNew: ctrl.setContratista,
+            ),
+            Focus(
+              onFocusChange: (f) {
+                if (!f) onAutorizadaLista();
+              },
+              child: TextFormField(
+                initialValue: RegistroInmersionCalculos.formatoMetros(aut),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Profundidad autorizada de la faena',
+                  helperText: 'Para avisar si un buzo la supera',
+                  suffixText: 'm',
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: onAutorizadaChanged,
+                onFieldSubmitted: (_) => onAutorizadaLista(),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -539,15 +665,17 @@ class _BuzoCard extends StatelessWidget {
                   onProfundidadLista: onProfundidadLista,
                 ),
               if (!readOnly)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: TextButton.icon(
                     style: TextButton.styleFrom(
-                      foregroundColor: Colors.grey.shade700,
-                      visualDensity: VisualDensity.compact,
+                      foregroundColor: kRegistroInmersionColor,
+                      minimumSize: const Size.fromHeight(40),
+                      backgroundColor: const Color(0xFFF2F6F8),
                     ),
                     onPressed: () => ctrl.agregarInmersion(buzo.id),
-                    child: const Text('+ Agregar otra inmersión'),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Agregar otra inmersión'),
                   ),
                 ),
             ],
@@ -639,9 +767,8 @@ class _InmersionFields extends StatelessWidget {
                 fontWeight: rojo ? FontWeight.bold : null,
               ),
               decoration: InputDecoration(
-                labelText: 'Profundidad máxima (m)',
+                labelText: 'Profundidad máxima',
                 border: const OutlineInputBorder(),
-                isDense: true,
                 suffixText: 'm',
                 enabledBorder: rojo
                     ? const OutlineInputBorder(
@@ -654,6 +781,7 @@ class _InmersionFields extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
+          // Desde · Hasta · Tiempo ocupan todo el ancho, en tercios.
           Row(
             children: [
               Expanded(
@@ -676,12 +804,18 @@ class _InmersionFields extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              SizedBox(
-                width: 64,
-                child: Text(
-                  tiempo == null ? '' : '$tiempo min',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+              Expanded(
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: 'Tiempo',
+                    border: const OutlineInputBorder(),
+                    filled: true,
+                    fillColor: Colors.grey.shade100,
+                  ),
+                  child: Text(
+                    tiempo == null ? '—' : '$tiempo min',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
@@ -706,8 +840,8 @@ class _HoraField extends StatelessWidget {
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
-          isDense: true,
           suffixIcon: const Icon(Icons.schedule, size: 18),
+          suffixIconConstraints: const BoxConstraints(minWidth: 32),
         ),
         child: Text((valor ?? '').isEmpty ? '--:--' : valor!),
       ),
@@ -767,12 +901,13 @@ class _EquipoYFotos extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
+          const _Subtitulo('Profundímetro'),
           Row(
             children: [
               Expanded(
                 child: _texto(
-                  'Profundímetro (marca)',
+                  'Marca',
                   buzo.profundimetroMarca,
                   (v) => ctrl.setProfundimetroMarca(buzo.id, v),
                 ),
@@ -780,25 +915,27 @@ class _EquipoYFotos extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: _texto(
-                  'Profundímetro (serie)',
+                  'N° de serie',
                   buzo.profundimetroSerie,
                   (v) => ctrl.setProfundimetroSerie(buzo.id, v),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
+          const _Subtitulo('Registrador (Sensus Ultra)'),
           _texto(
-            'Serie del registrador (Sensus Ultra)',
+            'N° de serie',
             buzo.dispositivoSerie,
             (v) => ctrl.setDispositivoSerie(buzo.id, v),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           _texto(
             'Nota adicional',
             buzo.nota,
             (v) => ctrl.setNota(buzo.id, v),
             maxLines: 2,
+            maxLength: 300,
           ),
         ],
       ),
@@ -810,11 +947,13 @@ class _EquipoYFotos extends StatelessWidget {
     String? inicial,
     ValueChanged<String> onChanged, {
     int maxLines = 1,
+    int? maxLength,
   }) {
     return TextFormField(
       initialValue: inicial ?? '',
       readOnly: readOnly,
       maxLines: maxLines,
+      maxLength: maxLength,
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
@@ -823,6 +962,24 @@ class _EquipoYFotos extends StatelessWidget {
       onChanged: onChanged,
     );
   }
+}
+
+class _Subtitulo extends StatelessWidget {
+  final String texto;
+  const _Subtitulo(this.texto);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(
+      texto,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: Colors.grey.shade800,
+      ),
+    ),
+  );
 }
 
 class _FotoSlot extends StatelessWidget {
@@ -911,10 +1068,16 @@ class _NuevaPersona {
   });
 }
 
-/// Elegir alguien de la cuadrilla o escribir una persona nueva.
+/// Agregar una persona: de la cuadrilla de la inspección o por RUT (busca en
+/// el personal registrado, igual que la cuadrilla de la inspección de buceo,
+/// y completa el nombre).
 class _AgregarPersonaSheet extends StatefulWidget {
   final List<ParticipanteCuadrilla> disponibles;
-  const _AgregarPersonaSheet({required this.disponibles});
+  final Future<ParticipanteModel?> Function(String rut) buscarPorRut;
+  const _AgregarPersonaSheet({
+    required this.disponibles,
+    required this.buscarPorRut,
+  });
 
   @override
   State<_AgregarPersonaSheet> createState() => _AgregarPersonaSheetState();
@@ -923,94 +1086,168 @@ class _AgregarPersonaSheet extends StatefulWidget {
 class _AgregarPersonaSheetState extends State<_AgregarPersonaSheet> {
   final _nombre = TextEditingController();
   final _rut = TextEditingController();
+  final _debouncer = Debouncer(milliseconds: 400);
   String _cargo = 'Buzo';
+  String? _rutError;
+  String? _personalId;
+  bool _encontrado = false;
 
   @override
   void dispose() {
+    _debouncer.cancel();
     _nombre.dispose();
     _rut.dispose();
     super.dispose();
   }
 
-  void _agregarNueva() {
+  void _onRut(String val) {
+    final n = RutUtils.normalize(val);
+    setState(() {
+      _rutError = n.length >= 8 && !RutUtils.isValid(val)
+          ? 'RUT inválido'
+          : null;
+      if (_encontrado) {
+        // Cambió el RUT: lo autocompletado ya no corresponde.
+        _encontrado = false;
+        _personalId = null;
+        _nombre.clear();
+      }
+    });
+    if (n.length < 8 || !RutUtils.isValid(val)) return;
+    _debouncer.run(() async {
+      final p = await widget.buscarPorRut(val);
+      if (!mounted || p == null) return;
+      if (RutUtils.normalize(_rut.text) != RutUtils.normalize(p.rut)) return;
+      setState(() {
+        _nombre.text = p.nombreCompleto;
+        _personalId = p.personalId;
+        _encontrado = true;
+        if (kCargosRegistroInmersion.contains(p.cargo)) _cargo = p.cargo;
+      });
+    });
+  }
+
+  Future<void> _agregar() async {
     final nombre = _nombre.text.trim();
     if (nombre.isEmpty) return;
     final rut = RutUtils.normalize(_rut.text);
+    if (rut.isNotEmpty && !RutUtils.isValid(_rut.text)) {
+      setState(() => _rutError = 'RUT inválido');
+      return;
+    }
+    if (rut.isNotEmpty && _personalId == null) {
+      // Tocó "Agregar" antes de que terminara la búsqueda por RUT.
+      _debouncer.cancel();
+      _personalId = (await widget.buscarPorRut(_rut.text))?.personalId;
+      if (!mounted) return;
+    }
     Navigator.pop(
       context,
       _NuevaPersona(
         nombre: nombre,
         rut: rut.isEmpty ? null : rut,
         cargo: _cargo,
+        personalId: _personalId,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        16,
-        16,
-        16 + MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Agregar persona',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            DropdownButtonFormField<String>(
-              initialValue: _cargo,
-              decoration: const InputDecoration(labelText: 'Cargo'),
-              items: [
-                for (final c in kCargosRegistroInmersion)
-                  DropdownMenuItem(value: c, child: Text(c)),
-              ],
-              onChanged: (v) => setState(() => _cargo = v ?? 'Buzo'),
-            ),
-            if (widget.disponibles.isNotEmpty) ...[
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          8,
+          16,
+          16 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Agregar persona',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 12),
-              const Text('De la cuadrilla'),
-              for (final p in widget.disponibles)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.person_outline),
-                  title: Text(p.nombre),
-                  subtitle: Text(p.rol),
-                  onTap: () => Navigator.pop(
-                    context,
-                    _NuevaPersona(
-                      nombre: p.nombre,
-                      rut: p.rut,
-                      cargo: _cargo,
-                      personalId: p.personalId,
+              CustomDropdown(
+                label: 'Cargo',
+                items: kCargosRegistroInmersion,
+                value: _cargo,
+                enableSearch: false,
+                onChanged: (v) => setState(() => _cargo = v ?? 'Buzo'),
+              ),
+              if (widget.disponibles.isNotEmpty) ...[
+                const _Subtitulo('De la cuadrilla de la inspección'),
+                for (final p in widget.disponibles)
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    child: ListTile(
+                      leading: const Icon(Icons.person_outline),
+                      title: Text(p.nombre),
+                      subtitle: Text(
+                        [
+                          p.rol,
+                          if ((p.rut ?? '').isNotEmpty) RutUtils.format(p.rut),
+                        ].join(' · '),
+                      ),
+                      trailing: const Icon(Icons.add),
+                      onTap: () => Navigator.pop(
+                        context,
+                        _NuevaPersona(
+                          nombre: p.nombre,
+                          rut: p.rut,
+                          cargo: _cargo,
+                          personalId: p.personalId,
+                        ),
+                      ),
                     ),
                   ),
+                const SizedBox(height: 8),
+                const _Subtitulo('Otra persona'),
+              ],
+              TextField(
+                controller: _rut,
+                inputFormatters: [RutInputFormatter()],
+                decoration: InputDecoration(
+                  labelText: 'RUT (busca y completa)',
+                  hintText: '12.345.678-9',
+                  prefixIcon: const Icon(Icons.badge_outlined),
+                  border: const OutlineInputBorder(),
+                  errorText: _rutError,
+                  helperText: _encontrado
+                      ? 'Encontrado en el personal registrado'
+                      : null,
+                  suffixIcon: _encontrado
+                      ? const Icon(Icons.check_circle, color: Colors.green)
+                      : null,
                 ),
+                onChanged: _onRut,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _nombre,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre completo',
+                  prefixIcon: Icon(Icons.person_outline),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: kRegistroInmersionColor,
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                onPressed: _agregar,
+                icon: const Icon(Icons.person_add_alt_1),
+                label: const Text('Agregar'),
+              ),
             ],
-            const SizedBox(height: 12),
-            const Text('Persona que no estaba en la cuadrilla'),
-            TextField(
-              controller: _nombre,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Nombre'),
-            ),
-            TextField(
-              controller: _rut,
-              inputFormatters: [RutInputFormatter()],
-              decoration: const InputDecoration(labelText: 'RUT (opcional)'),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: _agregarNueva,
-              child: const Text('Agregar'),
-            ),
-          ],
+          ),
         ),
       ),
     );

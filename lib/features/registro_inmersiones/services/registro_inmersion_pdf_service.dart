@@ -9,7 +9,7 @@ import '../../../core/services/empresa_logo_service.dart';
 import '../domain/models/registro_inmersion_pdf_data.dart';
 
 /// Versión del generador: todo cambio de contenido o diseño sube su patch.
-const String kRegistroInmersionPdfVersion = '0.1.0';
+const String kRegistroInmersionPdfVersion = '0.1.2';
 
 class RegistroInmersionPdfParams {
   final RegistroInmersionPdfData data;
@@ -31,15 +31,15 @@ Future<Uint8List> generateRegistroInmersionPdfEntryPoint(
 ) => RegistroInmersionPdfService._generar(params);
 
 /// PDF del registro de inmersiones: encabezado con N° propio y N° de la
-/// inspección de buceo, tabla por buzo (como el papel), evidencia por buzo,
-/// galería general y observación. Sin firmas.
+/// inspección de buceo, datos generales, franja de resumen, una ficha por
+/// persona con sus fotos al lado (como el papel), observación y galería.
+/// Sin firmas.
 class RegistroInmersionPdfService {
   const RegistroInmersionPdfService();
 
   static const PdfColor _brand = PdfColor.fromInt(0xFF00507A);
   static const PdfColor _brandLight = PdfColor.fromInt(0xFFE6F0F5);
   static const PdfColor _rojo = PdfColor.fromInt(0xFFC62828);
-  static const PdfColor _rojoFondo = PdfColor.fromInt(0xFFFDECEA);
 
   /// Carga fuentes y logo y genera el PDF en un isolate.
   Future<Uint8List> generar(
@@ -80,30 +80,30 @@ class RegistroInmersionPdfService {
         pageTheme: pw.PageTheme(
           theme: theme,
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.fromLTRB(32, 28, 32, 36),
+          margin: const pw.EdgeInsets.fromLTRB(42, 34, 42, 40),
         ),
         header: (_) => _header(data, logo),
         footer: _footer,
         build: (_) => [
           _datos(data),
+          _resumen(data),
           pw.SizedBox(height: 12),
-          _seccion('Inmersiones (${data.buzos.length} personas)'),
-          _tablaBuzos(data),
+          _seccion('Inmersiones por persona'),
+          ..._fichas(data),
           pw.Padding(
             padding: const pw.EdgeInsets.only(top: 4),
             child: pw.Text(
               'Datos extraídos desde bitácoras.',
-              style: pw.TextStyle(
-                fontSize: 8,
-                fontStyle: pw.FontStyle.italic,
+              style: const pw.TextStyle(
+                fontSize: 7.5,
                 color: PdfColors.grey700,
               ),
             ),
           ),
-          ..._evidenciaPorBuzo(data),
           if (data.observacionGeneral.isNotEmpty) ...[
             pw.SizedBox(height: 12),
             _seccion('Observación general'),
+            pw.SizedBox(height: 6),
             _caja(data.observacionGeneral),
           ],
           ..._galeria(data.galeriaPaths),
@@ -137,7 +137,9 @@ class RegistroInmersionPdfService {
                 ),
                 pw.SizedBox(height: 3),
                 pw.Text(
-                  'Inspección de buceo N° ${d.numeroInspeccion}',
+                  d.numeroInspeccion == null
+                      ? 'Sin inspección de buceo vinculada'
+                      : 'Inspección de buceo N° ${d.numeroInspeccion}',
                   style: const pw.TextStyle(
                     fontSize: 10,
                     color: PdfColors.grey800,
@@ -206,7 +208,7 @@ class RegistroInmersionPdfService {
     padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     color: _brand,
     child: pw.Text(
-      titulo.toUpperCase(),
+      titulo,
       style: pw.TextStyle(
         fontSize: 9.5,
         fontWeight: pw.FontWeight.bold,
@@ -215,238 +217,350 @@ class RegistroInmersionPdfService {
     ),
   );
 
-  static pw.Widget _caja(String texto) => pw.Container(
-    width: double.infinity,
-    padding: const pw.EdgeInsets.all(8),
-    decoration: pw.BoxDecoration(
-      border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
-    ),
-    child: pw.Text(texto, style: const pw.TextStyle(fontSize: 9)),
+  /// Texto largo: va directo en la página para que pueda partirse entre
+  /// páginas (un Container lo haría inseparable y el PDF fallaría).
+  static pw.Widget _caja(String texto) =>
+      pw.Text(
+        texto,
+        style: const pw.TextStyle(fontSize: 9),
+        overflow: pw.TextOverflow.span,
+      );
+
+  // --- Escala tipográfica: 7.5 (rótulos) · 9 (cuerpo) · 12 (cifras) · 16 ----
+
+  static const _rotulo = pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700);
+  static const _cuerpo = pw.TextStyle(fontSize: 9);
+
+  static pw.Widget _datoApilado(String rotulo, String valor) => pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      pw.Text(rotulo, style: _rotulo),
+      pw.SizedBox(height: 1.5),
+      pw.Text(
+        valor.isEmpty ? '—' : valor,
+        style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+      ),
+    ],
   );
 
+  /// Datos generales en una retícula de 3 columnas, rótulo arriba y valor
+  /// abajo (sin tabla con rejilla).
   static pw.Widget _datos(RegistroInmersionPdfData d) {
     final pares = <List<String>>[
       ['Centro', d.centro],
-      ['Fecha', d.fecha],
       ['Contratista', d.contratista],
+      ['Fecha', d.fecha],
       ['Profundidad autorizada', d.profundidadAutorizada],
       ['Auditor', d.auditor],
-      ['N° inspección de buceo', d.numeroInspeccion],
+      ['N° inspección de buceo', d.numeroInspeccion ?? 'Sin vincular'],
     ];
-    final rows = <pw.TableRow>[];
-    for (var i = 0; i < pares.length; i += 2) {
-      rows.add(
-        pw.TableRow(
-          children: [
-            _par(pares[i]),
-            i + 1 < pares.length ? _par(pares[i + 1]) : pw.SizedBox(),
-          ],
-        ),
-      );
-    }
-    return pw.Table(
-      border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
-      children: rows,
+    pw.Widget fila(int i) => pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 8),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          for (var j = i; j < i + 3; j++)
+            pw.Expanded(
+              // Centro · Contratista (largo) · Fecha.
+              flex: const [3, 4, 2][j - i],
+              child: j < pares.length
+                  ? _datoApilado(pares[j][0], pares[j][1])
+                  : pw.SizedBox(),
+            ),
+        ],
+      ),
     );
+    return pw.Column(children: [fila(0), fila(3)]);
   }
 
-  static pw.Widget _par(List<String> par) => pw.Padding(
-    padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-    child: pw.RichText(
-      text: pw.TextSpan(
-        children: [
-          pw.TextSpan(
-            text: '${par[0]}: ',
-            style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold),
-          ),
-          pw.TextSpan(
-            text: par[1].isEmpty ? '—' : par[1],
-            style: const pw.TextStyle(fontSize: 8.5),
-          ),
-        ],
-      ),
-    ),
-  );
+  /// Franja de resumen: lo que se tiene que entender en 30 segundos.
+  static pw.Widget _resumen(RegistroInmersionPdfData d) {
+    final bucearon = d.buzos.where((b) => b.realizoInmersion).toList();
+    double? maxima;
+    for (final b in bucearon) {
+      final v = double.tryParse(
+        b.profundidadMaxima.replaceAll(' m', '').replaceAll(',', '.'),
+      );
+      if (v != null && (maxima == null || v > maxima)) maxima = v;
+    }
+    final excedidos = d.buzos.where((b) => b.excede).length;
+    final hayAutorizada = d.profundidadAutorizada.isNotEmpty;
 
-  static pw.Widget _tablaBuzos(RegistroInmersionPdfData d) {
-    final head = pw.TextStyle(
-      fontSize: 8,
-      fontWeight: pw.FontWeight.bold,
-      color: _brand,
-    );
-    const cuerpo = pw.TextStyle(fontSize: 8);
-    pw.Widget celda(String t, {pw.TextStyle? style, PdfColor? fondo}) =>
-        pw.Container(
-          color: fondo,
-          padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          child: pw.Text(t, style: style ?? cuerpo),
-        );
-
-    final rows = <pw.TableRow>[
-      pw.TableRow(
-        decoration: const pw.BoxDecoration(color: _brandLight),
-        children: [
-          celda('N°', style: head),
-          celda('Nombre / RUT', style: head),
-          celda('Cargo', style: head),
-          celda('Prof. máx.', style: head),
-          celda('Desde – hasta', style: head),
-          celda('Tiempo', style: head),
-        ],
-      ),
-    ];
-
-    for (final b in d.buzos) {
-      final rojo = b.marcadoRojo;
-      final profStyle = rojo
-          ? pw.TextStyle(
-              fontSize: 8,
-              fontWeight: pw.FontWeight.bold,
-              color: _rojo,
-            )
-          : cuerpo;
-      final nombre = b.rut.isEmpty ? b.nombre : '${b.nombre}\n${b.rut}';
-
-      if (!b.realizoInmersion) {
-        rows.add(
-          pw.TableRow(
+    pw.Widget cifra(String rotulo, String valor, {PdfColor? color}) =>
+        pw.Expanded(
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              celda('${b.numero}'),
-              celda(nombre),
-              celda(b.cargo),
-              celda('No buceó', style: const pw.TextStyle(fontSize: 8)),
-              celda(''),
-              celda(''),
+              pw.Text(rotulo, style: _rotulo),
+              pw.SizedBox(height: 2),
+              pw.Text(
+                valor,
+                style: pw.TextStyle(
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                  color: color ?? _brand,
+                ),
+              ),
             ],
           ),
         );
-        continue;
-      }
 
-      final varias = b.inmersiones.length > 1;
-      rows.add(
-        pw.TableRow(
+    final textoMax = maxima == null
+        ? '—'
+        : '${maxima.toStringAsFixed(maxima % 1 == 0 ? 0 : 1).replaceAll('.', ',')} m';
+    return pw.Container(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      color: _brandLight,
+      child: pw.Row(
+        children: [
+          cifra('Personas', '${d.buzos.length}'),
+          cifra('Bucearon', '${bucearon.length}'),
+          cifra('Profundidad máxima', textoMax),
+          cifra(
+            'Superaron la autorizada',
+            hayAutorizada ? '$excedidos' : 'Sin dato',
+            color: excedidos > 0 ? _rojo : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Una ficha por persona: datos a la izquierda y sus fotos al lado, como el
+  /// registro en papel. No se corta entre páginas.
+  static List<pw.Widget> _fichas(RegistroInmersionPdfData d) => [
+    for (final b in d.buzos) _ficha(b, d.profundidadAutorizada),
+  ];
+
+  static pw.Widget _ficha(RegistroInmersionPdfBuzo b, String autorizada) {
+    final rojo = b.marcadoRojo;
+    final fotos = <pw.Widget>[];
+    for (final f in b.fotos.take(3)) {
+      final img = _imagen(f.path, 84);
+      if (img == null) continue;
+      fotos.add(
+        pw.Padding(
+          padding: const pw.EdgeInsets.only(left: 6),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              img,
+              pw.SizedBox(height: 2),
+              pw.Text(f.etiqueta, style: _rotulo),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final encabezado = pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.end,
+      children: [
+        pw.Flexible(
+          child: pw.Text(
+            '${b.numero}. ${b.nombre}',
+            style: pw.TextStyle(
+              fontSize: 10.5,
+              fontWeight: pw.FontWeight.bold,
+              color: _brand,
+            ),
+          ),
+        ),
+        if (b.rut.isNotEmpty) ...[
+          pw.SizedBox(width: 8),
+          pw.Text('RUT ${b.rut}', style: _rotulo),
+        ],
+        pw.Spacer(),
+        pw.Text(b.cargo, style: _rotulo),
+      ],
+    );
+
+    final cuerpo = <pw.Widget>[];
+    if (!b.realizoInmersion) {
+      cuerpo.add(
+        pw.Text(
+          'No buceó',
+          style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+        ),
+      );
+    } else {
+      final prof = b.profundidadMaxima.isEmpty ? '—' : b.profundidadMaxima;
+      cuerpo.add(
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            celda('${b.numero}'),
-            celda(nombre),
-            celda(b.cargo),
-            celda(
-              b.profundidadMaxima.isEmpty ? '—' : b.profundidadMaxima,
-              style: profStyle,
-              fondo: rojo ? _rojoFondo : null,
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('Prof. máxima', style: _rotulo),
+                  pw.Text(
+                    prof,
+                    style: pw.TextStyle(
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                      color: rojo ? _rojo : PdfColors.black,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            celda(
-              varias
-                  ? '${b.inmersiones.length} inmersiones'
-                  : (b.inmersiones.isEmpty
-                        ? ''
-                        : b.inmersiones.first.desdeHasta),
+            pw.Expanded(
+              child: _datoApilado(
+                'Tiempo total',
+                b.tiempoTotal.isEmpty ? '—' : b.tiempoTotal,
+              ),
             ),
-            celda(b.tiempoTotal),
+            pw.Expanded(
+              child: _datoApilado(
+                b.inmersiones.length > 1 ? 'Inmersiones' : 'Desde – hasta',
+                b.inmersiones.length > 1
+                    ? '${b.inmersiones.length}'
+                    : (b.inmersiones.isEmpty
+                          ? ''
+                          : b.inmersiones.first.desdeHasta),
+              ),
+            ),
           ],
         ),
       );
-      if (varias) {
+      if (!rojo && b.excede) {
+        cuerpo.add(
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(top: 3),
+            child: pw.Text(
+              'Superó la profundidad autorizada ($autorizada), no marcado en rojo',
+              style: _rotulo,
+            ),
+          ),
+        );
+      }
+      if (rojo) {
+        cuerpo.add(
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(top: 3),
+            child: pw.Text(
+              'Superó la profundidad autorizada ($autorizada)',
+              style: pw.TextStyle(
+                fontSize: 7.5,
+                fontWeight: pw.FontWeight.bold,
+                color: _rojo,
+              ),
+            ),
+          ),
+        );
+      }
+      if (b.inmersiones.length > 1) {
+        cuerpo.add(pw.SizedBox(height: 4));
         for (var i = 0; i < b.inmersiones.length; i++) {
           final inm = b.inmersiones[i];
-          rows.add(
-            pw.TableRow(
-              children: [
-                celda(''),
-                celda(
-                  '  Inmersión ${i + 1}',
-                  style: const pw.TextStyle(
-                    fontSize: 7.5,
-                    color: PdfColors.grey700,
+          cuerpo.add(
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(top: 1.5),
+              child: pw.Row(
+                children: [
+                  pw.SizedBox(
+                    width: 62,
+                    child: pw.Text('Inmersión ${i + 1}', style: _rotulo),
                   ),
-                ),
-                celda(''),
-                celda(
-                  inm.profundidad,
-                  style: const pw.TextStyle(fontSize: 7.5),
-                ),
-                celda(inm.desdeHasta, style: const pw.TextStyle(fontSize: 7.5)),
-                celda(inm.tiempo, style: const pw.TextStyle(fontSize: 7.5)),
-              ],
+                  pw.SizedBox(
+                    width: 70,
+                    child: pw.Text(inm.desdeHasta, style: _cuerpo),
+                  ),
+                  pw.SizedBox(
+                    width: 40,
+                    child: pw.Text(
+                      inm.profundidad,
+                      style: _cuerpo,
+                      textAlign: pw.TextAlign.right,
+                    ),
+                  ),
+                  pw.SizedBox(
+                    width: 46,
+                    child: pw.Text(
+                      inm.tiempo,
+                      style: _cuerpo,
+                      textAlign: pw.TextAlign.right,
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         }
       }
     }
 
-    return pw.Table(
-      border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
-      columnWidths: const {
-        0: pw.FixedColumnWidth(22),
-        1: pw.FlexColumnWidth(3),
-        2: pw.FlexColumnWidth(1.8),
-        3: pw.FlexColumnWidth(1.2),
-        4: pw.FlexColumnWidth(1.7),
-        5: pw.FlexColumnWidth(1),
-      },
-      children: rows,
-    );
-  }
-
-  static List<pw.Widget> _evidenciaPorBuzo(RegistroInmersionPdfData d) {
-    final conDetalle = d.buzos.where(
-      (b) => b.fotos.isNotEmpty || b.nota.isNotEmpty || b.equipo.isNotEmpty,
-    );
-    if (conDetalle.isEmpty) return const [];
-    final out = <pw.Widget>[
-      pw.SizedBox(height: 12),
-      _seccion('Detalle y evidencia por persona'),
+    final equipo = <List<String>>[
+      if (b.profundimetro.isNotEmpty) ['Profundímetro', b.profundimetro],
+      if (b.registrador.isNotEmpty) ['Registrador', b.registrador],
     ];
-    for (final b in conDetalle) {
-      final fotos = <pw.Widget>[];
-      for (final f in b.fotos) {
-        final img = _imagen(f.path, 120);
-        if (img == null) continue;
-        fotos.add(
+    if (equipo.isNotEmpty || b.nota.isNotEmpty) {
+      cuerpo.add(pw.SizedBox(height: 6));
+      for (final e in equipo) {
+        cuerpo.add(
           pw.Padding(
-            padding: const pw.EdgeInsets.only(right: 6, top: 4),
-            child: pw.Column(
+            padding: const pw.EdgeInsets.only(top: 1.5),
+            child: pw.Row(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                img,
-                pw.Text(f.etiqueta, style: const pw.TextStyle(fontSize: 7)),
+                pw.SizedBox(width: 62, child: pw.Text(e[0], style: _rotulo)),
+                pw.Expanded(child: pw.Text(e[1], style: _cuerpo)),
               ],
             ),
           ),
         );
       }
-      out.add(
-        pw.Container(
-          margin: const pw.EdgeInsets.only(top: 6),
-          padding: const pw.EdgeInsets.all(6),
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+      if (b.nota.isNotEmpty) {
+        cuerpo.add(
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(top: 1.5),
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.SizedBox(width: 62, child: pw.Text('Nota', style: _rotulo)),
+                // La ficha no se parte entre páginas: la nota va acotada.
+                pw.Expanded(
+                  child: pw.Text(b.nota, style: _cuerpo, maxLines: 8),
+                ),
+              ],
+            ),
           ),
-          child: pw.Column(
+        );
+      }
+    }
+
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(top: 8),
+      padding: const pw.EdgeInsets.fromLTRB(10, 8, 8, 8),
+      decoration: pw.BoxDecoration(
+        border: pw.Border(
+          left: pw.BorderSide(color: rojo ? _rojo : _brand, width: 2.5),
+          top: const pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+          right: const pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+          bottom: const pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+        ),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          encabezado,
+          pw.Divider(color: PdfColors.grey300, thickness: 0.5, height: 8),
+          pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text(
-                '${b.numero}. ${b.nombre} · ${b.cargo}',
-                style: pw.TextStyle(
-                  fontSize: 9,
-                  fontWeight: pw.FontWeight.bold,
-                  color: _brand,
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: cuerpo,
                 ),
               ),
-              if (b.equipo.isNotEmpty)
-                pw.Text(b.equipo, style: const pw.TextStyle(fontSize: 8)),
-              if (b.nota.isNotEmpty)
-                pw.Text(
-                  'Nota: ${b.nota}',
-                  style: const pw.TextStyle(fontSize: 8),
-                ),
-              if (fotos.isNotEmpty) pw.Wrap(children: fotos),
+              ...fotos,
             ],
           ),
-        ),
-      );
-    }
-    return out;
+        ],
+      ),
+    );
   }
 
   static List<pw.Widget> _galeria(List<String> paths) {

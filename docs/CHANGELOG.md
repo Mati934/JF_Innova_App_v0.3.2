@@ -15,6 +15,15 @@
 - [App] Base local v65 (tablas del registro de inmersiones).
 - [Registro de inmersiones] Migración Supabase ejecutada: tablas, número `RI-NNNN`, baja en cascada, permisos,
   entrada en el Historial y módulo habilitado para AquaChile. Falta probar en el teléfono y publicar la versión.
+- [Registro de inmersiones] "Nuevo registro" en la pantalla del módulo: pregunta si se vincula a una inspección de
+  buceo (carga sus buzos) o se hace sin inspección. Un borrador sin inspección se puede vincular después. PDF v0.1.1.
+  Requiere ejecutar `supabase_migration_registro_inmersiones_v2_sin_inspeccion.sql` (ejecutado en Supabase el 2026-11-18).
+- [App] Base local v66 (`actividad_id` opcional en el registro de inmersiones).
+- [Registro de inmersiones] PDF v0.1.2: datos generales sin rejilla, franja de resumen (personas, bucearon,
+  profundidad máxima, cuántos superaron la autorizada) y una ficha por persona con sus fotos al lado; el RUT ya no
+  alarga las filas. Formulario: centro y contratista en listas desplegables (el contratista también escrito a mano),
+  agregar persona por RUT con autocompletado como en la cuadrilla, horas de borde a borde, equipo ordenado
+  (profundímetro marca y serie, serie del registrador) y botones que ya no quedan bajo la barra de Android.
 
 ## 2026-11-08
 

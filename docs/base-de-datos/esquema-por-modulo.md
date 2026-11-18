@@ -71,12 +71,12 @@
 
 ## Registro de inmersiones
 
-Desde 2026-11-18 (app v65 local). Tablas de Supabase creadas por `supabase_migration_registro_inmersiones_v1.sql`
+Desde 2026-11-18 (app v65 local; v66 vuelve opcional `actividad_id`). Tablas de Supabase creadas por `supabase_migration_registro_inmersiones_v1.sql`
 (**ejecutada el 2026-11-18**: las tablas ya existen en Supabase, vacías). Ficha: [registro-inmersiones](../modulos/registro-inmersiones.md).
 
 | Supabase | Local | Contenido | Filas |
 |---|---|---|---:|
-| `registros_inmersion` | `registros_inmersion_pendientes` | Cabecera: 1 vigente por `actividad_id` (inspección de buceo), copias del día (centro, contratista, N° inspección, profundidad autorizada), `origen`, `estado_final`, `numero`/`correlativo` (RI-NNNN, trigger), `pdf_url`, `pdf_version`. Local: `pdf_path_local`, `subido`, `eliminado`. | 0 |
+| `registros_inmersion` | `registros_inmersion_pendientes` | Cabecera: 1 vigente por `actividad_id` (inspección de buceo; nulo = registro sin inspección, desde v66 local y `supabase_migration_registro_inmersiones_v2_sin_inspeccion.sql`, ejecutado 2026-11-18), copias del día (centro, contratista, N° inspección, profundidad autorizada), `origen`, `estado_final`, `numero`/`correlativo` (RI-NNNN, trigger), `pdf_url`, `pdf_version`. Local: `pdf_path_local`, `subido`, `eliminado`. | 0 |
 | `registro_inmersion_buzos` | `registro_inmersion_buzos_pendientes` | Una fila por persona: `personal_id` (nulo si es nueva), nombre, RUT, cargo, `realizo_inmersion`, resumen (`profundidad_maxima_m`, `tiempo_total_min`, `cantidad_inmersiones`, `excede_autorizada`), `marcado_rojo`, equipo (series normalizadas), nota. | 0 |
 | `registro_inmersion_inmersiones` | `registro_inmersion_inmersiones_pendientes` | Una fila por bajada: `orden`, profundidad, `hora_inicio` (+ `hora_inicio_editada`), `hora_termino`, `tiempo_min`, `excede_autorizada`. | 0 |
 | `registro_inmersion_fotos` | `registro_inmersion_fotos_pendientes` | Fotos con `tipo` y `buzo_id` (nulo = galería general). Bucket `evidencias`, carpeta `inmersiones/<registro>/`. Local: `local_path`. | 0 |

@@ -9,7 +9,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      65; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      66; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -2017,6 +2017,26 @@ class DatabaseHelper {
       await _createRegistroInmersionesSchema(db);
       debugPrint('✅ Parche v65 aplicado (registro de inmersiones).');
     }
+    if (oldVersion < 66) {
+      await _registroInmersionActividadOpcional(db);
+      debugPrint('✅ Parche v66 aplicado (registro sin inspección).');
+    }
+  }
+
+  /// v66: el registro de inmersiones puede existir sin inspección de buceo
+  /// (se vincula después). SQLite no permite quitar un NOT NULL: se rehace la
+  /// tabla copiando las filas. No hace nada si ya es opcional.
+  Future<void> _registroInmersionActividadOpcional(DatabaseExecutor db) async {
+    const t = 'registros_inmersion_pendientes';
+    final cols = await db.rawQuery('PRAGMA table_info($t)');
+    final act = cols.where((c) => c['name'] == 'actividad_id');
+    if (act.isEmpty || act.first['notnull'] != 1) return;
+    final nombres = cols.map((c) => c['name'].toString()).join(', ');
+    await db.execute('ALTER TABLE $t RENAME TO ${t}_v65');
+    await db.execute('DROP INDEX IF EXISTS idx_reg_inm_actividad');
+    await _createRegistroInmersionesSchema(db);
+    await db.execute('INSERT INTO $t ($nombres) SELECT $nombres FROM ${t}_v65');
+    await db.execute('DROP TABLE ${t}_v65');
   }
 
   /// v65: módulo Registro de inmersiones (cabecera por inspección de buceo,
@@ -2025,7 +2045,7 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS registros_inmersion_pendientes (
         id TEXT PRIMARY KEY,
-        actividad_id TEXT NOT NULL,
+        actividad_id TEXT,
         empresa_id TEXT,
         usuario_id TEXT,
         centro_id TEXT,
@@ -2351,6 +2371,8 @@ class DatabaseHelper {
       await _safeAddColumn(db, 'actividades_pendientes', 'empresa_id', 'TEXT');
       await _createFormativeActivitySchema(db);
       await _createRegistroInmersionesSchema(db);
+      // onOpen no corre en transacción: la reconstrucción va atómica.
+      await db.transaction(_registroInmersionActividadOpcional);
       await _safeAddColumn(
         db,
         "visitas_tecnicas_pendientes",

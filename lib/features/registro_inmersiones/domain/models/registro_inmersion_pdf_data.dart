@@ -1,11 +1,13 @@
 import 'package:intl/intl.dart';
 
+import '../../../../core/utils/rut_utils.dart';
 import 'registro_inmersion_models.dart';
 
 /// Datos planos y serializables para generar el PDF en un isolate.
 class RegistroInmersionPdfData {
   final String correlativo; // 'RI-0057' o 'Pendiente'
-  final String numeroInspeccion; // N° de la inspección de buceo vinculada
+  /// N° de la inspección de buceo vinculada; null si el registro no tiene.
+  final String? numeroInspeccion;
   final String fecha;
   final String centro;
   final String contratista;
@@ -17,7 +19,7 @@ class RegistroInmersionPdfData {
 
   const RegistroInmersionPdfData({
     required this.correlativo,
-    required this.numeroInspeccion,
+    this.numeroInspeccion,
     required this.fecha,
     required this.centro,
     required this.contratista,
@@ -39,7 +41,9 @@ class RegistroInmersionPdfBuzo {
   final List<RegistroInmersionPdfInmersion> inmersiones;
   final String profundidadMaxima; // resumen: '21 m'
   final String tiempoTotal; // resumen: '45 min'
-  final String equipo; // 'Profundímetro Scubapro 123 · SENSUS_ULTRA U18659'
+  final String profundimetro; // 'Scubapro · S/N 123' o ''
+  final String registrador; // 'Sensus Ultra · S/N U18659' o ''
+  final bool excede; // superó la autorizada (hecho, aunque no se marcó)
   final String nota;
   final List<RegistroInmersionPdfFoto> fotos;
 
@@ -53,7 +57,9 @@ class RegistroInmersionPdfBuzo {
     required this.inmersiones,
     required this.profundidadMaxima,
     required this.tiempoTotal,
-    this.equipo = '',
+    this.profundimetro = '',
+    this.registrador = '',
+    this.excede = false,
     this.nota = '',
     this.fotos = const [],
   });
@@ -120,26 +126,32 @@ RegistroInmersionPdfData buildRegistroInmersionPdfData({
       }
     }
 
-    final equipo = <String>[
-      if ((b.profundimetroMarca ?? '').isNotEmpty ||
-          (b.profundimetroSerie ?? '').isNotEmpty)
-        'Profundímetro ${[b.profundimetroMarca, b.profundimetroSerie].where((s) => (s ?? '').isNotEmpty).join(' ')}',
-      if ((b.dispositivoSerie ?? '').isNotEmpty)
-        '${b.dispositivoTipo == kDispositivoSensusUltra ? 'Sensus Ultra' : 'Registrador'} ${b.dispositivoSerie}',
-    ].join('  ·  ');
+    final marca = (b.profundimetroMarca ?? '').trim();
+    final serieProf = (b.profundimetroSerie ?? '').trim();
+    final profundimetro = [
+      if (marca.isNotEmpty) marca,
+      if (serieProf.isNotEmpty) 'S/N $serieProf',
+    ].join(' · ');
+    final serieReg = (b.dispositivoSerie ?? '').trim();
+    final registrador = serieReg.isEmpty
+        ? ''
+        : '${b.dispositivoTipo == kDispositivoSensusUltra ? 'Sensus Ultra' : 'Registrador'} · S/N $serieReg';
+    final rut = (b.rut ?? '').trim();
 
     buzosPdf.add(
       RegistroInmersionPdfBuzo(
         numero: i + 1,
         nombre: b.nombre,
-        rut: b.rut ?? '',
+        rut: rut.isEmpty ? '' : RutUtils.format(rut),
         cargo: b.cargo,
         realizoInmersion: b.realizoInmersion,
         marcadoRojo: b.marcadoRojo && b.excede(autorizada),
         inmersiones: inmersiones,
         profundidadMaxima: _metros(b.profundidadMaximaM),
         tiempoTotal: _minutos(b.tiempoTotalMin),
-        equipo: equipo,
+        profundimetro: profundimetro,
+        registrador: registrador,
+        excede: b.realizoInmersion && b.excede(autorizada),
         nota: (b.nota ?? '').trim(),
         fotos: fotosBuzo,
       ),
@@ -156,7 +168,9 @@ RegistroInmersionPdfData buildRegistroInmersionPdfData({
     correlativo: (registro.correlativo ?? '').isNotEmpty
         ? registro.correlativo!
         : 'Pendiente',
-    numeroInspeccion: registro.numeroInspeccion ?? 'Pendiente',
+    numeroInspeccion: registro.vinculado
+        ? (registro.numeroInspeccion ?? 'Pendiente')
+        : null,
     fecha: DateFormat('dd/MM/yyyy').format(registro.fechaRealizacion),
     centro: registro.centroNombre ?? '',
     contratista: registro.contratistaNombre ?? '',
