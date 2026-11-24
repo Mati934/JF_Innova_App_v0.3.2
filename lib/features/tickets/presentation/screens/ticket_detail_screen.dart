@@ -90,28 +90,12 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   }
 
   Future<void> _finalizar() async {
-    final confirmar = await showDialog<bool>(
+    final comentario = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Finalizar ticket'),
-        content: const Text(
-          'El ticket pasará a "Pendiente de revisión" para que un administrador '
-          'lo apruebe o rechace. ¿Continuar?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Finalizar'),
-          ),
-        ],
-      ),
+      builder: (_) => const _ComentarioCierreDialog(),
     );
-    if (confirmar != true) return;
-    final error = await _ctrl.finalizar();
+    if (comentario == null || comentario.isEmpty) return;
+    final error = await _ctrl.finalizar(comentario);
     _mostrarMensaje(
       error ?? 'Ticket finalizado, pendiente de revisión.',
       esError: error != null,
@@ -222,6 +206,10 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
       padding: const EdgeInsets.all(16),
       children: [
         _buildHeaderCard(t),
+        if (_ctrl.comentarioCierre != null) ...[
+          const SizedBox(height: 14),
+          _buildComentarioCierre(_ctrl.comentarioCierre!),
+        ],
         // Si el ticket no tiene observaciones asociadas (ej. ticket de tipo
         // SOLICITUD) no tiene sentido mostrar la sección: confunde al usuario
         // ver "Observaciones (0/0 subsanadas)" cuando no hay nada que subsanar.
@@ -636,6 +624,39 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
     );
   }
 
+  Widget _buildComentarioCierre(TicketHistorialEntry h) {
+    final fecha = h.createdAt == null
+        ? ''
+        : ' · ${DateFormat('dd/MM/yyyy HH:mm').format(h.createdAt!.toLocal())}';
+    return Card(
+      color: Colors.teal.shade50,
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Comentario de cierre',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.teal.shade900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(h.comentario!, style: const TextStyle(fontSize: 13.5)),
+            const SizedBox(height: 4),
+            Text(
+              '${_ctrl.nombreDe(h.usuarioId)}$fecha',
+              style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildHistorialRow(TicketHistorialEntry h) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -883,6 +904,68 @@ class _InfoItem extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Diálogo de "Finalizar ticket" con el comentario de cierre obligatorio.
+/// Dueño de su controller para liberarlo recién al desmontarse.
+class _ComentarioCierreDialog extends StatefulWidget {
+  const _ComentarioCierreDialog();
+
+  @override
+  State<_ComentarioCierreDialog> createState() =>
+      _ComentarioCierreDialogState();
+}
+
+class _ComentarioCierreDialogState extends State<_ComentarioCierreDialog> {
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final texto = _ctrl.text.trim();
+    return AlertDialog(
+      title: const Text('Finalizar ticket'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'El ticket pasará a "Pendiente de revisión" para que un '
+            'administrador lo apruebe o rechace.',
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _ctrl,
+            autofocus: true,
+            maxLines: 4,
+            minLines: 2,
+            textCapitalization: TextCapitalization.sentences,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              labelText: 'Comentario de cierre',
+              hintText: 'Qué se hizo para corregirlo',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: texto.isEmpty ? null : () => Navigator.pop(context, texto),
+          child: const Text('Finalizar'),
         ),
       ],
     );

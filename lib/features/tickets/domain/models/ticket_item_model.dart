@@ -18,6 +18,17 @@ enum TicketItemOrigen {
 }
 
 /// Una observación / no-cumple a subsanar dentro de un ticket.
+/// Resumen del ítem principal de un ticket para la tarjeta del listado:
+/// número y categoría de la pregunta, y el texto del no cumple (pregunta y
+/// observación) para verlo sin entrar al ticket.
+typedef TicketItemReferencia = ({
+  int? numeroPregunta,
+  String? categoria,
+  String origenItem,
+  String? pregunta,
+  String? descripcion,
+});
+
 class TicketItemModel {
   final String id;
   final String ticketId;

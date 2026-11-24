@@ -174,12 +174,34 @@ class TicketDetailController extends ChangeNotifier {
     );
   }
 
-  Future<String?> finalizar() async {
+  Future<String?> finalizar(String comentario) async {
     final uid = usuarioActualId;
     if (uid == null) return 'Sesión no válida.';
     return _ejecutar(
-      () => _repo.finalizarTicket(ticketId: ticketId, usuarioId: uid),
+      () => _repo.finalizarTicket(
+        ticketId: ticketId,
+        usuarioId: uid,
+        comentario: comentario,
+      ),
     );
+  }
+
+  /// Último comentario de cierre (acción FINALIZADO) del historial. Solo
+  /// mientras el ticket está en revisión o cerrado: si se rechazó y volvió a
+  /// trabajarse, el comentario anterior queda solo en el historial.
+  TicketHistorialEntry? get comentarioCierre {
+    final estado = ticket?.estado;
+    if (estado != TicketEstado.finalizadoPendienteRevision &&
+        estado != TicketEstado.cerrado) {
+      return null;
+    }
+    for (final h in historial.reversed) {
+      if (h.accion == TicketHistorialAccion.finalizado &&
+          (h.comentario?.trim().isNotEmpty ?? false)) {
+        return h;
+      }
+    }
+    return null;
   }
 
   /// Elimina (borrado lógico) el ticket. No recarga el detalle: quien llame

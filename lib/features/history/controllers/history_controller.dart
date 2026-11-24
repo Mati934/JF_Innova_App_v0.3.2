@@ -20,9 +20,36 @@ class HistoryController extends ChangeNotifier {
   String? filtroEmbarcacionId;
   String? filtroAreaId;
   String? filtroContratistaId;
-  String? filtroTipoInspeccion;
-  String?
-  filtroModulo; // Puede ser 'Inspección', 'Visita Técnica' o null para todos
+  String? filtroTipo; // Ver [tipoLabel]; null = todos
+
+  /// Tipos vistos en las cargas (no se achica al filtrar), para el filtro "Tipo".
+  final Set<String> tiposDisponibles = {};
+
+  /// Ids vistos en el historial por filtro (centro, usuario…): los selectores
+  /// muestran solo opciones que tienen registros, no el catálogo completo.
+  final Map<String, Set<String>> idsVistos = {};
+
+  static const _filtrosPorId = [
+    'centro_id',
+    'usuario_id',
+    'embarcacion_id',
+    'area_id',
+    'contratista_id',
+  ];
+
+  /// Filtra un catálogo a los ids con registros en el historial (más el
+  /// valor ya elegido, para que su chip siga mostrando el nombre).
+  List<Map<String, dynamic>> conRegistros(
+    String key,
+    List<Map<String, dynamic>> catalogo,
+  ) {
+    final vistos = idsVistos[key] ?? const <String>{};
+    final elegido = activeFilters[key];
+    return catalogo.where((item) {
+      final id = item['id']?.toString();
+      return id != null && (vistos.contains(id) || id == elegido);
+    }).toList();
+  }
 
   int _loadSequence = 0; // Evita race conditions en filtros rápidos
 
@@ -90,83 +117,134 @@ class HistoryController extends ChangeNotifier {
     isLoading = true;
     _safeNotify();
 
+    List<Map<String, dynamic>> cloud = [];
     try {
-      final cloudResult = await _cloudRepo.getHistorialGlobal(
+      cloud = await _cloudRepo.getHistorialGlobal(
         esAdmin: esAdmin,
         esSuperAdmin: esSuperAdmin,
         empresaId: UserSession().empresaId,
         filtroCentroId: filtroCentroId,
         filtroUsuarioId: filtroUsuarioId,
-        filtroModulo: filtroModulo,
-        filtroEmbarcacionId: filtroEmbarcacionId,
-        filtroAreaId: filtroAreaId,
-        filtroContratistaId: filtroContratistaId,
-        filtroTipoInspeccion: filtroTipoInspeccion,
       );
+    } catch (e) {
+      debugPrint("⚠️ Fallo al cargar historial desde Supabase: $e");
+    }
 
-      // Siempre fusionamos con historial local para no perder visibilidad de
-      // registros finalizados que aún no llegaron a la nube.
-      final localRepo = LocalHistoryRepository();
-      final localRecords = await localRepo.getAllInspections();
-      final localMapped = localRecords.map((r) {
-        return <String, dynamic>{
-          'id': r['id'],
-          'modulo': 'Inspección',
-          'tipo_registro': r['tipo_actividad'],
-          'estado': r['estado_final'],
-          'ubicacion': r['centro_nombre'] ?? 'Sin ubicación',
-          'fecha_realizacion': r['fecha_realizacion'],
-          'numero_reporte': r['numero_reporte'],
-          'pdf_url': r['pdf_url'],
-          'pdf_path_local': r['pdf_path_local'],
-          'inspector_nombre': r['inspector_nombre'] ?? 'Usuario',
-          'numero_seguimiento': r['numero_seguimiento'] ?? 0,
-          'centro_id': null,
-          'embarcacion_id': null,
-          'subido': r['subido'] ?? 0,
-        };
-      }).toList();
+    // Siempre fusionamos con historial local para no perder visibilidad de
+    // registros finalizados que aún no llegaron a la nube.
+    List<Map<String, dynamic>> local = [];
+    try {
+      final localRecords = await LocalHistoryRepository().getAllInspections();
+      local = localRecords.map(_mapLocal).toList();
+    } catch (e) {
+      debugPrint("⚠️ Historial local falló: $e");
+    }
 
-      final result = mergeCloudAndLocalRecords(cloudResult, localMapped);
-      if (seq != _loadSequence) return; // Descarta resultado stale
-      records = result;
+    if (seq != _loadSequence) return; // Descarta resultado stale
+
+    try {
+      final merged = mergeCloudAndLocalRecords(cloud, local)
+          .map(
+            (row) => enrichRow(
+              row,
+              areaPorCentro: _areaPorCentro,
+              contratistaPorEmbarcacion: _contratistaPorEmbarcacion,
+            ),
+          )
+          .toList();
+      for (final row in merged) {
+        tiposDisponibles.add(tipoLabel(row));
+        for (final key in _filtrosPorId) {
+          final id = row[key]?.toString();
+          if (id != null && id.isNotEmpty) {
+            idsVistos.putIfAbsent(key, () => <String>{}).add(id);
+          }
+        }
+      }
+      final filters = activeFilters;
+      records = merged
+          .where((row) => matchesHistoryFilters(row, filters))
+          .toList();
       debugPrint("☁️ Historial unificado cargado: ${records.length} registros");
     } catch (e) {
-      if (seq != _loadSequence) return;
-      debugPrint("⚠️ Fallo al cargar historial desde Supabase: $e");
-      // Fallback: intentar cargar desde SQLite local
-      try {
-        final localRepo = LocalHistoryRepository();
-        final localRecords = await localRepo.getAllInspections();
-        records = localRecords.map((r) {
-          return <String, dynamic>{
-            'id': r['id'],
-            'modulo': 'Inspección',
-            'tipo_registro': r['tipo_actividad'],
-            'estado': r['estado_final'],
-            'ubicacion': r['centro_nombre'] ?? 'Sin ubicación',
-            'fecha_realizacion': r['fecha_realizacion'],
-            'numero_reporte': r['numero_reporte'],
-            'pdf_url': r['pdf_url'],
-            'pdf_path_local': r['pdf_path_local'],
-            'inspector_nombre': r['inspector_nombre'] ?? 'Usuario',
-            'numero_seguimiento': r['numero_seguimiento'] ?? 0,
-            'centro_id': null,
-            'embarcacion_id': null,
-            'subido': r['subido'] ?? 0,
-          };
-        }).toList();
-        debugPrint("📱 Historial local cargado: ${records.length} registros");
-      } catch (localError) {
-        debugPrint("⚠️ Historial local también falló: $localError");
-        records = [];
-      }
+      debugPrint("⚠️ Error armando historial: $e");
+      records = [];
     } finally {
-      if (seq == _loadSequence) {
-        isLoading = false;
-        _safeNotify();
-      }
+      isLoading = false;
+      _safeNotify();
     }
+  }
+
+  Map<String, dynamic> _mapLocal(Map<String, dynamic> r) => {
+    'id': r['id'],
+    'modulo': 'Inspección',
+    'tipo_registro': r['tipo_actividad'],
+    'estado': r['estado_final'],
+    'ubicacion': r['centro_nombre'] ?? 'Sin ubicación',
+    'fecha_realizacion': r['fecha_realizacion'],
+    'numero_reporte': r['numero_reporte'],
+    'pdf_url': r['pdf_url'],
+    'pdf_path_local': r['pdf_path_local'],
+    'inspector_nombre': r['inspector_nombre'] ?? 'Usuario',
+    'numero_seguimiento': r['numero_seguimiento'] ?? 0,
+    'usuario_id': r['usuario_id'],
+    'centro_id': r['centro_id'],
+    'embarcacion_id': r['embarcacion_id'],
+    'area_id': r['area_id'],
+    'contratista_id': r['contratista_id'],
+    'subido': r['subido'] ?? 0,
+  };
+
+  Map<String, String> get _areaPorCentro => {
+    for (final c in listaCentros)
+      if (c['area_id'] != null) c['id'].toString(): c['area_id'].toString(),
+  };
+
+  Map<String, String> get _contratistaPorEmbarcacion => {
+    for (final e in listaEmbarcaciones)
+      if (e['contratista_id'] != null)
+        e['id'].toString(): e['contratista_id'].toString(),
+  };
+
+  /// Completa área (desde el centro) y contratista (desde la embarcación)
+  /// cuando el registro no los trae: la RPC del historial no los devuelve.
+  @visibleForTesting
+  static Map<String, dynamic> enrichRow(
+    Map<String, dynamic> row, {
+    required Map<String, String> areaPorCentro,
+    required Map<String, String> contratistaPorEmbarcacion,
+  }) {
+    final out = Map<String, dynamic>.from(row);
+    final centro = row['centro_id']?.toString();
+    if (out['area_id'] == null && centro != null) {
+      out['area_id'] = areaPorCentro[centro];
+    }
+    final embarcacion = row['embarcacion_id']?.toString();
+    if (out['contratista_id'] == null && embarcacion != null) {
+      out['contratista_id'] = contratistaPorEmbarcacion[embarcacion];
+    }
+    return out;
+  }
+
+  /// Nombre del tipo de registro para el filtro "Tipo". Las inspecciones se
+  /// separan por tipo (buceo, embarcación, registro de actividad); el resto
+  /// usa el módulo que entrega el historial (AST, Hidroser, checklists…).
+  static String tipoLabel(Map<String, dynamic> row) {
+    final modulo = row['modulo']?.toString() ?? '';
+    final tipo = row['tipo_registro']?.toString() ?? '';
+    switch (tipo) {
+      case 'INSPECCION_BUCEO':
+        return 'Inspección de buceo';
+      case 'INSPECCION_EMBARCACION':
+        return 'Inspección de embarcación';
+      case 'ACTIVIDAD_FORMATIVA':
+        return 'Registro de actividad';
+      case 'REGISTRO_INMERSIONES':
+        return 'Registro de inmersiones';
+      case 'BITACORA':
+        return 'Bitácora';
+    }
+    return modulo.isEmpty ? 'Otro' : modulo;
   }
 
   @visibleForTesting
@@ -201,102 +279,43 @@ class HistoryController extends ChangeNotifier {
     return list;
   }
 
-  // --- Mutadores de Filtros ---
-
-  void setFiltroCentro(String? id) {
-    if (filtroCentroId == id) return;
-    filtroCentroId = id;
-    cargarHistorial();
-  }
-
-  void setFiltroUsuario(String? id) {
-    if (filtroUsuarioId == id) return;
-    filtroUsuarioId = id;
-    cargarHistorial();
-  }
-
-  void setFiltroEmbarcacion(String? id) {
-    if (filtroEmbarcacionId == id) return;
-    filtroEmbarcacionId = id;
-    cargarHistorial();
-  }
-
-  void setFiltroArea(String? id) {
-    if (filtroAreaId == id) return;
-    filtroAreaId = id;
-    cargarHistorial();
-  }
-
-  void setFiltroContratista(String? id) {
-    if (filtroContratistaId == id) return;
-    filtroContratistaId = id;
-    cargarHistorial();
-  }
-
-  void setFiltroTipoInspeccion(String? tipo) {
-    if (filtroTipoInspeccion == tipo) return;
-    filtroTipoInspeccion = tipo;
-    cargarHistorial();
-  }
-
-  void setFiltroModulo(String? modulo) {
-    if (filtroModulo == modulo) return;
-    filtroModulo = modulo;
-    cargarHistorial();
-  }
-
+  /// true si [row] cumple todos los [filters] activos (claves de
+  /// [activeFilters]). Se aplica igual a registros de la nube y locales.
   static bool matchesHistoryFilters(
     Map<String, dynamic> row,
     Map<String, String> filters,
   ) {
-    final tipoInspeccion = filters['tipo_inspeccion'];
-    if (tipoInspeccion != null &&
-        tipoInspeccion.isNotEmpty &&
-        row['tipo_registro']?.toString() != tipoInspeccion) {
-      return false;
+    for (final entry in filters.entries) {
+      final value = entry.value;
+      if (value.isEmpty) continue;
+      final actual = entry.key == 'tipo'
+          ? tipoLabel(row)
+          : row[entry.key]?.toString();
+      if (actual != value) return false;
     }
-
-    final areaId = filters['area_id'];
-    if (areaId != null && areaId.isNotEmpty) {
-      final rowArea = row['area_id']?.toString();
-      if (rowArea == null || rowArea != areaId) return false;
-    }
-
-    final contratistaId = filters['contratista_id'];
-    if (contratistaId != null && contratistaId.isNotEmpty) {
-      final rowContratista = row['contratista_id']?.toString();
-      if (rowContratista == null || rowContratista != contratistaId) {
-        return false;
-      }
-    }
-
     return true;
   }
 
   /// Aplica filtros desde un Map (e.g. desde CustomFilterSheet).
   void applyFilters(Map<String, String> filters) {
-    filtroModulo = filters['modulo'];
+    filtroTipo = filters['tipo'];
     filtroCentroId = filters['centro_id'];
     filtroUsuarioId = filters['usuario_id'];
     filtroEmbarcacionId = filters['embarcacion_id'];
     filtroAreaId = filters['area_id'];
     filtroContratistaId = filters['contratista_id'];
-    filtroTipoInspeccion = filters['tipo_inspeccion'];
     cargarHistorial();
   }
 
   /// Mapa de filtros activos para pasar a CustomFilterSheet.
   Map<String, String> get activeFilters {
     final m = <String, String>{};
-    if (filtroModulo != null) m['modulo'] = filtroModulo!;
+    if (filtroTipo != null) m['tipo'] = filtroTipo!;
     if (filtroCentroId != null) m['centro_id'] = filtroCentroId!;
     if (filtroUsuarioId != null) m['usuario_id'] = filtroUsuarioId!;
     if (filtroEmbarcacionId != null) m['embarcacion_id'] = filtroEmbarcacionId!;
     if (filtroAreaId != null) m['area_id'] = filtroAreaId!;
     if (filtroContratistaId != null) m['contratista_id'] = filtroContratistaId!;
-    if (filtroTipoInspeccion != null) {
-      m['tipo_inspeccion'] = filtroTipoInspeccion!;
-    }
     return m;
   }
 

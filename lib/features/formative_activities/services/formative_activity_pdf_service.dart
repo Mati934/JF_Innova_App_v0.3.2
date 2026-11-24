@@ -7,7 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../../../core/services/empresa_logo_service.dart';
 
 class FormativeActivityPdfService {
-  static const pdfVersion = '0.1.4';
+  static const pdfVersion = '0.1.5';
   static const footerText =
       'Generado por Servimaf  |  +56 9 8383 3177  |  v$pdfVersion';
   static const _navy = PdfColor.fromInt(0xFF1B3B6F);
@@ -173,7 +173,7 @@ class FormativeActivityPdfService {
                   child: _summaryCard(
                     'FECHA',
                     _date(data['fecha_realizacion']),
-                    'Día de la actividad',
+                    '',
                   ),
                 ),
                 pw.SizedBox(width: 10),
@@ -187,7 +187,7 @@ class FormativeActivityPdfService {
                 pw.SizedBox(width: 10),
                 pw.Expanded(
                   child: _hoursAndAttendeesCard(
-                    hh: '${_decimal(data['hh_con_relator'])} HH',
+                    hh: '${_decimal(data['hh_sin_relator'])} HH',
                     attendees: _value(data, 'asistentes'),
                   ),
                 ),
@@ -307,7 +307,11 @@ class FormativeActivityPdfService {
     child: pw.Row(
       children: [
         pw.Expanded(
-          child: _summaryMetric(label: 'HORAS-HOMBRE', value: hh, caption: ''),
+          child: _summaryMetric(
+            label: 'HORAS-HOMBRE',
+            value: hh,
+            caption: 'Solo oyentes',
+          ),
         ),
         pw.Container(
           width: 0.6,
@@ -319,7 +323,6 @@ class FormativeActivityPdfService {
           child: _summaryMetric(
             label: 'ASISTENTES /\nOYENTES',
             value: attendees,
-            caption: 'Sin relator',
           ),
         ),
       ],
@@ -329,7 +332,8 @@ class FormativeActivityPdfService {
   pw.Widget _summaryMetric({
     required String label,
     required String value,
-    required String caption,
+    String caption =
+        '', // vacío: deja el espacio para que ambas métricas queden alineadas
   }) => pw.Column(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -401,6 +405,13 @@ class FormativeActivityPdfService {
                 _detailCell('RELATOR', _value(data, 'relator_nombre')),
               ],
             ),
+            if (_nonEmpty(data['contratista_nombre']))
+              pw.TableRow(
+                children: [
+                  _detailCell('SERVICIO', _value(data, 'contratista_nombre')),
+                  pw.SizedBox(),
+                ],
+              ),
           ],
         ),
       ],

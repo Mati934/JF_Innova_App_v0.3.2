@@ -481,6 +481,9 @@ class _BuscadorSheetState extends State<_BuscadorSheet> {
     super.dispose();
   }
 
+  static String _sinFormato(String value) =>
+      value.replaceAll(RegExp(r'[.\-\s]'), '');
+
   void _filtrar(String query) {
     final q = query.trim().toLowerCase();
     setState(() {
@@ -491,7 +494,12 @@ class _BuscadorSheetState extends State<_BuscadorSheet> {
           final nombre = widget.config.getNombre(item).toLowerCase();
           final sub =
               widget.config.getSubtitulo?.call(item).toLowerCase() ?? '';
-          return nombre.contains(q) || sub.contains(q);
+          if (nombre.contains(q) || sub.contains(q)) return true;
+          // RUT escrito con o sin puntos y guion (se guarda normalizado).
+          final qPlano = _sinFormato(q);
+          return qPlano.length >= 3 &&
+              (_sinFormato(nombre).contains(qPlano) ||
+                  _sinFormato(sub).contains(qPlano));
         }).toList();
       }
     });

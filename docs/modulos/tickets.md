@@ -2,7 +2,7 @@
 
 > **Para qué es:** Ficha del módulo Tickets: qué hace hoy, reglas de negocio, tablas, pantallas y pendientes.
 
-> Clave: `TICKETS` · Estado: en producción · Solo online · Última revisión: 2026-10-22
+> Clave: `TICKETS` · Estado: en producción · Solo online · Última revisión: 2026-11-23
 > Empresas con el módulo (2026-10-22): AquaChile, JF Innova, Servimaf.
 > Detalle: [ACTUALIZACION_TICKETS_2026-09-03.md](../planificacion/01_realizados/ACTUALIZACION_TICKETS_2026-09-03.md).
 
@@ -44,7 +44,16 @@ stateDiagram-v2
 - Si la inspección tiene 100% de cumplimiento, se pide confirmación antes de
   generar un ticket manual.
 - Cada ítem requiere **foto de subsanación**.
-- Solo quien tomó el ticket puede finalizarlo. Un ticket sin ítems (solicitud)
+- Solo quien tomó el ticket puede finalizarlo, con el botón **Finalizar** y un
+  **comentario de cierre obligatorio** (qué se hizo). Desde 2026-11-23 ya no se
+  finaliza solo al subsanar el último ítem. El comentario queda en
+  `ticket_historial_tomas.comentario` (acción `FINALIZADO`) y se muestra
+  arriba en el detalle para quien revisa.
+- La tarjeta del listado muestra el texto del no cumple del ítem principal
+  (pregunta y observación) y cuántas observaciones u ocurrencias más tiene.
+- Filtros: estado, tipo, tipo de inspección, área, centro, embarcación,
+  contratista (en Supabase) y, calculados en la app, **Plazo** (vencido, vence
+  en 3 días o menos, al día) y **Responsable** (tomados por mí). Un ticket sin ítems (solicitud)
   se puede finalizar directamente.
 - Eliminar (borrado lógico): el autor o un admin.
 - Sin conexión, el módulo muestra un bloqueo (no funciona offline).
@@ -67,6 +76,8 @@ finalizar, aprobar/rechazar). `TicketGenerarScreen` (desde una inspección) y
 - `lib/features/sync/services/sync_service.dart` (`_generarTicketsAutomaticosFinalizados`)
 
 ## Pendientes
+
+- ¿El comentario de cierre debe ser obligatorio? Se hizo obligatorio; pendiente de confirmar con quien lo pidió.
 
 - [ERRORES_PENDIENTES_TICKETS.md](../planificacion/02_en_progreso/ERRORES_PENDIENTES_TICKETS.md).
 - Tickets históricos con estructura antigua no se regeneran.

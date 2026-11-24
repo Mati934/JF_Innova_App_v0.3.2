@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/services/connectivity_service.dart';
 import '../../data/repositories/ticket_repository.dart';
+import '../../domain/models/ticket_item_model.dart';
+import '../../domain/ticket_reglas.dart';
 import '../../domain/models/ticket_model.dart';
 
 class AreaTicketSummary {
@@ -58,8 +60,7 @@ class TicketListController extends ChangeNotifier {
   Map<String, String> nombresCentros = {};
   Map<String, String> nombresEmbarcaciones = {};
   Map<String, ({int total, int subsanados})> conteoItems = {};
-  Map<String, ({int? numeroPregunta, String? categoria, String origenItem})>
-  referenciaItems = {};
+  Map<String, TicketItemReferencia> referenciaItems = {};
 
   // Catálogos completos para los selectores de filtro (no solo los ids
   // usados por los tickets cargados, sino todo el listado disponible).
@@ -68,7 +69,8 @@ class TicketListController extends ChangeNotifier {
   List<Map<String, dynamic>> catalogoEmbarcaciones = [];
   List<Map<String, dynamic>> catalogoContratistas = [];
 
-  // Filtros activos (claves: estado, tipo_ticket, tipo_inspeccion, centro_id, embarcacion_id, area_id, contratista_id)
+  // Filtros activos (claves: estado, tipo_ticket, tipo_inspeccion, centro_id,
+  // embarcacion_id, area_id, contratista_id; y en la app: plazo, responsable)
   Map<String, String> activeFilters = {};
 
   RealtimeChannel? _channel;
@@ -145,8 +147,16 @@ class TicketListController extends ChangeNotifier {
         areaId: activeFilters['area_id'],
         contratistaId: activeFilters['contratista_id'],
       );
-      // Los tickets tomados por el usuario actual van primero (decisión 13).
+      // Filtros que se calculan en la app (no son columnas de la tabla).
       final miId = usuarioActualId;
+      final plazo = activeFilters['plazo'];
+      if (plazo != null) {
+        resultado.retainWhere((t) => TicketReglas.plazo(t) == plazo);
+      }
+      if (activeFilters['responsable'] == 'MIOS') {
+        resultado.retainWhere((t) => miId != null && t.tomadoPorId == miId);
+      }
+      // Los tickets tomados por el usuario actual van primero (decisión 13).
       resultado.sort((a, b) {
         final aMio = miId != null && a.tomadoPorId == miId ? 0 : 1;
         final bMio = miId != null && b.tomadoPorId == miId ? 0 : 1;
@@ -182,12 +192,7 @@ class TicketListController extends ChangeNotifier {
       nombresCentros = resultados[1] as Map<String, String>;
       nombresEmbarcaciones = resultados[2] as Map<String, String>;
       conteoItems = resultados[3] as Map<String, ({int total, int subsanados})>;
-      referenciaItems =
-          resultados[4]
-              as Map<
-                String,
-                ({int? numeroPregunta, String? categoria, String origenItem})
-              >;
+      referenciaItems = resultados[4] as Map<String, TicketItemReferencia>;
     } catch (e) {
       errorMessage = 'No se pudieron cargar los tickets: $e';
       debugPrint('⚠️ [TicketListController] $errorMessage');
@@ -229,8 +234,8 @@ class TicketListController extends ChangeNotifier {
   ({int total, int subsanados})? progresoDe(String ticketId) =>
       conteoItems[ticketId];
 
-  ({int? numeroPregunta, String? categoria, String origenItem})?
-  referenciaItemDe(String ticketId) => referenciaItems[ticketId];
+  TicketItemReferencia? referenciaItemDe(String ticketId) =>
+      referenciaItems[ticketId];
 
   String nombreArea(String? areaId) {
     if (areaId == null || areaId.isEmpty) return 'Solicitudes';

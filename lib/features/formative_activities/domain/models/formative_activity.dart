@@ -4,6 +4,7 @@ class FormativeActivity {
   final String empresaId;
   final String? centroId;
   final String? centroNombre;
+  final String? contratistaId;
   final String? areaId;
   final String? areaNombre;
   final String? areaOtro;
@@ -30,6 +31,7 @@ class FormativeActivity {
     required this.relatorNombre,
     this.centroId,
     this.centroNombre,
+    this.contratistaId,
     this.areaId,
     this.areaNombre,
     this.areaOtro,

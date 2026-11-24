@@ -10,14 +10,9 @@ class TicketReglas {
   /// true si [usuarioId] puede finalizar (enviar a revisión del admin) el
   /// ticket que tiene tomado.
   ///
-  /// Cubre dos casos:
-  /// - Ticket con ítems: todos deben estar subsanados.
-  /// - Ticket sin ítems (típico de un ticket de tipo SOLICITUD, que no tiene
-  ///   observaciones que subsanar): se puede finalizar directamente, ya que
-  ///   de lo contrario nunca podría salir del estado TOMADO (bug corregido:
-  ///   antes solo se finalizaba automáticamente al marcar el último ítem
-  ///   subsanado, lo que dejaba a los tickets sin ítems sin forma de
-  ///   cerrarse).
+  /// Ticket con ítems: todos deben estar subsanados. Ticket sin ítems (ej.
+  /// SOLICITUD): se puede finalizar directamente. Desde 2026-11-23 nunca se
+  /// finaliza solo: se pulsa "Finalizar" con un comentario de cierre.
   static bool puedeFinalizar({
     required TicketModel? ticket,
     required List<TicketItemModel> items,
@@ -90,5 +85,20 @@ class TicketReglas {
       return false;
     }
     return true;
+  }
+
+  /// Plazo de un ticket para el filtro "Plazo" (mismo criterio que la barra
+  /// de urgencia de la tarjeta): `VENCIDO`, `PRONTO` (vence en 3 días o
+  /// menos) o `AL_DIA` (sin fecha límite o con más de 3 días). Un ticket
+  /// cerrado nunca está vencido ni por vencer.
+  static String plazo(TicketModel ticket, {DateTime? ahora}) {
+    final now = ahora ?? DateTime.now();
+    final limite = ticket.fechaLimite;
+    if (ticket.estado == TicketEstado.cerrado || limite == null) {
+      return 'AL_DIA';
+    }
+    if (limite.isBefore(now)) return 'VENCIDO';
+    if (limite.difference(now).inDays <= 3) return 'PRONTO';
+    return 'AL_DIA';
   }
 }

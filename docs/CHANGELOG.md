@@ -5,6 +5,28 @@
 > Desde esa fecha se mantiene con la skill `documentar-app`.
 > Formato: `## AAAA-MM-DD` + líneas `- [Módulo] qué cambió para el usuario`.
 
+## 2026-11-24
+
+- [Inspección] Al elegir la embarcación vuelven a salir solo las del servicio contratista elegido (como antes
+  del 2026-11-17). En AST se mantiene la lista con todas.
+- [Registro de actividad] El centro tiene "Otro (especificar)" para escribir un centro que no está en la
+  lista, igual que el área. El PDF ya no dice "Sin relator" bajo Asistentes / Oyentes (las HH siguen
+  siendo solo de los oyentes).
+
+## 2026-11-23
+
+- [Registro de actividad] Las HH del formulario y del PDF cuentan solo a los oyentes (sin el relator).
+  El PDF ya no dice "Día de la actividad". Se puede elegir una empresa contratista (opcional), que sale en
+  el PDF como "Servicio". PDF v0.1.5.
+- [Tickets] Al finalizar un ticket hay que escribir un comentario de cierre, que ve quien lo revisa.
+  El ticket ya no se finaliza solo al subsanar la última observación: se pulsa "Finalizar".
+- [Tickets] La tarjeta del listado muestra el texto del no cumple, sin tener que entrar al ticket.
+  Filtros nuevos: Plazo (vencido, vence pronto, al día) y Responsable (tomados por mí).
+- [Historial] El filtro Tipo incluye todos los tipos de informe (antes solo Inspección y Visita Técnica).
+  Los filtros de Área y Contratista funcionan (antes nunca encontraban nada). Los informes guardados en el
+  teléfono respetan los filtros y ya no aparecen los eliminados. Cada filtro ofrece solo valores con informes.
+- [Administración] El buscador encuentra un RUT escrito con o sin puntos y guion.
+
 ## 2026-11-18
 
 - [Registro de inmersiones] Módulo nuevo para AquaChile: una fila por buzo con cargo, si buceó, profundidad

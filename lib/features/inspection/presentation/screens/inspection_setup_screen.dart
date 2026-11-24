@@ -292,23 +292,23 @@ class _InspectionSetupView extends StatelessWidget {
                             ),
                             CustomDropdown(
                               label: 'Embarcación',
-                              // Todas las embarcaciones; las de otro servicio dicen "nombre · servicio".
+                              // Solo las embarcaciones del servicio elegido.
                               items: controller.embarcaciones
-                                  .map((x) => x['etiqueta'].toString())
+                                  .map((x) => x['nombre'].toString())
                                   .toList(),
                               value: controller.embarcacionId != null
                                   ? controller.embarcaciones.firstWhere(
                                       (e) =>
                                           e['id'] == controller.embarcacionId,
-                                      orElse: () => {'etiqueta': null},
-                                    )['etiqueta']
+                                      orElse: () => {'nombre': null},
+                                    )['nombre']
                                   : null,
                               onChanged: (val) {
                                 if (val != null) {
-                                  // Si la lista se recargó mientras estaba abierta, la etiqueta puede no existir.
+                                  // Si la lista se recargó mientras estaba abierta, el nombre puede no existir.
                                   final selected = controller.embarcaciones
                                       .firstWhere(
-                                        (e) => e['etiqueta'] == val,
+                                        (e) => e['nombre'] == val,
                                         orElse: () => {'id': null},
                                       );
                                   if (selected['id'] == null) return;

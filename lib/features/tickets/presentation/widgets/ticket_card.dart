@@ -57,8 +57,7 @@ class TicketCard extends StatelessWidget {
   final String? centroNombre;
   final String? embarcacionNombre;
   final ({int total, int subsanados})? progreso;
-  final ({int? numeroPregunta, String? categoria, String origenItem})?
-  referenciaItem;
+  final TicketItemReferencia? referenciaItem;
   final bool esMio;
   final VoidCallback onTap;
   final VoidCallback? onTomar;
@@ -99,6 +98,18 @@ class TicketCard extends StatelessWidget {
     if (numero != null) return 'Ítem $numero';
     if (categoria.isNotEmpty) return categoria;
     return 'Ítem de observación';
+  }
+
+  /// Texto del no cumple (observación) del ítem principal, para verlo sin
+  /// entrar al ticket.
+  String? get _textoNoCumple {
+    final texto = referenciaItem?.descripcion?.trim() ?? '';
+    return texto.isEmpty ? null : texto;
+  }
+
+  String? get _preguntaNoCumple {
+    final texto = referenciaItem?.pregunta?.trim() ?? '';
+    return texto.isEmpty || texto == _textoNoCumple ? null : texto;
   }
 
   _Urgencia get _urgencia {
@@ -317,6 +328,15 @@ class TicketCard extends StatelessWidget {
                           ],
                         ),
                       ],
+                      if (_textoNoCumple != null) ...[
+                        const SizedBox(height: 8),
+                        _NoCumplePreview(
+                          pregunta: _preguntaNoCumple,
+                          observacion: _textoNoCumple!,
+                          otros: (progreso?.total ?? 1) - 1,
+                          esHallazgo: ticket.hallazgoId != null,
+                        ),
+                      ],
                       if (progreso != null && progreso!.total > 0) ...[
                         const SizedBox(height: 8),
                         Row(
@@ -439,6 +459,65 @@ class TicketCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _NoCumplePreview extends StatelessWidget {
+  final String? pregunta;
+  final String observacion;
+  final int otros;
+  final bool esHallazgo;
+  const _NoCumplePreview({
+    required this.pregunta,
+    required this.observacion,
+    required this.otros,
+    required this.esHallazgo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4F2),
+        borderRadius: BorderRadius.circular(8),
+        border: Border(left: BorderSide(color: Colors.red.shade400, width: 3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (pregunta != null) ...[
+            Text(
+              pregunta!,
+              style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 3),
+          ],
+          Text(
+            observacion,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF3E2723),
+            ),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (otros > 0) ...[
+            const SizedBox(height: 3),
+            Text(
+              esHallazgo
+                  ? '+$otros ocurrencia${otros == 1 ? '' : 's'} más del mismo hallazgo'
+                  : '+$otros observación${otros == 1 ? '' : 'es'} más',
+              style: TextStyle(fontSize: 11, color: Colors.red.shade700),
+            ),
+          ],
+        ],
       ),
     );
   }

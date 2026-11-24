@@ -14,6 +14,7 @@ void main() {
     'fecha_realizacion': '2026-10-21',
     'hora_inicio': '09:00',
     'hora_termino': '09:30',
+    'hh_sin_relator': 2.0,
     'hh_con_relator': 2.5,
     'actividad_formativa_tipo': 'CHARLA',
     'relator_nombre': 'Relator de prueba',
@@ -21,6 +22,19 @@ void main() {
     'descripcion': 'Descripción de la actividad.',
   };
   final photo = File('assets/images/aquachile.png').absolute.path;
+
+  test('PDF shows HH without relator, no date caption and Servicio', () async {
+    final bytes = await service.generate(
+      data: {...data, 'contratista_nombre': 'Contratista Uno'},
+      signatureBytes: null,
+    );
+    final text = pdfText(bytes);
+    expect(text, contains('2,00 HH'));
+    expect(text, isNot(contains('2,50 HH')));
+    expect(text, isNot(contains('Día de la actividad')));
+    expect(text, contains('SERVICIO'));
+    expect(text, contains('Contratista Uno'));
+  });
 
   for (final company in ['Empresa de prueba', 'Otra empresa']) {
     test('PDF header uses the record company: $company', () async {
@@ -41,7 +55,7 @@ void main() {
   test('PDF footer contact and independent version are exact', () {
     expect(
       FormativeActivityPdfService.footerText,
-      'Generado por Servimaf  |  +56 9 8383 3177  |  v0.1.4',
+      'Generado por Servimaf  |  +56 9 8383 3177  |  v0.1.5',
     );
   });
 
@@ -68,7 +82,7 @@ void main() {
         expect(text, contains('OYENTES'));
         expect(text, contains('4'));
         expect(text, isNot(contains('HALLAZGOS')));
-        expect(FormativeActivityPdfService.pdfVersion, '0.1.4');
+        expect(FormativeActivityPdfService.pdfVersion, '0.1.5');
       },
     );
   }

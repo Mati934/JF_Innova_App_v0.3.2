@@ -158,8 +158,8 @@ class InspectionSetupController extends ChangeNotifier {
     contratistaId = null;
     embarcacionId = null;
     _embarcaciones = [];
+    _cargaEmbarcaciones++; // descarta una carga de embarcaciones en curso
     notifyListeners();
-    if (v != null) _cargarEmbarcaciones(null);
 
     // Estimar número de informe cuando se selecciona tipo
     if (v != null) {
@@ -183,16 +183,19 @@ class InspectionSetupController extends ChangeNotifier {
 
   void setContratista(String? v) {
     contratistaId = v;
+    embarcacionId = null;
+    _embarcaciones = [];
     _cargarEmbarcaciones(v);
     notifyListeners();
   }
 
-  /// Todas las embarcaciones, primero las del servicio elegido (las embarcaciones rotan de servicio: si solo se
-  /// mostraban las del servicio, la que faltaba se creaba de nuevo y quedaba duplicada). La embarcación ya elegida
-  /// se mantiene al cambiar el servicio.
+  /// Solo las embarcaciones del servicio contratista elegido (decisión del usuario 2026-11-24: se vuelve a la
+  /// lista vinculada al servicio; la lista con todas, `getEmbarcacionesParaSelector`, queda solo en AST).
   Future<void> _cargarEmbarcaciones(String? contratistaId) async {
     final carga = ++_cargaEmbarcaciones;
-    final lista = await _dbHelper.getEmbarcacionesParaSelector(contratistaId);
+    final lista = contratistaId == null
+        ? <Map<String, dynamic>>[]
+        : await _dbHelper.getEmbarcaciones(contratistaId);
     if (carga != _cargaEmbarcaciones) return; // llegó otra carga más nueva
     _embarcaciones = lista;
     notifyListeners();
@@ -200,14 +203,8 @@ class InspectionSetupController extends ChangeNotifier {
 
   int _cargaEmbarcaciones = 0;
 
-  /// Si aún no hay servicio elegido, se propone el servicio actual de la embarcación (se puede cambiar).
   void setEmbarcacion(String? v) {
     embarcacionId = v?.toString();
-    if (contratistaId == null && v != null) {
-      final emb = _embarcaciones.where((e) => e['id']?.toString() == v);
-      final servicio = emb.isEmpty ? null : emb.first['contratista_id'];
-      if (servicio != null) setContratista(servicio.toString());
-    }
     notifyListeners();
   }
 

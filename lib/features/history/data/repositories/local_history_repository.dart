@@ -20,6 +20,11 @@ class LocalHistoryRepository {
           a.subido,
           a.tipo_actividad,
           a.numero_seguimiento,
+          a.usuario_id,
+          a.centro_id,
+          a.embarcacion_id,
+          a.contratista_id,
+          c.area_id,
           c.nombre as centro_nombre,
           ct.nombre as contratista_nombre,
           emb.nombre as embarcacion_nombre,
@@ -30,6 +35,7 @@ class LocalHistoryRepository {
         LEFT JOIN embarcaciones emb ON a.embarcacion_id = emb.id
         LEFT JOIN usuarios u ON a.usuario_id = u.id
         WHERE a.estado_final = 'En Seguimiento'
+          AND COALESCE(a.eliminado, 0) = 0
         ORDER BY a.fecha_realizacion DESC
       ''');
 

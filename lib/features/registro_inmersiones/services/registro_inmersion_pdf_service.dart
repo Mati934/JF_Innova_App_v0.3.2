@@ -219,12 +219,11 @@ class RegistroInmersionPdfService {
 
   /// Texto largo: va directo en la página para que pueda partirse entre
   /// páginas (un Container lo haría inseparable y el PDF fallaría).
-  static pw.Widget _caja(String texto) =>
-      pw.Text(
-        texto,
-        style: const pw.TextStyle(fontSize: 9),
-        overflow: pw.TextOverflow.span,
-      );
+  static pw.Widget _caja(String texto) => pw.Text(
+    texto,
+    style: const pw.TextStyle(fontSize: 9),
+    overflow: pw.TextOverflow.span,
+  );
 
   // --- Escala tipográfica: 7.5 (rótulos) · 9 (cuerpo) · 12 (cifras) · 16 ----
 

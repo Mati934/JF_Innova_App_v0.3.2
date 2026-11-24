@@ -293,6 +293,22 @@ class _TicketListScreenState extends State<TicketListScreen> {
         resolveId: _tipoInspeccionLabelToValue,
         resolveDisplayName: _tipoInspeccionValueToLabel,
       ),
+      const FilterDef(
+        key: 'plazo',
+        label: 'Plazo',
+        icon: Icons.schedule_rounded,
+        items: ['Vencido', 'Vence pronto (3 días)', 'Al día'],
+        resolveId: _plazoLabelToValue,
+        resolveDisplayName: _plazoValueToLabel,
+      ),
+      const FilterDef(
+        key: 'responsable',
+        label: 'Responsable',
+        icon: Icons.person_outline,
+        items: ['Tomados por mí'],
+        resolveId: _responsableLabelToValue,
+        resolveDisplayName: _responsableValueToLabel,
+      ),
     ];
 
     defs.add(
@@ -411,6 +427,26 @@ String _tipoInspeccionValueToLabel(String value) => switch (value) {
   'INSPECCION_EMBARCACION' => 'Embarcación',
   _ => value,
 };
+
+String _plazoLabelToValue(String label) => switch (label) {
+  'Vencido' => 'VENCIDO',
+  'Vence pronto (3 días)' => 'PRONTO',
+  'Al día' => 'AL_DIA',
+  _ => label,
+};
+
+String _plazoValueToLabel(String value) => switch (value) {
+  'VENCIDO' => 'Vencido',
+  'PRONTO' => 'Vence pronto (3 días)',
+  'AL_DIA' => 'Al día',
+  _ => value,
+};
+
+String _responsableLabelToValue(String label) =>
+    label == 'Tomados por mí' ? 'MIOS' : label;
+
+String _responsableValueToLabel(String value) =>
+    value == 'MIOS' ? 'Tomados por mí' : value;
 
 class _AreaSectionHeader extends StatelessWidget {
   final int count;

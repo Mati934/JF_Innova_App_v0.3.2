@@ -20,6 +20,8 @@ import '../../../sync/services/sync_service.dart';
 
 const _otherAreaKey = '__OTHER_AREA__';
 const _noCenterKey = '__NO_CENTER__';
+const _otherCenterKey = '__OTHER_CENTER__';
+const _otherCenterLabel = 'Otro (especificar)';
 const _noAreaKey = '__NO_AREA__';
 const _formativeColor = Color(0xFF1B3B6F);
 
@@ -43,6 +45,7 @@ class _FormativeActivityFormScreenState
   final _otherTypeController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _otherAreaController = TextEditingController();
+  final _otherCenterController = TextEditingController();
   final _photoQueue = AstPhotoPersistenceQueue();
   List<File> _photos = [];
   String? _photoError;
@@ -67,6 +70,7 @@ class _FormativeActivityFormScreenState
   String _activityType = 'CHARLA';
   String _areaSelection = _noAreaKey;
   String _centerSelection = _noCenterKey;
+  String? _contractorId;
   DateTime _date = DateTime.now();
   TimeOfDay _start = TimeOfDay.now();
   TimeOfDay _end = TimeOfDay.fromDateTime(
@@ -75,6 +79,7 @@ class _FormativeActivityFormScreenState
   Uint8List? _savedSignature;
   List<Map<String, dynamic>> _areas = [];
   List<Map<String, dynamic>> _centers = [];
+  List<Map<String, dynamic>> _contractors = [];
 
   String get _id => widget.activityId ?? _activityId;
   int? get _durationMinutes =>
@@ -97,6 +102,7 @@ class _FormativeActivityFormScreenState
     _otherTypeController.addListener(_onFieldChanged);
     _descriptionController.addListener(_onFieldChanged);
     _otherAreaController.addListener(_onFieldChanged);
+    _otherCenterController.addListener(_onFieldChanged);
     _relatorController.addListener(_onFieldChanged);
     _periodicAutoSave = Timer.periodic(
       const Duration(seconds: 30),
@@ -119,6 +125,7 @@ class _FormativeActivityFormScreenState
         _areas = await _repository.getAreas(companyId);
         _centers = await _repository.getCentros(companyId);
       }
+      _contractors = await _repository.getContratistas();
 
       final existing = widget.activityId == null
           ? null
@@ -157,10 +164,21 @@ class _FormativeActivityFormScreenState
               : _noAreaKey);
     _otherAreaController.text = row['area_otro']?.toString() ?? '';
     final centerId = row['centro_id']?.toString();
+    // Centro escrito a mano ("Otro"): sin centro_id y con el nombre en nombre_centro (= f.centro_nombre).
+    final typedCenter = centerId == null
+        ? (row['nombre_centro']?.toString().trim() ?? '')
+        : '';
     _centerSelection =
         centerId != null && _centers.any((center) => center['id'] == centerId)
         ? centerId
-        : _noCenterKey;
+        : (typedCenter.isNotEmpty ? _otherCenterKey : _noCenterKey);
+    _otherCenterController.text = typedCenter;
+    final contractorId = row['contratista_id']?.toString();
+    _contractorId =
+        contractorId != null &&
+            _contractors.any((item) => item['id']?.toString() == contractorId)
+        ? contractorId
+        : null;
     _otherTypeController.text = row['tipo_otro']?.toString() ?? '';
     _descriptionController.text = row['descripcion']?.toString() ?? '';
     _attendeesController.text = row['asistentes']?.toString() ?? '';
@@ -269,6 +287,10 @@ class _FormativeActivityFormScreenState
 
   String? _centerName() {
     if (_centerSelection == _noCenterKey) return null;
+    if (_centerSelection == _otherCenterKey) {
+      final typed = _otherCenterController.text.trim();
+      return typed.isEmpty ? null : typed;
+    }
     for (final center in _centers) {
       if (center['id']?.toString() == _centerSelection) {
         return center['nombre']?.toString();
@@ -277,7 +299,37 @@ class _FormativeActivityFormScreenState
     return null;
   }
 
-  String get _centerLabel => _centerName() ?? 'Sin centro';
+  String get _centerLabel {
+    if (_centerSelection == _otherCenterKey) return _otherCenterLabel;
+    return _centerName() ?? 'Sin centro';
+  }
+
+  static const _noContractorLabel = 'Sin empresa contratista';
+
+  String? _contractorName() {
+    for (final item in _contractors) {
+      if (item['id']?.toString() == _contractorId) {
+        return item['nombre']?.toString();
+      }
+    }
+    return null;
+  }
+
+  List<String> get _contractorOptions => [
+    _noContractorLabel,
+    ..._contractors.map((item) => item['nombre']?.toString() ?? ''),
+  ];
+
+  void _selectContractor(String? label) {
+    final match = _contractors.firstWhere(
+      (item) => item['nombre']?.toString() == label,
+      orElse: () => <String, dynamic>{},
+    );
+    setState(
+      () => _contractorId = match.isEmpty ? null : match['id'].toString(),
+    );
+    _onFieldChanged();
+  }
 
   String get _areaLabel {
     if (_areaSelection == _otherAreaKey) {
@@ -299,6 +351,7 @@ class _FormativeActivityFormScreenState
   List<String> get _centerOptions => [
     'Sin centro',
     ..._centers.map((center) => center['nombre']?.toString() ?? ''),
+    _otherCenterLabel,
   ];
 
   List<String> get _areaOptions => [
@@ -599,6 +652,11 @@ class _FormativeActivityFormScreenState
       _onFieldChanged();
       return;
     }
+    if (label == _otherCenterLabel) {
+      setState(() => _centerSelection = _otherCenterKey);
+      _onFieldChanged();
+      return;
+    }
     final center = _centers.firstWhere(
       (item) => item['nombre']?.toString() == label,
       orElse: () => <String, dynamic>{},
@@ -640,32 +698,35 @@ class _FormativeActivityFormScreenState
     }
   }
 
-  FormativeActivity _buildActivity({required String status}) =>
-      FormativeActivity(
-        id: _id,
-        usuarioId: _userId!,
-        empresaId: _companyId!,
-        centroId: _centerSelection == _noCenterKey ? null : _centerSelection,
-        centroNombre: _centerName(),
-        areaId: _areaSelection == _otherAreaKey || _areaSelection == _noAreaKey
-            ? null
-            : _areaSelection,
-        areaNombre: _areaName(),
-        areaOtro: _areaSelection == _otherAreaKey
-            ? _otherAreaController.text.trim()
-            : null,
-        tipoActividad: _activityType,
-        tipoOtro: _activityType == 'OTRO'
-            ? _otherTypeController.text.trim()
-            : null,
-        descripcion: _descriptionController.text.trim(),
-        fecha: _date,
-        horaInicio: _formatTime(_start),
-        horaTermino: _formatTime(_end),
-        asistentes: _attendees,
-        relatorNombre: _relatorController.text.trim(),
-        estadoFinal: status,
-      );
+  FormativeActivity _buildActivity({
+    required String status,
+  }) => FormativeActivity(
+    id: _id,
+    usuarioId: _userId!,
+    empresaId: _companyId!,
+    centroId:
+        _centerSelection == _noCenterKey || _centerSelection == _otherCenterKey
+        ? null
+        : _centerSelection,
+    centroNombre: _centerName(),
+    contratistaId: _contractorId,
+    areaId: _areaSelection == _otherAreaKey || _areaSelection == _noAreaKey
+        ? null
+        : _areaSelection,
+    areaNombre: _areaName(),
+    areaOtro: _areaSelection == _otherAreaKey
+        ? _otherAreaController.text.trim()
+        : null,
+    tipoActividad: _activityType,
+    tipoOtro: _activityType == 'OTRO' ? _otherTypeController.text.trim() : null,
+    descripcion: _descriptionController.text.trim(),
+    fecha: _date,
+    horaInicio: _formatTime(_start),
+    horaTermino: _formatTime(_end),
+    asistentes: _attendees,
+    relatorNombre: _relatorController.text.trim(),
+    estadoFinal: status,
+  );
 
   Future<Uint8List?> _signatureBytes() async => _savedSignature;
 
@@ -716,6 +777,8 @@ class _FormativeActivityFormScreenState
       'empresa_nombre': _companyName,
       'centro_id': activity.centroId,
       'nombre_centro': activity.centroNombre,
+      'contratista_id': activity.contratistaId,
+      'contratista_nombre': _contractorName(),
       'area_nombre': activity.areaNombre,
       'area_otro': activity.areaOtro,
       'tipo_actividad': 'ACTIVIDAD_FORMATIVA',
@@ -902,6 +965,7 @@ class _FormativeActivityFormScreenState
     _otherTypeController.dispose();
     _descriptionController.dispose();
     _otherAreaController.dispose();
+    _otherCenterController.dispose();
     super.dispose();
   }
 
@@ -952,6 +1016,28 @@ class _FormativeActivityFormScreenState
                             label: 'Centro',
                             icon: Icons.location_city_outlined,
                             onChanged: _selectCenter,
+                          ),
+                          if (_centerSelection == _otherCenterKey) ...[
+                            TextFormField(
+                              controller: _otherCenterController,
+                              decoration: const InputDecoration(
+                                labelText: 'Nombre del centro',
+                                border: OutlineInputBorder(),
+                              ),
+                              validator: (value) =>
+                                  _centerSelection == _otherCenterKey &&
+                                      (value == null || value.trim().isEmpty)
+                                  ? 'Indica el nombre del centro'
+                                  : null,
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          CustomDropdown(
+                            items: _contractorOptions,
+                            value: _contractorName() ?? _noContractorLabel,
+                            label: 'Empresa contratista (opcional)',
+                            icon: Icons.handshake_outlined,
+                            onChanged: _selectContractor,
                           ),
                           if (_centers.isEmpty)
                             Padding(
@@ -1321,7 +1407,7 @@ class _FormativeActivityFormScreenState
         ),
       );
     }
-    final withRelator = FormativeActivity.hoursWithRelator(
+    final withoutRelator = FormativeActivity.hoursWithoutRelator(
       _attendees,
       duration,
     );
@@ -1343,7 +1429,7 @@ class _FormativeActivityFormScreenState
           ),
           const SizedBox(height: 4),
           Text(
-            withRelator.toStringAsFixed(2),
+            withoutRelator.toStringAsFixed(2),
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
               color: _formativeColor,
               fontWeight: FontWeight.w700,
@@ -1351,7 +1437,7 @@ class _FormativeActivityFormScreenState
           ),
           const SizedBox(height: 4),
           const Text(
-            'Incluye al relator.',
+            'Solo asistentes, sin el relator.',
             style: TextStyle(fontSize: 12, color: Colors.black54),
           ),
         ],

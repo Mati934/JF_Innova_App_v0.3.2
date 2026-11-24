@@ -310,17 +310,17 @@ class TicketRepository {
   /// 1) Primer ítem NO subsanado.
   /// 2) Si todos están subsanados, primer ítem disponible.
   /// 3) Orden ascendente por `orden` (y luego por `numero_pregunta`).
-  Future<
-    Map<String, ({int? numeroPregunta, String? categoria, String origenItem})>
-  >
-  getReferenciaItemPorTicket(List<String> ticketIds) async {
+  Future<Map<String, TicketItemReferencia>> getReferenciaItemPorTicket(
+    List<String> ticketIds,
+  ) async {
     final unicos = ticketIds.toSet().toList();
     if (unicos.isEmpty) return {};
 
     final rows = await _client
         .from('ticket_items')
         .select(
-          'ticket_id, numero_pregunta, categoria, origen_item, subsanado, orden',
+          'ticket_id, numero_pregunta, categoria, origen_item, subsanado, '
+          'orden, pregunta, descripcion',
         )
         .inFilter('ticket_id', unicos);
 
@@ -343,11 +343,7 @@ class TicketRepository {
       return int.tryParse(value.toString());
     }
 
-    final result =
-        <
-          String,
-          ({int? numeroPregunta, String? categoria, String origenItem})
-        >{};
+    final result = <String, TicketItemReferencia>{};
 
     for (final entry in byTicket.entries) {
       final items = entry.value;
@@ -371,6 +367,8 @@ class TicketRepository {
         origenItem:
             first['origen_item']?.toString() ??
             TicketItemOrigen.respuestaInspeccion.value,
+        pregunta: first['pregunta']?.toString(),
+        descripcion: first['descripcion']?.toString(),
       );
     }
 
@@ -1647,13 +1645,8 @@ class TicketRepository {
       );
     }
 
-    if (subsanado) {
-      await _finalizarSiCorresponde(
-        ticketId: item.ticketId,
-        usuarioId: usuarioId,
-      );
-    }
-
+    // Ya no se finaliza solo: quien lo tomó pulsa "Finalizar" y deja el
+    // comentario de cierre para quien lo revisa (reunión 2026-10-29).
     return actualizado;
   }
 
@@ -1714,44 +1707,19 @@ class TicketRepository {
         '⚠️ [TicketRepository] Error guardando bitácora de subsanación: $e',
       );
     }
-
-    if (subsanado) {
-      await _finalizarSiCorresponde(ticketId: ticket.id, usuarioId: usuarioId);
-    }
   }
 
-  Future<void> _finalizarSiCorresponde({
-    required String ticketId,
-    required String usuarioId,
-  }) async {
-    final items = await getItems(ticketId);
-    if (items.isEmpty || items.any((i) => !i.subsanado)) return;
-
-    final rows = await _client
-        .from('tickets')
-        .update({'estado': TicketEstado.finalizadoPendienteRevision.value})
-        .eq('id', ticketId)
-        .eq('estado', TicketEstado.tomado.value)
-        .select();
-
-    if ((rows as List).isEmpty) return; // ya estaba en otro estado
-
-    await _registrarHistorial(
-      ticketId: ticketId,
-      usuarioId: usuarioId,
-      accion: TicketHistorialAccion.finalizado,
-    );
-  }
-
-  /// Finaliza explícitamente el ticket que [usuarioId] tiene tomado y lo
-  /// envía a revisión del admin. A diferencia de [_finalizarSiCorresponde]
-  /// (que solo se dispara como efecto colateral de subsanar el último ítem),
-  /// esto permite finalizar tickets sin ítems (ej. SOLICITUD), que de otra
-  /// forma nunca podrían salir del estado TOMADO.
+  /// Finaliza el ticket que [usuarioId] tiene tomado y lo envía a revisión
+  /// del admin, con el [comentario] de cierre (qué se hizo) para el revisor.
+  /// Sirve también para tickets sin ítems (ej. SOLICITUD).
   Future<void> finalizarTicket({
     required String ticketId,
     required String usuarioId,
+    required String comentario,
   }) async {
+    if (comentario.trim().isEmpty) {
+      throw TicketAccionFallidaException('Escribe el comentario de cierre.');
+    }
     final items = await getItems(ticketId);
     if (items.isNotEmpty && items.any((i) => !i.subsanado)) {
       throw TicketAccionFallidaException('Aún hay observaciones sin subsanar.');
@@ -1775,6 +1743,7 @@ class TicketRepository {
       ticketId: ticketId,
       usuarioId: usuarioId,
       accion: TicketHistorialAccion.finalizado,
+      comentario: comentario.trim(),
     );
   }
 

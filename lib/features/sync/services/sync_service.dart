@@ -3451,16 +3451,17 @@ class SyncService {
   Future<void> _generarPdfsFormativasDiferidos() async {
     final db = await _dbHelper.database;
     final pendientes = await db.rawQuery('''
-            SELECT a.*, e.nombre AS empresa_nombre, c.nombre AS nombre_centro,
+            SELECT a.*, e.nombre AS empresa_nombre, COALESCE(c.nombre, f.centro_nombre) AS nombre_centro,
                    f.area_nombre, f.area_otro,
                    f.tipo_actividad AS actividad_formativa_tipo, f.tipo_otro,
                    f.descripcion, f.hora_inicio, f.hora_termino, f.asistentes,
                    f.duracion_real_minutos, f.duracion_contabilizada_minutos,
                    f.hh_sin_relator, f.hh_con_relator, f.relator_nombre,
-                   f.firma_relator_image
+                   f.firma_relator_image, ct.nombre AS contratista_nombre
               FROM actividades_pendientes a
               JOIN actividades_formativas_pendientes f ON f.actividad_id = a.id
               LEFT JOIN empresas e ON e.id = a.empresa_id
+              LEFT JOIN contratistas ct ON ct.id = a.contratista_id
               LEFT JOIN centros c ON c.id = a.centro_id
              WHERE a.tipo_actividad = 'ACTIVIDAD_FORMATIVA'
                AND a.estado_final = 'En Seguimiento'

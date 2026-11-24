@@ -45,6 +45,7 @@ class LocalFormativeActivityRepository {
         'usuario_id': activity.usuarioId,
         'empresa_id': activity.empresaId,
         'centro_id': activity.centroId,
+        'contratista_id': activity.contratistaId,
         'tipo_actividad': 'ACTIVIDAD_FORMATIVA',
         'fecha_realizacion': activity.fecha.toIso8601String(),
         'estado_final': finalized ? 'En Seguimiento' : 'En Progreso',
@@ -184,7 +185,7 @@ class LocalFormativeActivityRepository {
   Future<List<Map<String, dynamic>>> getDrafts() async {
     final db = await _databaseHelper.database;
     return db.rawQuery('''
-      SELECT a.*, c.nombre AS nombre_centro,
+      SELECT a.*, COALESCE(c.nombre, f.centro_nombre) AS nombre_centro,
              f.tipo_actividad AS actividad_formativa_tipo,
              f.hora_inicio, f.hora_termino, f.area_nombre, f.area_otro,
              f.asistentes, f.relator_nombre
@@ -202,7 +203,8 @@ class LocalFormativeActivityRepository {
     final db = await _databaseHelper.database;
     final rows = await db.rawQuery(
       '''
-      SELECT a.*, c.nombre AS nombre_centro, e.nombre AS empresa_nombre,
+      SELECT a.*, COALESCE(c.nombre, f.centro_nombre) AS nombre_centro, e.nombre AS empresa_nombre,
+             ct.nombre AS contratista_nombre,
              f.area_id, f.area_nombre, f.area_otro, f.tipo_actividad AS actividad_formativa_tipo,
              f.tipo_otro, f.descripcion, f.hora_inicio, f.hora_termino, f.asistentes,
              f.duracion_real_minutos, f.duracion_contabilizada_minutos,
@@ -211,6 +213,7 @@ class LocalFormativeActivityRepository {
         FROM actividades_pendientes a
         LEFT JOIN centros c ON c.id = a.centro_id
         LEFT JOIN empresas e ON e.id = a.empresa_id
+        LEFT JOIN contratistas ct ON ct.id = a.contratista_id
         LEFT JOIN actividades_formativas_pendientes f ON f.actividad_id = a.id
        WHERE a.id = ?
        LIMIT 1
@@ -242,6 +245,9 @@ class LocalFormativeActivityRepository {
   Future<List<Map<String, dynamic>>> getAreas(String empresaId) async {
     return _databaseHelper.getAreasByEmpresa(empresaId);
   }
+
+  Future<List<Map<String, dynamic>>> getContratistas() =>
+      _databaseHelper.getContratistas();
 
   Future<List<Map<String, dynamic>>> getCentros(String empresaId) async {
     final db = await _databaseHelper.database;

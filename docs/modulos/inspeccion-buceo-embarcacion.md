@@ -19,10 +19,11 @@ de informe oficial. Los "No cumple" alimentan el módulo de [Tickets](tickets.md
   puerto está **ABIERTO** o **CERRADO**.
   - Puerto abierto, o cerrado con actividad `PRE_INSPECCION` → inspección completa:
     exige tipo (`INSPECCION_BUCEO` / `INSPECCION_EMBARCACION`) y contratista.
-  - **Embarcación** (desde 2026-11-17): el selector muestra **todas** las embarcaciones, primero las del
-    contratista elegido y después las demás como "nombre · servicio" (`getEmbarcacionesParaSelector`,
-    `core/utils/embarcacion_opciones.dart`). Antes se filtraban por contratista y, como las embarcaciones rotan de
-    servicio, la que faltaba se creaba de nuevo (duplicados). La actividad guarda su propio `contratista_id`.
+  - **Embarcación** (desde 2026-11-24, decisión del usuario): el selector muestra **solo** las embarcaciones del
+    servicio contratista elegido (`getEmbarcaciones`); al cambiar el servicio se borra la embarcación elegida.
+    Entre 2026-11-17 y 2026-11-24 mostraba todas ("nombre · servicio") para evitar duplicados cuando una
+    embarcación rota de servicio; ese selector sigue en AST. Riesgo conocido: si la embarcación está asignada a
+    otro servicio, no aparece y hay que reasignarla en Administración (no crearla de nuevo).
   - Puerto cerrado con otra actividad → se registra solo como **BITACORA**.
 - **Buceo**: exige al menos **1 participante** en la cuadrilla para finalizar
   (confirmado 2026-10-22). Registra nivel de buceo (`Superficie, Basico,

@@ -558,41 +558,46 @@ void main() {
     });
 
     test(
-        'PDF local eliminado (reinstalación): sync limpia path para regenerar',
-        () {
-      // Caso: pdf_path_local apunta a archivo que ya no existe
-      // (reinstalación, clear data, etc.)
-      // Sync debe limpiar pdf_path_local → DeferredPdfService lo regenera
-      final row = {
-        'pdf_path_local': '/data/user/0/com.app/documents/reporte_42.pdf',
-        'pdf_url': null,
-        'numero_reporte': '42',
-        'estado_final': 'En Seguimiento',
-        'eliminado': 0,
-      };
+      'PDF local eliminado (reinstalación): sync limpia path para regenerar',
+      () {
+        // Caso: pdf_path_local apunta a archivo que ya no existe
+        // (reinstalación, clear data, etc.)
+        // Sync debe limpiar pdf_path_local → DeferredPdfService lo regenera
+        final row = {
+          'pdf_path_local': '/data/user/0/com.app/documents/reporte_42.pdf',
+          'pdf_url': null,
+          'numero_reporte': '42',
+          'estado_final': 'En Seguimiento',
+          'eliminado': 0,
+        };
 
-      // Simulamos: file.existsSync() → false
-      const fileExists = false;
+        // Simulamos: file.existsSync() → false
+        const fileExists = false;
 
-      if (!fileExists) {
-        // Sync limpia pdf_path_local
-        row['pdf_path_local'] = null;
-      }
+        if (!fileExists) {
+          // Sync limpia pdf_path_local
+          row['pdf_path_local'] = null;
+        }
 
-      // Ahora DeferredPdfService SÍ lo detecta
-      final numero = row['numero_reporte']?.toString() ?? '';
-      final necesitaGenerar = row['estado_final'] == 'En Seguimiento' &&
-          (row['pdf_path_local'] == null || row['pdf_path_local'] == '') &&
-          (row['pdf_url'] == null || row['pdf_url'] == '') &&
-          row['eliminado'] == 0 &&
-          numero.isNotEmpty &&
-          !numero.startsWith('PROV-') &&
-          !numero.startsWith('~');
+        // Ahora DeferredPdfService SÍ lo detecta
+        final numero = row['numero_reporte']?.toString() ?? '';
+        final necesitaGenerar =
+            row['estado_final'] == 'En Seguimiento' &&
+            (row['pdf_path_local'] == null || row['pdf_path_local'] == '') &&
+            (row['pdf_url'] == null || row['pdf_url'] == '') &&
+            row['eliminado'] == 0 &&
+            numero.isNotEmpty &&
+            !numero.startsWith('PROV-') &&
+            !numero.startsWith('~');
 
-      expect(necesitaGenerar, true,
+        expect(
+          necesitaGenerar,
+          true,
           reason:
-              'Después de limpiar path stale, DeferredPdfService regenera el PDF');
-    });
+              'Después de limpiar path stale, DeferredPdfService regenera el PDF',
+        );
+      },
+    );
 
     test('SIN fix: pdf_path_local stale bloquea regeneración', () {
       // Documenta el bug que existía ANTES del fix:
@@ -607,7 +612,8 @@ void main() {
       };
 
       final numero = row['numero_reporte']?.toString() ?? '';
-      final necesitaGenerar = row['estado_final'] == 'En Seguimiento' &&
+      final necesitaGenerar =
+          row['estado_final'] == 'En Seguimiento' &&
           (row['pdf_path_local'] == null || row['pdf_path_local'] == '') &&
           (row['pdf_url'] == null || row['pdf_url'] == '') &&
           row['eliminado'] == 0 &&
@@ -615,9 +621,12 @@ void main() {
           !numero.startsWith('PROV-') &&
           !numero.startsWith('~');
 
-      expect(necesitaGenerar, false,
-          reason:
-              'Bug anterior: path stale impedía que DeferredPdfService detecte la actividad');
+      expect(
+        necesitaGenerar,
+        false,
+        reason:
+            'Bug anterior: path stale impedía que DeferredPdfService detecte la actividad',
+      );
     });
   });
 

@@ -197,4 +197,56 @@ void main() {
       );
     });
   });
+
+  group('TicketReglas.plazo', () {
+    final ahora = DateTime(2026, 11, 23, 12);
+    TicketModel conLimite(DateTime? limite, TicketEstado estado) => TicketModel(
+      id: 't1',
+      empresaId: 'empresa-1',
+      origen: TicketOrigen.solicitud,
+      tipoTicket: TicketTipo.solicitud,
+      motivo: 'motivo',
+      generadoPorId: 'u',
+      estado: estado,
+      fechaLimite: limite,
+    );
+
+    test('vencido, pronto y al día', () {
+      expect(
+        TicketReglas.plazo(
+          conLimite(DateTime(2026, 11, 20), TicketEstado.abierto),
+          ahora: ahora,
+        ),
+        'VENCIDO',
+      );
+      expect(
+        TicketReglas.plazo(
+          conLimite(DateTime(2026, 11, 25), TicketEstado.tomado),
+          ahora: ahora,
+        ),
+        'PRONTO',
+      );
+      expect(
+        TicketReglas.plazo(
+          conLimite(DateTime(2026, 12, 20), TicketEstado.abierto),
+          ahora: ahora,
+        ),
+        'AL_DIA',
+      );
+      expect(
+        TicketReglas.plazo(conLimite(null, TicketEstado.abierto), ahora: ahora),
+        'AL_DIA',
+      );
+    });
+
+    test('un ticket cerrado nunca está vencido', () {
+      expect(
+        TicketReglas.plazo(
+          conLimite(DateTime(2026, 1, 1), TicketEstado.cerrado),
+          ahora: ahora,
+        ),
+        'AL_DIA',
+      );
+    });
+  });
 }

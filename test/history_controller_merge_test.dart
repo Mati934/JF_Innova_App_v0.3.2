@@ -3,8 +3,9 @@ import 'package:jf_innova_app/features/history/controllers/history_controller.da
 
 void main() {
   group('HistoryController.filter matching', () {
-    test('aplica filtros de area, contratista y tipo de inspeccion', () {
+    test('aplica filtros de area, contratista y tipo', () {
       final row = {
+        'modulo': 'Inspección',
         'tipo_registro': 'INSPECCION_BUCEO',
         'area_id': 'area-1',
         'contratista_id': 'ct-2',
@@ -13,7 +14,7 @@ void main() {
       final filters = {
         'area_id': 'area-1',
         'contratista_id': 'ct-2',
-        'tipo_inspeccion': 'INSPECCION_BUCEO',
+        'tipo': 'Inspección de buceo',
       };
 
       expect(HistoryController.matchesHistoryFilters(row, filters), isTrue);
@@ -24,6 +25,46 @@ void main() {
         }, filters),
         isFalse,
       );
+    });
+  });
+
+  group('HistoryController tipo y datos deducidos', () {
+    test('tipoLabel separa inspecciones y usa el módulo para el resto', () {
+      expect(
+        HistoryController.tipoLabel({
+          'modulo': 'Inspección',
+          'tipo_registro': 'ACTIVIDAD_FORMATIVA',
+        }),
+        'Registro de actividad',
+      );
+      expect(
+        HistoryController.tipoLabel({'modulo': 'AST', 'tipo_registro': 'AST'}),
+        'AST',
+      );
+      expect(
+        HistoryController.matchesHistoryFilters(
+          {'modulo': 'Hidroser', 'tipo_registro': 'GRUA_HORQUILLA_PFA'},
+          {'tipo': 'AST'},
+        ),
+        isFalse,
+      );
+    });
+
+    test('deduce área del centro y contratista de la embarcación', () {
+      final row = HistoryController.enrichRow(
+        {'centro_id': 'c1', 'embarcacion_id': 'e1'},
+        areaPorCentro: {'c1': 'a1'},
+        contratistaPorEmbarcacion: {'e1': 'ct1'},
+      );
+      expect(row['area_id'], 'a1');
+      expect(row['contratista_id'], 'ct1');
+
+      final propio = HistoryController.enrichRow(
+        {'embarcacion_id': 'e1', 'contratista_id': 'ct9'},
+        areaPorCentro: const {},
+        contratistaPorEmbarcacion: {'e1': 'ct1'},
+      );
+      expect(propio['contratista_id'], 'ct9');
     });
   });
 

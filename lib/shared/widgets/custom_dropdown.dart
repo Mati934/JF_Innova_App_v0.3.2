@@ -66,13 +66,17 @@ class CustomDropdown extends StatelessWidget {
                   Icon(icon, size: 14, color: AppTheme.primaryBlue),
                   const SizedBox(width: 6),
                 ],
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.primaryBlue,
-                    letterSpacing: 0.2,
+                Flexible(
+                  // Etiquetas largas no desbordan en pantallas angostas o con letra grande.
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.primaryBlue,
+                      letterSpacing: 0.2,
+                    ),
                   ),
                 ),
                 if (hasValue) ...[

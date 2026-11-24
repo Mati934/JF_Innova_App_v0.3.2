@@ -183,26 +183,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   List<FilterDef> _buildFilterDefs() {
+    final tipos = _ctrl.tiposDisponibles.toList()..sort();
     final defs = <FilterDef>[
       FilterDef(
-        key: 'modulo',
+        key: 'tipo',
         label: 'Tipo',
         icon: Icons.category_rounded,
-        items: const ['Inspección', 'Visita Técnica'],
-      ),
-      const FilterDef(
-        key: 'tipo_inspeccion',
-        label: 'Tipo de inspección',
-        icon: Icons.assignment_outlined,
-        items: ['Buceo', 'Embarcación'],
-        resolveId: _tipoInspeccionLabelToValue,
-        resolveDisplayName: _tipoInspeccionValueToLabel,
+        items: tipos,
+        enableSearch: tipos.length > 6,
       ),
     ];
 
     if (_ctrl.esAdmin) {
       final centroMap = {
-        for (final c in _ctrl.listaCentros)
+        for (final c in _ctrl.conRegistros('centro_id', _ctrl.listaCentros))
           c['id'].toString(): (c['nombre'] as String?) ?? '',
       };
       defs.add(
@@ -223,7 +217,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       );
 
       final areaMap = {
-        for (final a in _ctrl.listaAreas)
+        for (final a in _ctrl.conRegistros('area_id', _ctrl.listaAreas))
           a['id'].toString(): (a['nombre'] as String?) ?? '',
       };
       defs.add(
@@ -244,7 +238,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       );
 
       final usuarioMap = {
-        for (final u in _ctrl.listaUsuarios)
+        for (final u in _ctrl.conRegistros('usuario_id', _ctrl.listaUsuarios))
           u['id'].toString(): (u['nombre_completo'] as String?) ?? '',
       };
       defs.add(
@@ -265,7 +259,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
       );
 
       final embarcacionMap = {
-        for (final e in _ctrl.listaEmbarcaciones)
+        for (final e in _ctrl.conRegistros(
+          'embarcacion_id',
+          _ctrl.listaEmbarcaciones,
+        ))
           e['id'].toString(): (e['nombre'] as String?) ?? '',
       };
       defs.add(
@@ -286,7 +283,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
       );
 
       final contratistaMap = {
-        for (final c in _ctrl.listaContratistas)
+        for (final c in _ctrl.conRegistros(
+          'contratista_id',
+          _ctrl.listaContratistas,
+        ))
           c['id'].toString(): (c['nombre'] as String?) ?? '',
       };
       defs.add(
@@ -310,15 +310,3 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return defs;
   }
 }
-
-String _tipoInspeccionLabelToValue(String label) => switch (label) {
-  'Buceo' => 'INSPECCION_BUCEO',
-  'Embarcación' => 'INSPECCION_EMBARCACION',
-  _ => label,
-};
-
-String _tipoInspeccionValueToLabel(String value) => switch (value) {
-  'INSPECCION_BUCEO' => 'Buceo',
-  'INSPECCION_EMBARCACION' => 'Embarcación',
-  _ => value,
-};

@@ -218,7 +218,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('keeps context fields and shows only HH including the relator', (
+  testWidgets('keeps context fields and shows only HH of attendees (no relator)', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(360, 800);
@@ -257,7 +257,7 @@ void main() {
       scrollable: scrollable,
     );
     expect(find.text('Total HH'), findsOneWidget);
-    expect(find.text('2.50'), findsOneWidget);
+    expect(find.text('2.00'), findsOneWidget);
     expect(find.text('Duración real'), findsOneWidget);
     expect(find.text('16 min'), findsOneWidget);
     expect(find.text('Duración contabilizada'), findsOneWidget);
@@ -266,7 +266,7 @@ void main() {
       tester.getTopLeft(find.text('Duración real')).dy,
       tester.getTopLeft(find.text('Duración contabilizada')).dy,
     );
-    expect(find.text('Incluye al relator.'), findsOneWidget);
+    expect(find.text('Solo asistentes, sin el relator.'), findsOneWidget);
     expect(find.textContaining('HH sin relator'), findsNothing);
     expect(find.textContaining('confirmar cuál regla'), findsNothing);
 
@@ -278,7 +278,7 @@ void main() {
     expect(tester.widget<TextFormField>(attendees).controller!.text, '4');
     await tester.enterText(attendees, '8');
     await tester.pump();
-    expect(find.text('4.50'), findsOneWidget);
+    expect(find.text('4.00'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.scrollUntilVisible(
