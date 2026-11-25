@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import 'package:package_info_plus/package_info_plus.dart'; // <--- 1. IMPORTAR ESTO
 import '../../../../core/database/database_helper.dart';
 import '../../../home/presentation/screens/home_screen.dart';
 
@@ -16,11 +16,18 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
 
+  // <--- 2. AGREGAR ESTA FUNCIÓN AQUÍ (Antes del build)
+  Future<String> _getVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    // Esto devolverá algo como: "Versión 0.6.0 (15)"
+    return "v${info.version} (b${info.buildNumber})";
+  }
+
   Future<void> _iniciarSesion() async {
+    // ... (Tu código de iniciar sesión sigue IGUAL, no lo toques) ...
     setState(() => _isLoading = true);
     try {
       final supabase = Supabase.instance.client;
-
       final response = await supabase.auth.signInWithPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
@@ -28,9 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (response.user != null) {
         await _descargarDatosIniciales(supabase);
-
-        if (!mounted) return; // Corrección de estabilidad
-
+        if (!mounted) return;
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -60,12 +65,13 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _descargarDatosIniciales(SupabaseClient supabase) async {
+    // ... (Tu código sigue igual) ...
     try {
       final data = await supabase
           .from('formulario_items')
           .select()
-          .eq('activo', true);
-
+          .eq('activo', true)
+          .order('orden');
       if (data.isNotEmpty) {
         await DatabaseHelper.instance.guardarItemsOffline(
           List<Map<String, dynamic>>.from(data),
@@ -78,7 +84,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Usamos el tema definido en app_theme.dart
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -86,33 +91,9 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // --- CORRECCIÓN DE LOGO ---
-              // Asegúrate de tener assets/images/logo_jfinnova.png
-              Image.asset(
-                'assets/images/logo_jfinnova.png',
-                height: 120,
-                // Si la imagen no carga, muestra un icono de error temporalmente
-                errorBuilder: (context, error, stackTrace) => const Icon(
-                  Icons.shield_outlined,
-                  size: 80,
-                  color: Color(0xFF003366),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              Text(
-                'JF INNOVA',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).primaryColor,
-                ),
-              ),
-              const Text(
-                'Gestión de Prevención',
-                style: TextStyle(color: Colors.grey),
-              ),
               const SizedBox(height: 40),
 
+              // ... (La Card del Formulario sigue igual) ...
               Card(
                 elevation: 4,
                 child: Padding(
@@ -144,13 +125,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: _isLoading ? null : _iniciarSesion,
                           child: _isLoading
                               ? const SizedBox(
-                                  // <--- ESTO ES LO NUEVO
                                   height: 24,
                                   width: 24,
                                   child: CircularProgressIndicator(
                                     color: Colors.white,
-                                    strokeWidth:
-                                        2.5, // Más fino se ve más elegante
+                                    strokeWidth: 2.5,
                                   ),
                                 )
                               : const Text('INGRESAR'),
@@ -159,6 +138,23 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                 ),
+              ),
+
+              // <--- 3. PEGA ESTO AQUÍ AL FINAL (Debajo de la Card)
+              const SizedBox(height: 30),
+              FutureBuilder<String>(
+                future: _getVersion(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const SizedBox();
+                  return Text(
+                    "Versión instalada: ${snapshot.data}",
+                    style: TextStyle(
+                      color: Colors.grey.shade400,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  );
+                },
               ),
             ],
           ),
