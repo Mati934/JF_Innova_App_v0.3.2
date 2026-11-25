@@ -30,6 +30,8 @@ la clasificacion indicada aqui.
   historicos por confirmar.
 - [Registro de inmersiones (AquaChile)](02_en_progreso/PLAN_REGISTRO_INMERSIONES.md) — app implementada
   (2026-11-18); falta ejecutar la migracion Supabase, probar en dispositivo y publicar.
+- [Turno (ingreso y egreso del auditor)](02_en_progreso/PLAN_TURNO.md) — app implementada
+  (2026-11-24); migracion Supabase ejecutada (2026-11-24); falta probar en dispositivo y publicar. Le sigue Jornada diaria.
 - [Conversaciones y reuniones](02_en_progreso/CONVERSACION_REUNIONES_AGOSTO_2026.md) —
   documento vivo que deriva ideas a planes concretos.
 

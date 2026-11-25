@@ -78,7 +78,7 @@ void main() {
     Database? upgraded;
     try {
       upgraded = await DatabaseHelper.instance.database;
-      expect(await upgraded.getVersion(), 66);
+      expect(await upgraded.getVersion(), 68);
       final cols = await upgraded.rawQuery(
         'PRAGMA table_info(registros_inmersion_pendientes)',
       );

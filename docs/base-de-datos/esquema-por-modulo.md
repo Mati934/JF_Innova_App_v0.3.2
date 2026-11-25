@@ -2,7 +2,7 @@
 
 > **Para qué es:** Qué tablas usa cada módulo, en SQLite y en Supabase, qué guarda cada una y su tamaño aproximado.
 
-> Última revisión: 2026-11-18. Filas = conteo aproximado en Supabase al 2026-10-22.
+> Última revisión: 2026-11-25. Filas = conteo aproximado en Supabase al 2026-10-22.
 > Local = tabla espejo en SQLite (normalmente `<tabla>_pendientes`).
 
 ## Numeración de informes (todos los módulos)
@@ -84,6 +84,21 @@ Desde 2026-11-18 (app v65 local; v66 vuelve opcional `actividad_id`). Tablas de 
 Trigger `trg_registro_inmersion_numero` (número al pasar a `Finalizado`, no gasta números en reintentos) y
 `trg_actividades_baja_registro_inmersion` (si la inspección pasa a `Eliminada`, el registro también).
 Rama `Registro de inmersiones` en `historial_unificado`.
+
+## Turno
+
+Desde 2026-11-24 (app v67 local). Tabla de Supabase creada por `supabase_migration_turno_v1.sql` (**ejecutada el
+2026-11-24**: la tabla ya existe en Supabase, vacía). Ficha: [turno](../modulos/turno.md).
+
+| Supabase | Local | Contenido | Filas |
+|---|---|---|---:|
+| `turnos` | `turnos` | Un turno del auditor: `usuario_id`, `empresa_id`, `area_id` (obligatorio), `centro_id` (opcional), `estado` (`ACTIVO`/`CERRADO`), `ingreso_fecha`, `egreso_estimado` (por defecto ingreso + 13; acortable, check entre ingreso e ingreso + 13 desde `supabase_migration_turno_v2.sql`, ejecutado 2026-11-25), `egreso_fecha` (nula si activo), `extraordinario` (sin uso desde 2026-11-25, siempre false), observaciones de ingreso y egreso, `ingreso_registrado_at` / `egreso_registrado_at` (cuándo se marcó), `app_version`. Local: `subido`, `eliminado`. | — |
+| `turno_cierres` | `turno_cierres` (v68) | Cierre de un turno (1 por turno, `turno_id` único, borra en cascada): `desde`/`hasta`, `estado` (`BORRADOR`/`GENERADO`), indicadores `n_*` (centros, insp. buceo/emb, AST, reg. actividad, obs. buceo/emb, faenas suspendidas), tickets `tk_*` (creados, cerrados, solo creó/creó y cerró/solo cerró, estados actuales, a cargo), secciones JSONB (`folios`, `centros`, `suspensiones`, `informes_pendientes`, `hallazgos`, `servicios`, `puertos_cerrados`; en SQLite TEXT con JSON), `bitacora`, `pdf_url`, `pdf_version`, `pdf_generado_at`, `app_version`. Local: `subido`, `eliminado`, `pdf_path_local`. Supabase: `supabase_migration_turno_v3.sql` (ejecutado 2026-11-25). | — |
+| `contratista_contactos` | — | Directorio por empresa: `empresa_id`, `contratista_id` (opcional), `contratista_nombre`, `contratista_clave` (generada, única por empresa), `actividad`, `supervisor`, `correo`, `fono`, `actualizado_por`. RLS: usuarios de la empresa. | — |
+
+Índice único parcial `uq_turnos_activo_por_usuario` (un `ACTIVO` por usuario). Trigger `trg_turnos_before_write`
+(`updated_at`; un turno `CERRADO` es de solo lectura: el trigger ignora cualquier cambio). RLS `turnos_owner_all`
+(el dueño, solo en empresas suyas) y `turnos_admin_select`.
 
 ## Actividades Formativas
 

@@ -18,6 +18,7 @@ import '../../configurable_checklists/domain/checklist_evidence_sync.dart';
 import '../../formative_activities/services/formative_activity_pdf_service.dart';
 import '../../formative_activities/data/repositories/local_formative_activity_repository.dart';
 import '../../registro_inmersiones/services/registro_inmersion_sync.dart';
+import '../../turno/services/turno_sync.dart';
 import 'dart:convert';
 
 class SyncService {
@@ -616,6 +617,9 @@ class SyncService {
       // inspección de buceo y de su N° para el PDF).
       int inmersionesSubidas = await RegistroInmersionSync().sincronizar();
 
+      // 3.g Turnos del auditor (sube los pendientes y baja los propios).
+      int turnosSubidos = await TurnoSync().sincronizar();
+
       // 4. Subir Hijos (Respuestas y Fotos)
       await _sincronizarRespuestas();
       final actividadesConFotosSincronizadas = await _sincronizarFotos();
@@ -637,7 +641,8 @@ class SyncService {
           astSubidos +
           merieuxSubidos +
           checklistsConfigurablesSubidos +
-          inmersionesSubidas;
+          inmersionesSubidas +
+          turnosSubidos;
     } catch (e) {
       debugPrint("❌ Error en sincronización global: $e");
       FirebaseCrashlytics.instance.recordError(
@@ -1257,6 +1262,7 @@ class SyncService {
       'ast_informes_pendientes',
       'merieux_visitas_pendientes',
       'registros_inmersion_pendientes',
+      'turnos',
     ];
 
     int total = 0;
@@ -1290,6 +1296,7 @@ class SyncService {
         'tabla': 'registros_inmersion_pendientes',
         'modulo': 'REGISTRO_INMERSIONES',
       },
+      {'tabla': 'turnos', 'modulo': 'TURNO'},
     ];
 
     final items = <Map<String, dynamic>>[];
@@ -1320,8 +1327,12 @@ class SyncService {
           'tabla': tabla,
           'modulo': modulo,
           'tipo_actividad': row['tipo_actividad']?.toString() ?? modulo,
-          'estado_final': row['estado_final']?.toString() ?? 'Pendiente',
-          'fecha_realizacion': row['fecha_realizacion']?.toString(),
+          // Turnos no tienen estado_final ni fecha_realizacion.
+          'estado_final':
+              (row['estado_final'] ?? row['estado'])?.toString() ??
+              'Pendiente',
+          'fecha_realizacion': (row['fecha_realizacion'] ?? row['ingreso_fecha'])
+              ?.toString(),
           'numero_reporte':
               row['numero_reporte']?.toString() ??
               row['correlativo']?.toString(),

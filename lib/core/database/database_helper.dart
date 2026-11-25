@@ -9,7 +9,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const int _dbVersion =
-      66; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
+      68; // Incrementa este número cada vez que hagas un cambio en la estructura de la base de datos
   static const String _dbName = 'jfinnova_v18_local.db';
 
   DatabaseHelper._init();
@@ -788,6 +788,8 @@ class DatabaseHelper {
     await _createFormativeActivitySchema(db);
     await _createFormativePhotoDeletionSchema(db);
     await _createRegistroInmersionesSchema(db);
+    await _createTurnoSchema(db);
+    await _createTurnoCierreSchema(db);
 
     debugPrint("✅ Base de datos v$_dbVersion inicializada.");
   }
@@ -2021,6 +2023,99 @@ class DatabaseHelper {
       await _registroInmersionActividadOpcional(db);
       debugPrint('✅ Parche v66 aplicado (registro sin inspección).');
     }
+    if (oldVersion < 67) {
+      await _createTurnoSchema(db);
+      debugPrint('✅ Parche v67 aplicado (módulo Turno).');
+    }
+    if (oldVersion < 68) {
+      await _createTurnoCierreSchema(db);
+      debugPrint('✅ Parche v68 aplicado (cierre de turno).');
+    }
+  }
+
+  /// v68: cierre de turno (borrador o PDF generado). Mismas columnas que
+  /// `public.turno_cierres` (las secciones JSONB van como TEXT con JSON) +
+  /// `subido`, `eliminado` y `pdf_path_local` (solo locales).
+  Future<void> _createTurnoCierreSchema(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS turno_cierres (
+        id TEXT PRIMARY KEY,
+        turno_id TEXT NOT NULL UNIQUE,
+        usuario_id TEXT NOT NULL,
+        empresa_id TEXT,
+        area_id TEXT,
+        desde TEXT NOT NULL,
+        hasta TEXT NOT NULL,
+        estado TEXT NOT NULL DEFAULT 'BORRADOR',
+        n_centros INTEGER,
+        n_insp_buceo INTEGER,
+        n_ast INTEGER,
+        n_insp_emb INTEGER,
+        n_reg_act INTEGER,
+        n_obs_buceo INTEGER,
+        n_obs_emb INTEGER,
+        n_faenas_suspendidas INTEGER,
+        tk_creados INTEGER,
+        tk_cerrados INTEGER,
+        tk_solo_creo INTEGER,
+        tk_creo_y_cerro INTEGER,
+        tk_solo_cerro INTEGER,
+        tk_abiertos INTEGER,
+        tk_tomados INTEGER,
+        tk_parciales INTEGER,
+        tk_por_revisar INTEGER,
+        tk_estado_cerrados INTEGER,
+        tk_a_cargo INTEGER,
+        folios TEXT NOT NULL DEFAULT '[]',
+        centros TEXT NOT NULL DEFAULT '[]',
+        suspensiones TEXT NOT NULL DEFAULT '[]',
+        informes_pendientes TEXT NOT NULL DEFAULT '[]',
+        hallazgos TEXT NOT NULL DEFAULT '[]',
+        servicios TEXT NOT NULL DEFAULT '[]',
+        puertos_cerrados TEXT NOT NULL DEFAULT '[]',
+        bitacora TEXT,
+        pdf_url TEXT,
+        pdf_version TEXT,
+        pdf_generado_at TEXT,
+        pdf_path_local TEXT,
+        app_version TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        subido INTEGER NOT NULL DEFAULT 0,
+        eliminado INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+  }
+
+  /// v67: módulo Turno (ingreso y egreso del auditor). Mismas columnas que
+  /// `public.turnos` en Supabase + `subido`/`eliminado` (solo locales).
+  Future<void> _createTurnoSchema(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS turnos (
+        id TEXT PRIMARY KEY,
+        usuario_id TEXT NOT NULL,
+        empresa_id TEXT,
+        area_id TEXT NOT NULL,
+        centro_id TEXT,
+        estado TEXT NOT NULL DEFAULT 'ACTIVO',
+        ingreso_fecha TEXT NOT NULL,
+        egreso_estimado TEXT NOT NULL,
+        egreso_fecha TEXT,
+        extraordinario INTEGER NOT NULL DEFAULT 0,
+        observacion_ingreso TEXT,
+        observacion_egreso TEXT,
+        ingreso_registrado_at TEXT,
+        egreso_registrado_at TEXT,
+        app_version TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        subido INTEGER NOT NULL DEFAULT 0,
+        eliminado INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_turnos_usuario ON turnos(usuario_id, estado)',
+    );
   }
 
   /// v66: el registro de inmersiones puede existir sin inspección de buceo
@@ -2371,6 +2466,8 @@ class DatabaseHelper {
       await _safeAddColumn(db, 'actividades_pendientes', 'empresa_id', 'TEXT');
       await _createFormativeActivitySchema(db);
       await _createRegistroInmersionesSchema(db);
+      await _createTurnoSchema(db);
+      await _createTurnoCierreSchema(db);
       // onOpen no corre en transacción: la reconstrucción va atómica.
       await db.transaction(_registroInmersionActividadOpcional);
       await _safeAddColumn(

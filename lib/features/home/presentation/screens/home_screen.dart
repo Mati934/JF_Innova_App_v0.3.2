@@ -11,6 +11,7 @@ import '../widgets/draft_list_widget.dart';
 import '../widgets/module_selector_grid.dart';
 import '../../../sync/presentation/screens/sync_pending_screen.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
+import '../../../turno/presentation/widgets/turno_aviso_inicio.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -62,6 +63,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (_controller.isSyncing) _buildSyncBanner(),
+                        if (_controller.enabledModules.any(
+                          (m) => m.moduleKey == 'TURNO',
+                        ))
+                          TurnoAvisoInicio(refrescar: _controller),
                         _SectionHeader(
                           title: 'Operaciones',
                           subtitle: 'Selecciona el módulo a utilizar',

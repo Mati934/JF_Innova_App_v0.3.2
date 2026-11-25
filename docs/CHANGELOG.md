@@ -5,8 +5,30 @@
 > Desde esa fecha se mantiene con la skill `documentar-app`.
 > Formato: `## AAAA-MM-DD` + líneas `- [Módulo] qué cambió para el usuario`.
 
+## 2026-11-25
+
+- [Turno] Cierre de turno (en pruebas): desde "Mis turnos" (o "⋯" en el turno activo) se arma el cierre con los
+  datos de la app (folios, resumen, tickets del turno, actividades por centro, faenas suspendidas, informes con
+  observaciones, hallazgos Intolerables, directorio) y se completa lo manual (puertos cerrados, bitácora, EPP/Cil.).
+  Todo editable; genera un PDF propio (v0.1.0) que se ve desde el turno. Base local v68.
+- [Turno] Migración Supabase v3 ejecutada: tablas `turno_cierres` y `contratista_contactos` con RLS.
+- [Turno] El área del primer turno se propone desde la última inspección o AST guardada en el teléfono.
+
+- [Turno] Nuevo diseño de "Registrar ingreso": tarjetas de fecha Ingreso → Salida, listas de área y centro con
+  el selector nuevo y respeto del borde inferior del teléfono (SafeArea). La salida estimada sale automática
+  (14 días) pero se puede acortar para un turno extra. Se quitaron "Ingreso extraordinario" y la observación
+  del ingreso.
+- [Turno] Nuevo diseño de la tarjeta del turno activo (regla de días, cuánto falta, fechas en tarjetitas) y
+  eliminar pasa a "⋯ → Opciones del turno", con confirmación que muestra el turno que se borra.
+- [Turno] Migración Supabase v2 ejecutada: la salida estimada acepta entre el ingreso e ingreso + 13.
+
 ## 2026-11-24
 
+- [Turno] Módulo nuevo (AquaChile y Servimaf): el auditor registra su
+  ingreso (área, centro opcional), ve su turno activo ("Día X de 14", salida estimada) y confirma la salida con la
+  fecha real, aunque sea días después. "Mis turnos" muestra los anteriores. Aviso en Inicio con el turno activo o
+  "Confirma tu salida" si ya pasó el día 14. Base local v67.
+- [Turno] Migración Supabase ejecutada: tabla `turnos` creada y módulo habilitado para AquaChile y Servimaf.
 - [Inspección] Al elegir la embarcación vuelven a salir solo las del servicio contratista elegido (como antes
   del 2026-11-17). En AST se mantiene la lista con todas.
 - [Registro de actividad] El centro tiene "Otro (especificar)" para escribir un centro que no está en la
